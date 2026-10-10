@@ -1837,10 +1837,16 @@ kbd {
   .brand span {
     display: none;
   }
+  .topbar {
+    gap: 4px;
+  }
   .topbar .tool-btn {
-    min-width: 46px;
-    padding: 4px 4px;
+    min-width: 44px;
+    padding: 4px 3px;
     font-size: 12px;
+  }
+  .toolbar-group {
+    padding: 0 3px;
   }
   .project-name {
     width: 128px;
