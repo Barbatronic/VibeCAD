@@ -48,9 +48,10 @@ main sur ce qui est mis en ligne.
 2. Onglet **Actions** du dépôt → **Publier sur GitHub Pages** → **Run workflow** (branche
    `main`) → bouton vert **Run workflow**. Compter 2 à 4 minutes ; la coche verte indique que
    c'est en ligne.
-3. Ouvrir le site et **recharger la page** (au besoin deux fois) : l'application installée pour
-   le mode hors ligne télécharge la nouvelle version au premier chargement et l'utilise au
-   suivant.
+3. Ouvrir (ou recharger) le site : la nouvelle version se télécharge en arrière-plan, puis Java
+   et la barre d'état proposent **« Mettre à jour »**. Un clic, et la page repart sur la nouvelle
+   version (le travail en cours est sauvegardé automatiquement). Un site déjà ouvert vérifie
+   aussi les mises à jour toutes les 30 minutes.
 
 Si vous préférez une mise à jour automatique à chaque `git push`, il suffit d'ajouter
 `push: { branches: [main] }` sous `on:` dans `.github/workflows/pages.yml`.
