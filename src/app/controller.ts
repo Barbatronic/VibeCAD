@@ -1403,7 +1403,7 @@ export class AppController {
     if ('hidden' in patch || 'collapsed' in patch) {
       void this.deps.projects?.setSetting('mascot', { hidden: mascot.hidden, collapsed: mascot.collapsed }).catch(() => undefined);
     }
-    if (patch.hidden === true) this.toast('info', 'Le chat est masqué. Pour le faire revenir : Aide → « Afficher le chat ».');
+    if (patch.hidden === true) this.toast('info', 'Java, le chat, est masqué. Pour le faire revenir : Aide → « Afficher le chat ».');
   }
 
   /** Action proposée par un conseil du chat (toujours déclenchée par un clic de l'utilisateur). */

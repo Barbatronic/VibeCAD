@@ -64,7 +64,7 @@ export function HelpDrawer() {
           <CatFigure mood="tip" size={48} decorative />
           <div>
             <p>
-              Le <strong>chat de VibeCAD</strong> t’accompagne dans le parcours et te prévient quand une étape a un souci, avec un bouton pour la
+              <strong>Java</strong>, le chat de VibeCAD, t’accompagne dans le parcours et te prévient quand une étape a un souci, avec un bouton pour la
               corriger. Il ne modifie jamais ta pièce tout seul.
             </p>
             <label class="checkbox-row">

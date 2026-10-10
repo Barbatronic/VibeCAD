@@ -1,5 +1,5 @@
 /**
- * Le chat de VibeCAD : logo (en-tête) et mascotte qui accompagne le parcours et explique les
+ * Java, le chat de VibeCAD : logo (en-tête) et mascotte qui accompagne le parcours et explique les
  * soucis. Le dessin vient de `mascot-art.ts` ; les animations sont légères et désactivées par la
  * préférence « réduire les animations ». Le chat complète les textes, il ne les remplace jamais.
  */
@@ -7,18 +7,22 @@ import { useState } from 'preact/hooks';
 import { currentAdvice } from '../app/advice';
 import { IconButton } from './components/controls';
 import { useAppState, useController } from './context';
-import { CAT_COLORS, catShapes, type CatMood, type CatShape } from './mascot-art';
+import { CAT_COLORS, catShapes, SILHOUETTE_PARTS, type CatMood, type CatShape } from './mascot-art';
 
 const MOOD_LABELS: Record<CatMood, string> = {
-  tip: 'Le chat de VibeCAD donne un conseil',
-  happy: 'Le chat de VibeCAD est content',
-  warning: 'Le chat de VibeCAD signale un souci',
+  tip: 'Java, le chat de VibeCAD, donne un conseil',
+  happy: 'Java, le chat de VibeCAD, est content',
+  warning: 'Java, le chat de VibeCAD, signale un souci',
 };
 
 function Shape({ s, outline }: { s: CatShape; outline: boolean }) {
-  const fill = outline ? CAT_COLORS.outline : CAT_COLORS[s.part === 'body' ? 'body' : s.part];
-  const stroke = outline ? { stroke: CAT_COLORS.outline, 'stroke-width': 3, 'stroke-linejoin': 'round' as const } : {};
-  const cls = s.part === 'eye' ? 'cat-eye' : s.part === 'accent' ? 'cat-accent' : undefined;
+  const fill = outline ? CAT_COLORS.outline : CAT_COLORS[s.part];
+  const stroke = outline
+    ? { stroke: CAT_COLORS.outline, 'stroke-width': 3, 'stroke-linejoin': 'round' as const }
+    : s.part === 'belly'
+      ? { stroke: CAT_COLORS.bellyEdge, 'stroke-width': 0.8, 'stroke-linejoin': 'round' as const }
+      : {};
+  const cls = s.part === 'iris' || s.part === 'pupil' ? 'cat-eye' : s.part === 'accent' ? 'cat-accent' : undefined;
   if (s.kind === 'rect') return <rect class={cls} x={s.x} y={s.y} width={s.w} height={s.h} rx={s.r ?? 0} fill={fill} {...stroke} />;
   const points = s.points.map(([x, y]) => `${x},${y}`).join(' ');
   if (s.kind === 'poly') return <polygon class={cls} points={points} fill={fill} {...stroke} />;
@@ -41,7 +45,7 @@ export function CatFigure(props: { mood?: CatMood; size?: number; class?: string
       focusable="false"
     >
       <g class="cat-outline">
-        {shapes.filter((s) => s.part === 'body').map((s, i) => (
+        {shapes.filter((s) => SILHOUETTE_PARTS.includes(s.part)).map((s, i) => (
           <Shape key={`o${i}`} s={s} outline />
         ))}
       </g>
@@ -87,7 +91,7 @@ export function MascotBubble() {
     );
   }
   return (
-    <aside class={`mascot-bubble level-${advice.level}`} role={advice.level === 'erreur' ? 'alert' : 'status'} aria-label="Le chat de VibeCAD">
+    <aside class={`mascot-bubble level-${advice.level}`} role={advice.level === 'erreur' ? 'alert' : 'status'} aria-label="Java, le chat de VibeCAD">
       <CatFigure mood={advice.mood} size={58} animated decorative />
       <div class="mascot-content">
         <div class="mascot-title">

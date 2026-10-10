@@ -7,7 +7,7 @@ test('le chat : nom VibeCAD, conseil de départ avec action, masquer puis réaff
   await expect(page.locator('.brand')).toContainText('VibeCAD');
 
   // Pièce vide : le chat propose de commencer une esquisse.
-  const bubble = page.getByRole('status', { name: 'Le chat de VibeCAD' });
+  const bubble = page.getByRole('status', { name: 'Java, le chat de VibeCAD' });
   await expect(bubble).toContainText('fais une esquisse');
   await page.screenshot({ path: 'tests/output/e2e-chat-conseil.png' });
   await bubble.getByRole('button', { name: 'Nouvelle esquisse' }).click();
