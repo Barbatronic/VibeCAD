@@ -9,12 +9,14 @@ import { extrudeDefinition } from './extrude/definition';
 import { filletDefinition } from './fillet/definition';
 import { importedSolidDefinition } from './imported/definition';
 import { pocketDefinition } from './pocket/definition';
+import { revolveDefinition } from './revolve/definition';
 import { sketchDefinition } from './sketch/definition';
 
 export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   sketch: sketchDefinition,
   extrude: extrudeDefinition,
   pocket: pocketDefinition,
+  revolve: revolveDefinition,
   fillet: filletDefinition,
   chamfer: chamferDefinition,
   'imported-solid': importedSolidDefinition,

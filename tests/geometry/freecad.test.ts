@@ -8,10 +8,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
-import { addCircle, addConstraint } from '../../src/sketch/model';
+import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -129,5 +129,21 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(5 * (800 + Math.PI * 100), 3);
+  });
+
+  it('révolution partielle (90°) d’un profil rectangulaire : solide valide, volume exact', () => {
+    let doc = createDocument('Révolution');
+    const part = doc.parts[0]!;
+    const sk = makeSketchFeature(doc, part, { kind: 'plane', plane: 'XY', offset: 0 });
+    const r = addRectangle(sk.params, { x: 10, y: 0 }, { x: 20, y: 20 });
+    doc = addFeature(doc, part.id, { ...sk, params: solveSketch(r.sketch).sketch });
+    doc = addFeature(doc, part.id, makeRevolveFeature(doc, findPart(doc, part.id)!, sk.id, { kind: 'sketch-y' }, 90));
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
+    const file = join(outDir, 'revolution-90.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Quart d’anneau', color: '#1f2126', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo((Math.PI * (400 - 100) * 20) / 4, 3);
   });
 });

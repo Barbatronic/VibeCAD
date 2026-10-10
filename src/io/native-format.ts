@@ -326,7 +326,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'imported-solid', 'fillet', 'chamfer'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -344,6 +344,17 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           direction: oneOf(v, p, 'direction', pp, DIRECTIONS),
         },
       };
+    case 'revolve': {
+      const a = obj(v, p.axis, `${pp}.axis`) ?? {};
+      const kind = oneOf(v, a, 'kind', `${pp}.axis`, ['sketch-x', 'sketch-y', 'line'] as const);
+      const axis = kind === 'line' ? { kind, lineId: str(v, a, 'lineId', `${pp}.axis`) } : { kind };
+      return {
+        id,
+        name,
+        type,
+        params: { sketchId: str(v, p, 'sketchId', pp), axis, angle: num(v, p, 'angle', pp, { min: 0, max: 360 }), reversed: p.reversed === true },
+      };
+    }
     case 'pocket': {
       const e = obj(v, p.extent, `${pp}.extent`);
       const kind = e ? oneOf(v, e, 'kind', `${pp}.extent`, ['distance', 'throughAll'] as const) : 'throughAll';

@@ -35,6 +35,7 @@ import {
   type MeshData,
   type MeshOptions,
   type PrismRequest,
+  type RevolveRequest,
   type ShapeAnalysis,
   type StepExportItem,
   type StepReadResult,
@@ -323,6 +324,56 @@ export class OcctKernel implements GeometryKernel {
       for (const p of parts) if (!p.disposed) this.dispose(p);
       throw err;
     }
+  }
+
+  makeRevolution(request: RevolveRequest): KernelShape {
+    if (!(Math.abs(request.angle) > 1e-9)) throw new KernelError('L’angle de révolution doit être positif.');
+    if (request.regions.length === 0) throw new KernelError('Aucun profil à faire tourner.');
+    const parts: OcctShape[] = [];
+    try {
+      for (const region of request.regions) {
+        parts.push(this.guard('révolution', () => withScope((scope) => this.revolveRegion(scope, request, region))));
+      }
+      let result = parts[0]!;
+      for (let i = 1; i < parts.length; i++) {
+        const next = this.fuse(result, parts[i]!) as OcctShape;
+        if (i > 1) this.dispose(result);
+        result = next;
+      }
+      if (parts.length > 1) for (const p of parts) this.dispose(p);
+      return result;
+    } catch (err) {
+      for (const p of parts) if (!p.disposed) this.dispose(p);
+      throw err;
+    }
+  }
+
+  private revolveRegion(scope: Scope, request: RevolveRequest, region: ProfileRegion): OcctShape {
+    const oc = this.oc;
+    const { face, edges } = this.buildFace(scope, region, request.frame, 0);
+    const origin = frameToWorld(request.frame, request.axisOrigin, 0);
+    const tip = frameToWorld(request.frame, { x: request.axisOrigin.x + request.axisDirection.x, y: request.axisOrigin.y + request.axisDirection.y }, 0);
+    const ax1 = scope.track(new oc.gp_Ax1(this.pnt(scope, origin), this.dir(scope, sub3(tip, origin))));
+    const full = Math.abs(request.angle) >= Math.PI * 2 - 1e-9;
+    const revol = scope.track(full ? new oc.BRepPrimAPI_MakeRevol(face, ax1, true) : new oc.BRepPrimAPI_MakeRevol(face, ax1, request.angle, true));
+    if (!revol.IsDone()) throw new KernelError('La révolution n’a pas pu être construite.');
+    const solid = revol.Shape();
+    const faces = this.taggedFaces(solid);
+    const tagFace = (s: TopoDS_Shape, tag: FaceTag) => {
+      const i = this.indexOfFace(faces, s);
+      if (i >= 0) addTags(faces[i]!.tags, [tag]);
+    };
+    if (!full) {
+      tagFace(scope.track(revol.FirstShape()), { featureId: request.featureId, role: 'start' });
+      tagFace(scope.track(revol.LastShape()), { featureId: request.featureId, role: 'end' });
+    }
+    for (const { edge, entityId } of edges) {
+      for (const g of this.listToArray(scope.track(revol.Generated(edge)))) {
+        scope.track(g);
+        tagFace(g, { featureId: request.featureId, role: 'side', entityId });
+      }
+    }
+    return new OcctShape(solid, faces);
   }
 
   private prismOfRegion(scope: Scope, request: PrismRequest, region: ProfileRegion): OcctShape {

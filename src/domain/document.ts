@@ -5,6 +5,8 @@
  */
 import { createId } from './ids';
 import type {
+  RevolveAxis,
+  RevolveFeature,
   Assembly,
   AssemblyInstance,
   AssemblyJoint,
@@ -36,6 +38,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   sketch: 'Esquisse',
   extrude: 'Extrusion',
   pocket: 'Poche',
+  revolve: 'Révolution',
   'imported-solid': 'Solide importé',
   fillet: 'Congé',
   chamfer: 'Chanfrein',
@@ -195,7 +198,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -222,6 +225,10 @@ export function makeExtrudeFeature(
     name: nextFeatureName(part, 'extrude'),
     params: { sketchId, distance, direction },
   };
+}
+
+export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, axis: RevolveAxis, angle = 360, reversed = false): RevolveFeature {
+  return { id: newFeatureId(doc, 'revolve'), type: 'revolve', name: nextFeatureName(part, 'revolve'), params: { sketchId, axis, angle, reversed } };
 }
 
 export function makePocketFeature(

@@ -24,6 +24,7 @@ const GLOSSARY: [string, string][] = [
   ['Repère', 'Un point et une direction posés sur une pièce : le centre d’une face plane, le centre d’un trou, le milieu d’une arête.'],
   ['Liaison', 'Ce qui relie deux pièces : fixe, pivot (rotation, comme une roue), glissière (translation, comme un tiroir) ou pivot glissant.'],
   ['3MF', 'Format pour l’impression 3D qui garde l’unité (mm), le nom et la couleur des pièces.'],
+  ['Révolution', 'Faire tourner le dessin autour d’un axe pour obtenir une pièce ronde, comme au tour.'],
   ['Historique', 'La liste des étapes de construction. On peut modifier une étape ancienne : les suivantes sont recalculées.'],
   ['Solide', 'Un volume fermé, avec un intérieur et un extérieur, comme une vraie pièce.'],
   ['STEP', 'Format d’échange entre logiciels de CAO (FreeCAD…) : il contient les formes exactes, pas l’historique.'],

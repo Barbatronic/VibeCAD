@@ -86,7 +86,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | ImportedSolidFeature | FilletFeature | ChamferFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -102,6 +102,7 @@ export type SketchFeature = FeatureBase<'sketch', SketchParams> & {
 };
 export type ExtrudeFeature = FeatureBase<'extrude', ExtrudeParams>;
 export type PocketFeature = FeatureBase<'pocket', PocketParams>;
+export type RevolveFeature = FeatureBase<'revolve', RevolveParams>;
 export type ImportedSolidFeature = FeatureBase<'imported-solid', ImportedSolidParams>;
 export type FilletFeature = FeatureBase<'fillet', FilletParams>;
 export type ChamferFeature = FeatureBase<'chamfer', ChamferParams>;
@@ -335,6 +336,18 @@ export interface SketchParams {
  * - `reversed` inverse ce sens, `symmetric` répartit de part et d'autre du plan.
  */
 export type ExtentDirection = 'default' | 'reversed' | 'symmetric';
+
+/** Axe de révolution : un axe du repère de l'esquisse, ou l'un de ses segments (souvent de construction). */
+export type RevolveAxis = { kind: 'sketch-x' } | { kind: 'sketch-y' } | { kind: 'line'; lineId: string };
+
+/** Révolution d'un profil fermé autour d'un axe de son esquisse ; `angle` en degrés (0 < angle ≤ 360). */
+export interface RevolveParams {
+  sketchId: Id;
+  axis: RevolveAxis;
+  angle: number;
+  /** Tourne dans l'autre sens (utile pour une révolution partielle). */
+  reversed: boolean;
+}
 
 export interface ExtrudeParams {
   sketchId: Id;

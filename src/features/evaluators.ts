@@ -6,6 +6,7 @@ import { evaluateExtrude } from './extrude/evaluate';
 import { evaluateFillet } from './fillet/evaluate';
 import { evaluateImportedSolid } from './imported/evaluate';
 import { evaluatePocket } from './pocket/evaluate';
+import { evaluateRevolve } from './revolve/evaluate';
 import { evaluateSketch } from './sketch/evaluate';
 
 type Evaluators = { [T in FeatureType]: FeatureEvaluator<Extract<Feature, { type: T }>> };
@@ -14,6 +15,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   sketch: evaluateSketch,
   extrude: evaluateExtrude,
   pocket: evaluatePocket,
+  revolve: evaluateRevolve,
   fillet: evaluateFillet,
   chamfer: evaluateChamfer,
   'imported-solid': evaluateImportedSolid,

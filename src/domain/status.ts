@@ -32,6 +32,7 @@ export type FeatureIssueCode =
   | 'EDGES_EMPTY'
   | 'EDGE_LOST'
   | 'REFERENCE_LOST'
+  | 'REVOLVE_CROSSES_AXIS'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
 
@@ -82,6 +83,8 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   EDGES_EMPTY: 'Choisissez au moins une arête : cliquez-la dans la vue 3D.',
   EDGE_LOST:
     'Une des arêtes choisies n’existe plus (une étape précédente a changé la pièce). Retirez-la ou choisissez-en une autre.',
+  REVOLVE_CROSSES_AXIS:
+    'Le profil traverse l’axe de révolution : il doit rester entièrement d’un seul côté de l’axe (il peut le toucher). Choisissez un autre axe ou déplacez le dessin.',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',
   BLEND_FAILED: 'Cette valeur est trop grande pour les arêtes choisies : essayez une valeur plus petite.',

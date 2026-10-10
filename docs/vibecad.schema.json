@@ -306,6 +306,54 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "revolve"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sketchId",
+                "axis",
+                "angle",
+                "reversed"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "axis": {
+                  "type": "object",
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "sketch-x",
+                        "sketch-y",
+                        "line"
+                      ]
+                    },
+                    "lineId": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "angle": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 360,
+                  "description": "degrés"
+                },
+                "reversed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       ]
     },

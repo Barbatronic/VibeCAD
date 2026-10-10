@@ -5,7 +5,7 @@
  */
 import type { EdgeRef, FaceRef, Id } from '../domain/model';
 import type { Frame3D } from '../math/frame';
-import type { Vec3 } from '../math/vec';
+import type { Vec2, Vec3 } from '../math/vec';
 import type { ProfileRegion } from '../sketch/profiles';
 
 /**
@@ -26,6 +26,18 @@ export interface PrismRequest {
   /** Positions de départ et d'arrivée le long de la normale du repère (mm), `from < to`. */
   from: number;
   to: number;
+}
+
+/** Révolution de régions planes autour d'un axe du plan de l'esquisse. */
+export interface RevolveRequest {
+  featureId: Id;
+  regions: ProfileRegion[];
+  frame: Frame3D;
+  /** Axe dans le repère de l'esquisse : un point et une direction. */
+  axisOrigin: Vec2;
+  axisDirection: Vec2;
+  /** Angle en radians (signe : sens de rotation autour de l'axe). */
+  angle: number;
 }
 
 export interface BoundingBox {
@@ -140,6 +152,8 @@ export class KernelError extends Error {
 export interface GeometryKernel {
   /** Extrusion de régions planes entre deux positions le long de la normale du repère. */
   makePrism(request: PrismRequest): KernelShape;
+  /** Solide de révolution ; faces étiquetées `start`, `end` (révolution partielle) et `side`. */
+  makeRevolution(request: RevolveRequest): KernelShape;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;
   cut(base: KernelShape, tool: KernelShape): KernelShape;
   /** Lit un fichier STEP ; renvoie les solides dans l'ordre de lecture (sans étiquettes). */
