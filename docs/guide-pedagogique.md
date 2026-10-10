@@ -12,6 +12,22 @@ SolidWorks, avec un vocabulaire exact expliqué en une phrase :
 5. **modifier une étape antérieure** et voir la pièce se recalculer ;
 6. **échanger** la pièce (STEP pour FreeCAD, STL pour l'imprimante 3D).
 
+## Niveaux de l'interface
+
+Pour que l'écran reste simple, VibeCAD a trois niveaux (en bas à droite, « Niveau », ou dans
+l'Aide). Chaque niveau montre plus d'outils ; ceux d'un niveau supérieur sont masqués, pas
+grisés.
+
+| Niveau | Outils |
+| --- | --- |
+| **Débutant** (par défaut) | Esquisse : segment, rectangle, cercle, cote, coïncidence, horizontal, vertical. Extrusion, poche, mesure. Impression 3D. Parcours « plaque percée ». |
+| **Intermédiaire** | En plus : arc, rectangle centré, polygone, oblong, couper, projeter, construction, autres contraintes ; révolution, congé, chanfrein, répétition, symétrie ; onglet Assemblage ; découpe laser et documents ; parcours assemblage et fabrication. |
+| **Expert** | En plus : import de fichiers STEP. |
+
+Le niveau est retenu sur l'ordinateur. Pour une classe, donner un lien qui l'impose, par
+exemple `…/VibeCAD/?niveau=debutant` ou `?niveau=intermediaire`. Un projet fait à un niveau
+supérieur s'ouvre toujours : ses étapes restent visibles et modifiables dans l'historique.
+
 ## Le parcours guidé « plaque percée »
 
 Bouton **Parcours** en haut à droite (ou Aide → Lancer le parcours guidé). Douze étapes courtes ;

@@ -74,6 +74,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Échanges** : export STEP (une ou plusieurs pièces), import STEP comme « Solide importé »
   (contenu conservé dans le projet), export **3MF** (impression 3D : unité, noms et couleurs des
   pièces) et STL (en mm).
+- **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
+  droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).
 - **Parcours guidés**, au choix : « la plaque percée » (première pièce), « assembler et faire
   bouger » (insérer, relier par un pivot, faire tourner) et « préparer la fabrication »
   (impression 3D, découpe laser, documents). Chaque étape se valide toute seule en observant le
