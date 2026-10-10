@@ -269,7 +269,7 @@ La première pièce insérée est fixe. `position` sert tant qu'une pièce n'est
 liaison. Repères (`lcs`) : `face` (centre d'une face plane, axe = normale), `circle` (centre d'un
 bord circulaire, axe du cercle), `edge` (milieu d'une arête droite, axe = direction de l'arête),
 désignés comme les congés par leurs faces. `kind` : `fixed`, `revolute`, `slider`,
-`cylindrical` ; `angle` en degrés, `offset` en mm, limites facultatives `[min, max]`. Un projet
+`cylindrical`, `spherical` (rotule : `tilt` inclinaison et `tiltDirection` direction en degrés, `tiltLimit` inclinaison maximale facultative) ; `angle` en degrés, `offset` en mm, limites facultatives `[min, max]`. Un projet
 sans assemblage n'a pas ce champ. Détails : [assemblage.md](assemblage.md).
 
 ## Fabrication (champ facultatif `fabrication`)

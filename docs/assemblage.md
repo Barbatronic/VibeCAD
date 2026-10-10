@@ -37,6 +37,10 @@ placée) : les deux repères sont superposés, axes Z opposés (les faces se tou
 | Pivot | rotation autour de l'axe | angle (curseur, limites min / max facultatives) |
 | Glissière | translation le long de l'axe | décalage (curseur, limites) |
 | Pivot glissant | les deux | angle et décalage |
+| Rotule | rotation dans tous les sens autour du point d'accroche | angle (autour de l'axe), inclinaison et direction de l'inclinaison (curseurs, inclinaison maximale facultative) |
+
+Chaque type a son icône et une explication avec un exemple de la vie courante (roue, tiroir,
+lampe de bureau…), affichée sous les boutons et au survol.
 
 « Retourner » inverse le sens de l'axe de la pièce mobile. Les valeurs (angle, décalage) sont
 enregistrées dans le projet et entrent dans Annuler / Rétablir.
