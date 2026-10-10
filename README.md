@@ -74,6 +74,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   sur plaques) en SVG et DXF ;
   documents : mise en plan cotée (3 vues, PDF / SVG), gabarit papier 1:1 (PDF), nomenclature (CSV).
   Voir [docs/fabrication.md](docs/fabrication.md).
+- **Vue en coupe** (bouton « Coupe » de la vue) : la pièce est coupée par un plan XY, XZ ou YZ
+  réglable au curseur, la face de coupe hachurée en rouge ; affichage seulement, la pièce n'est pas
+  modifiée.
 - **Vue 3D** : rotation, déplacement, zoom vers le curseur, vues standard, cadrage, projection
   orthographique, repère d'orientation, sélection de faces et d'arêtes, **mesure**.
 - **Échanges** : export STEP (une ou plusieurs pièces), import STEP comme « Solide importé »
