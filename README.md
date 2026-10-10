@@ -13,6 +13,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
 
 ![Plaque percée de 80 × 30 × 5 mm après modification de la largeur](docs/images/plaque-percee.png)
 
+![Assemblage : goupille en glissière dans le trou de la plaque, avec ses curseurs](docs/images/assemblage.png)
+
+![Parcours guidé présenté par Java, le chat de VibeCAD](docs/images/parcours-java.png)
+
 ## Ce que l'on peut faire
 
 - **Projets** : nouveau, ouvrir, enregistrer (dans le navigateur), enregistrer sous (fichier

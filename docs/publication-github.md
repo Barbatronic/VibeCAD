@@ -39,6 +39,22 @@ Adresse attendue : `https://MON-COMPTE.github.io/VibeCAD/`
 - Créer une esquisse, une extrusion ; exporter un STEP ; rouvrir un fichier `.vibecad`.
 - Mode hors ligne : après une première visite complète, recharger sans réseau.
 
+## Mettre à jour le site avec les nouveautés
+
+Le site ne se met **pas** à jour tout seul : la publication est manuelle, pour que vous gardiez la
+main sur ce qui est mis en ligne.
+
+1. Envoyer les derniers commits : `git push` (depuis le dossier du projet).
+2. Onglet **Actions** du dépôt → **Publier sur GitHub Pages** → **Run workflow** (branche
+   `main`) → bouton vert **Run workflow**. Compter 2 à 4 minutes ; la coche verte indique que
+   c'est en ligne.
+3. Ouvrir le site et **recharger la page** (au besoin deux fois) : l'application installée pour
+   le mode hors ligne télécharge la nouvelle version au premier chargement et l'utilise au
+   suivant.
+
+Si vous préférez une mise à jour automatique à chaque `git push`, il suffit d'ajouter
+`push: { branches: [main] }` sous `on:` dans `.github/workflows/pages.yml`.
+
 ## Bon à savoir
 
 - Les projets restent **dans le navigateur de chaque appareil** : le site publié a son propre
