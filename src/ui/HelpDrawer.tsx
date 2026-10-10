@@ -16,6 +16,8 @@ const GLOSSARY: [string, string][] = [
   ['Congé', 'Arrondir une arête vive : on choisit les arêtes et le rayon de l’arrondi.'],
   ['Chanfrein', 'Couper une arête vive en biseau : on choisit les arêtes et la distance du biseau.'],
   ['Arête', 'La ligne où deux faces de la pièce se rejoignent.'],
+  ['Polygone', 'Une forme à côtés égaux (triangle, carré, hexagone…) dont les sommets sont sur un cercle en pointillés : coter ce cercle fixe sa taille.'],
+  ['Oblong', 'Une rainure aux deux bouts arrondis, comme un trou de vis qu’on peut régler.'],
   ['Couper', 'Retirer le morceau d’un trait jusqu’aux croisements voisins, pour réunir deux formes en un seul contour.'],
   ['Arc', 'Une portion de cercle : on clique le centre, le départ, puis on tourne dans le sens voulu jusqu’à l’arrivée.'],
   ['Construction', 'Un trait en pointillés qui sert de repère pour coter ; il ne compte pas pour le volume.'],

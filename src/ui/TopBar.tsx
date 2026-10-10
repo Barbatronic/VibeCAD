@@ -222,10 +222,12 @@ type ToolVariant = { tool: SketchTool; icon: string; key: string; label: string 
 const RECTANGLE_VARIANTS: ToolVariant[] = [
   { tool: 'rectangle', icon: 'rectangle', key: 'R', label: 'Rectangle par deux coins' },
   { tool: 'centerRectangle', icon: 'center-rectangle', key: 'Maj+R', label: 'Rectangle par le centre' },
+  { tool: 'polygon', icon: 'polygon', key: '', label: 'Polygone régulier (centre et sommet)' },
 ];
 const CIRCLE_VARIANTS: ToolVariant[] = [
   { tool: 'circle', icon: 'circle', key: 'C', label: 'Cercle (centre et bord)' },
   { tool: 'arc', icon: 'arc', key: 'A', label: 'Arc de cercle (centre, départ, arrivée)' },
+  { tool: 'slot', icon: 'slot', key: '', label: 'Oblong (rainure arrondie aux deux bouts)' },
 ];
 
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */

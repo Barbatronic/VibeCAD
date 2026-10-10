@@ -48,6 +48,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M15 6l6 12h-6z" opacity="0.55" />
     </>
   ),
+  polygon: <path d="M12 3.5l7.4 4.25v8.5L12 20.5l-7.4-4.25v-8.5z" />,
+  slot: (
+    <>
+      <path d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7z" />
+      <path d="M8 12h8" stroke-dasharray="1.5 1.5" opacity="0.6" />
+    </>
+  ),
   trim: (
     <>
       <circle cx="6" cy="6" r="2.5" />

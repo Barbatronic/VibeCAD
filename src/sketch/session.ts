@@ -50,7 +50,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'circle' | 'arc' | 'trim' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'trim' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -71,8 +71,10 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   line: 'Segment',
   rectangle: 'Rectangle',
   centerRectangle: 'Rectangle centré',
+  polygon: 'Polygone',
   circle: 'Cercle',
   arc: 'Arc',
+  slot: 'Oblong',
   trim: 'Couper',
   project: 'Projeter',
   dimension: 'Cote',
@@ -95,6 +97,9 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   rectangle: 'Rectangle : cliquez un premier coin puis le coin opposé. Vous pouvez aussi taper la largeur et la hauteur au clavier.',
   centerRectangle:
     'Rectangle centré : cliquez le centre puis un coin. Le centre reste au milieu quand les dimensions changent. Vous pouvez taper la largeur et la hauteur.',
+  polygon:
+    'Polygone régulier : cliquez le centre puis un sommet. Tapez le diamètre du cercle qui passe par les sommets et le nombre de côtés (Tab pour passer de l’un à l’autre).',
+  slot: 'Oblong (rainure) : cliquez le centre du premier arrondi, puis celui du second, puis la largeur. Vous pouvez taper la longueur entre centres puis la largeur.',
   circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
   arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
   trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
@@ -178,6 +183,8 @@ export interface SketchSession {
   start: SnapResult | null;
   /** Arc en cours : point de départ et rotation cumulée du curseur (signe : sens de l'arc). */
   arc: { start: SnapResult; sweep: number; lastAngle: number } | null;
+  /** Oblong : second centre choisi (on règle ensuite la largeur). */
+  slot: { end: SnapResult; length: number | null } | null;
   chainFirstPointId: string | null;
   chainLastPointId: string | null;
   /** Éléments choisis l'un après l'autre par l'outil Cote ou une contrainte. */
@@ -231,6 +238,7 @@ export function createSession(args: {
     tool: args.sketch.entities.length === 0 ? 'rectangle' : 'select',
     start: null,
     arc: null,
+    slot: null,
     chainFirstPointId: null,
     chainLastPointId: null,
     picks: [],
@@ -261,7 +269,7 @@ const success = (text: string): SessionMessage => ({ kind: 'success', text });
 const failure = (text: string): SessionMessage => ({ kind: 'error', text });
 
 function resetDraw(s: SketchSession): SketchSession {
-  return { ...s, start: null, arc: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
+  return { ...s, start: null, arc: null, slot: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
 }
 
 /** Applique une nouvelle esquisse après résolution ; refuse si les contraintes sont incompatibles. */
@@ -379,7 +387,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'circle' || s.tool === 'arc';
+  const drawing = s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -414,6 +422,10 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return centerRectangleClick(s, computeSnap(s, p, !!opts.alt));
     case 'arc':
       return arcClick(s, computeSnap(s, p, !!opts.alt));
+    case 'polygon':
+      return polygonClick(s, computeSnap(s, p, !!opts.alt));
+    case 'slot':
+      return slotClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
       return projectClick(s, p);
     case 'trim':
@@ -635,6 +647,170 @@ function createCenterRectangle(s: SketchSession, center: SnapResult, hw: number,
 }
 
 // ---------------------------------------------------------------------------
+// Polygone régulier
+
+const DEFAULT_SIDES = 6;
+
+/** Nombre de côtés tapé (3 à 32). */
+function parseSides(text: string): ParseResult {
+  const v = readNumber(text);
+  if (v === null || !Number.isInteger(v)) return { ok: false, error: 'Le nombre de côtés doit être un nombre entier (exemple : 6).' };
+  if (v < 3 || v > 32) return { ok: false, error: 'Un polygone a entre 3 et 32 côtés.' };
+  return { ok: true, value: v };
+}
+
+/** Nombre de côtés en cours (saisi s'il est valide, sinon 6). */
+function currentSides(s: SketchSession): number {
+  const r = s.input && s.tool === 'polygon' ? parseSides(s.input.values[1] ?? '') : null;
+  return r?.ok ? r.value : DEFAULT_SIDES;
+}
+
+function polygonVertices(center: Vec2, vertex: Vec2, sides: number): Vec2[] {
+  const r = distance2(center, vertex);
+  const a0 = Math.atan2(vertex.y - center.y, vertex.x - center.x);
+  return Array.from({ length: sides }, (_v, k) => {
+    const a = a0 + (2 * Math.PI * k) / sides;
+    return { x: center.x + r * Math.cos(a), y: center.y + r * Math.sin(a) };
+  });
+}
+
+function polygonClick(s: SketchSession, snap: SnapResult): SketchSession {
+  if (!s.start) {
+    return {
+      ...s,
+      start: snap,
+      input: { labels: ['Diamètre', 'Côtés'], values: ['', String(DEFAULT_SIDES)], active: 0, error: null },
+      message: info('Cliquez un sommet, ou tapez le diamètre (cercle passant par les sommets) et le nombre de côtés, puis Entrée.'),
+    };
+  }
+  if (distance2(s.start.point, snap.point) < tolerance(s) / 2) return { ...s, message: failure('Le polygone est trop petit : éloignez davantage le sommet du centre.') };
+  return createPolygon(s, s.start, snap.point, currentSides(s), null);
+}
+
+/**
+ * Polygone régulier : ses sommets sont posés sur un cercle de construction et ses côtés sont
+ * égaux. Coter le diamètre de ce cercle fixe la taille ; le polygone peut encore tourner.
+ */
+function createPolygon(s: SketchSession, center: SnapResult, vertex: Vec2, sides: number, diameter: number | null): SketchSession {
+  const pts = polygonVertices(center.point, vertex, sides);
+  const circle = addCircle(s.sketch, center.point, distance2(center.point, vertex));
+  let sk = setConstruction(circle.sketch, [circle.circleId], true);
+  const lines: { id: string; a: string; b: string }[] = [];
+  for (let k = 0; k < sides; k++) {
+    const r = addLine(sk, pts[k]!, pts[(k + 1) % sides]!);
+    sk = r.sketch;
+    lines.push({ id: r.lineId, a: r.a, b: r.b });
+  }
+  if (s.construction) sk = setConstruction(sk, lines.map((l) => l.id), true);
+  for (let k = 0; k < sides; k++) {
+    const l = lines[k]!;
+    const next = lines[(k + 1) % sides]!;
+    sk = addConstraint(sk, { type: 'coincident', a: l.b, b: next.a }).sketch;
+    sk = addConstraint(sk, { type: 'pointOn', point: l.a, curve: circle.circleId }).sketch;
+    // Égalités en chaîne (chaque côté égal au suivant) : une marque « = » par côté, pas une pile sur le premier.
+    if (k > 0) sk = addConstraint(sk, { type: 'equal', a: lines[k - 1]!.id, b: l.id }).sketch;
+  }
+  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: circle.center }).sketch;
+  if (diameter !== null) sk = addConstraint(sk, { type: 'diameter', circle: circle.circleId, value: diameter }).sketch;
+  const weights = new Map([
+    [`${circle.center}.x`, 1e3],
+    [`${circle.center}.y`, 1e3],
+  ]);
+  const message = diameter !== null
+    ? success(`Polygone à ${sides} côtés ajouté, dans un cercle de ${formatLength(diameter)}.`)
+    : success(`Polygone à ${sides} côtés ajouté. Cotez le diamètre du cercle en pointillés pour fixer sa taille.`);
+  const { session } = commit(s, sk, { weights, message });
+  return resetDraw(session);
+}
+
+// ---------------------------------------------------------------------------
+// Oblong (rainure)
+
+function slotClick(s: SketchSession, snap: SnapResult): SketchSession {
+  if (!s.start) {
+    return {
+      ...s,
+      start: snap,
+      input: { labels: ['Longueur'], values: [''], active: 0, error: null },
+      message: info('Cliquez le centre du second arrondi, ou tapez la longueur entre les deux centres puis Entrée.'),
+    };
+  }
+  if (!s.slot) {
+    if (distance2(s.start.point, snap.point) < tolerance(s) / 2) return { ...s, message: failure('Les deux centres sont confondus : éloignez davantage le second.') };
+    return beginSlotWidth(s, snap);
+  }
+  const width = 2 * slotHalfWidth(s.start.point, s.slot.end.point, snap.point);
+  if (width < tolerance(s) / 2) return { ...s, message: failure('L’oblong est trop étroit : éloignez davantage la souris de l’axe.') };
+  return createSlot(s, s.start, s.slot.end, width, { length: s.slot.length, width: null });
+}
+
+function beginSlotWidth(s: SketchSession, end: SnapResult, length: number | null = null): SketchSession {
+  return {
+    ...s,
+    slot: { end, length },
+    input: { labels: ['Largeur'], values: [''], active: 0, error: null },
+    message: info('Éloignez la souris de l’axe pour régler la largeur puis cliquez, ou tapez la largeur puis Entrée.'),
+  };
+}
+
+/** Distance du point `p` à la droite qui passe par les deux centres. */
+function slotHalfWidth(c1: Vec2, c2: Vec2, p: Vec2): number {
+  const d = normalize2(sub2(c2, c1));
+  return Math.abs((p.x - c1.x) * -d.y + (p.y - c1.y) * d.x);
+}
+
+/** Contour d'un oblong : deux demi-cercles et deux segments tangents. */
+function slotOutline(c1: Vec2, c2: Vec2, r: number) {
+  const d = normalize2(sub2(c2, c1));
+  const n = { x: -d.y, y: d.x };
+  const off = (c: Vec2, k: number) => ({ x: c.x + n.x * r * k, y: c.y + n.y * r * k });
+  return { a1: off(c1, 1), b1: off(c2, 1), b2: off(c2, -1), a2: off(c1, -1), angle: Math.atan2(d.y, d.x) };
+}
+
+/**
+ * Oblong : segments haut et bas tangents aux deux arcs, extrémités reliées, arcs de même rayon.
+ * Il reste les deux centres et la largeur à coter.
+ */
+function createSlot(s: SketchSession, c1: SnapResult, c2: SnapResult, width: number, size: { length: number | null; width: number | null }): SketchSession {
+  const r = width / 2;
+  const o = slotOutline(c1.point, c2.point, r);
+  const top = addLine(s.sketch, o.a1, o.b1);
+  const bottom = addLine(top.sketch, o.b2, o.a2);
+  const arcEnd = addArc(bottom.sketch, c2.point, o.b2, o.b1);
+  const arcStart = addArc(arcEnd.sketch, c1.point, o.a1, o.a2);
+  let sk = arcStart.sketch;
+  if (s.construction) sk = setConstruction(sk, [top.lineId, bottom.lineId, arcEnd.arcId, arcStart.arcId], true);
+  for (const [a, b] of [
+    [top.b, arcEnd.end],
+    [arcEnd.start, bottom.a],
+    [bottom.b, arcStart.end],
+    [arcStart.start, top.a],
+  ] as const) {
+    sk = addConstraint(sk, { type: 'coincident', a, b }).sketch;
+  }
+  for (const line of [top.lineId, bottom.lineId]) {
+    for (const arc of [arcStart.arcId, arcEnd.arcId]) sk = addConstraint(sk, { type: 'tangent', a: line, b: arc }).sketch;
+  }
+  sk = addConstraint(sk, { type: 'equal', a: arcStart.arcId, b: arcEnd.arcId }).sketch;
+  if (c1.pointId) sk = addConstraint(sk, { type: 'coincident', a: c1.pointId, b: arcStart.center }).sketch;
+  if (c2.pointId) sk = addConstraint(sk, { type: 'coincident', a: c2.pointId, b: arcEnd.center }).sketch;
+  if (size.length !== null) sk = addConstraint(sk, { type: 'distance', a: arcStart.center, b: arcEnd.center, value: size.length }).sketch;
+  if (size.width !== null) sk = addConstraint(sk, { type: 'diameter', circle: arcStart.arcId, value: size.width }).sketch;
+  const weights = new Map([
+    [`${arcStart.center}.x`, 1e3],
+    [`${arcStart.center}.y`, 1e3],
+    [`${arcEnd.center}.x`, 1e3],
+    [`${arcEnd.center}.y`, 1e3],
+  ]);
+  const message =
+    size.length !== null && size.width !== null
+      ? success(`Oblong ajouté : ${formatLength(size.length)} entre centres, largeur ${formatLength(size.width)}.`)
+      : success('Oblong ajouté. Cotez la distance entre les centres et le diamètre d’un arrondi pour fixer sa taille.');
+  const { session } = commit(s, sk, { weights, message });
+  return resetDraw(session);
+}
+
+// ---------------------------------------------------------------------------
 // Arc de cercle
 
 function arcClick(s: SketchSession, snap: SnapResult): SketchSession {
@@ -749,9 +925,12 @@ function parseAngleUpTo360(text: string): ParseResult {
 /** Valide les valeurs tapées au clavier pendant un tracé (Entrée). */
 export function confirmInput(s: SketchSession): SketchSession {
   if (!s.input || !s.start) return s;
-  const parsed = s.input.values.map((v, i) =>
-    s.input!.labels[i] === 'Angle' ? parseAngleUpTo360(v) : parseLength(v, { label: `${s.input!.labels[i] === 'Rayon' ? 'Le' : 'La'} ${s.input!.labels[i]!.toLowerCase()}` }),
-  );
+  const parsed = s.input.values.map((v, i) => {
+    const label = s.input!.labels[i]!;
+    if (label === 'Angle') return parseAngleUpTo360(v);
+    if (label === 'Côtés') return parseSides(v);
+    return parseLength(v, { label: `${label === 'Rayon' || label === 'Diamètre' ? 'Le' : 'La'} ${label.toLowerCase()}` });
+  });
   const firstError = parsed.find((r) => !r.ok);
   if (firstError && !firstError.ok) return { ...s, input: { ...s.input, error: firstError.error } };
   const values = parsed.map((r) => (r.ok ? r.value : 0));
@@ -764,6 +943,21 @@ export function confirmInput(s: SketchSession): SketchSession {
   }
   if (s.tool === 'circle') return createCircle(s, s.start, values[0]! / 2, values[0]!);
   if (s.tool === 'centerRectangle') return createCenterRectangle(s, s.start, values[0]! / 2, values[1]! / 2, { w: values[0]!, h: values[1]! });
+  if (s.tool === 'polygon') {
+    const c = s.start.point;
+    let dir = cursor ? normalize2(sub2(cursor, c)) : { x: 0, y: 1 };
+    if (dir.x === 0 && dir.y === 0) dir = { x: 0, y: 1 };
+    return createPolygon(s, s.start, add2(c, scale2(dir, values[0]! / 2)), values[1]!, values[0]!);
+  }
+  if (s.tool === 'slot') {
+    const c1 = s.start.point;
+    if (!s.slot) {
+      let dir = cursor ? normalize2(sub2(cursor, c1)) : { x: 1, y: 0 };
+      if (dir.x === 0 && dir.y === 0) dir = { x: 1, y: 0 };
+      return beginSlotWidth(s, { point: add2(c1, scale2(dir, values[0]!)), kind: 'free', label: '' }, values[0]!);
+    }
+    return createSlot(s, s.start, s.slot.end, values[0]!, { length: s.slot.length, width: values[0]! });
+  }
   if (s.tool === 'arc') {
     if (!s.arc) {
       const c = s.start.point;
@@ -1574,7 +1768,7 @@ export interface SessionPreview {
   lines: [Vec2, Vec2][];
   circles: { center: Vec2; radius: number }[];
   /** Arcs en cours (ouverture signée : négative dans le sens horaire), avec flèche de sens. */
-  arcs: { center: Vec2; radius: number; startAngle: number; sweep: number }[];
+  arcs: { center: Vec2; radius: number; startAngle: number; sweep: number; arrow?: false }[];
   labels: { at: Vec2; text: string }[];
   guides: [Vec2, Vec2][];
   /** Outil Couper : morceau qui sera retiré au clic (en rouge). */
@@ -1618,6 +1812,24 @@ export function sessionPreview(s: SketchSession): SessionPreview {
     out.lines.push([p0, p1], [p1, p2], [p2, p3], [p3, p0]);
     out.guides.push([p0, p2], [p1, p3]);
     out.labels.push({ at: { x: a.x, y: a.y + hh }, text: `${formatLength(2 * hw, 2, false)} × ${formatLength(2 * hh)}` });
+  } else if (s.tool === 'polygon') {
+    const pts = polygonVertices(a, end, currentSides(s));
+    pts.forEach((q, k) => out.lines.push([q, pts[(k + 1) % pts.length]!]));
+    out.circles.push({ center: a, radius: distance2(a, end) });
+    out.labels.push({ at: midpoint2(a, end), text: `${pts.length} côtés · Ø ${formatLength(2 * distance2(a, end))}` });
+  } else if (s.tool === 'slot') {
+    if (!s.slot) {
+      out.lines.push([a, end]);
+      out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)) });
+    } else {
+      const c2 = s.slot.end.point;
+      const r = slotHalfWidth(a, c2, end);
+      const o = slotOutline(a, c2, r);
+      out.guides.push([a, c2]);
+      out.lines.push([o.a1, o.b1], [o.b2, o.a2]);
+      out.arcs.push({ center: c2, radius: r, startAngle: o.angle - Math.PI / 2, sweep: Math.PI, arrow: false }, { center: a, radius: r, startAngle: o.angle + Math.PI / 2, sweep: Math.PI, arrow: false });
+      out.labels.push({ at: o.b1, text: `largeur ${formatLength(2 * r)}` });
+    }
   } else if (s.tool === 'arc') {
     if (!s.arc) {
       const r = distance2(a, end);
@@ -1651,6 +1863,8 @@ export function drawInputCurrentValues(s: SketchSession): number[] {
   if (s.tool === 'rectangle') return [round(Math.abs(end.x - a.x)), round(Math.abs(end.y - a.y))];
   if (s.tool === 'circle') return [round(2 * distance2(a, end))];
   if (s.tool === 'centerRectangle') return [round(2 * Math.abs(end.x - a.x)), round(2 * Math.abs(end.y - a.y))];
+  if (s.tool === 'polygon') return [round(2 * distance2(a, end)), currentSides(s)];
+  if (s.tool === 'slot') return s.slot ? [round(2 * slotHalfWidth(a, s.slot.end.point, end))] : [round(distance2(a, end))];
   if (s.tool === 'arc') return s.arc ? [round(Math.abs((s.arc.sweep * 180) / Math.PI))] : [round(distance2(a, end))];
   return [];
 }

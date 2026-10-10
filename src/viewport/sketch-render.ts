@@ -393,6 +393,7 @@ export class SketchView {
       for (const arc of preview.arcs) {
         if (Math.abs(arc.sweep) < 1e-6) continue;
         for (const seg of arcSegments(arc.center, arc.radius, arc.startAngle, arc.sweep)) strong.add(seg, cPrev);
+        if (arc.arrow === false) continue;
         // Flèche au bout de l'arc : elle montre le sens dans lequel il est tracé.
         const endA = arc.startAngle + arc.sweep;
         const tip = { x: arc.center.x + arc.radius * Math.cos(endA), y: arc.center.y + arc.radius * Math.sin(endA) };
