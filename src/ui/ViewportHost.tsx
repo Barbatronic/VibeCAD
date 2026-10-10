@@ -31,7 +31,7 @@ import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput } from '../viewport/viewport';
 import { jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
 import { fabricationSettings, printLayout } from '../app/fabrication';
-import { transformDirection4, transformPoint4 } from '../math/mat4';
+import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
 import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
 import { useAppState, useController } from './context';
@@ -102,7 +102,8 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const part = inst && s.doc.parts.find((p) => p.id === inst.partId);
     const mesh = inst && s.display[inst.partId]?.mesh;
     const matrix = inst && placement.matrices.get(inst.id);
-    const r = mesh && part ? lcsFromPick(mesh, h.kind, h.index, part) : null;
+    const local = h.kind === 'vertex' && matrix ? transformPoint4(invertRigid4(matrix), h.point) : h.point;
+    const r = mesh && part ? lcsFromPick(mesh, h.kind, h.index, part, local) : null;
     const frame = r && !('reason' in r) && mesh ? lcsFrame(mesh, r.ref) : null;
     if (frame && matrix) {
       const second = !!s.mode.moving;
@@ -124,7 +125,9 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   const dragTargets = assembly.joints
     .filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset))
     .map((j) => j.moving.instanceId);
-  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets };
+  const lockedFace = s.mode.kind === 'joint' && s.mode.lockedFace ? { partId: s.mode.lockedFace.instanceId, index: s.mode.lockedFace.index } : null;
+  if (lockedFace) selection.push({ partId: lockedFace.partId, kind: 'face', index: lockedFace.index });
+  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace };
 }
 
 /** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau affiché. */
@@ -211,7 +214,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
 
   const selection: ViewportInput['selection'] = [];
   if (s.selection && (s.selection.kind === 'face' || s.selection.kind === 'edge')) selection.push({ partId: s.selection.partId, kind: s.selection.kind, index: s.selection.index });
-  if (s.mode.kind === 'measure') for (const p of s.mode.picks) selection.push({ partId: p.partId, kind: p.kind, index: p.index });
+  if (s.mode.kind === 'measure') for (const p of s.mode.picks) if (p.kind !== 'vertex') selection.push({ partId: p.partId, kind: p.kind, index: p.index });
 
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;

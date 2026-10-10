@@ -43,12 +43,13 @@ function helpText(s: AppState): string {
         ? 'Cliquez la face de la pièce qui doit être posée sur le plateau (une grande face plate est idéale). Échap pour annuler.'
         : 'Cliquez la face plate qui donne le contour à découper. Échap pour annuler.';
     case 'joint':
+      if (s.mode.lockedFace) return 'Face verrouillée : visez un de ses coins, puis cliquez. Relâchez Maj pour revenir.';
       return s.mode.moving
-        ? 'Liaison : cliquez maintenant le repère de la pièce de référence (face plane, bord d’un trou, arête). Échap pour annuler.'
-        : 'Liaison : cliquez le repère de la pièce qui doit bouger (face plane, bord circulaire d’un trou ou d’un axe, arête droite). Échap pour annuler.';
+        ? 'Liaison : cliquez maintenant le repère de la pièce de référence (face plane, bord d’un trou, arête ; maintenir Maj sur une face pour viser un sommet). Échap pour annuler.'
+        : 'Liaison : cliquez le repère de la pièce qui doit bouger (face plane, bord circulaire, arête droite ; maintenir Maj sur une face pour viser un sommet). Échap pour annuler.';
     case 'model': {
       const hover = s.hover as ModelPick | null;
-      if (hover) return describePick(s, hover);
+      if (hover && hover.kind !== 'vertex') return describePick(s, { ...hover, kind: hover.kind });
       const sel = s.selection;
       if (sel && (sel.kind === 'face' || sel.kind === 'edge')) return `Sélection : ${describePick(s, sel)}`;
       return NAVIGATION_HINT;

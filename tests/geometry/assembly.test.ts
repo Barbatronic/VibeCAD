@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { lcsFromPick, solveAssembly } from '../../src/app/assembly';
+import { lcsFrame, lcsFromPick, solveAssembly } from '../../src/app/assembly';
 import { addFeature, addPart, findPart, makeExtrudeFeature, makeSketchFeature } from '../../src/domain/document';
 import type { Assembly, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
@@ -9,7 +9,7 @@ import { addCircle, addConstraint } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 import { ORIGIN_POINT_ID } from '../../src/domain/model';
 import { getKernel } from '../helpers/kernel';
-import { buildPlateDocument } from '../helpers/plate';
+import { buildPlateDocument, setDimension } from '../helpers/plate';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -118,5 +118,24 @@ describe('assemblage', () => {
     expect(placed.issues.get('j2')).toBe('LOOP');
     expect(placed.issues.get('j3')).toBe('FIXED_MOVING');
     expect(placed.issues.has('j1')).toBe(false);
+  });
+
+  it('repère sur un sommet d’une face : il reste au coin quand la pièce change', () => {
+    const { doc, ids } = buildPlateDocument();
+    const mesh = meshes(doc).get(ids.partId)!;
+    const top = mesh.faces.findIndex((f) => f.plane && f.plane.normal.z > 0.99);
+    const r = lcsFromPick(mesh, 'vertex', top, findPart(doc, ids.partId)!, { x: 60, y: 30, z: 5 });
+    if (!('ref' in r)) throw new Error(r.reason);
+    expect(r.ref.kind).toBe('vertex');
+    const frame = lcsFrame(mesh, r.ref)!;
+    expect([frame.origin.x, frame.origin.y, frame.origin.z]).toEqual([60, 30, 5]);
+    expect(frame.normal.z).toBeCloseTo(1, 9);
+    // Plaque élargie à 80 mm : le repère suit le coin.
+    const wider = setDimension(doc, ids.sketch1, ids.widthConstraint, 80);
+    const moved = lcsFrame(meshes(wider).get(ids.partId)!, r.ref)!;
+    expect(moved.origin.x).toBeCloseTo(80, 6);
+    expect(moved.origin.y).toBeCloseTo(30, 6);
+    // Un point qui n'est pas un coin est refusé.
+    expect('reason' in lcsFromPick(mesh, 'vertex', top, findPart(doc, ids.partId)!, { x: 30, y: 15, z: 5 })).toBe(true);
   });
 });

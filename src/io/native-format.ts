@@ -302,14 +302,23 @@ function readLaser(v: Validator, la: Record<string, unknown>, path: string, part
   };
 }
 
+function readEdgeRef(v: Validator, x: unknown, path: string): EdgeRef {
+  const e = obj(v, x, path) ?? {};
+  const faces = arr(v, e, 'faces', path);
+  if (faces.length !== 2) v.error(`${path}.faces`, 'deux faces attendues');
+  return { faces: [readFaceRef(v, faces[0], `${path}.faces[0]`), readFaceRef(v, faces[1], `${path}.faces[1]`)] };
+}
+
 function readLcs(v: Validator, x: unknown, path: string): LcsRef {
   const o = obj(v, x, path) ?? {};
-  const kind = oneOf(v, o, 'kind', path, ['face', 'circle', 'edge'] as const);
+  const kind = oneOf(v, o, 'kind', path, ['face', 'circle', 'edge', 'vertex'] as const);
   if (kind === 'face') return { kind, face: readFaceRef(v, o.face, `${path}.face`) };
-  const e = obj(v, o.edge, `${path}.edge`) ?? {};
-  const faces = arr(v, e, 'faces', `${path}.edge`);
-  if (faces.length !== 2) v.error(`${path}.edge.faces`, 'deux faces attendues');
-  return { kind, edge: { faces: [readFaceRef(v, faces[0], `${path}.edge.faces[0]`), readFaceRef(v, faces[1], `${path}.edge.faces[1]`)] } };
+  if (kind === 'vertex') {
+    const edges = arr(v, o, 'edges', path);
+    if (edges.length !== 2) v.error(`${path}.edges`, 'deux arêtes attendues');
+    return { kind, face: readFaceRef(v, o.face, `${path}.face`), edges: [readEdgeRef(v, edges[0], `${path}.edges[0]`), readEdgeRef(v, edges[1], `${path}.edges[1]`)] };
+  }
+  return { kind, edge: readEdgeRef(v, o.edge, `${path}.edge`) };
 }
 
 function readLimits(v: Validator, o: Record<string, unknown>, key: string, path: string): [number, number] | undefined {

@@ -60,6 +60,11 @@ export function installKeyboard(controller: AppController): () => void {
       return;
     }
     if (isTyping(e.target)) return;
+    // Création d'une liaison : Maj maintenue verrouille la face survolée pour viser un sommet.
+    if (s.mode.kind === 'joint' && e.key === 'Shift') {
+      if (!e.repeat) controller.lockJointFace(true);
+      return;
+    }
 
     if (mod && (key === 'z' || key === 'y')) {
       e.preventDefault();
@@ -180,6 +185,17 @@ export function installKeyboard(controller: AppController): () => void {
       }
     }
   };
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key === 'Shift') controller.lockJointFace(false);
+  };
+  // Fenêtre quittée touche enfoncée : on déverrouille.
+  const onBlur = () => controller.lockJointFace(false);
   window.addEventListener('keydown', onKeyDown);
-  return () => window.removeEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
+  return () => {
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('blur', onBlur);
+  };
 }

@@ -1039,13 +1039,14 @@
       "required": [
         "kind"
       ],
-      "description": "Repère local : centre de face (face), centre de cercle (circle) ou milieu d'arête droite (edge).",
+      "description": "Repère local : centre de face (face), centre de cercle (circle), milieu d'arête droite (edge) ou sommet d'une face plane (vertex : la face et deux de ses arêtes).",
       "properties": {
         "kind": {
           "enum": [
             "face",
             "circle",
-            "edge"
+            "edge",
+            "vertex"
           ]
         },
         "face": {
@@ -1053,6 +1054,14 @@
         },
         "edge": {
           "$ref": "#/$defs/edgeRef"
+        },
+        "edges": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/edgeRef"
+          }
         }
       }
     },

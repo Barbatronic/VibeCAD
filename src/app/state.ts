@@ -30,7 +30,13 @@ export type Mode =
   | { kind: 'measure'; picks: ModelPick[]; info: MeasureInfo | null; busy: boolean }
   /** Création d'une liaison d'assemblage : repère de la pièce mobile, puis de la pièce de référence. */
   /** Création d'une liaison : repère déjà choisi sur la pièce qui bouge (et l'élément cliqué). */
-  | { kind: 'joint'; moving: JointEnd | null; movingPick?: { kind: 'face' | 'edge'; index: number } }
+  | {
+      kind: 'joint';
+      moving: JointEnd | null;
+      movingPick?: { kind: 'face' | 'edge'; index: number };
+      /** Face verrouillée (touche Maj maintenue) : on vise alors un de ses sommets. */
+      lockedFace?: { instanceId: Id; index: number } | null;
+    }
   /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
   | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id };
 

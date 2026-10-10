@@ -98,6 +98,8 @@ export interface ViewportInput {
   fitRequest?: number;
   /** Repères des liaisons à montrer (assemblage). */
   markers?: ViewMarker[];
+  /** Face verrouillée (touche Maj maintenue) : le survol et le clic désignent le sommet le plus proche. */
+  lockedFace?: { partId: Id; index: number } | null;
   /** Clés des pièces qu'on peut faire glisser à la souris (pièces mobiles d'une liaison). */
   dragTargets?: string[];
   /** Plateau d'impression (mm) dessiné à z = 0 à partir de l'origine. */
@@ -113,7 +115,8 @@ export interface AssemblyDragEvent {
 
 export interface ModelPick {
   partId: Id;
-  kind: 'face' | 'edge';
+  /** `vertex` : sommet d'une face verrouillée (`index` = rang de la face, `point` = le sommet). */
+  kind: 'face' | 'edge' | 'vertex';
   index: number;
   point: Vec3;
 }
@@ -920,7 +923,7 @@ export class Viewport {
       if (plane) this.events.onPlanePick(plane.plane);
       return;
     }
-    this.events.onPick(this.pickModel(e), { shift: e.shiftKey, double });
+    this.events.onPick(this.lockedVertexPick(e) ?? this.pickModel(e), { shift: e.shiftKey, double });
   };
 
   private onPointerLeave = (): void => {
@@ -1019,9 +1022,35 @@ export class Viewport {
     this.requestRender();
   }
 
+  /** Sommet de la face verrouillée le plus proche du curseur (à l'écran). */
+  private lockedVertexPick(e: PointerEvent): (ModelPick & { distance: number }) | null {
+    const lock = this.input.lockedFace;
+    const part = lock ? this.parts.get(lock.partId) : undefined;
+    if (!lock || !part) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const pos = part.data.edgePositions;
+    const w = new Vector3();
+    const q = new Vector3();
+    let best: { point: Vector3; px: number } | null = null;
+    for (const edge of part.data.edges) {
+      if (!edge.faces.includes(lock.index) || edge.count < 2) continue;
+      for (const k of [edge.start, edge.start + edge.count - 1]) {
+        w.set(pos[k * 3]!, pos[k * 3 + 1]!, pos[k * 3 + 2]!);
+        if (!part.group.matrixAutoUpdate) w.applyMatrix4(part.group.matrix);
+        q.copy(w).project(this.rig.camera);
+        const px = Math.hypot(((q.x + 1) / 2) * this.width - sx, ((1 - q.y) / 2) * this.height - sy);
+        if (!best || px < best.px) best = { point: w.clone(), px };
+      }
+    }
+    if (!best) return null;
+    return { partId: lock.partId, kind: 'vertex', index: lock.index, point: { x: best.point.x, y: best.point.y, z: best.point.z }, distance: 0 };
+  }
+
   private updateHover(e: PointerEvent): void {
     if (this.input.mode === 'sketch' || (this.input.mode === 'feature' && !this.input.featurePicking)) return;
-    const pick = this.pickModel(e);
+    const pick = this.lockedVertexPick(e) ?? this.pickModel(e);
     if (this.input.mode === 'pick-support') {
       const plane = this.pickOriginPlane(e);
       const usePlane = plane && (!pick || pick.kind !== 'face' || plane.distance < pick.distance) ? plane.plane : null;
@@ -1036,7 +1065,7 @@ export class Viewport {
     if (pick) {
       const part = this.parts.get(pick.partId);
       const overlay =
-        pick.kind === 'face'
+        pick.kind === 'face' || pick.kind === 'vertex'
           ? part?.faceOverlay(pick.index, hatchMaterial(this.palette.hover, 0.35))
           : part?.edgeOverlay(pick.index, this.resolved(fatLineMaterial(this.palette.hover, 3, { depthTest: false })));
       if (overlay && part) {

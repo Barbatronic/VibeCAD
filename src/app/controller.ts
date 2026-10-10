@@ -51,6 +51,7 @@ import type { AdviceAction } from './advice';
 import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
+import { invertRigid4, transformPoint4 } from '../math/mat4';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
@@ -420,6 +421,7 @@ export class AppController {
       this.select(null);
       return;
     }
+    if (pick.kind === 'vertex') return;
     this.select({ kind: pick.kind, partId: pick.partId, index: pick.index });
     if (info.double && pick.kind === 'face') this.sketchOnFace(pick.partId, pick.index, null);
   }
@@ -916,8 +918,8 @@ export class AppController {
 
   private async measurePick(pick: ModelPick): Promise<void> {
     const mode = this.state.mode;
-    if (mode.kind !== 'measure') return;
-    const picks = mode.picks.length >= 2 ? [pick] : [...mode.picks, pick];
+    if (mode.kind !== 'measure' || pick.kind === 'vertex') return;
+    const picks = (mode.picks.length >= 2 ? [pick] : [...mode.picks, pick]) as (ModelPick & { kind: 'face' | 'edge' })[];
     const single = this.describePick(pick);
     if (picks.length === 1) {
       this.set({ mode: { kind: 'measure', picks, info: single, busy: false } });
@@ -925,7 +927,7 @@ export class AppController {
     }
     this.set({ mode: { kind: 'measure', picks, info: null, busy: true } });
     try {
-      const [a, b] = picks as [ModelPick, ModelPick];
+      const [a, b] = picks as [ModelPick & { kind: 'face' | 'edge' }, ModelPick & { kind: 'face' | 'edge' }];
       const r = await this.deps.client.measure(this.state.doc, { partId: a.partId, kind: a.kind, index: a.index }, { partId: b.partId, kind: b.kind, index: b.index });
       const now = this.state.mode;
       if (now.kind !== 'measure') return;
@@ -1674,11 +1676,14 @@ export class AppController {
     const part = inst && findPart(s.doc, inst.partId);
     const mesh = inst && s.display[inst.partId]?.mesh;
     if (!inst || !part || !mesh) return;
-    const r = lcsFromPick(mesh, pick.kind, pick.index, part);
+    // Un sommet est désigné dans le monde : on le ramène dans les coordonnées de la pièce.
+    const placed = this.assemblyPlacement()?.matrices.get(inst.id);
+    const local = pick.kind === 'vertex' && placed ? transformPoint4(invertRigid4(placed), pick.point) : pick.point;
+    const r = lcsFromPick(mesh, pick.kind, pick.index, part, local);
     if ('reason' in r) return this.explain(r.reason);
     const end = { instanceId: inst.id, lcs: r.ref };
     if (!mode.moving) {
-      this.set({ mode: { kind: 'joint', moving: end, movingPick: { kind: pick.kind, index: pick.index } } });
+      this.set({ mode: { kind: 'joint', moving: end, movingPick: { kind: pick.kind === 'vertex' ? 'face' : pick.kind, index: pick.index }, lockedFace: null } });
       return;
     }
     if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
@@ -1691,6 +1696,25 @@ export class AppController {
     const kind: JointKind = moving.lcs.kind === 'circle' && base.lcs.kind === 'circle' ? 'revolute' : 'fixed';
     const added = addJoint(s.doc, { kind, moving, base, flip: false, angle: 0, offset: 0 });
     this.commit(added.doc, 'Créer une liaison', { mode: model, assemblySelection: { kind: 'joint', id: added.jointId } });
+  }
+
+  /**
+   * Touche Maj pendant la création d'une liaison : maintenue sur une face plane, elle la verrouille
+   * pour viser un de ses sommets ; relâchée, on revient au choix normal.
+   */
+  lockJointFace(on: boolean): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'joint') return;
+    if (!on) {
+      if (mode.lockedFace) this.set({ mode: { ...mode, lockedFace: null } });
+      return;
+    }
+    if (mode.lockedFace) return;
+    const h = this.state.hover;
+    const inst = h && this.state.doc.assembly?.instances.find((i) => i.id === h.partId);
+    const face = inst && h.kind === 'face' ? this.state.display[inst.partId]?.mesh?.faces[h.index] : undefined;
+    if (!h || !face?.plane) return this.explain('Survolez d’abord une face plane, puis maintenez Maj pour viser un de ses sommets.');
+    this.set({ mode: { ...mode, lockedFace: { instanceId: h.partId, index: h.index } } });
   }
 
   /** Change une liaison (type, retournement, limites…) : une action annulable. */

@@ -72,9 +72,15 @@ export interface FabricationSettings {
  * Repère local (LCS) posé sur une pièce, désigné de façon persistante :
  * - `face` : centre d'une face plane, axe Z = normale sortante ;
  * - `circle` : centre d'un cercle ou d'un arc (bord d'un trou…), axe Z = axe du cercle ;
- * - `edge` : milieu d'une arête droite, axe Z = direction de l'arête.
+ * - `edge` : milieu d'une arête droite, axe Z = direction de l'arête ;
+ * - `vertex` : sommet d'une face plane, axe Z = normale de la face.
  */
-export type LcsRef = { kind: 'face'; face: FaceRef } | { kind: 'circle'; edge: EdgeRef } | { kind: 'edge'; edge: EdgeRef };
+export type LcsRef =
+  | { kind: 'face'; face: FaceRef }
+  | { kind: 'circle'; edge: EdgeRef }
+  | { kind: 'edge'; edge: EdgeRef }
+  /** Sommet d'une face plane : point commun à deux de ses arêtes, axe Z = normale de la face. */
+  | { kind: 'vertex'; face: FaceRef; edges: [EdgeRef, EdgeRef] };
 
 /** Pièce insérée dans l'assemblage (une même pièce peut être insérée plusieurs fois). */
 export interface AssemblyInstance {

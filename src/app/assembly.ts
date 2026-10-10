@@ -45,8 +45,25 @@ function faceCentroid(mesh: MeshData, faceIndex: number): Vec3 {
   return area > 0 ? scale3(c, 1 / area) : { x: p[mesh.indices[f.start]! * 3]!, y: p[mesh.indices[f.start]! * 3 + 1]!, z: p[mesh.indices[f.start]! * 3 + 2]! };
 }
 
+/** Extrémités (premier et dernier point) d'une arête du maillage. */
+function edgeEnds(mesh: MeshData, edgeIndex: number): Vec3[] {
+  const e = mesh.edges[edgeIndex]!;
+  const p = mesh.edgePositions;
+  return [e.start, e.start + e.count - 1].map((k) => ({ x: p[k * 3]!, y: p[k * 3 + 1]!, z: p[k * 3 + 2]! }));
+}
+
+const samePoint = (a: Vec3, b: Vec3) => length3(sub3(a, b)) <= 1e-6 * Math.max(1, length3(a));
+
 /** Repère (dans les coordonnées de la pièce) désigné par une référence, ou null s'il a disparu. */
 export function lcsFrame(mesh: MeshData, ref: LcsRef): Frame3D | null {
+  if (ref.kind === 'vertex') {
+    const face = facesMatching(mesh, ref.face).find((i) => mesh.faces[i]!.plane);
+    if (face === undefined) return null;
+    const a = edgesMatching(mesh, ref.edges[0]).flatMap((i) => edgeEnds(mesh, i));
+    const b = edgesMatching(mesh, ref.edges[1]).flatMap((i) => edgeEnds(mesh, i));
+    const corner = a.find((p) => b.some((q) => samePoint(p, q)));
+    return corner ? frameFromAxis(corner, mesh.faces[face]!.plane!.normal) : null;
+  }
   if (ref.kind === 'face') {
     const face = facesMatching(mesh, ref.face).find((i) => mesh.faces[i]!.plane);
     if (face === undefined) return null;
@@ -69,8 +86,20 @@ export function lcsFrame(mesh: MeshData, ref: LcsRef): Frame3D | null {
   return null;
 }
 
-/** Référence de repère pour une face ou une arête cliquée, ou une explication. */
-export function lcsFromPick(mesh: MeshData, kind: 'face' | 'edge', index: number, part: Part): { ref: LcsRef } | { reason: string } {
+/**
+ * Référence de repère pour une face, une arête ou un sommet cliqué (sommet : `index` = face
+ * verrouillée, `point` = le sommet dans les coordonnées de la pièce), ou une explication.
+ */
+export function lcsFromPick(mesh: MeshData, kind: 'face' | 'edge' | 'vertex', index: number, part: Part, point?: Vec3): { ref: LcsRef } | { reason: string } {
+  if (kind === 'vertex') {
+    const face = mesh.faces[index];
+    if (!face?.plane || !point) return { reason: 'Verrouillez une face plane (touche Maj maintenue) puis visez un de ses sommets.' };
+    const faceRef = pickFaceReference(face.tags, part);
+    const edges = mesh.edges.flatMap((e, i) => (e.faces.includes(index) && edgeEnds(mesh, i).some((q) => samePoint(q, point)) ? [i] : []));
+    const refs = edges.map((i) => edgeRefFromPick(mesh, i, part, null)).flatMap((r) => (r.kind === 'ref' ? [r.ref] : []));
+    if (!faceRef || refs.length < 2) return { reason: 'Ce sommet ne peut pas être désigné de façon durable : choisissez un coin entre deux arêtes.' };
+    return { ref: { kind: 'vertex', face: faceRef, edges: [refs[0]!, refs[1]!] } };
+  }
   if (kind === 'face') {
     const face = mesh.faces[index];
     if (!face) return { reason: 'Face introuvable.' };
