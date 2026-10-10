@@ -47,9 +47,13 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   await editor.getByLabel('Valeur de l’angle en degrés').press('Enter');
   await expect.poll(async () => (await session(page))?.sketch.constraints.some((c: any) => c.type === 'angle' && c.value === 30)).toBe(true);
 
-  // Menu des autres contraintes.
+  // Menu « Autres » : toutes les contraintes, y compris celles de la barre (coïncidence…).
+  await expect(page.locator('#sk-more-constraints')).toContainText('Autres');
   await page.click('#sk-more-constraints');
-  await expect(page.getByRole('menu', { name: 'Autres contraintes' })).toBeVisible();
+  const menu = page.getByRole('menu', { name: 'Toutes les contraintes' });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /Coïncidence/ })).toBeVisible();
+  await expect(menu.getByRole('menuitem')).toHaveCount(12);
   await page.screenshot({ path: 'tests/output/e2e-menu-contraintes.png' });
   await page.getByRole('menuitem', { name: /Parallèle/ }).click();
   await expect(page.locator('#sk-more-constraints')).toHaveAttribute('aria-pressed', 'true');

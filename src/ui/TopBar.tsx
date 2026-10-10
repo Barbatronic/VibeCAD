@@ -434,6 +434,27 @@ function ConstraintMenu({ tool }: { tool: SketchTool }) {
     };
   }, [open]);
   const active = MORE_CONSTRAINTS.find((t) => t.tool === tool);
+  const item = (t: { tool: SketchTool; icon: string; key?: string }, id: string) => (
+    <button
+      key={id}
+      type="button"
+      role="menuitem"
+      id={id}
+      class="menu-item"
+      aria-current={t.tool === tool ? 'true' : undefined}
+      onClick={() => {
+        setOpen(false);
+        c.updateSession((x) => setTool(x, t.tool));
+      }}
+    >
+      <Icon name={t.icon} />
+      <span class="menu-text">
+        <strong>{TOOL_LABELS[t.tool]}</strong>
+        <span class="desc">{shortHelp(t.tool)}</span>
+      </span>
+      {t.key ? <span class="shortcut">{t.key}</span> : null}
+    </button>
+  );
   const onMenuKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
@@ -450,36 +471,25 @@ function ConstraintMenu({ tool }: { tool: SketchTool }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-pressed={!!active}
-        title="Autres contraintes : parallèle, perpendiculaire, égalité, colinéaire, tangence, point sur, milieu, concentrique"
+        title="Toutes les contraintes : celles de la barre (cote, coïncidence, horizontal, vertical) et les autres (parallèle, perpendiculaire, égalité, colinéaire, tangence, point sur, milieu, concentrique)"
         onClick={() => setOpen(!open)}
       >
         <Icon name={active?.icon ?? 'constraints'} />
         <span>
-          {active ? TOOL_LABELS[active.tool] : 'Contraintes'} <span aria-hidden="true">▾</span>
+          {active ? TOOL_LABELS[active.tool] : 'Autres'} <span aria-hidden="true">▾</span>
         </span>
       </button>
       {open ? (
-        <div class="menu menu-wide" role="menu" aria-label="Autres contraintes" onKeyDown={onMenuKey}>
-          {MORE_CONSTRAINTS.map((t) => (
-            <button
-              key={t.tool}
-              type="button"
-              role="menuitem"
-              id={`sk-${t.tool}`}
-              class="menu-item"
-              aria-current={t.tool === tool ? 'true' : undefined}
-              onClick={() => {
-                setOpen(false);
-                c.updateSession((x) => setTool(x, t.tool));
-              }}
-            >
-              <Icon name={t.icon} />
-              <span class="menu-text">
-                <strong>{TOOL_LABELS[t.tool]}</strong>
-                <span class="desc">{shortHelp(t.tool)}</span>
-              </span>
-            </button>
-          ))}
+        <div class="menu menu-wide menu-end" role="menu" aria-label="Toutes les contraintes" onKeyDown={onMenuKey}>
+          {/* Les contraintes de la barre sont reprises ici : on les trouve aussi en cherchant dans le menu. */}
+          <div class="menu-section" role="presentation">
+            Aussi dans la barre
+          </div>
+          {MAIN_CONSTRAINT_TOOLS.map((t) => item(t, `sk-menu-${t.tool}`))}
+          <div class="menu-section" role="presentation">
+            Autres contraintes
+          </div>
+          {MORE_CONSTRAINTS.map((t) => item(t, `sk-${t.tool}`))}
         </div>
       ) : null}
     </div>
