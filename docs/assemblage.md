@@ -48,6 +48,12 @@ placée) : les deux repères sont superposés, axes Z opposés (les faces se tou
 Chaque type a son icône et une explication avec un exemple de la vie courante (roue, tiroir,
 lampe de bureau…), affichée sous les boutons et au survol.
 
+**Outil Main** (barre d'outils de l'assemblage) : activé, on attrape une pièce tenue par une
+liaison et elle suit la souris en ne faisant que le mouvement permis (tourner, glisser ; Maj pour
+glisser un pivot glissant ; une rotule penche comme un levier, le point attrapé suivant la souris
+autour de la rotule). Désactivé, glisser fait seulement tourner la vue. Un geste = une action
+d'Annuler.
+
 « Retourner » inverse le sens de l'axe de la pièce mobile. Les valeurs (angle, décalage) sont
 enregistrées dans le projet et entrent dans Annuler / Rétablir.
 
