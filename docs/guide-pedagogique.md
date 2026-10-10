@@ -17,7 +17,7 @@ SolidWorks, avec un vocabulaire exact expliqué en une phrase :
 Bouton **Parcours** en haut à droite (ou Aide → Lancer le parcours guidé). Douze étapes courtes ;
 chacune se valide toute seule en observant le modèle réel (« Bravo, c'est fait ! »), et on peut
 passer une étape, revenir en arrière ou quitter à tout moment. Le bouton à utiliser est mis en
-évidence par un contour orange animé. Le **chat de VibeCAD** présente chaque étape et saute de
+évidence par un contour orange animé. **Java**, le chat de VibeCAD (noir sur le dessus, blanc en dessous), présente chaque étape et saute de
 joie quand elle est réussie.
 
 En dehors du parcours, le chat n'apparaît que lorsqu'il a quelque chose d'utile à dire : une

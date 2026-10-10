@@ -53,7 +53,7 @@ millimètres, avec le nom et la couleur de chaque pièce).
   (contenu conservé dans le projet), export **3MF** (impression 3D : unité, noms et couleurs des
   pièces) et STL (en mm).
 - **Parcours guidé** « la plaque percée » et aide intégrée (navigation, vocabulaire, raccourcis).
-- **Le chat de VibeCAD** (logo et mascotte) : il présente les étapes du parcours, félicite quand une
+- **Java, le chat de VibeCAD** (logo et mascotte, noir et blanc) : il présente les étapes du parcours, félicite quand une
   étape est réussie et, quand une étape a un souci, l'explique en une phrase avec un bouton pour
   le corriger. Discret (réductible, masquable depuis l'aide), sans réseau, il ne modifie jamais la
   pièce tout seul. Les icônes de l'application se régénèrent depuis son dessin : `npm run icons`.
