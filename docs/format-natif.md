@@ -142,8 +142,12 @@ l'origine fixe (0, 0) de l'esquisse.
 | `angle` | `a`, `b` (segments), `value` (degrés, 0–180), `supplementary?` | angle entre les directions des segments (de leur premier point vers le second) ; `supplementary` retourne la direction de `b` |
 | `pointLineDistance` | `point`, `line`, `value` | distance du point à la droite portant le segment |
 
-Les cotes peuvent porter un champ facultatif `offset` (position d'affichage, sans effet
-géométrique).
+Les cotes peuvent porter des champs facultatifs de **placement d'affichage**, choisis en faisant
+glisser leur libellé (sans effet géométrique) : `offset` (mm) — décalage latéral de la ligne de
+cote (longueur, distance alignée), position par rapport au milieu des deux points (distance
+horizontale / verticale), longueur du repère au-delà du cercle (diamètre, rayon), rayon de l'arc
+(angle) ou glissement le long du segment (distance point-segment) ; `labelAngle` (degrés) —
+direction du libellé d'un diamètre ou d'un rayon. Sans ces champs, le placement est automatique.
 
 ### Extrusion (`"type": "extrude"`)
 
