@@ -26,13 +26,27 @@ test('liaison : Maj maintenue verrouille une face, le repère s’accroche au so
     await page.getByRole('menu', { name: 'Pièces à insérer' }).getByRole('menuitem').first().click();
   }
   await expect.poll(() => page.evaluate(() => [...(window as any).vibecad.controller.viewport.parts.values()].filter((p: any) => p.data).length)).toBe(2);
-  await page.evaluate(() => (window as any).vibecad.controller.fitAll());
-  await page.waitForTimeout(700);
+  // Cadrer jusqu'à ce que la seconde plaque soit dans la vue (elle peut s'afficher après un premier cadrage).
+  const canvas = (await page.locator('.vp-canvas').boundingBox())!;
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => (window as any).vibecad.controller.fitAll());
+      await page.waitForTimeout(600);
+      const p = await onScreen(page, 1, { x: 60, y: 30, z: 5 });
+      return p.x > canvas.x && p.x < canvas.x + canvas.width - 20 && p.y > canvas.y && p.y < canvas.y + canvas.height - 40;
+    })
+    .toBe(true);
   await page.click('#as-joint');
   // Survoler la face du dessus de la seconde plaque (loin du trou), puis maintenir Maj.
-  const face = await onScreen(page, 1, { x: 45, y: 20, z: 5 });
-  await page.mouse.move(face.x, face.y);
-  await expect.poll(() => appState(page, (s) => s.hover?.kind)).toBe('face');
+  // La vue peut encore se cadrer : on recalcule la position et on refait le survol jusqu'à toucher la face.
+  await expect
+    .poll(async () => {
+      const face = await onScreen(page, 1, { x: 45, y: 20, z: 5 });
+      await page.mouse.move(face.x + 1, face.y);
+      await page.mouse.move(face.x, face.y);
+      return appState(page, (s) => s.hover?.kind);
+    })
+    .toBe('face');
   await page.keyboard.down('Shift');
   await expect.poll(() => appState(page, (s) => !!s.mode.lockedFace)).toBe(true);
   // Viser le coin (60, 30, 5) : le survol devient un sommet, avec l'aperçu du repère.
