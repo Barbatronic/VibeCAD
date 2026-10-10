@@ -20,8 +20,6 @@
     "check": "npm run typecheck && npm run lint:arch && npm run test",
     "bench": "vitest run --config vitest.bench.config.ts",
     "test:e2e:firefox": "playwright test --project=firefox",
-    "test:e2e:webkit": "playwright test --project=webkit",
-    "test:e2e:edge": "playwright test --project=msedge",
     "verify:freecad": "vitest run tests/geometry/freecad.test.ts",
     "icons": "tsc src/ui/mascot-art.ts --ignoreConfig --outDir .icons-tmp --target es2022 --module esnext && node scripts/generate-icons.mjs && node -e \"require('fs').rmSync('.icons-tmp',{recursive:true})\""
   },
