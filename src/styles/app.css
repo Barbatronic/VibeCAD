@@ -1845,6 +1845,18 @@ kbd {
   .project-name {
     width: 128px;
   }
+  /* Parcours et Aide (fin de la barre) : icônes seules, le nom reste dans l'infobulle. */
+  .topbar > .tool-btn {
+    min-width: 38px;
+  }
+  .topbar > .tool-btn > span:not(.visually-hidden) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 
 /* Écrans étroits : la barre d'outils passe en icônes seules (le nom reste dans l'infobulle et
@@ -2351,4 +2363,11 @@ kbd {
 
 .fab-material .select {
   width: 100%;
+}
+
+.pattern-second {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }

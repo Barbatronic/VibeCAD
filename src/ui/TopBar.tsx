@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { exportAvailability, measureAvailability, sketchAvailability, toolAvailability, toolFeatureTypes, type Availability } from '../app/availability';
 import { FEATURE_DEFINITIONS } from '../features/registry';
+import type { FeatureType } from '../domain/model';
 import { shallowEqual } from '../app/store';
 import { nextRedoLabel, nextUndoLabel } from '../commands/history';
 import { APP_NAME } from '../meta';
@@ -177,6 +178,13 @@ function ModelTools() {
         />
         {types.map((t, i) => {
           const def = FEATURE_DEFINITIONS[t];
+          const group = FEATURE_GROUPS.find((g) => g.types.includes(t));
+          if (group) {
+            // Un seul bouton par groupe, à la place du premier de ses membres.
+            if (types.find((x) => group.types.includes(x)) !== t) return null;
+            const members = types.flatMap((x, k) => (group.types.includes(x) ? [{ type: x, availability: a.tools[k]! }] : []));
+            return <FeatureSplit key={group.name} name={group.name} members={members} />;
+          }
           return (
             <ToolButton
               key={t}
@@ -219,6 +227,81 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
   { tool: 'circle', icon: 'circle', key: 'C', label: 'Cercle (centre et bord)' },
   { tool: 'arc', icon: 'arc', key: 'A', label: 'Arc de cercle (centre, départ, arrivée)' },
 ];
+
+/** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
+const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
+  { name: 'arrondis et chanfreins', types: ['fillet', 'chamfer'] },
+  { name: 'répétitions et symétries', types: ['pattern'] },
+];
+
+/** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */
+function FeatureSplit({ name, members }: { name: string; members: { type: FeatureType; availability: Availability }[] }) {
+  const c = useController();
+  const [open, setOpen] = useState(false);
+  const [last, setLast] = useState(members[0]!.type);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    root.current?.querySelector<HTMLButtonElement>('.menu-item')?.focus();
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+  const shown = members.find((m) => m.type === last) ?? members[0]!;
+  const def = FEATURE_DEFINITIONS[shown.type];
+  if (members.length === 1) {
+    return <ToolButton id={`tool-${shown.type}`} icon={def.icon} label={def.label} hint={def.explanation} availability={shown.availability} onClick={() => c.startFeature(shown.type)} />;
+  }
+  return (
+    <div class="anchor tool-split" ref={root}>
+      <ToolButton id={`tool-${shown.type}`} icon={def.icon} label={def.label} hint={def.explanation} availability={shown.availability} onClick={() => c.startFeature(shown.type)} />
+      <button type="button" class="split-toggle" aria-haspopup="menu" aria-expanded={open} aria-label={`Autres outils : ${name}`} title={`Autres outils : ${name}`} onClick={() => setOpen(!open)}>
+        <Icon name="chevron-down" />
+      </button>
+      {open ? (
+        <div class="menu menu-wide" role="menu" aria-label={name}>
+          {members.map((m) => {
+            const d = FEATURE_DEFINITIONS[m.type];
+            return (
+              <button
+                key={m.type}
+                type="button"
+                role="menuitem"
+                id={`tool-menu-${m.type}`}
+                class="menu-item"
+                aria-disabled={m.availability.ok ? undefined : 'true'}
+                title={m.availability.ok ? d.explanation : m.availability.reason}
+                onClick={() => {
+                  setOpen(false);
+                  setLast(m.type);
+                  c.startFeature(m.type);
+                }}
+              >
+                <Icon name={d.icon} />
+                <span class="menu-text">
+                  <strong>{d.label}</strong>
+                  <span class="desc">{m.availability.ok ? d.explanation : m.availability.reason}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ToolVariants({ variants, tool, name }: { variants: ToolVariant[]; tool: SketchTool; name: string }) {
   const c = useController();
