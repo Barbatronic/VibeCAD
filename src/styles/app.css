@@ -2439,3 +2439,30 @@ kbd {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+.level-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.level-select {
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.help-levels {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.help-levels legend {
+  padding: 0 4px;
+  font-weight: 600;
+}

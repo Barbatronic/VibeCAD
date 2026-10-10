@@ -46,8 +46,9 @@ import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
-import { createSession, setPixelSize, setProjectable, type SketchSession } from '../sketch/session';
+import { createSession, setPixelSize, setProjectable, setTool, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
+import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
@@ -130,6 +131,30 @@ export class AppController {
     if (this.deps.projects) void requestPersistentStorage();
     const mascot = await this.deps.projects?.getSetting<{ hidden?: boolean; collapsed?: boolean }>('mascot').catch(() => undefined);
     if (mascot) this.set({ mascot: { ...this.state.mascot, hidden: !!mascot.hidden, collapsed: !!mascot.collapsed } });
+    // Niveau : celui de l'adresse (?niveau=expert, pratique pour un lien donné en classe), sinon celui retenu.
+    const fromUrl = parseLevel(new URLSearchParams(globalThis.location?.search ?? '').get('niveau'));
+    const saved = parseLevel(await this.deps.projects?.getSetting<string>('level').catch(() => undefined));
+    if (fromUrl) this.setLevel(fromUrl);
+    else if (saved) this.setLevel(saved, false);
+  }
+
+  /** Change le niveau de l'interface ; ce qui n'est plus montré est refermé. */
+  setLevel(level: Level, persist = true): void {
+    const s = this.state;
+    const patch: Partial<AppState> = { level };
+    if (s.workspace === 'assembly' && !allows(level, 'workspace:assembly')) Object.assign(patch, { workspace: 'parts', assemblySelection: null });
+    if ((s.fabricationTab === 'laser' && !allows(level, 'fabrication:laser')) || (s.fabricationTab === 'docs' && !allows(level, 'fabrication:docs'))) {
+      patch.fabricationTab = 'print';
+    }
+    this.set(patch);
+    const mode = this.state.mode;
+    if (mode.kind === 'sketch' && !allows(level, `sketch:${mode.session.tool}`)) this.updateSession((x) => setTool(x, 'select'));
+    if (persist) void this.deps.projects?.setSetting('level', level).catch(() => undefined);
+  }
+
+  /** Vrai si le niveau actuel montre cet outil. */
+  can(cap: Capability): boolean {
+    return allows(this.state.level, cap);
   }
 
   private async restoreLastSession(): Promise<void> {
@@ -649,6 +674,7 @@ export class AppController {
 
   /** Démarre une opération proposée par la barre d'outils (voir `FeatureDefinition.tool`). */
   startFeature(type: FeatureType): void {
+    if (!this.can(`feature:${type}`)) return this.explain('Cet outil n’est pas disponible à ce niveau (en bas à droite : « Niveau »).');
     const avail = toolAvailability(this.state, type);
     if (!avail.ok) return this.explain(avail.reason);
     const def = FEATURE_DEFINITIONS[type] as unknown as FeatureDefinition;
@@ -1095,6 +1121,7 @@ export class AppController {
   // Import et export
 
   async importStep(): Promise<void> {
+    if (!this.can('import-step')) return this.explain('L’import de fichiers STEP est disponible au niveau Expert (en bas à droite : « Niveau »).');
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
     const file = await pickFile('.step,.stp,model/step,application/step');
     if (file) await this.beginImport(file);
@@ -1333,6 +1360,7 @@ export class AppController {
 
   setWorkspace(workspace: Workspace): void {
     if (this.state.workspace === workspace) return;
+    if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (this.state.mode.kind !== 'model' && this.state.mode.kind !== 'joint') return this.explain('Terminez d’abord l’opération en cours.');
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
   }
@@ -1340,6 +1368,9 @@ export class AppController {
   // ----- Fabrication
 
   setFabricationTab(tab: FabricationTab): void {
+    if ((tab === 'laser' && !this.can('fabrication:laser')) || (tab === 'docs' && !this.can('fabrication:docs'))) {
+      return this.explain('Cet outil est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
+    }
     this.set({ fabricationTab: tab, mode: this.state.mode.kind === 'pick-fab-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
   }
 

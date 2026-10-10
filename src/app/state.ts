@@ -1,5 +1,6 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
 import type { TutorialId } from '../tutorials';
+import type { Level } from './levels';
 import type { RollbackState } from './rollback';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
@@ -121,6 +122,8 @@ export interface AppState {
    * conseil refermé par l'utilisateur (il ne se rouvre que si le conseil change).
    */
   mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
+  /** Niveau de l'interface (outils montrés), retenu sur l'appareil. */
+  level: Level;
   workspace: Workspace;
   fabricationTab: FabricationTab;
   /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
@@ -163,6 +166,7 @@ export function initialState(): AppState {
     lastEvaluation: null,
     fitRequest: 0,
     rollback: {},
+    level: 'debutant',
     workspace: 'parts',
     fabricationTab: 'print',
     fabricationPart: null,

@@ -1,4 +1,5 @@
 import { useEffect } from 'preact/hooks';
+import { allows } from '../app/levels';
 import { TUTORIALS, tutorialById } from '../tutorials';
 import { useAppState, useController } from './context';
 import { Button, IconButton } from './components/controls';
@@ -13,6 +14,8 @@ function RichText({ text }: { text: string }) {
 /** Choix du parcours guidé. */
 function TutorialChooser({ showCat }: { showCat: boolean }) {
   const c = useController();
+  const level = useAppState((s) => s.level);
+  const tours = TUTORIALS.filter((t) => t.id === 'plate' || allows(level, `tutorial:${t.id}`));
   return (
     <section class="tutorial" aria-labelledby="tutorial-title" aria-live="polite">
       <div class="tutorial-header">
@@ -26,7 +29,7 @@ function TutorialChooser({ showCat }: { showCat: boolean }) {
         <div>
           <h3 id="tutorial-title">Que veux-tu apprendre ?</h3>
           <ul class="tutorial-choices">
-            {TUTORIALS.map((t) => (
+            {tours.map((t) => (
               <li key={t.id}>
                 <button type="button" class="tutorial-choice" onClick={() => c.startTutorial(t.id)}>
                   <strong>{t.title}</strong>

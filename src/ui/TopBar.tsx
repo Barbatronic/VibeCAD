@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { exportAvailability, measureAvailability, sketchAvailability, toolAvailability, toolFeatureTypes, type Availability } from '../app/availability';
 import { FEATURE_DEFINITIONS } from '../features/registry';
+import { allows } from '../app/levels';
 import type { FeatureType } from '../domain/model';
 import { shallowEqual } from '../app/store';
 import { nextRedoLabel, nextUndoLabel } from '../commands/history';
@@ -153,7 +154,8 @@ function UndoRedo() {
 
 function ModelTools() {
   const c = useController();
-  const types = toolFeatureTypes();
+  const level = useAppState((s) => s.level);
+  const types = toolFeatureTypes().filter((t) => allows(level, `feature:${t}`));
   const a = useAppState(
     (s) => ({
       sketch: sketchAvailability(s),
@@ -201,7 +203,9 @@ function ModelTools() {
       </div>
       <div class="toolbar-group" role="group" aria-label="Pièces">
         <ToolButton id="tool-new-part" icon="part" label="Pièce" hint="Ajouter une nouvelle pièce indépendante" availability={a.importOk} onClick={() => c.addPart()} />
-        <ToolButton id="tool-import" icon="import" label="Importer" hint="Importer un fichier STEP" availability={a.importOk} onClick={() => void c.importStep()} />
+        {allows(level, 'import-step') ? (
+          <ToolButton id="tool-import" icon="import" label="Importer" hint="Importer un fichier STEP" availability={a.importOk} onClick={() => void c.importStep()} />
+        ) : null}
         <ToolButton id="tool-export" icon="export" label="STEP" hint="Exporter en STEP pour FreeCAD" availability={a.importOk} onClick={() => c.showExportDialog('step')} />
       </div>
       <div class="toolbar-group" role="group" aria-label="Outils">
@@ -305,8 +309,10 @@ function FeatureSplit({ name, members }: { name: string; members: { type: Featur
   );
 }
 
-function ToolVariants({ variants, tool, name }: { variants: ToolVariant[]; tool: SketchTool; name: string }) {
+function ToolVariants({ variants: all, tool, name }: { variants: ToolVariant[]; tool: SketchTool; name: string }) {
   const c = useController();
+  const level = useAppState((s) => s.level);
+  const variants = all.filter((v) => allows(level, `sketch:${v.tool}`));
   const [open, setOpen] = useState(false);
   const [last, setLast] = useState(variants[0]!.tool);
   const root = useRef<HTMLDivElement>(null);
@@ -333,6 +339,12 @@ function ToolVariants({ variants, tool, name }: { variants: ToolVariant[]; tool:
       document.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
+  if (variants.length === 1) {
+    const v = variants[0]!;
+    return (
+      <ToolButton id={`sk-${v.tool}`} icon={v.icon} label={TOOL_LABELS[v.tool]} shortcut={v.key} pressed={tool === v.tool} onClick={() => c.updateSession((x) => setTool(x, v.tool))} />
+    );
+  }
   const shown = activeVariant ?? variants.find((v) => v.tool === last) ?? variants[0]!;
   return (
     <div class="anchor tool-split" ref={root}>
@@ -412,6 +424,7 @@ const shortHelp = (tool: SketchTool) => {
 
 function ConstraintMenu({ tool }: { tool: SketchTool }) {
   const c = useController();
+  const level = useAppState((s) => s.level);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -489,7 +502,7 @@ function ConstraintMenu({ tool }: { tool: SketchTool }) {
           <div class="menu-section" role="presentation">
             Autres contraintes
           </div>
-          {MORE_CONSTRAINTS.map((t) => item(t, `sk-${t.tool}`))}
+          {MORE_CONSTRAINTS.filter((t) => allows(level, `sketch:${t.tool}`)).map((t) => item(t, `sk-${t.tool}`))}
         </div>
       ) : null}
     </div>
@@ -498,6 +511,7 @@ function ConstraintMenu({ tool }: { tool: SketchTool }) {
 
 function SketchTools() {
   const c = useController();
+  const level = useAppState((st) => st.level);
   const s = useAppState(
     (st) =>
       st.mode.kind === 'sketch'
@@ -528,38 +542,44 @@ function SketchTools() {
         {SKETCH_TOOLS.map(btn)}
         <ToolVariants variants={RECTANGLE_VARIANTS} tool={s.tool} name="rectangles" />
         <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles et arcs" />
-        <ToolButton
-          id="sk-trim"
-          icon="trim"
-          label="Couper"
-          shortcut="T"
-          hint="Couper : retirer le morceau d’un trait jusqu’aux croisements les plus proches"
-          pressed={s.tool === 'trim'}
-          onClick={() => c.updateSession((x) => setTool(x, 'trim'))}
-        />
-        <ToolButton
-          id="sk-construction"
-          icon="construction"
-          label="Construction"
-          shortcut="G"
-          hint="Traits de construction (pointillés) : des repères pour coter, ignorés pour le volume. Avec des éléments sélectionnés : les convertit."
-          pressed={s.construction}
-          onClick={() => c.updateSession(toggleConstruction)}
-        />
-        <ToolButton
-          id="sk-project"
-          icon="project"
-          label="Projeter"
-          shortcut="P"
-          hint="Reprendre une arête de la pièce (bord, trou…) dans l’esquisse comme repère"
-          pressed={s.tool === 'project'}
-          availability={s.canProject ? { ok: true } : { ok: false, reason: 'Aucune arête de la pièce à reprendre : il faut un volume construit avant cette esquisse.' }}
-          onClick={() => c.updateSession((x) => setTool(x, 'project'))}
-        />
+        {allows(level, 'sketch:trim') ? (
+          <ToolButton
+            id="sk-trim"
+            icon="trim"
+            label="Couper"
+            shortcut="T"
+            hint="Couper : retirer le morceau d’un trait jusqu’aux croisements les plus proches"
+            pressed={s.tool === 'trim'}
+            onClick={() => c.updateSession((x) => setTool(x, 'trim'))}
+          />
+        ) : null}
+        {allows(level, 'sketch-construction') ? (
+          <ToolButton
+            id="sk-construction"
+            icon="construction"
+            label="Construction"
+            shortcut="G"
+            hint="Traits de construction (pointillés) : des repères pour coter, ignorés pour le volume. Avec des éléments sélectionnés : les convertit."
+            pressed={s.construction}
+            onClick={() => c.updateSession(toggleConstruction)}
+          />
+        ) : null}
+        {allows(level, 'sketch:project') ? (
+          <ToolButton
+            id="sk-project"
+            icon="project"
+            label="Projeter"
+            shortcut="P"
+            hint="Reprendre une arête de la pièce (bord, trou…) dans l’esquisse comme repère"
+            pressed={s.tool === 'project'}
+            availability={s.canProject ? { ok: true } : { ok: false, reason: 'Aucune arête de la pièce à reprendre : il faut un volume construit avant cette esquisse.' }}
+            onClick={() => c.updateSession((x) => setTool(x, 'project'))}
+          />
+        ) : null}
       </div>
       <div class="toolbar-group" role="group" aria-label="Coter et contraindre">
         {MAIN_CONSTRAINT_TOOLS.map(btn)}
-        <ConstraintMenu tool={s.tool} />
+        {MORE_CONSTRAINTS.some((t) => allows(level, `sketch:${t.tool}`)) ? <ConstraintMenu tool={s.tool} /> : null}
       </div>
       <div class="toolbar-group" role="group" aria-label="Édition">
         <ToolButton

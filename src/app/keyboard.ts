@@ -2,6 +2,7 @@
  * Raccourcis clavier, selon le mode actif. Les touches tapées dans un champ de saisie ne sont
  * pas interceptées (Suppr efface du texte, Ctrl+Z annule la frappe…).
  */
+import { allows } from './levels';
 import {
   cancelEditor,
   confirmEditor,
@@ -154,11 +155,12 @@ export function installKeyboard(controller: AppController): () => void {
     }
     if (s.mode.kind === 'sketch') {
       const tool = key === 'r' && e.shiftKey ? 'centerRectangle' : SKETCH_KEYS[key];
-      if (tool && !s.mode.session.input?.values.some((v) => v)) {
+      // Raccourci d'un outil masqué à ce niveau : ignoré.
+      if (tool && allows(s.level, `sketch:${tool}`) && !s.mode.session.input?.values.some((v) => v)) {
         e.preventDefault();
         controller.updateSession((x) => setTool(x, tool));
       }
-      if (key === 'g' && !s.mode.session.input?.values.some((v) => v)) {
+      if (key === 'g' && allows(s.level, 'sketch-construction') && !s.mode.session.input?.values.some((v) => v)) {
         e.preventDefault();
         controller.updateSession(toggleConstruction);
       }

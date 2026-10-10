@@ -2,6 +2,7 @@
  * Interface de l'onglet Assemblage : outils (insérer, liaison), liste des pièces insérées et des
  * liaisons, réglages de la liaison choisie (type, curseurs, limites). Voir docs/assemblage.md.
  */
+import { allows } from '../app/levels';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { clampToLimits, JOINT_ISSUE_MESSAGES, jointFreedoms } from '../app/assembly';
 import { JOINT_LABELS } from '../domain/document';
@@ -16,6 +17,7 @@ import { Icon } from './icons';
 export function WorkspaceTabs() {
   const c = useController();
   const workspace = useAppState((s) => s.workspace);
+  const assembly = useAppState((s) => allows(s.level, 'workspace:assembly'));
   return (
     <div class="workspace-tabs" role="tablist" aria-label="Espace de travail">
       {(
@@ -24,7 +26,9 @@ export function WorkspaceTabs() {
           ['assembly', 'Assemblage', 'Assembler les pièces et les faire bouger'],
           ['fabrication', 'Fabrication', 'Préparer l’impression 3D et la découpe laser'],
         ] as const
-      ).map(([id, label, title]) => (
+      )
+        .filter(([id]) => id !== 'assembly' || assembly)
+        .map(([id, label, title]) => (
         <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={workspace === id} title={title} onClick={() => c.setWorkspace(id)}>
           {label}
         </button>

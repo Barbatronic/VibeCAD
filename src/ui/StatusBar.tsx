@@ -1,3 +1,4 @@
+import { LEVELS, type Level } from '../app/levels';
 import type { AppState } from '../app/state';
 import { isDirty } from '../app/state';
 import { formatLength } from '../domain/units';
@@ -5,7 +6,7 @@ import { describeFaceRef, pickFaceReference } from '../features/sketch/support';
 import { TOOL_HELP } from '../sketch/session';
 import { applyUpdate } from '../app/offline';
 import type { ModelPick } from '../viewport/viewport';
-import { useAppState } from './context';
+import { useAppState, useController } from './context';
 import { Icon } from './icons';
 
 const NAVIGATION_HINT = 'Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoomer · Double-clic sur une face : esquisse dessus';
@@ -61,6 +62,8 @@ function time(iso: string | null): string {
 }
 
 export function StatusBar() {
+  const c = useController();
+  const level = useAppState((s) => s.level);
   const text = useAppState(helpText);
   const doc = useAppState(
     (s) => ({ dirty: isDirty(s), savedAt: s.project.savedAt, autosave: s.project.autosave, storage: s.project.storageAvailable }),
@@ -72,6 +75,16 @@ export function StatusBar() {
       <span class="help-text" aria-live="polite">
         {text}
       </span>
+      <label class="item level-pick" title={LEVELS.map((l) => `${l.label} : ${l.description}`).join('\n')}>
+        Niveau
+        <select class="level-select" aria-label="Niveau de l’interface" value={level} onChange={(e) => c.setLevel((e.target as HTMLSelectElement).value as Level)}>
+          {LEVELS.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <span class="item" title="Toutes les longueurs sont en millimètres">
         Unités : mm
       </span>

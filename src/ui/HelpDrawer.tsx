@@ -1,3 +1,4 @@
+import { LEVELS } from '../app/levels';
 import { useEffect, useRef } from 'preact/hooks';
 import { NATIVE_EXTENSION } from '../io/native-format';
 import { useAppState, useController } from './context';
@@ -40,6 +41,7 @@ export function HelpDrawer() {
   const c = useController();
   const open = useAppState((s) => s.helpOpen);
   const catHidden = useAppState((s) => s.mascot.hidden);
+  const level = useAppState((s) => s.level);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -66,6 +68,18 @@ export function HelpDrawer() {
             Choisir un parcours guidé
           </Button>
         </p>
+        <fieldset class="help-levels">
+          <legend>Niveau de l’interface</legend>
+          <p class="field-help">Chaque niveau montre plus d’outils. Le niveau est retenu sur cet ordinateur ; un lien avec « ?niveau=expert » l’impose.</p>
+          {LEVELS.map((l) => (
+            <label class="checkbox-row" key={l.id}>
+              <input type="radio" name="help-level" checked={level === l.id} onChange={() => c.setLevel(l.id)} />
+              <span>
+                <strong>{l.label}</strong> — {l.description}
+              </span>
+            </label>
+          ))}
+        </fieldset>
         <div class="help-cat">
           <CatFigure mood="tip" size={48} decorative />
           <div>

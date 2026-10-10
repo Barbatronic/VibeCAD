@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
-export const DEV_URL = 'http://localhost:5174/';
+/** Les parcours de test utilisent tous les outils : niveau Expert par l'adresse. */
+export const DEV_URL = 'http://localhost:5174/?niveau=expert';
 export const PROD_URL = 'http://localhost:4174/';
 export const PLATE_VOLUME = 60 * 30 * 5 - Math.PI * 9 * 5;
 export const WIDE_PLATE_VOLUME = 80 * 30 * 5 - Math.PI * 9 * 5;

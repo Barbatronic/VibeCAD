@@ -5,6 +5,7 @@
  */
 import { formatNumber } from '../domain/units';
 import { bomSizeText, scaleLabel } from '../app/drawings';
+import { allows } from '../app/levels';
 import { PLA_DENSITY } from '../app/fabrication';
 import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
@@ -22,12 +23,16 @@ const num = (t: string) => {
 export function FabricationTools() {
   const c = useController();
   const tab = useAppState((s) => s.fabricationTab);
+  const laser = useAppState((s) => allows(s.level, 'fabrication:laser'));
+  const docs = useAppState((s) => allows(s.level, 'fabrication:docs'));
   return (
     <>
       <div class="toolbar-group" role="group" aria-label="Type de fabrication">
         <ToolButton id="fab-print" icon="print3d" label="Impression 3D" pressed={tab === 'print'} onClick={() => c.setFabricationTab('print')} />
-        <ToolButton id="fab-laser" icon="laser" label="Découpe laser" pressed={tab === 'laser'} onClick={() => c.setFabricationTab('laser')} />
-        <ToolButton id="fab-docs" icon="drawing" label="Documents" hint="Mise en plan cotée, gabarit 1:1, nomenclature" pressed={tab === 'docs'} onClick={() => c.setFabricationTab('docs')} />
+        {laser ? <ToolButton id="fab-laser" icon="laser" label="Découpe laser" pressed={tab === 'laser'} onClick={() => c.setFabricationTab('laser')} /> : null}
+        {docs ? (
+          <ToolButton id="fab-docs" icon="drawing" label="Documents" hint="Mise en plan cotée, gabarit 1:1, nomenclature" pressed={tab === 'docs'} onClick={() => c.setFabricationTab('docs')} />
+        ) : null}
       </div>
       <div class="toolbar-group" role="group" aria-label="Exporter">
         {tab === 'print' ? <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} /> : null}
