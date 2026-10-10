@@ -25,6 +25,7 @@ const GLOSSARY: [string, string][] = [
   ['Liaison', 'Ce qui relie deux pièces : fixe, pivot (rotation, comme une roue), glissière (translation, comme un tiroir) ou pivot glissant.'],
   ['3MF', 'Format pour l’impression 3D qui garde l’unité (mm), le nom et la couleur des pièces.'],
   ['Révolution', 'Faire tourner le dessin autour d’un axe pour obtenir une pièce ronde, comme au tour.'],
+  ['Répétition', 'Refaire plusieurs fois la même étape (un trou, un plot) : en ligne, en grille ou en cercle. Changer l’original change toutes les copies.'],
   ['Historique', 'La liste des étapes de construction. On peut modifier une étape ancienne : les suivantes sont recalculées.'],
   ['Solide', 'Un volume fermé, avec un intérieur et un extérieur, comme une vraie pièce.'],
   ['STEP', 'Format d’échange entre logiciels de CAO (FreeCAD…) : il contient les formes exactes, pas l’historique.'],

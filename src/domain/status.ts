@@ -33,6 +33,9 @@ export type FeatureIssueCode =
   | 'EDGE_LOST'
   | 'REFERENCE_LOST'
   | 'REVOLVE_CROSSES_AXIS'
+  | 'PATTERN_SOURCE_MISSING'
+  | 'PATTERN_AXIS_INVALID'
+  | 'PATTERN_COPIES_OUTSIDE'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
 
@@ -85,6 +88,10 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
     'Une des arêtes choisies n’existe plus (une étape précédente a changé la pièce). Retirez-la ou choisissez-en une autre.',
   REVOLVE_CROSSES_AXIS:
     'Le profil traverse l’axe de révolution : il doit rester entièrement d’un seul côté de l’axe (il peut le toucher). Choisissez un autre axe ou déplacez le dessin.',
+  PATTERN_SOURCE_MISSING:
+    'L’étape à répéter n’a pas de volume à copier : elle a échoué, a été supprimée ou se trouve après la répétition. Choisissez une extrusion, une poche ou une révolution placée avant.',
+  PATTERN_AXIS_INVALID: 'Cette arête ne donne pas de direction : choisissez une arête droite ou le bord d’un trou, ou un axe X, Y ou Z.',
+  PATTERN_COPIES_OUTSIDE: 'Certains exemplaires tombent en dehors de la pièce et ne retirent rien : réduisez l’espacement ou le nombre.',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',
   BLEND_FAILED: 'Cette valeur est trop grande pour les arêtes choisies : essayez une valeur plus petite.',

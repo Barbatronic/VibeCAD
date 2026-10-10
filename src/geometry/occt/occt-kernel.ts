@@ -568,7 +568,7 @@ export class OcctKernel implements GeometryKernel {
     return out;
   }
 
-  transformed(shapeIn: KernelShape, m: readonly number[]): KernelShape {
+  transformed(shapeIn: KernelShape, m: readonly number[], retag?: { featureId: Id; index: number }): KernelShape {
     const base = asOcct(shapeIn);
     const oc = this.oc;
     return this.guard('placement', () =>
@@ -579,7 +579,22 @@ export class OcctKernel implements GeometryKernel {
         const op = scope.track(new oc.BRepBuilderAPI_Transform(base.shape, trsf, true, false));
         if (!op.IsDone()) throw new KernelError('La pièce n’a pas pu être placée.');
         const shape = op.Shape();
-        return new OcctShape(shape, this.taggedFaces(shape));
+        const faces = this.taggedFaces(shape);
+        if (retag) {
+          // La copie garde la topologie de l'original, dans le même ordre : chaque face copiée reçoit
+          // le rôle de la face d'origine, au nom de la répétition et avec le numéro de la copie.
+          const originals = this.explore(base.shape, 'face');
+          originals.forEach((orig, i) => {
+            const k = this.indexOfFace(base.faces, orig);
+            const target = faces[i];
+            if (k >= 0 && target) {
+              const tags = base.faces[k]!.tags.map((t) => ({ featureId: retag.featureId, role: t.role, ...(t.entityId !== undefined ? { entityId: t.entityId } : {}), index: retag.index }));
+              addTags(target.tags, tags);
+            }
+            orig.delete();
+          });
+        }
+        return new OcctShape(shape, faces);
       }),
     );
   }

@@ -126,7 +126,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -146,6 +146,7 @@ export type RevolveFeature = FeatureBase<'revolve', RevolveParams>;
 export type ImportedSolidFeature = FeatureBase<'imported-solid', ImportedSolidParams>;
 export type FilletFeature = FeatureBase<'fillet', FilletParams>;
 export type ChamferFeature = FeatureBase<'chamfer', ChamferParams>;
+export type PatternFeature = FeatureBase<'pattern', PatternParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -165,6 +166,8 @@ export type SketchSupport =
  * - `side` : face latérale engendrée par l'élément d'esquisse `entityId` ;
  * - `imported` : face n° `index` d'un solide importé (ordre de lecture du fichier STEP embarqué) ;
  * - `blend` : face créée par un congé ou un chanfrein sur l'arête n° `index` de ses paramètres.
+ * Quand `featureId` est une répétition, la face appartient à la copie n° `index` et `role` /
+ * `entityId` sont ceux de la face d'origine.
  */
 export interface FaceRef {
   featureId: Id;
@@ -396,6 +399,37 @@ export interface RevolveParams {
   angle: number;
   /** Tourne dans l'autre sens (utile pour une révolution partielle). */
   reversed: boolean;
+}
+
+/** Direction ou axe d'une répétition : un axe du repère (passant par l'origine) ou une arête de la pièce. */
+export type PatternAxis = { kind: 'axis'; axis: 'X' | 'Y' | 'Z' } | { kind: 'edge'; edge: EdgeRef };
+
+/** Seconde direction d'une répétition linéaire (grille). */
+export interface PatternDirection {
+  axis: PatternAxis;
+  count: number;
+  spacing: number;
+  reversed: boolean;
+}
+
+/**
+ * Répétition d'une étape volumique (extrusion, poche, révolution) : ses exemplaires sont ajoutés
+ * (ou retirés, pour une poche) le long d'une direction, en grille, ou autour d'un axe.
+ * `count` compte l'original ; en circulaire, `angle` (degrés) est l'angle total : 360 répartit
+ * les exemplaires sur un tour complet, sinon le premier et le dernier sont séparés de `angle`.
+ */
+export interface PatternParams {
+  sourceId: Id;
+  kind: 'linear' | 'circular';
+  /** Linéaire : direction ; circulaire : axe de rotation. */
+  axis: PatternAxis;
+  count: number;
+  /** Linéaire : distance entre deux exemplaires voisins (mm). */
+  spacing: number;
+  /** Circulaire : angle total (degrés). */
+  angle: number;
+  reversed: boolean;
+  second?: PatternDirection;
 }
 
 export interface ExtrudeParams {

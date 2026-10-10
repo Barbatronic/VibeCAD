@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -661,6 +661,8 @@ export class AppController {
       const sketch = suggestedSketch(this.state, part)!;
       input = { kind: 'sketch', sketchId: sketch.id };
       sketchFrame = result?.sketches.find((x) => x.featureId === sketch.id)?.frame ?? null;
+    } else if (tool.input === 'part') {
+      input = { kind: 'part' };
     } else {
       // Arête déjà sélectionnée dans la vue : elle devient la première arête de l'opération.
       const mesh = this.state.display[part.id]?.mesh;
@@ -687,6 +689,7 @@ export class AppController {
     if (mode.kind !== 'feature') return;
     const { draft } = mode;
     const feature = draft.feature;
+    if (feature.type === 'pattern') return this.pickPatternAxis(pick, feature);
     if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
     const mesh = this.displayedMesh(pick.partId);
@@ -703,6 +706,27 @@ export class AppController {
       edges = r.kind === 'blend' ? edges.filter((_e, i) => i !== r.index) : toggleEdge(edges, r.ref);
     }
     this.updateDraft((f) => ({ ...f, params: { ...f.params, edges } }) as Feature);
+  }
+
+  /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */
+  private pickPatternAxis(pick: ModelPick, feature: PatternFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    const target = mode.draft.fields.pick === 'second' && feature.params.second ? 'second' : 'axis';
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une arête de la pièce en cours de modification.');
+    if (pick.kind !== 'edge') return this.explain('Cliquez une arête : un trait droit (direction) ou le bord d’un trou (axe).');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    const curve = mesh.edges[pick.index]?.curve;
+    if (curve !== 'line' && curve !== 'circle') return this.explain('Cette arête est courbe : choisissez un trait droit ou le bord rond d’un trou.');
+    const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+    if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce, pas d’un exemplaire répété.');
+    if (r.ref.faces.some((f) => f.featureId === feature.id)) return this.explain('Choisissez une arête de la pièce, pas d’un exemplaire répété.');
+    const axis = { kind: 'edge' as const, edge: r.ref };
+    const next: PatternFeature =
+      target === 'second' ? { ...feature, params: { ...feature.params, second: { ...feature.params.second!, axis } } } : { ...feature, params: { ...feature.params, axis } };
+    this.setDraftField('pick', '', { feature: next });
   }
 
   private openDraft(draft: FeatureDraft): void {

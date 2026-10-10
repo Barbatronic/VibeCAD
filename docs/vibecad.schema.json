@@ -504,6 +504,80 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "pattern"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sourceId",
+                "kind",
+                "axis",
+                "count",
+                "spacing",
+                "angle",
+                "reversed"
+              ],
+              "properties": {
+                "sourceId": {
+                  "$ref": "#/$defs/id"
+                },
+                "kind": {
+                  "enum": [
+                    "linear",
+                    "circular"
+                  ]
+                },
+                "axis": {
+                  "$ref": "#/$defs/patternAxis"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "spacing": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "angle": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 360
+                },
+                "reversed": {
+                  "type": "boolean"
+                },
+                "second": {
+                  "type": "object",
+                  "required": [
+                    "axis",
+                    "count",
+                    "spacing",
+                    "reversed"
+                  ],
+                  "properties": {
+                    "axis": {
+                      "$ref": "#/$defs/patternAxis"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "spacing": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "reversed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1028,6 +1102,45 @@
           "$ref": "#/$defs/lcs"
         }
       }
+    },
+    "patternAxis": {
+      "description": "Direction ou axe d'une répétition : axe du repère passant par l'origine, ou arête de la pièce (droite : direction ; cercle : son axe).",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "axis"
+          ],
+          "properties": {
+            "kind": {
+              "const": "axis"
+            },
+            "axis": {
+              "enum": [
+                "X",
+                "Y",
+                "Z"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "edge"
+          ],
+          "properties": {
+            "kind": {
+              "const": "edge"
+            },
+            "edge": {
+              "$ref": "#/$defs/edgeRef"
+            }
+          }
+        }
+      ]
     }
   }
 }

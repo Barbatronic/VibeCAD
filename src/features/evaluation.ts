@@ -44,6 +44,8 @@ export interface EvaluationContext {
   shapeAnalysis: ShapeAnalysis | null;
   /** Esquisses déjà évaluées dans cette pièce, par identifiant. */
   sketches: ReadonlyMap<Id, EvaluatedSketch>;
+  /** Corps outils des étapes précédentes (volume ajouté ou retiré), pour la répétition. */
+  tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
   /** Solides d'une ressource STEP embarquée (lecture mise en cache par le moteur). */
   readStepSolids(resourceId: Id): { solids: KernelShape[] } | { error: 'RESOURCE_MISSING' | 'IMPORT_FAILED'; detail?: string };
 }
@@ -53,8 +55,10 @@ export interface FeatureOutcome {
   /** Nouveau solide de la pièce, créé par l'évaluateur (le moteur en devient propriétaire). */
   shape?: KernelShape;
   analysis?: ShapeAnalysis;
-  /** Corps outil (volume ajouté ou retiré), conservé pour l'aperçu. */
+  /** Corps outil (volume ajouté ou retiré), conservé pour l'aperçu et la répétition. */
   tool?: KernelShape;
+  /** Le corps outil a été ajouté (extrusion, révolution) ou retiré (poche) du solide. */
+  toolMode?: 'add' | 'cut';
   sketch?: SketchEvaluation;
 }
 

@@ -76,5 +76,5 @@ export const evaluateRevolve: FeatureEvaluator<RevolveFeature> = (feature, ctx) 
   }
   const status =
     ctx.shapeAnalysis && analysis.solidCount > ctx.shapeAnalysis.solidCount ? issue(feature.id, 'warning', 'DISJOINT_SOLID') : okStatus(feature.id);
-  return { status, shape, analysis, tool };
+  return { status, shape, analysis, tool, toolMode: 'add' };
 };

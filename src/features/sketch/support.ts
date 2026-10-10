@@ -28,6 +28,7 @@ export function pickFaceReference(tags: readonly FaceTag[], part: Part): FaceRef
 export function describeFaceRef(ref: FaceRef, part: Part | undefined): string {
   const feature = part?.features.find((f) => f.id === ref.featureId);
   const name = feature ? `« ${feature.name} »` : 'une étape supprimée';
+  if (feature?.type === 'pattern') return `face de l’exemplaire n° ${(ref.index ?? 0) + 1} de ${name}`;
   if (ref.role === 'imported') return `face n° ${(ref.index ?? 0) + 1} de ${name}`;
   if (ref.role === 'blend') return feature?.type === 'chamfer' ? `face de chanfrein de ${name}` : `face arrondie de ${name}`;
   if (feature?.type === 'pocket') return ref.role === 'side' ? `paroi de ${name}` : `fond de ${name}`;

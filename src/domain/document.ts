@@ -5,6 +5,8 @@
  */
 import { createId } from './ids';
 import type {
+  PatternFeature,
+  PatternParams,
   RevolveAxis,
   RevolveFeature,
   Assembly,
@@ -42,6 +44,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   'imported-solid': 'Solide importé',
   fillet: 'Congé',
   chamfer: 'Chanfrein',
+  pattern: 'Répétition',
 };
 
 export function nowIso(): string {
@@ -198,7 +201,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -229,6 +232,18 @@ export function makeExtrudeFeature(
 
 export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, axis: RevolveAxis, angle = 360, reversed = false): RevolveFeature {
   return { id: newFeatureId(doc, 'revolve'), type: 'revolve', name: nextFeatureName(part, 'revolve'), params: { sketchId, axis, angle, reversed } };
+}
+
+/** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */
+export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve'];
+
+export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, kind: PatternParams['kind'] = 'linear'): PatternFeature {
+  return {
+    id: newFeatureId(doc, 'pattern'),
+    type: 'pattern',
+    name: nextFeatureName(part, 'pattern'),
+    params: { sourceId, kind, axis: { kind: 'axis', axis: kind === 'linear' ? 'X' : 'Z' }, count: kind === 'linear' ? 3 : 6, spacing: 10, angle: 360, reversed: false },
+  };
 }
 
 export function makePocketFeature(

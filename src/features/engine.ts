@@ -56,6 +56,7 @@ interface WalkState {
   analysis: ShapeAnalysis | null;
   failure: Id | null;
   sketches: ReadonlyMap<Id, EvaluatedSketch>;
+  tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
 }
 
 export class RecomputeEngine {
@@ -125,6 +126,7 @@ export class RecomputeEngine {
     const sketches: SketchEvaluation[] = [];
     const sketchMap = new Map<Id, EvaluatedSketch>();
     const tools = new Map<Id, KernelShape>();
+    const toolModes = new Map<Id, { shape: KernelShape; mode: 'add' | 'cut' }>();
     const stepKeys = new Map<Id, string>();
 
     for (const feature of part.features) {
@@ -132,7 +134,7 @@ export class RecomputeEngine {
       stepKeys.set(feature.id, key);
       let record = this.records.get(key);
       if (!record) {
-        record = this.computeStep(feature, key, { ...state, sketches: sketchMap });
+        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, tools: toolModes });
         this.records.set(key, record);
       }
       record.lastUsed = gen;
@@ -146,6 +148,10 @@ export class RecomputeEngine {
         sketchMap.set(feature.id, { evaluation: outcome.sketch, status: outcome.status });
       }
       if (outcome.tool) tools.set(feature.id, outcome.tool);
+      // Seul un volume réellement appliqué (étape sans erreur) peut être répété.
+      if (outcome.tool && outcome.toolMode && outcome.status.state !== 'error' && outcome.status.state !== 'blocked') {
+        toolModes.set(feature.id, { shape: outcome.tool, mode: outcome.toolMode });
+      }
       if (outcome.shape) {
         state.shape = outcome.shape;
         state.analysis = outcome.analysis ?? null;
@@ -173,6 +179,7 @@ export class RecomputeEngine {
       shape: state.shape,
       shapeAnalysis: state.analysis,
       sketches: state.sketches,
+      tools: state.tools,
       readStepSolids: (resourceId) => this.readStepSolids(resourceId),
     };
     let outcome: FeatureOutcome;

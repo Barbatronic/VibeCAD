@@ -22,12 +22,15 @@ export interface CreateContext {
   partBounds: BoundingBox | null;
 }
 
-/** Ce que l'utilisateur fournit à la création : une esquisse fermée, ou des arêtes de la pièce. */
-export type ToolInput = { kind: 'sketch'; sketchId: Id } | { kind: 'edges'; edges: EdgeRef[] };
+/**
+ * Ce que l'utilisateur fournit à la création : une esquisse fermée, des arêtes de la pièce, ou
+ * rien de plus que la pièce elle-même (la répétition choisit l'étape à copier dans son panneau).
+ */
+export type ToolInput = { kind: 'sketch'; sketchId: Id } | { kind: 'edges'; edges: EdgeRef[] } | { kind: 'part' };
 
 /** Fonction proposée dans la barre d'outils, avec un panneau de paramètres et un aperçu. */
 export interface FeatureTool<F extends Feature> {
-  /** Entrée attendue : une esquisse (extrusion, poche…) ou des arêtes choisies dans la vue (congé…). */
+  /** Entrée attendue : une esquisse (extrusion, poche…), des arêtes choisies dans la vue (congé…) ou la pièce (répétition). */
   input: ToolInput['kind'];
   /** Le volume de la pièce doit déjà exister (ex. une poche retire de la matière). */
   requiresSolid: boolean;

@@ -16,6 +16,7 @@ import type {
   FaceRef,
   Feature,
   LaserMaterial,
+  PatternAxis,
   Part,
   Resource,
   SketchConstraint,
@@ -397,7 +398,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -426,6 +427,33 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         params: { sketchId: str(v, p, 'sketchId', pp), axis, angle: num(v, p, 'angle', pp, { min: 0, max: 360 }), reversed: p.reversed === true },
       };
     }
+    case 'pattern': {
+      const second = p.second !== undefined ? obj(v, p.second, `${pp}.second`) : null;
+      return {
+        id,
+        name,
+        type,
+        params: {
+          sourceId: str(v, p, 'sourceId', pp),
+          kind: oneOf(v, p, 'kind', pp, ['linear', 'circular'] as const),
+          axis: readPatternAxis(v, p.axis, `${pp}.axis`),
+          count: num(v, p, 'count', pp, { integer: true, min: 1 }),
+          spacing: num(v, p, 'spacing', pp, { min: 0 }),
+          angle: num(v, p, 'angle', pp, { min: 0, max: 360 }),
+          reversed: p.reversed === true,
+          ...(second
+            ? {
+                second: {
+                  axis: readPatternAxis(v, second.axis, `${pp}.second.axis`),
+                  count: num(v, second, 'count', `${pp}.second`, { integer: true, min: 1 }),
+                  spacing: num(v, second, 'spacing', `${pp}.second`, { min: 0 }),
+                  reversed: second.reversed === true,
+                },
+              }
+            : {}),
+        },
+      };
+    }
     case 'pocket': {
       const e = obj(v, p.extent, `${pp}.extent`);
       const kind = e ? oneOf(v, e, 'kind', `${pp}.extent`, ['distance', 'throughAll'] as const) : 'throughAll';
@@ -449,6 +477,16 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
     case 'chamfer':
       return { id, name, type, params: { edges: readEdges(v, p, pp), distance: num(v, p, 'distance', pp, { min: 0 }) } };
   }
+}
+
+function readPatternAxis(v: Validator, x: unknown, path: string): PatternAxis {
+  const a = obj(v, x, path) ?? {};
+  const kind = oneOf(v, a, 'kind', path, ['axis', 'edge'] as const);
+  if (kind === 'axis') return { kind, axis: oneOf(v, a, 'axis', path, ['X', 'Y', 'Z'] as const) };
+  const e = obj(v, a.edge, `${path}.edge`) ?? {};
+  const faces = arr(v, e, 'faces', `${path}.edge`);
+  if (faces.length !== 2) v.error(`${path}.edge.faces`, 'deux faces attendues');
+  return { kind, edge: { faces: [readFaceRef(v, faces[0], `${path}.edge.faces[0]`), readFaceRef(v, faces[1], `${path}.edge.faces[1]`)] } };
 }
 
 function readFaceRef(v: Validator, x: unknown, path: string): FaceRef {

@@ -67,5 +67,5 @@ export const evaluatePocket: FeatureEvaluator<PocketFeature> = (feature, ctx) =>
   }
   const removed = before - analysis.volume;
   const status = removed <= tiny ? issue(feature.id, 'warning', 'POCKET_REMOVES_NOTHING') : okStatus(feature.id);
-  return { status, shape, analysis, tool };
+  return { status, shape, analysis, tool, toolMode: 'cut' };
 };

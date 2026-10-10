@@ -2,7 +2,7 @@
  * Disponibilité des commandes. Une commande indisponible reste visible et explique ce qu'il
  * faut faire ou sélectionner pour pouvoir l'utiliser.
  */
-import { findPart } from '../domain/document';
+import { findPart, PATTERN_SOURCE_TYPES } from '../domain/document';
 import type { FeatureType, Id, Part, SketchFeature } from '../domain/model';
 import type { FeatureDefinition } from '../features/definition';
 import { FEATURE_DEFINITIONS } from '../features/registry';
@@ -71,6 +71,12 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
     return no(def.tool.requiresSolidReason ?? `Il faut d’abord un volume pour créer une ${label}.`);
   }
   if (def.tool.input === 'edges') return yes;
+  if (def.tool.input === 'part') {
+    if (!part.features.some((f) => PATTERN_SOURCE_TYPES.includes(f.type))) {
+      return no('Il n’y a encore rien à répéter : faites d’abord une extrusion, une poche ou une révolution.');
+    }
+    return yes;
+  }
   const sketches = part.features.filter((f) => f.type === 'sketch');
   if (sketches.length === 0) return no(`Pour créer une ${label}, dessinez d’abord une esquisse fermée (bouton « Esquisse »).`);
   if (!suggestedSketch(state, part)) return no('Aucune esquisse n’a de contour fermé : terminez le contour avant de continuer.');

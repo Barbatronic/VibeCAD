@@ -33,6 +33,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M15.5 8h2M15.5 11h2M15.5 14h2" opacity="0.6" />
     </>
   ),
+  pattern: (
+    <>
+      <rect x="3" y="9" width="5" height="6" rx="1" />
+      <rect x="9.5" y="9" width="5" height="6" rx="1" opacity="0.7" />
+      <rect x="16" y="9" width="5" height="6" rx="1" opacity="0.45" />
+      <path d="M5.5 5.5h13M16 3.5l2.5 2-2.5 2" />
+    </>
+  ),
   laser: (
     <>
       <path d="M12 3v7" />

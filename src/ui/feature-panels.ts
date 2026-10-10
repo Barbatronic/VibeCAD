@@ -9,12 +9,14 @@ import { ExtrudePanel } from '../features/extrude/panel';
 import { FilletPanel } from '../features/fillet/panel';
 import type { FeaturePanelProps } from '../features/panel-types';
 import { PocketPanel } from '../features/pocket/panel';
+import { PatternPanel } from '../features/pattern/panel';
 import { RevolvePanel } from '../features/revolve/panel';
 
 export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<FeaturePanelProps<never>>>> = {
   extrude: ExtrudePanel as FunctionComponent<FeaturePanelProps<never>>,
   pocket: PocketPanel as FunctionComponent<FeaturePanelProps<never>>,
   revolve: RevolvePanel as FunctionComponent<FeaturePanelProps<never>>,
+  pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
   fillet: FilletPanel as FunctionComponent<FeaturePanelProps<never>>,
   chamfer: ChamferPanel as FunctionComponent<FeaturePanelProps<never>>,
 };

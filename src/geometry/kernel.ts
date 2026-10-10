@@ -162,8 +162,12 @@ export interface GeometryKernel {
   tagImported(solid: KernelShape, featureId: Id): KernelShape;
   analyze(shape: KernelShape): ShapeAnalysis;
   findFacePlane(shape: KernelShape, ref: FaceRef): FacePlaneLookup;
-  /** Copie déplacée d'un solide (matrice 4 × 4 de placement, par colonnes) : export d'assemblage. */
-  transformed(shape: KernelShape, matrix: readonly number[]): KernelShape;
+  /**
+   * Copie déplacée d'un solide (matrice 4 × 4 de placement, par colonnes) : export d'assemblage,
+   * répétition. Avec `retag`, chaque face copiée reçoit le rôle de la face d'origine au nom de
+   * `featureId`, avec `index` = numéro de la copie (sans `retag`, les copies n'ont pas d'étiquette).
+   */
+  transformed(shape: KernelShape, matrix: readonly number[], retag?: { featureId: Id; index: number }): KernelShape;
   /** Géométrie exacte des arêtes désignées par une référence persistante (vide si introuvable). */
   edgeCurves(shape: KernelShape, ref: EdgeRef): EdgeCurve[];
   /**

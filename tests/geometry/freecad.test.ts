@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makePatternFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
@@ -145,5 +145,19 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo((Math.PI * (400 - 100) * 20) / 4, 3);
+  });
+
+  it('répétition en grille (3 × 2 trous) : solide valide, six perçages dans le volume', () => {
+    const { doc, ids } = buildPlateDocument();
+    const base = makePatternFeature(doc, findPart(doc, ids.partId)!, ids.pocket);
+    const pattern = { ...base, params: { ...base.params, count: 3, spacing: 15, second: { axis: { kind: 'axis' as const, axis: 'Y' as const }, count: 2, spacing: 10, reversed: false } } };
+    const withPattern = addFeature(doc, ids.partId, pattern);
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(withPattern);
+    const file = join(outDir, 'repetition-grille.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Plaque à six trous', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(9000 - 6 * Math.PI * 9 * 5, 3);
   });
 });
