@@ -9,15 +9,16 @@ export type SketchTarget =
   | { kind: 'circle'; id: string; onEdge: boolean }
   | { kind: 'arc'; id: string };
 
-export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includeOrigin = true): SketchTarget | null {
+/** Élément sous le curseur ; `curvesOnly` ignore les points (outil Couper). */
+export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includeOrigin = true, curvesOnly = false): SketchTarget | null {
   // Les points ont la priorité : ils sont petits et difficiles à viser.
   let bestPoint: { id: string; d: number } | null = null;
-  if (includeOrigin) {
+  if (includeOrigin && !curvesOnly) {
     const d = distance2(p, { x: 0, y: 0 });
     if (d <= tolerance) bestPoint = { id: ORIGIN_POINT_ID, d };
   }
   for (const e of sketch.entities) {
-    if (e.type !== 'point') continue;
+    if (e.type !== 'point' || curvesOnly) continue;
     const d = distance2(p, e);
     if (d <= tolerance && (!bestPoint || d < bestPoint.d)) bestPoint = { id: e.id, d };
   }

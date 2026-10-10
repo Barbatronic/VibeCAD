@@ -517,6 +517,15 @@ function SketchTools() {
         <ToolVariants variants={RECTANGLE_VARIANTS} tool={s.tool} name="rectangles" />
         <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles et arcs" />
         <ToolButton
+          id="sk-trim"
+          icon="trim"
+          label="Couper"
+          shortcut="T"
+          hint="Couper : retirer le morceau d’un trait jusqu’aux croisements les plus proches"
+          pressed={s.tool === 'trim'}
+          onClick={() => c.updateSession((x) => setTool(x, 'trim'))}
+        />
+        <ToolButton
           id="sk-construction"
           icon="construction"
           label="Construction"

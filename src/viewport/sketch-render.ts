@@ -400,6 +400,8 @@ export class SketchView {
         for (const seg of arrow(tip, dir, 11 * px)) strong.add(seg, cPrev);
       }
       for (const g of preview.guides) dashed.add(g, new Color(p.sketchHover));
+      // Outil Couper : le morceau qui sera retiré, en rouge.
+      for (const path of preview.removed ?? []) for (let i = 0; i + 1 < path.length; i++) strong.add([path[i]!, path[i + 1]!], cErr);
       for (const [i, l] of preview.labels.entries()) this.label(`preview:${i}`, l.text, add2(l.at, { x: 0, y: 12 * px }), 'vp-tag vp-tag-preview');
     }
 

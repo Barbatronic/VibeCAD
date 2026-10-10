@@ -20,7 +20,7 @@ import type { StandardView } from '../viewport/camera-rig';
 import type { AppController } from './controller';
 
 const VIEW_KEYS: Record<string, StandardView> = { '0': 'iso', '1': 'front', '2': 'top', '3': 'right', '4': 'back', '5': 'bottom', '6': 'left' };
-const SKETCH_KEYS: Record<string, SketchTool> = { l: 'line', r: 'rectangle', c: 'circle', d: 'dimension', h: 'horizontal', v: 'vertical', o: 'coincident', s: 'select', p: 'project', a: 'arc' };
+const SKETCH_KEYS: Record<string, SketchTool> = { l: 'line', r: 'rectangle', c: 'circle', d: 'dimension', h: 'horizontal', v: 'vertical', o: 'coincident', s: 'select', p: 'project', a: 'arc', t: 'trim' };
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

@@ -10,6 +10,7 @@ import { ORIGIN_POINT_ID } from '../domain/model';
 import { formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, distanceToSegment2, dot2, midpoint2, normalize2, scale2, sub2, type Vec2 } from '../math/vec';
+import { trimAt, trimPiece } from './trim';
 import { hitTest, type SketchTarget } from './hit-test';
 import {
   addArc,
@@ -49,7 +50,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'circle' | 'arc' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'circle' | 'arc' | 'trim' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -72,6 +73,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   centerRectangle: 'Rectangle centré',
   circle: 'Cercle',
   arc: 'Arc',
+  trim: 'Couper',
   project: 'Projeter',
   dimension: 'Cote',
   coincident: 'Coïncidence',
@@ -95,6 +97,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
     'Rectangle centré : cliquez le centre puis un coin. Le centre reste au milieu quand les dimensions changent. Vous pouvez taper la largeur et la hauteur.',
   circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
   arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
+  trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
   project:
     'Projeter : cliquez une arête de la pièce (en violet) pour la reprendre dans l’esquisse. Elle suit la pièce et sert de repère pour coter (centre d’un trou, bord…).',
   dimension:
@@ -388,7 +391,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const sweep = Math.max(-Math.PI * 2, Math.min(Math.PI * 2, s.arc.sweep + delta));
     return { ...s, cursor: p, snap, hover: null, arc: { ...s.arc, sweep, lastAngle: angle } };
   }
-  const hover = drawing ? null : hitTest(s.sketch, p, tolerance(s));
+  const hover = drawing ? null : hitTest(s.sketch, p, tolerance(s), true, s.tool === 'trim');
   return { ...s, cursor: p, snap, hover };
 }
 
@@ -413,6 +416,8 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return arcClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
       return projectClick(s, p);
+    case 'trim':
+      return trimClick(s, p);
     case 'dimension':
       return dimensionClick(s, p);
     case 'select':
@@ -438,6 +443,22 @@ export function pointerUp(s: SketchSession): SketchSession {
 
 // ---------------------------------------------------------------------------
 // Outils de dessin
+
+/** Outil Couper : retire le morceau de courbe sous le clic (voir `trim.ts`). */
+function trimClick(s: SketchSession, p: Vec2): SketchSession {
+  const target = hitTest(s.sketch, p, tolerance(s), true, true);
+  if (!target || target.kind === 'point') return { ...s, message: info('Cliquez sur un trait (segment, cercle ou arc) pour en retirer un morceau.') };
+  const entity = s.sketch.entities.find((e) => e.id === target.id);
+  if (entity && entity.type !== 'point' && entity.reference) return { ...s, message: info('Une arête reprise de la pièce ne se coupe pas : elle suit la pièce.') };
+  const out = trimAt(s.sketch, target.id, p);
+  if (!out) return s;
+  const dropped = out.droppedConstraints;
+  const text = out.deleted
+    ? 'Ce trait ne croisait rien : il a été supprimé en entier.'
+    : `Morceau retiré.${dropped ? ` ${dropped} cote${dropped > 1 ? 's' : ''} ou contrainte${dropped > 1 ? 's' : ''} qui n’avai${dropped > 1 ? 'ent' : 't'} plus de sens ${dropped > 1 ? 'ont' : 'a'} été retirée${dropped > 1 ? 's' : ''}.` : ''}`;
+  const { session } = commit(s, out.sketch, { message: success(text) });
+  return { ...session, hover: null, selection: [] };
+}
 
 function lineClick(s: SketchSession, snap: SnapResult): SketchSession {
   if (!s.start) {
@@ -1556,10 +1577,17 @@ export interface SessionPreview {
   arcs: { center: Vec2; radius: number; startAngle: number; sweep: number }[];
   labels: { at: Vec2; text: string }[];
   guides: [Vec2, Vec2][];
+  /** Outil Couper : morceau qui sera retiré au clic (en rouge). */
+  removed: Vec2[][];
 }
 
 export function sessionPreview(s: SketchSession): SessionPreview {
-  const out: SessionPreview = { lines: [], circles: [], arcs: [], labels: [], guides: [] };
+  const out: SessionPreview = { lines: [], circles: [], arcs: [], labels: [], guides: [], removed: [] };
+  if (s.tool === 'trim' && s.cursor && s.hover && s.hover.kind !== 'point') {
+    const piece = trimPiece(s.sketch, s.hover.id, s.cursor);
+    if (piece) out.removed.push(piece.path);
+    return out;
+  }
   const end = s.snap?.point ?? s.cursor;
   if (!s.start || !end) return out;
   const a = s.start.point;

@@ -48,6 +48,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M15 6l6 12h-6z" opacity="0.55" />
     </>
   ),
+  trim: (
+    <>
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="6" cy="18" r="2.5" />
+      <path d="M8 7.5L20 16M8 16.5L20 8" />
+    </>
+  ),
   laser: (
     <>
       <path d="M12 3v7" />

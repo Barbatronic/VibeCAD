@@ -16,6 +16,7 @@ const GLOSSARY: [string, string][] = [
   ['Congé', 'Arrondir une arête vive : on choisit les arêtes et le rayon de l’arrondi.'],
   ['Chanfrein', 'Couper une arête vive en biseau : on choisit les arêtes et la distance du biseau.'],
   ['Arête', 'La ligne où deux faces de la pièce se rejoignent.'],
+  ['Couper', 'Retirer le morceau d’un trait jusqu’aux croisements voisins, pour réunir deux formes en un seul contour.'],
   ['Arc', 'Une portion de cercle : on clique le centre, le départ, puis on tourne dans le sens voulu jusqu’à l’arrivée.'],
   ['Construction', 'Un trait en pointillés qui sert de repère pour coter ; il ne compte pas pour le volume.'],
   ['Projeter', 'Reprendre une arête de la pièce (le bord d’un trou, un côté) dans l’esquisse pour s’en servir comme repère.'],
@@ -162,7 +163,7 @@ export function HelpDrawer() {
               <th>Outils d’esquisse</th>
               <td>
                 <kbd>L</kbd> segment · <kbd>R</kbd> rectangle · <kbd>C</kbd> cercle · <kbd>D</kbd> cote · <kbd>H</kbd> horizontal · <kbd>V</kbd> vertical ·{' '}
-                <kbd>O</kbd> coïncidence
+                <kbd>O</kbd> coïncidence · <kbd>A</kbd> arc · <kbd>T</kbd> couper · <kbd>P</kbd> projeter
               </td>
             </tr>
             <tr>
