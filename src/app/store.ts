@@ -38,15 +38,18 @@ export function useStore<S, T>(store: Store<S>, selector: (state: S) => T, equal
   const selected = selector(store.get());
   const ref = useRef(selected);
   ref.current = selected;
+  // Le sélecteur et la comparaison du dernier rendu : ils peuvent dépendre des propriétés du
+  // composant (étape d'un parcours, matériau affiché…), l'abonnement doit utiliser les plus récents.
+  const latest = useRef({ selector, equal });
+  latest.current = { selector, equal };
   useEffect(() => {
     return store.subscribe(() => {
-      const next = selector(store.get());
-      if (!equal(ref.current, next)) {
+      const next = latest.current.selector(store.get());
+      if (!latest.current.equal(ref.current, next)) {
         ref.current = next;
         force((n) => n + 1);
       }
     });
-    // Le sélecteur est supposé stable dans son intention ; on se réabonne si le magasin change.
   }, [store]);
   return selected;
 }
