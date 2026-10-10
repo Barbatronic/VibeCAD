@@ -222,6 +222,22 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Symétrie (`"type": "mirror"`)
+
+```json
+{ "id": "mi-…", "type": "mirror", "name": "Symétrie 1", "dependsOn": [],
+  "params": { "source": { "kind": "part" }, "plane": { "kind": "plane", "plane": "YZ" } } }
+```
+
+`source` : `{ "kind": "part" }` (le reflet de toute la pièce est ajouté) ou
+`{ "kind": "feature", "featureId": "po-…" }` (le volume ajouté ou retiré par cette étape est
+reproduit). `plane` : `{ "kind": "plane", "plane": "XY" | "XZ" | "YZ" }` (plan d'origine) ou
+`{ "kind": "face", "ref": faceRef }` (face plane de la pièce). Faces du reflet : symétrie d'une
+étape, comme une copie de répétition (`index` = 1) ; symétrie de la pièce, `featureId` = la
+symétrie, `role` d'origine, `entityId` = « <étape d'origine>/<élément> », `index` d'origine.
+Erreur `MIRROR_PLANE_LOST` si la face n'existe plus ; avertissement `MIRROR_NOTHING_ADDED` si le
+reflet se superpose à la pièce.
+
 ### Solide importé (`"type": "imported-solid"`)
 
 ```json
