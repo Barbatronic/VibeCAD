@@ -3,11 +3,15 @@ import { readFileSync } from 'node:fs';
 import { readZip } from '../../src/io/zip';
 import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, openFileMenu, session } from './helpers';
 
-/** Point écran d'une arête circulaire (centre à la hauteur z) d'une pièce insérée. */
-async function circleEdgeOnScreen(page: Page, instanceIndex: number, z: number): Promise<{ x: number; y: number }> {
+/**
+ * Point écran d'une arête circulaire (centre à la hauteur z) d'une pièce insérée : le plus haut à
+ * l'écran (bord d'un trou, vu par-dessus) ou le plus bas (bord du pied d'une goupille, dont le
+ * côté arrière est caché par la goupille elle-même).
+ */
+async function circleEdgeOnScreen(page: Page, instanceIndex: number, z: number, side: 'top' | 'bottom' = 'top'): Promise<{ x: number; y: number }> {
   const box = (await page.locator('.vp-canvas').boundingBox())!;
   const p = await page.evaluate(
-    ([index, zc]) => {
+    ([index, zc, which]) => {
       const w = window as any;
       const c = w.vibecad.controller;
       const inst = c.state.doc.assembly.instances[index];
@@ -15,15 +19,15 @@ async function circleEdgeOnScreen(page: Page, instanceIndex: number, z: number):
       const edgeIndex = part.data.edges.findIndex((e: any) => e.circle && Math.abs(e.circle.center.z - zc) < 1e-6);
       const e = part.data.edges[edgeIndex];
       const pos = part.data.edgePositions;
-      // Le point de l'arête le plus haut à l'écran (visible, loin de la barre d'état).
+      // Le point de l'arête le plus haut (ou le plus bas) à l'écran, qui reste visible.
       let v: any = null;
       for (let k = e.start; k < e.start + e.count; k++) {
         const q = c.viewport.rig.camera.position.clone().set(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]).applyMatrix4(part.group.matrix).project(c.viewport.rig.camera);
-        if (!v || q.y > v.y) v = q;
+        if (!v || (which === 'top' ? q.y > v.y : q.y < v.y)) v = q;
       }
       return { x: ((v.x + 1) / 2) * c.viewport.width, y: ((1 - v.y) / 2) * c.viewport.height };
     },
-    [instanceIndex, z] as const,
+    [instanceIndex, z, side] as const,
   );
   return { x: box.x + p.x, y: box.y + p.y };
 }
@@ -65,13 +69,22 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
     await page.getByRole('menuitem', { name }).click();
   }
   await expect.poll(() => appState(page, (s) => s.doc.assembly?.instances.length)).toBe(2);
-  await page.evaluate(() => (window as any).vibecad.controller.fitAll());
-  await page.waitForTimeout(600);
+  // Cadrer jusqu'à ce que la goupille soit bien dans la vue (elle peut s'afficher après un premier cadrage).
+  const canvas = (await page.locator('.vp-canvas').boundingBox())!;
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => (window as any).vibecad.controller.fitAll());
+      await page.waitForTimeout(600);
+      const p = await circleEdgeOnScreen(page, 1, 0, 'bottom');
+      return p.y + 2 < canvas.y + canvas.height - 40 && p.y > canvas.y;
+    })
+    .toBe(true);
 
   // Liaison : bord bas de la goupille, puis bord haut du trou → pivot.
   await page.click('#as-joint');
-  const pinEdge = await circleEdgeOnScreen(page, 1, 0);
-  await page.mouse.click(pinEdge.x, pinEdge.y);
+  const pinEdge = await circleEdgeOnScreen(page, 1, 0, 'bottom');
+  // Juste sous le bord (hors de la goupille) : c'est l'arête la plus proche qui est désignée.
+  await page.mouse.click(pinEdge.x, pinEdge.y + 2);
   await expect.poll(() => appState(page, (s) => !!s.mode.moving)).toBe(true);
   const holeEdge = await circleEdgeOnScreen(page, 0, 5);
   await page.mouse.click(holeEdge.x, holeEdge.y);
