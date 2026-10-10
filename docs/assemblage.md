@@ -21,6 +21,12 @@ les esquisses sur face et les congés (jamais par un numéro de face) :
 | une face plane | centre de la face | normale sortante |
 | un cercle ou un arc (bord d'un trou, d'un cylindre) | centre du cercle | axe du cercle |
 | une arête droite | milieu de l'arête | direction de l'arête |
+| une sphère (boule) | centre de la sphère | axe Z de la pièce ; la liaison créée est une **rotule** |
+| un coin d'une face plane : survoler la face, **maintenir Maj** (la face est verrouillée, hachurée), viser le coin puis cliquer | le sommet | normale de la face |
+
+Pendant la création d'une liaison, le repère qui servira d'accroche est montré sous la souris avec
+une étiquette (pièce qui bouge, puis pièce de référence) ; l'élément déjà choisi reste en
+surbrillance.
 
 Les axes X et Y sont choisis de façon canonique (comme les repères d'esquisse) pour rester stables
 quand la pièce change. Si la face ou l'arête disparaît, la liaison est signalée et l'utilisateur
