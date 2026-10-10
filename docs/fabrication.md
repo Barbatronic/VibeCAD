@@ -34,6 +34,22 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
 - Les contours viennent du maillage d'affichage (écart à la forme exacte inférieur à 0,1 mm) : les
   arcs sont des suites de petits segments.
 
-## Prévu
+## Documents (PDF, SVG, CSV)
 
-- Documents : gabarit papier 1:1 (PDF), mise en plan cotée, nomenclature de l'assemblage.
+- **Mise en plan cotée** : pour la pièce choisie (dans la liste ou d'un clic dans la vue 3D), vue
+  de face, vue de dessus (en dessous) et vue de gauche (à droite), en projection européenne, sur
+  une page A4 paysage. Arêtes vues en traits continus, arêtes cachées en traits interrompus,
+  contours apparents des faces courbes (cylindres, révolutions). Cotes d'encombrement (largeur et
+  hauteur sur la vue de face, profondeur sur la vue de dessus), liste des diamètres (Ø) et rayons
+  (R), cartouche (nom de la pièce, du projet, échelle normalisée : 10:1 … 1:100). Aperçu dans le
+  panneau de droite ; export PDF (une page par pièce) ou SVG (la pièce affichée).
+- **Gabarit 1:1** (PDF) : le contour d'une face plate de chaque pièce (celle choisie pour la
+  découpe laser, sinon la plus grande, de préférence celle du dessus), à taille réelle, centré sur
+  une page A4 (ou A3 si besoin), avec un trait de contrôle de 50 mm : imprimer en « taille
+  réelle » puis vérifier ce trait à la règle. Une pièce plus grande qu'un A3 est signalée.
+- **Nomenclature** : les pièces de l'assemblage avec leur nombre d'exemplaires (ou, sans
+  assemblage, une ligne par pièce), leur encombrement et leur volume ; tableau à l'écran et export
+  CSV (séparateur « ; », UTF-8) qui s'ouvre directement dans un tableur.
+- Les traits viennent du maillage d'affichage : les courbes sont des suites de petits segments
+  (écart inférieur à 0,1 mm). Le PDF est écrit par VibeCAD lui-même (police Helvetica, sans
+  dépendance).
