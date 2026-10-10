@@ -53,6 +53,8 @@ import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solv
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, printLayout, type PrintLayout } from './fabrication';
+import { laserLayout, type LaserLayout } from './laser';
+import { toDxf, toSvg, type VectorDocument } from '../io/vector';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
@@ -1271,6 +1273,46 @@ export class AppController {
 
   cancelFabricationPick(): void {
     if (this.state.mode.kind === 'pick-fab-face') this.set({ mode: model });
+  }
+
+  /** Disposition actuelle des pièces à découper au laser. */
+  laserLayout(): LaserLayout {
+    const s = this.state;
+    return laserLayout(this.fabrication().laser, s.doc.parts, (id) => s.display[id]?.mesh);
+  }
+
+  /** Fichier de découpe laser (SVG ou DXF) des plaques préparées. */
+  laserDocument(): VectorDocument {
+    const f = this.fabrication().laser;
+    const layout = this.laserLayout();
+    const sheets = Array.from({ length: layout.sheets }, (_v, i) => ({
+      items: layout.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })),
+    }));
+    return { sheet: f.sheet, sheets, engraveNames: !!f.engraveNames };
+  }
+
+  async exportLaser(format: 'svg' | 'dxf'): Promise<void> {
+    const layout = this.laserLayout();
+    if (layout.placed.length === 0) return this.explain('Aucune pièce à découper : indiquez au moins un exemplaire.');
+    const doc = this.laserDocument();
+    const text = format === 'svg' ? toSvg(doc) : toDxf(doc);
+    const mime = format === 'svg' ? 'image/svg+xml' : 'application/dxf';
+    try {
+      const target = await saveFile(new Blob([text], { type: mime }), safeFileName(`${this.state.doc.name} - laser`, `.${format}`), {
+        description: format === 'svg' ? 'Fichier SVG' : 'Fichier DXF',
+        mime,
+        extension: `.${format}`,
+        download: true,
+      });
+      if (target) {
+        this.toast(
+          'success',
+          `Fichier ${format.toUpperCase()} « ${target.name} » téléchargé : ${layout.placed.length} pièce(s) sur ${layout.sheets} plaque(s), à l’échelle 1:1 en millimètres (rouge : découpe, bleu : gravure).`,
+        );
+      }
+    } catch (err) {
+      this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
+    }
   }
 
   /** Disposition actuelle du plateau d'impression. */

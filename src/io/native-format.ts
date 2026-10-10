@@ -261,6 +261,7 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
       thickness: num(v, la, 'thickness', `${path}.laser`, { min: 0 }),
       kerf: num(v, la, 'kerf', `${path}.laser`, { min: 0 }),
       spacing: num(v, la, 'spacing', `${path}.laser`, { min: 0 }),
+      ...(la.engraveNames === true ? { engraveNames: true } : {}),
       items: arr(v, la, 'items', `${path}.laser`)
         .map((raw, i) => {
           const ip = `${path}.laser.items[${i}]`;

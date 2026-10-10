@@ -25,6 +25,15 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M12 11.1v4.6" />
     </>
   ),
+  laser: (
+    <>
+      <path d="M12 3v7" />
+      <path d="M9 3h6" />
+      <path d="M12 10l-1.5 3h3z" fill="currentColor" />
+      <path d="M4 18h16M4 21h16" opacity="0.5" />
+      <path d="M12 13v5" stroke-dasharray="1.5 1.5" />
+    </>
+  ),
   revolve: (
     <>
       <ellipse cx="12" cy="17" rx="7" ry="2.5" />

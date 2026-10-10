@@ -2198,3 +2198,14 @@ kbd {
   gap: 10px;
   margin-top: 6px;
 }
+
+.sheet-preview {
+  margin: 10px 0 0;
+}
+
+.sheet-preview svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}

@@ -107,6 +107,13 @@ function buildAssemblyInput(s: AppState): ViewportInput {
 function buildFabricationInput(s: AppState): ViewportInput {
   const hasSolid = (id: string) => (s.display[id]?.result.analysis?.solidCount ?? 0) > 0;
   const settings = fabricationSettings(s.doc, hasSolid);
+  if (s.fabricationTab !== 'print') {
+    // Découpe laser et documents : les pièces telles que modélisées (pour choisir une face).
+    const parts: ViewPartInput[] = s.doc.parts
+      .filter((p) => hasSolid(p.id))
+      .map((p) => ({ partId: `fab:${p.id}:0`, color: p.color, visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));
+    return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face', fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
+  }
   const layout = printLayout(settings.print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
   const parts: ViewPartInput[] = layout.placements.map((p) => {
     const part = s.doc.parts.find((x) => x.id === p.partId);

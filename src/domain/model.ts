@@ -47,7 +47,7 @@ export interface LaserItem {
 
 export interface FabricationSettings {
   print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
-  laser: { sheet: { w: number; h: number }; thickness: number; kerf: number; spacing: number; items: LaserItem[] };
+  laser: { sheet: { w: number; h: number }; thickness: number; kerf: number; spacing: number; engraveNames?: boolean; items: LaserItem[] };
 }
 
 // ---------------------------------------------------------------------------

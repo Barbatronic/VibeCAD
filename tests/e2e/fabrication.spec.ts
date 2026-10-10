@@ -45,3 +45,28 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   expect(Math.min(...zs)).toBeCloseTo(0, 3);
   expect(Math.max(...zs)).toBeCloseTo(5, 3);
 });
+
+test('découpe laser : deux plaques à découper, export SVG et DXF à l’échelle 1:1', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.click('#tab-fabrication');
+  await page.click('#fab-laser');
+  await page.getByLabel('Exemplaires à découper de « Pièce 1 »').fill('2');
+  await page.getByLabel('Épaisseur du matériau').fill('5');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.laserLayout().placed.length)).toBe(2);
+  await expect(page.locator('.right-panel .callout.warning')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Aperçu de la première plaque' })).toBeVisible();
+  await page.screenshot({ path: 'tests/output/e2e-laser.png' });
+
+  const [svgDl] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);
+  expect(svgDl.suggestedFilename()).toMatch(/laser\.svg$/);
+  await svgDl.saveAs('tests/output/e2e-laser.svg');
+  const svg = readFileSync('tests/output/e2e-laser.svg', 'utf8');
+  expect(svg).toContain('width="600mm"');
+  expect((svg.match(/<polygon /g) ?? []).length).toBe(4);
+
+  const [dxfDl] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-dxf')]);
+  await dxfDl.saveAs('tests/output/e2e-laser.dxf');
+  const dxf = readFileSync('tests/output/e2e-laser.dxf', 'utf8');
+  expect((dxf.match(/\nPOLYLINE\n/g) ?? []).length).toBe(4);
+});
