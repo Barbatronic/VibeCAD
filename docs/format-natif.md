@@ -222,6 +222,18 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Coque (`"type": "shell"`)
+
+```json
+{ "id": "sh-…", "type": "shell", "name": "Coque 1", "dependsOn": ["pr-…"],
+  "params": { "open": [faceRef], "thickness": 2, "outward": false } }
+```
+
+`open` : faces retirées (laissées ouvertes) ; vide : pièce creuse fermée. `thickness` : épaisseur
+de la paroi (mm) ; `outward` : paroi ajoutée à l'extérieur. Faces créées : `side` + `inner`
+(+ rang de la face d'origine) pour la paroi intérieure. Erreurs : `SHELL_FACE_LOST`,
+`SHELL_FAILED`.
+
 ### Forme toute faite (`"type": "primitive"`)
 
 ```json
