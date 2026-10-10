@@ -1,0 +1,831 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vibecad.local/schemas/vibecad-1.schema.json",
+  "title": "Projet VibeCAD (format natif, schéma 1)",
+  "description": "Fichier .vibecad : projet de CAO paramétrique (JSON UTF-8). Toutes les longueurs sont en millimètres.",
+  "type": "object",
+  "required": [
+    "format",
+    "schemaVersion",
+    "document"
+  ],
+  "properties": {
+    "format": {
+      "const": "vibecad"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "generator": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "savedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "document": {
+      "$ref": "#/$defs/document"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "length": {
+      "type": "number",
+      "minimum": 0
+    },
+    "document": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "units",
+        "createdAt",
+        "modifiedAt",
+        "parts",
+        "resources"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "units": {
+          "const": "mm"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "modifiedAt": {
+          "type": "string"
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/part"
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/stepResource"
+          }
+        },
+        "assembly": {
+          "$ref": "#/$defs/assembly"
+        }
+      }
+    },
+    "part": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "color",
+        "visible",
+        "features"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/feature"
+          }
+        }
+      }
+    },
+    "feature": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "name",
+        "params"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "sketch"
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "params": {
+              "$ref": "#/$defs/sketchParams"
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "extrude"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sketchId",
+                "distance",
+                "direction"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "distance": {
+                  "$ref": "#/$defs/length"
+                },
+                "direction": {
+                  "$ref": "#/$defs/direction"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "pocket"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sketchId",
+                "extent",
+                "direction"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "extent": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "throughAll"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "distance"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "distance"
+                        },
+                        "distance": {
+                          "$ref": "#/$defs/length"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "direction": {
+                  "$ref": "#/$defs/direction"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "imported-solid"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "resourceId",
+                "solidIndex"
+              ],
+              "properties": {
+                "resourceId": {
+                  "$ref": "#/$defs/id"
+                },
+                "solidIndex": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "fillet"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "edges",
+                "radius"
+              ],
+              "properties": {
+                "edges": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/edgeRef"
+                  }
+                },
+                "radius": {
+                  "$ref": "#/$defs/length"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "chamfer"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "edges",
+                "distance"
+              ],
+              "properties": {
+                "edges": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/edgeRef"
+                  }
+                },
+                "distance": {
+                  "$ref": "#/$defs/length"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "direction": {
+      "enum": [
+        "default",
+        "reversed",
+        "symmetric"
+      ]
+    },
+    "faceRef": {
+      "type": "object",
+      "required": [
+        "featureId",
+        "role"
+      ],
+      "properties": {
+        "featureId": {
+          "$ref": "#/$defs/id"
+        },
+        "role": {
+          "enum": [
+            "start",
+            "end",
+            "side",
+            "imported",
+            "blend"
+          ]
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sketchParams": {
+      "type": "object",
+      "required": [
+        "support",
+        "entities",
+        "constraints"
+      ],
+      "properties": {
+        "support": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "plane"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "plane"
+                },
+                "plane": {
+                  "enum": [
+                    "XY",
+                    "XZ",
+                    "YZ"
+                  ]
+                },
+                "offset": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "face"
+                },
+                "ref": {
+                  "$ref": "#/$defs/faceRef"
+                }
+              }
+            }
+          ]
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "point"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "a",
+                  "b"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "line"
+                  },
+                  "a": {
+                    "type": "string"
+                  },
+                  "b": {
+                    "type": "string"
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  },
+                  "reference": {
+                    "type": "object",
+                    "required": [
+                      "edge"
+                    ],
+                    "description": "Arête de la pièce projetée (élément fixe, recalculé).",
+                    "properties": {
+                      "edge": {
+                        "$ref": "#/$defs/edgeRef"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "center",
+                  "radius"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "circle"
+                  },
+                  "center": {
+                    "type": "string"
+                  },
+                  "radius": {
+                    "$ref": "#/$defs/length"
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  },
+                  "reference": {
+                    "type": "object",
+                    "required": [
+                      "edge"
+                    ],
+                    "description": "Arête de la pièce projetée (élément fixe, recalculé).",
+                    "properties": {
+                      "edge": {
+                        "$ref": "#/$defs/edgeRef"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "center",
+                  "start",
+                  "end"
+                ],
+                "description": "Arc de start à end, sens trigonométrique autour de center.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "arc"
+                  },
+                  "center": {
+                    "type": "string"
+                  },
+                  "start": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "type": "string"
+                  },
+                  "construction": {
+                    "type": "boolean"
+                  },
+                  "reference": {
+                    "type": "object",
+                    "required": [
+                      "edge"
+                    ],
+                    "properties": {
+                      "edge": {
+                        "$ref": "#/$defs/edgeRef"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "coincident",
+                  "horizontal",
+                  "vertical",
+                  "length",
+                  "distance",
+                  "distanceX",
+                  "distanceY",
+                  "diameter",
+                  "radius",
+                  "parallel",
+                  "perpendicular",
+                  "collinear",
+                  "equal",
+                  "tangent",
+                  "pointOn",
+                  "midpoint",
+                  "angle",
+                  "pointLineDistance"
+                ]
+              },
+              "a": {
+                "type": "string"
+              },
+              "b": {
+                "type": "string"
+              },
+              "line": {
+                "type": "string"
+              },
+              "circle": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "description": "mm, ou degrés pour un angle"
+              },
+              "offset": {
+                "type": "number"
+              },
+              "point": {
+                "type": "string"
+              },
+              "curve": {
+                "type": "string"
+              },
+              "internal": {
+                "type": "boolean"
+              },
+              "supplementary": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "stepResource": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "fileName",
+        "encoding",
+        "data",
+        "byteLength",
+        "sha256",
+        "importedAt"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "const": "step"
+        },
+        "fileName": {
+          "type": "string"
+        },
+        "encoding": {
+          "enum": [
+            "utf8",
+            "base64"
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "importedAt": {
+          "type": "string"
+        }
+      }
+    },
+    "edgeRef": {
+      "type": "object",
+      "required": [
+        "faces"
+      ],
+      "properties": {
+        "faces": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/faceRef"
+          }
+        }
+      }
+    },
+    "lcs": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "description": "Repère local : centre de face (face), centre de cercle (circle) ou milieu d'arête droite (edge).",
+      "properties": {
+        "kind": {
+          "enum": [
+            "face",
+            "circle",
+            "edge"
+          ]
+        },
+        "face": {
+          "$ref": "#/$defs/faceRef"
+        },
+        "edge": {
+          "$ref": "#/$defs/edgeRef"
+        }
+      }
+    },
+    "assembly": {
+      "type": "object",
+      "required": [
+        "instances",
+        "joints"
+      ],
+      "properties": {
+        "instances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "partId",
+              "name",
+              "position"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "partId": {
+                "$ref": "#/$defs/id"
+              },
+              "name": {
+                "type": "string"
+              },
+              "position": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "joints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "moving",
+              "base",
+              "flip",
+              "angle",
+              "offset"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "fixed",
+                  "revolute",
+                  "slider",
+                  "cylindrical"
+                ]
+              },
+              "moving": {
+                "$ref": "#/$defs/jointEnd"
+              },
+              "base": {
+                "$ref": "#/$defs/jointEnd"
+              },
+              "flip": {
+                "type": "boolean"
+              },
+              "angle": {
+                "type": "number",
+                "description": "degrés"
+              },
+              "offset": {
+                "type": "number",
+                "description": "mm"
+              },
+              "angleLimits": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "offsetLimits": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "jointEnd": {
+      "type": "object",
+      "required": [
+        "instanceId",
+        "lcs"
+      ],
+      "properties": {
+        "instanceId": {
+          "$ref": "#/$defs/id"
+        },
+        "lcs": {
+          "$ref": "#/$defs/lcs"
+        }
+      }
+    }
+  }
+}
