@@ -93,6 +93,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
     </>
   ),
+  section: (
+    <>
+      <path d="M4 8l8-4 8 4v8l-8 4-8-4z" opacity="0.5" />
+      <path d="M3 13l18-4" />
+      <path d="M12 12l8-4v8l-8 4z" fill="currentColor" opacity="0.25" />
+    </>
+  ),
   shell: (
     <>
       <path d="M4 7v11l8 3 8-3V7" />

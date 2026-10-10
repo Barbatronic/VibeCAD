@@ -1,6 +1,7 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
 import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
+import type { SectionPlane } from '../geometry/protocol';
 import type { RollbackState } from './rollback';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
@@ -133,6 +134,9 @@ export interface AppState {
   level: Level;
   /** Bulles d'explication présentées par le chat au survol (sinon info-bulles simples). */
   tips: boolean;
+  /** Vue en coupe (affichage seulement) et pièces coupées reçues du moteur. */
+  section: SectionPlane | null;
+  sectionParts: { key: string; parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> } | null;
   workspace: Workspace;
   fabricationTab: FabricationTab;
   /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
@@ -179,6 +183,8 @@ export function initialState(): AppState {
     rollback: {},
     level: 'debutant',
     tips: true,
+    section: null,
+    sectionParts: null,
     workspace: 'parts',
     fabricationTab: 'print',
     assemblyHand: false,

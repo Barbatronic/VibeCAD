@@ -48,6 +48,8 @@ import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../pe
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
 import { createSession, setPixelSize, setProjectable, setTool, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
+import type { SectionPlane } from '../geometry/protocol';
+import type { MeshData } from '../geometry/kernel';
 import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
@@ -139,6 +141,71 @@ export class AppController {
     else if (saved) this.setLevel(saved, false);
     const tips = await this.deps.projects?.getSetting<boolean>('tips').catch(() => undefined);
     if (tips === false) this.set({ tips: false });
+  }
+
+  // ----- Vue en coupe (affichage seulement)
+
+  private sectionSeq = 0;
+  private sectionBusy = false;
+  private sectionAgain = false;
+
+  /** Active, règle ou coupe la vue en coupe. Au premier affichage, le plan passe au milieu des pièces. */
+  setSection(patch: Partial<SectionPlane> | null): void {
+    if (patch === null) {
+      this.set({ section: null, sectionParts: null });
+      return;
+    }
+    const current = this.state.section ?? { plane: 'XZ' as const, offset: 0, flip: false };
+    let next: SectionPlane = { ...current, ...patch };
+    if (!this.state.section || (patch.plane && patch.plane !== current.plane && patch.offset === undefined)) {
+      const range = this.sectionRange(next.plane);
+      if (range) next = { ...next, offset: Math.round(((range[0] + range[1]) / 2) * 10) / 10 };
+    }
+    this.set({ section: next, hover: null });
+    void this.refreshSection();
+  }
+
+  /** Étendue des pièces le long de l'axe perpendiculaire au plan de coupe (null : aucun volume). */
+  sectionRange(plane: SectionPlane['plane']): [number, number] | null {
+    const axis = plane === 'XY' ? 'z' : plane === 'XZ' ? 'y' : 'x';
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const d of Object.values(this.state.display)) {
+      const b = d.result.analysis?.bbox;
+      if (!b) continue;
+      lo = Math.min(lo, b.min[axis]);
+      hi = Math.max(hi, b.max[axis]);
+    }
+    return lo <= hi ? [lo, hi] : null;
+  }
+
+  /** Demande au moteur les pièces coupées (une seule demande à la fois, la dernière gagne). */
+  private async refreshSection(): Promise<void> {
+    if (this.sectionBusy) {
+      this.sectionAgain = true;
+      return;
+    }
+    const section = this.state.section;
+    if (!section || this.state.kernel.status !== 'ready') return;
+    this.sectionBusy = true;
+    const seq = ++this.sectionSeq;
+    try {
+      const doc = rolledBackDocument(this.state.doc, this.state.rollback);
+      const result = await this.deps.client.section(doc, section);
+      if (seq === this.sectionSeq && this.state.section) {
+        const parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> = {};
+        for (const p of result.parts) parts[p.partId] = { mesh: p.mesh, cutFaces: p.cutFaces };
+        this.set({ sectionParts: { key: `${this.state.revision}|${section.plane}|${section.offset}|${section.flip}`, parts } });
+      }
+    } catch (err) {
+      this.toast('error', 'La vue en coupe n’a pas pu être calculée.', { detail: (err as Error).message });
+    } finally {
+      this.sectionBusy = false;
+      if (this.sectionAgain) {
+        this.sectionAgain = false;
+        void this.refreshSection();
+      }
+    }
   }
 
   /** Bulles d'explication du chat au survol : activées ou non (retenu sur l'appareil). */
@@ -378,6 +445,7 @@ export class AppController {
       const fitRequest = this.fitPending ? this.state.fitRequest + 1 : this.state.fitRequest;
       this.fitPending = false;
       this.set({ display, fitRequest, evaluating: this.deps.client.busy, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
+      if (this.state.section) void this.refreshSection();
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
       const mode = this.state.mode;
       if (mode.kind === 'sketch') {
@@ -403,12 +471,17 @@ export class AppController {
   }
 
   setHover(pick: ModelPick | null): void {
+    // Vue en coupe : les faces affichées ne sont pas celles de la pièce, on ne les désigne pas.
+    if (this.state.section && this.state.workspace === 'parts') pick = null;
     const h = this.state.hover;
     if (h === pick || (h && pick && h.partId === pick.partId && h.kind === pick.kind && h.index === pick.index)) return;
     this.set({ hover: pick });
   }
 
   handlePick(pick: ModelPick | null, info: { shift: boolean; double: boolean }): void {
+    if (this.state.section && this.state.workspace === 'parts' && pick && this.state.mode.kind !== 'sketch') {
+      return this.explain('Vue en coupe : quittez-la (bouton « Coupe ») pour choisir une face ou une arête.');
+    }
     if (this.state.workspace === 'assembly') return this.assemblyPick(pick);
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     const mode = this.state.mode;

@@ -28,7 +28,7 @@ import {
   type SketchSession,
 } from '../sketch/session';
 import type { SketchRenderInput } from '../viewport/sketch-render';
-import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput } from '../viewport/viewport';
+import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
 import { jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
@@ -41,6 +41,8 @@ import { Timeline } from './Timeline';
 import { MascotBubble } from './Mascot';
 import { formatNumber } from '../domain/units';
 import { Icon } from './icons';
+import { allows } from '../app/levels';
+import { formatLength } from '../domain/units';
 
 function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderInput {
   return {
@@ -170,8 +172,16 @@ export function buildViewportInput(s: AppState): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
   const mode = s.mode.kind;
+  // Vue en coupe : les pièces coupées remplacent les pièces (hors esquisse et opération en cours).
+  const cut = s.section && s.sectionParts && (mode === 'model' || mode === 'measure') ? s.sectionParts : null;
+  const sectionFaces: ViewSelection[] = [];
   const parts: ViewPartInput[] = s.doc.parts.map((p) => {
     const d = s.display[p.id];
+    const sec = cut?.parts[p.id];
+    if (cut && sec !== undefined) {
+      for (const index of sec.cutFaces) sectionFaces.push({ partId: p.id, kind: 'face', index });
+      return { partId: p.id, color: p.color, visible: p.visible && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
+    }
     const previewPart = mode === 'feature' && s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.preview?.parts[p.id] : undefined;
     if (previewPart?.mesh && previewPart.meshKey) {
       return { partId: p.id, color: p.color, visible: p.visible, meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
@@ -220,7 +230,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
   const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'shell');
-  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection, measure, featurePicking, fitRequest: s.fitRequest };
+  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -345,9 +355,55 @@ function DrawInputBox({ session }: { session: SketchSession }) {
   );
 }
 
+/** Réglages de la vue en coupe : plan, position (curseur), moitié montrée. */
+function SectionPanel() {
+  const c = useController();
+  const section = useAppState((s) => (s.workspace === 'parts' ? s.section : null));
+  const range = useAppState((s) => (s.section ? c.sectionRange(s.section.plane) : null), (a, b) => JSON.stringify(a) === JSON.stringify(b));
+  if (!section) return null;
+  const [lo, hi] = range ?? [-50, 50];
+  const pad = Math.max(1, (hi - lo) * 0.02);
+  return (
+    <div class="section-panel" role="group" aria-label="Vue en coupe">
+      <div class="section-head">
+        <Icon name="section" />
+        <strong>Vue en coupe</strong>
+        <IconButton icon="close" label="Quitter la vue en coupe" small onClick={() => c.setSection(null)} />
+      </div>
+      <div class="segmented" role="group" aria-label="Plan de coupe">
+        {(['XY', 'XZ', 'YZ'] as const).map((plane) => (
+          <button key={plane} type="button" aria-pressed={section.plane === plane} title={`Couper parallèlement au plan ${plane}`} onClick={() => c.setSection({ plane })}>
+            {plane}
+          </button>
+        ))}
+      </div>
+      <label class="section-slider">
+        <span>
+          Position : <strong>{formatLength(section.offset, 1)}</strong>
+        </span>
+        <input
+          type="range"
+          aria-label="Position du plan de coupe"
+          min={Math.floor((lo - pad) * 10) / 10}
+          max={Math.ceil((hi + pad) * 10) / 10}
+          step={0.1}
+          value={section.offset}
+          onInput={(e) => c.setSection({ offset: Number((e.target as HTMLInputElement).value) })}
+        />
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" checked={section.flip} onChange={() => c.setSection({ flip: !section.flip })} />
+        <span>Voir l’autre moitié</span>
+      </label>
+    </div>
+  );
+}
+
 function ViewControls() {
   const c = useController();
   const projection = useAppState((s) => s.projection);
+  const section = useAppState((s) => s.section);
+  const canSection = useAppState((s) => s.workspace === 'parts' && allows(s.level, 'view-section'));
   const sketching = useAppState((s) => s.mode.kind === 'sketch');
   const grid = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.snapToGrid : false));
   const views: StandardView[] = ['iso', 'front', 'top', 'right'];
@@ -379,6 +435,14 @@ function ViewControls() {
       </div>
       <div class="cluster">
         <IconButton icon="fit" label="Cadrer tout (F)" onClick={() => c.fitAll()} />
+        {canSection ? (
+          <IconButton
+            icon="section"
+            label={section ? 'Coupe : activée (cliquer pour revoir la pièce entière)' : 'Coupe : voir l’intérieur de la pièce, coupée par un plan'}
+            pressed={!!section}
+            onClick={() => c.setSection(section ? null : {})}
+          />
+        ) : null}
         <IconButton
           icon={projection === 'perspective' ? 'perspective' : 'orthographic'}
           label={projection === 'perspective' ? 'Projection : perspective (cliquer pour orthographique)' : 'Projection : orthographique (cliquer pour perspective)'}
@@ -426,7 +490,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;
@@ -495,6 +559,7 @@ export function ViewportHost() {
     <div class={`viewport-host mode-${state.mode.kind}`} ref={container}>
       <Banner />
       <ViewControls />
+      <SectionPanel />
       <Timeline />
       <MascotBubble />
       {viewport && session?.editor ? <DimensionEditorPopup session={session} viewport={viewport} /> : null}

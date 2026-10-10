@@ -48,6 +48,8 @@ async function handle(req: WorkerRequest): Promise<unknown> {
       return svc.inspectStep(req.bytes);
     case 'measure':
       return svc.measure(req.doc, req.a, req.b);
+    case 'section':
+      return svc.section(req.doc, req.section);
   }
 }
 

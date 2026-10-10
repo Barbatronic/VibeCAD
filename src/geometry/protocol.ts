@@ -86,7 +86,23 @@ export type WorkerRequest =
   | { id: number; type: 'exportStl'; doc: DocumentForWorker; partIds: Id[] }
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
   | { id: number; type: 'inspectStep'; bytes: Uint8Array }
-  | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef };
+  | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
+  | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane };
+
+/** Vue en coupe : plan parallèle à un plan d'origine, à la cote `offset` ; `flip` garde l'autre moitié. */
+export interface SectionPlane {
+  plane: 'XY' | 'XZ' | 'YZ';
+  offset: number;
+  flip: boolean;
+}
+
+/** Pièce coupée pour l'affichage : maillage et rangs des faces de coupe (à colorer). */
+export interface SectionPart {
+  partId: Id;
+  /** Null : la pièce est entièrement du côté retiré (rien à montrer). */
+  mesh: MeshData | null;
+  cutFaces: number[];
+}
 
 export type WorkerResponse =
   | { id: number; ok: true; result: unknown }
@@ -101,6 +117,7 @@ export interface WorkerResultMap {
   export3mf: { bytes: Uint8Array; warnings: string[] };
   inspectStep: StepInspection;
   measure: MeasureResult;
+  section: { parts: SectionPart[] };
 }
 
 /** Prépare un document pour le worker : les données des ressources sont retirées. */

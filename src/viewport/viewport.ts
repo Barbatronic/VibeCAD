@@ -98,6 +98,8 @@ export interface ViewportInput {
   fitRequest?: number;
   /** Repères des liaisons à montrer (assemblage). */
   markers?: ViewMarker[];
+  /** Vue en coupe : faces de coupe, hachurées. */
+  sectionFaces?: ViewSelection[];
   /** Face verrouillée (touche Maj maintenue) : le survol et le clic désignent le sommet le plus proche. */
   lockedFace?: { partId: Id; index: number } | null;
   /** Clés des pièces qu'on peut faire glisser à la souris (pièces mobiles d'une liaison). */
@@ -407,6 +409,7 @@ export class Viewport {
     this.syncSketches(input.mode === 'sketch' ? [] : input.sketches);
     this.syncSession(input.session);
     this.syncSelection(input.selection);
+    this.syncSectionFaces(input.sectionFaces ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
     this.syncBed(input.bed ?? null);
@@ -611,6 +614,27 @@ export class Viewport {
         this.placeOverlay(overlay, part);
         this.overlayGroup.add(overlay);
         this.selectionOverlays.push(overlay);
+      }
+    }
+  }
+
+  private sectionOverlays: Object3D[] = [];
+  private sectionKey = '';
+
+  /** Faces de coupe de la vue en coupe, hachurées comme sur un dessin technique. */
+  private syncSectionFaces(faces: ViewSelection[]): void {
+    const key = faces.map((f) => `${f.partId}:${f.index}`).join('|') + `|${Array.from(this.parts.values()).map((p) => p.meshKey).join(',')}`;
+    if (key === this.sectionKey) return;
+    this.sectionKey = key;
+    for (const o of this.sectionOverlays) this.disposeOverlay(o);
+    this.sectionOverlays = [];
+    for (const f of faces) {
+      const part = this.parts.get(f.partId);
+      const overlay = part?.faceOverlay(f.index, hatchMaterial(this.palette.previewCut, 0.75));
+      if (overlay && part) {
+        this.placeOverlay(overlay, part);
+        this.overlayGroup.add(overlay);
+        this.sectionOverlays.push(overlay);
       }
     }
   }

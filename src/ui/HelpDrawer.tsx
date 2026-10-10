@@ -29,6 +29,7 @@ const GLOSSARY: [string, string][] = [
   ['Liaison', 'Ce qui relie deux pièces : fixe, pivot (rotation, comme une roue), glissière (translation, comme un tiroir) ou pivot glissant.'],
   ['3MF', 'Format pour l’impression 3D qui garde l’unité (mm), le nom et la couleur des pièces.'],
   ['Révolution', 'Faire tourner le dessin autour d’un axe pour obtenir une pièce ronde, comme au tour.'],
+  ['Coupe', 'Voir l’intérieur d’une pièce en la coupant par un plan, comme on coupe un fruit en deux. La pièce n’est pas modifiée.'],
   ['Coque', 'Vider une pièce en gardant une paroi, comme un pot : on clique les faces à laisser ouvertes.'],
   ['Forme', 'Une forme toute faite (boîte, cylindre, boule, anneau) qu’on ajoute à la pièce ou qu’on creuse dedans, sans dessiner d’esquisse.'],
   ['Symétrie', 'Ajouter le reflet de la pièce (ou d’un trou, d’un plot) comme dans un miroir, de l’autre côté d’un plan.'],

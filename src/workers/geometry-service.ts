@@ -2,6 +2,7 @@
  * Service géométrique : exécute les requêtes du protocole avec un noyau et un moteur.
  * Utilisé dans le worker (navigateur) et directement dans les tests (Node).
  */
+import type { SectionPart, SectionPlane } from '../geometry/protocol';
 import type { CadDocument, Id } from '../domain/model';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
@@ -200,5 +201,59 @@ export class GeometryService {
       return s;
     };
     return this.kernel.distance({ shape: shapeOf(a), kind: a.kind, index: a.index }, { shape: shapeOf(b), kind: b.kind, index: b.index });
+  }
+
+  /**
+   * Vue en coupe (affichage seulement) : chaque pièce est coupée par un plan d'origine décalé ;
+   * la moitié du côté positif est retirée (l'autre avec `flip`). Les faces de coupe viennent de la
+   * boîte retirée, étiquetée `__section__`.
+   */
+  section(docIn: DocumentForWorker, section: SectionPlane): { parts: SectionPart[] } {
+    const evaluations = this.engine.evaluateDocument(this.asDocument(docIn));
+    const axis = section.plane === 'XY' ? 'z' : section.plane === 'XZ' ? 'y' : 'x';
+    const parts: SectionPart[] = [];
+    for (const ev of evaluations) {
+      const bbox = ev.analysis?.bbox;
+      if (!ev.shape || !bbox) continue;
+      const lo = bbox.min[axis];
+      const hi = bbox.max[axis];
+      const keepBelow = !section.flip;
+      // Plan hors de la pièce : tout est gardé, ou rien.
+      if ((keepBelow && section.offset >= hi) || (!keepBelow && section.offset <= lo)) {
+        const mesh = this.engine.meshOf(ev, meshOptionsFor(bbox, DISPLAY_MESH));
+        parts.push({ partId: ev.partId, mesh, cutFaces: [] });
+        continue;
+      }
+      if ((keepBelow && section.offset <= lo) || (!keepBelow && section.offset >= hi)) {
+        parts.push({ partId: ev.partId, mesh: null, cutFaces: [] });
+        continue;
+      }
+      const m = 1 + Math.max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y, bbox.max.z - bbox.min.z);
+      const min = { x: bbox.min.x - m, y: bbox.min.y - m, z: bbox.min.z - m };
+      const max = { x: bbox.max.x + m, y: bbox.max.y + m, z: bbox.max.z + m };
+      if (keepBelow) min[axis] = section.offset;
+      else max[axis] = section.offset;
+      const box = this.kernel.makePrimitive({
+        featureId: '__section__',
+        shape: 'box',
+        position: min,
+        width: max.x - min.x,
+        depth: max.y - min.y,
+        height: max.z - min.z,
+        diameter: 1,
+        thickness: 1,
+      });
+      let cut: KernelShape | null = null;
+      try {
+        cut = this.kernel.cut(ev.shape, box);
+        const mesh = this.kernel.mesh(cut, meshOptionsFor(bbox, DISPLAY_MESH));
+        const cutFaces = mesh.faces.flatMap((f, i) => (f.tags.some((t) => t.featureId === '__section__') ? [i] : []));
+        parts.push({ partId: ev.partId, mesh, cutFaces });
+      } finally {
+        this.kernel.dispose(box);
+        if (cut) this.kernel.dispose(cut);
+      }
+    }
+    return { parts };
   }
 }
