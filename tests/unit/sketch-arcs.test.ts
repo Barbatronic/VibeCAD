@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ORIGIN_POINT_ID } from '../../src/domain/model';
 import { originPlaneFrame } from '../../src/math/frame';
-import { arcGeometry, emptySketch, findArc, pointPosition } from '../../src/sketch/model';
+import { addArc, addConstraint, addLine, arcGeometry, emptySketch, findArc, pointPosition } from '../../src/sketch/model';
 import { extractProfiles } from '../../src/sketch/profiles';
+import { solveSketch } from '../../src/sketch/solver';
 import {
   confirmEditor,
   confirmInput,
@@ -98,5 +99,15 @@ describe('outil Rectangle centré', () => {
     const xs = s.sketch.entities.flatMap((e) => (e.type === 'point' ? [e.x] : []));
     expect(Math.min(...xs)).toBeCloseTo(-30, 9);
     expect(Math.max(...xs)).toBeCloseTo(30, 9);
+  });
+
+  it('tangence au raccord d’un segment et d’un arc : elle retire bien un degré de liberté', () => {
+    const arc = addArc(emptySketch({ kind: 'plane', plane: 'XY', offset: 0 }), { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 10 });
+    const line = addLine(arc.sketch, { x: 10, y: 0 }, { x: 10, y: -20 });
+    const joined = addConstraint(line.sketch, { type: 'coincident', a: arc.start, b: line.a }).sketch;
+    const free = solveSketch(joined);
+    const tangent = solveSketch(addConstraint(joined, { type: 'tangent', a: line.lineId, b: arc.arcId }).sketch);
+    expect(tangent.converged).toBe(true);
+    expect(tangent.dof).toBe(free.dof - 1);
   });
 });

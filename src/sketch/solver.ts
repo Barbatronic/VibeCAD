@@ -236,6 +236,52 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
   const zero = () => 0;
   const noTarget = () => {};
 
+  // Groupes de points confondus (coïncidences), pour reconnaître un raccord segment-arc.
+  const group = new Map<string, string>();
+  const root = (x: string): string => {
+    let r = x;
+    while (group.has(r) && group.get(r) !== r) r = group.get(r)!;
+    return r;
+  };
+  for (const c of constraints) if (c.type === 'coincident') group.set(root(c.a), root(c.b));
+  /**
+   * Extrémité du segment `lineId` où il touche la courbe `curveId` : confondue avec une extrémité
+   * de l'arc, ou posée sur le cercle. À ce point de contact, la tangence s'écrit « le segment est
+   * perpendiculaire au rayon » : l'écriture par la distance centre-droite y serait dépendante de
+   * l'équation « point sur le cercle » et ne bloquerait rien.
+   */
+  const contactPoint = (lineId: string, curveId: string): PointRef | undefined => {
+    const line = sketch.entities.find((e) => e.id === lineId);
+    const curve = sketch.entities.find((e) => e.id === curveId);
+    if (line?.type !== 'line' || !curve) return undefined;
+    const ends = curve.type === 'arc' ? [curve.start, curve.end] : [];
+    for (const id of [line.a, line.b]) {
+      const touches =
+        ends.some((e) => root(e) === root(id)) || constraints.some((k) => k.type === 'pointOn' && k.curve === curveId && root(k.point) === root(id));
+      if (touches) return points.get(id);
+    }
+    return undefined;
+  };
+  const tangentAtContact = (id: string, l: LineRef, p: PointRef, center: PointRef): Equation => ({
+    constraintId: id,
+    value: (q) => {
+      const d = dir(q, l);
+      return (d.x * (px(q, p) - px(q, center)) + d.y * (py(q, p) - py(q, center))) / d.len;
+    },
+    gradient: (q, add) => {
+      const d = dir(q, l);
+      const wx = px(q, p) - px(q, center);
+      const wy = py(q, p) - py(q, center);
+      const dw = d.x * wx + d.y * wy;
+      const l3 = d.len * d.len * d.len;
+      addDir(l, add, wx / d.len - (dw * d.x) / l3, wy / d.len - (dw * d.y) / l3);
+      addX(p, add, d.x / d.len);
+      addY(p, add, d.y / d.len);
+      addX(center, add, -d.x / d.len);
+      addY(center, add, -d.y / d.len);
+    },
+  });
+
   // Équation propre à chaque arc : le point d'arrivée reste sur le cercle de l'arc.
   for (const e of sketch.entities) {
     if (e.type !== 'arc') continue;
@@ -426,8 +472,10 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
         const la = lines.get(c.a);
         const ca = circles.get(c.a);
         if (cb && la) {
-          // Distance du centre à la droite = rayon.
-          equations.push(pointLineEquation(c.id, cb.c, la, (q) => rv(q, cb.r), (add, q) => addR(cb.r, add, -1, q), true));
+          const contact = contactPoint(c.a, c.b);
+          // Au point de raccord : segment perpendiculaire au rayon ; sinon distance du centre à la droite = rayon.
+          if (contact) equations.push(tangentAtContact(c.id, la, contact, cb.c));
+          else equations.push(pointLineEquation(c.id, cb.c, la, (q) => rv(q, cb.r), (add, q) => addR(cb.r, add, -1, q), true));
           break;
         }
         if (cb && ca) {
