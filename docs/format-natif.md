@@ -184,6 +184,19 @@ chanfrein précédent). À la reconstruction, l'arête est celle que partagent l
 elle n'existe plus, l'étape passe en erreur `EDGE_LOST` et l'utilisateur choisit de nouvelles
 arêtes. `dependsOn` contient les étapes qui ont créé ces faces.
 
+### Révolution (`"type": "revolve"`)
+
+```json
+{ "id": "re-…", "type": "revolve", "name": "Révolution 1", "dependsOn": ["sk-…"],
+  "params": { "sketchId": "sk-…", "axis": { "kind": "sketch-y" }, "angle": 360, "reversed": false } }
+```
+
+`axis` : `{ "kind": "sketch-x" }`, `{ "kind": "sketch-y" }` (axes du repère de l'esquisse) ou
+`{ "kind": "line", "lineId": "l5" }` (segment de l'esquisse). `angle` en degrés (0 < angle ≤ 360 ;
+360 = tour complet). `reversed` tourne dans l'autre sens. Le profil doit rester d'un seul côté de
+l'axe (`REVOLVE_CROSSES_AXIS` sinon). Faces : `start` / `end` (révolution partielle), `side` +
+élément d'esquisse.
+
 ### Solide importé (`"type": "imported-solid"`)
 
 ```json

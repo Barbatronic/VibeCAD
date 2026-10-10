@@ -35,6 +35,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   la pièce quand elle change.
 - **Volumes** : extrusion et poche (profondeur cotée ou traversante, sens normal / opposé /
   symétrique) avec **aperçu** avant validation. Un perçage est une poche circulaire traversante.
+- **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
+  souvent de construction), tour complet ou partiel, avec aperçu.
 - **Congés et chanfreins** sur des arêtes choisies à la souris, avec aperçu ; les arêtes sont
   mémorisées par leurs deux faces voisines et survivent aux modifications des cotes.
 - **Historique de construction** visible et modifiable : double-clic sur une étape pour la
