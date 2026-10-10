@@ -53,8 +53,10 @@ import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solv
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, printLayout, type PrintLayout } from './fabrication';
-import { laserLayout, type LaserLayout } from './laser';
+import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
+import { billOfMaterials, bomCsv, technicalDrawing, templatePages, type Bom } from './drawings';
+import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
@@ -1315,6 +1317,105 @@ export class AppController {
     }
   }
 
+  // ----- Documents (mise en plan, gabarit, nomenclature)
+
+  private drawingCache = new Map<string, { page: DrawingPage; scale: number }>();
+
+  setFabricationPart(partId: Id): void {
+    this.set({ fabricationPart: partId });
+  }
+
+  private hasSolid(partId: Id): boolean {
+    return (this.state.display[partId]?.result.analysis?.solidCount ?? 0) > 0;
+  }
+
+  /** Pièce dont la mise en plan est affichée : celle choisie, sinon la première ayant un volume. */
+  docsPart(): Id | null {
+    const s = this.state;
+    if (s.fabricationPart && this.hasSolid(s.fabricationPart)) return s.fabricationPart;
+    return s.doc.parts.find((p) => this.hasSolid(p.id))?.id ?? null;
+  }
+
+  /** Mise en plan d'une pièce (mise en cache par maillage : le calcul des traits cachés coûte). */
+  drawingOf(partId: Id): { page: DrawingPage; scale: number } | null {
+    const s = this.state;
+    const part = findPart(s.doc, partId);
+    const d = s.display[partId];
+    if (!part || !d?.mesh || !this.hasSolid(partId)) return null;
+    const key = `${d.meshKey}|${part.name}|${s.doc.name}`;
+    let drawing = this.drawingCache.get(key);
+    if (!drawing) {
+      drawing = technicalDrawing(d.mesh, { partName: part.name, projectName: s.doc.name });
+      if (this.drawingCache.size > 20) this.drawingCache.clear();
+      this.drawingCache.set(key, drawing);
+    }
+    return drawing;
+  }
+
+  /** Mise en plan : PDF de toutes les pièces (une page chacune) ou SVG de la pièce affichée. */
+  async exportDrawing(format: 'pdf' | 'svg'): Promise<void> {
+    const s = this.state;
+    const ids = format === 'pdf' ? s.doc.parts.filter((p) => this.hasSolid(p.id)).map((p) => p.id) : [this.docsPart()].filter((id): id is Id => !!id);
+    const pages = ids.map((id) => this.drawingOf(id)?.page).filter((p): p is DrawingPage => !!p);
+    if (pages.length === 0) return this.explain('Aucune pièce avec un volume à mettre en plan.');
+    const name = format === 'svg' ? `${findPart(s.doc, ids[0]!)?.name ?? s.doc.name} - mise en plan` : `${s.doc.name} - mise en plan`;
+    const blob =
+      format === 'pdf'
+        ? new Blob([drawingsToPdf(pages, `Mise en plan — ${s.doc.name}`) as Uint8Array<ArrayBuffer>], { type: 'application/pdf' })
+        : new Blob([drawingToSvg(pages[0]!, name)], { type: 'image/svg+xml' });
+    await this.download(blob, name, format, `Mise en plan téléchargée (${pages.length} page${pages.length > 1 ? 's' : ''}, A4 paysage) : imprimez-la en « taille réelle ».`);
+  }
+
+  /** Gabarits papier 1:1 de toutes les pièces (PDF, une page par pièce). */
+  async exportTemplate(): Promise<void> {
+    const s = this.state;
+    const laser = this.fabrication().laser.items;
+    const res = templatePages(
+      s.doc.parts.filter((p) => this.hasSolid(p.id)),
+      (id) => s.display[id]?.mesh,
+      (id, mesh) => {
+        const ref = laser.find((i) => i.partId === id)?.face;
+        return ref ? findPlanarFace(mesh, ref) : -1;
+      },
+    );
+    for (const w of res.warnings) this.toast('info', w);
+    if (res.pages.length === 0) return;
+    const formats = [...new Set(res.formats)].join(' et ');
+    await this.download(
+      new Blob([drawingsToPdf(res.pages, `Gabarits — ${s.doc.name}`) as Uint8Array<ArrayBuffer>], { type: 'application/pdf' }),
+      `${s.doc.name} - gabarit`,
+      'pdf',
+      `Gabarit téléchargé (${res.pages.length} page${res.pages.length > 1 ? 's' : ''} ${formats}) : imprimez en « taille réelle » et vérifiez le trait de 50 mm.`,
+    );
+  }
+
+  /** Nomenclature : pièces de l'assemblage et quantités (ou une de chaque pièce). */
+  billOfMaterials(): Bom {
+    const s = this.state;
+    return billOfMaterials(
+      s.doc,
+      (id) => this.hasSolid(id),
+      (id) => s.display[id]?.mesh,
+      (id) => s.display[id]?.result.analysis?.volume,
+    );
+  }
+
+  async exportBom(): Promise<void> {
+    const bom = this.billOfMaterials();
+    if (bom.rows.length === 0) return this.explain('Aucune pièce avec un volume : la nomenclature est vide.');
+    await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
+  }
+
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV' };
+    try {
+      const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
+      if (target) this.toast('success', `« ${target.name} » — ${message}`);
+    } catch (err) {
+      this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
+    }
+  }
+
   /** Disposition actuelle du plateau d'impression. */
   printLayout(): PrintLayout {
     const s = this.state;
@@ -1323,6 +1424,10 @@ export class AppController {
 
   private fabricationPick(pick: ModelPick | null): void {
     const mode = this.state.mode;
+    if (mode.kind !== 'pick-fab-face' && this.state.fabricationTab === 'docs') {
+      if (pick?.kind === 'face') this.setFabricationPart(pick.partId.split(':')[1] ?? pick.partId);
+      return;
+    }
     if (mode.kind !== 'pick-fab-face' || !pick || pick.kind !== 'face') return;
     const partId = pick.partId.split(':')[1] ?? pick.partId;
     if (partId !== mode.partId) return this.explain('Cliquez une face de la pièce choisie.');

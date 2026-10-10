@@ -1,9 +1,12 @@
 /**
  * Onglet Fabrication : préparer ce qui a été conçu pour l'impression 3D (plateau, orientation,
- * exemplaires, échelle, export 3MF). Voir docs/fabrication.md.
+ * exemplaires, échelle, export 3MF), la découpe laser (SVG, DXF) et les documents (mise en plan,
+ * gabarit 1:1, nomenclature). Voir docs/fabrication.md.
  */
 import { formatNumber } from '../domain/units';
+import { bomSizeText, scaleLabel } from '../app/drawings';
 import { PLA_DENSITY } from '../app/fabrication';
+import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
 import { Button, Callout, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
@@ -22,6 +25,7 @@ export function FabricationTools() {
       <div class="toolbar-group" role="group" aria-label="Type de fabrication">
         <ToolButton id="fab-print" icon="print3d" label="Impression 3D" pressed={tab === 'print'} onClick={() => c.setFabricationTab('print')} />
         <ToolButton id="fab-laser" icon="laser" label="Découpe laser" pressed={tab === 'laser'} onClick={() => c.setFabricationTab('laser')} />
+        <ToolButton id="fab-docs" icon="drawing" label="Documents" hint="Mise en plan cotée, gabarit 1:1, nomenclature" pressed={tab === 'docs'} onClick={() => c.setFabricationTab('docs')} />
       </div>
       <div class="toolbar-group" role="group" aria-label="Exporter">
         {tab === 'print' ? <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} /> : null}
@@ -29,6 +33,13 @@ export function FabricationTools() {
           <>
             <ToolButton id="fab-export-svg" icon="export" label="SVG" hint="Exporter les plaques en SVG (1:1, mm)" onClick={() => void c.exportLaser('svg')} />
             <ToolButton id="fab-export-dxf" icon="export" label="DXF" hint="Exporter les plaques en DXF (mm)" onClick={() => void c.exportLaser('dxf')} />
+          </>
+        ) : null}
+        {tab === 'docs' ? (
+          <>
+            <ToolButton id="fab-export-drawing" icon="export" label="Mise en plan" hint="Exporter la mise en plan de toutes les pièces (PDF)" onClick={() => void c.exportDrawing('pdf')} />
+            <ToolButton id="fab-export-template" icon="export" label="Gabarit" hint="Exporter les gabarits papier 1:1 (PDF)" onClick={() => void c.exportTemplate()} />
+            <ToolButton id="fab-export-bom" icon="export" label="Nomenclature" hint="Exporter la nomenclature (CSV, pour un tableur)" onClick={() => void c.exportBom()} />
           </>
         ) : null}
       </div>
@@ -39,7 +50,7 @@ export function FabricationTools() {
 /** Panneau de gauche : selon le sous-onglet, impression 3D ou découpe laser. */
 export function FabricationSection() {
   const tab = useAppState((s) => s.fabricationTab);
-  return tab === 'laser' ? <LaserSection /> : <PrintSection />;
+  return tab === 'laser' ? <LaserSection /> : tab === 'docs' ? <DocsSection /> : <PrintSection />;
 }
 
 function LaserSection() {
@@ -292,7 +303,7 @@ function PrintSection() {
 /** Panneau de droite : selon le sous-onglet. */
 export function FabricationRightPanel() {
   const tab = useAppState((s) => s.fabricationTab);
-  return tab === 'laser' ? <LaserRightPanel /> : <PrintRightPanel />;
+  return tab === 'laser' ? <LaserRightPanel /> : tab === 'docs' ? <DocsRightPanel /> : <PrintRightPanel />;
 }
 
 function PrintRightPanel() {
@@ -352,6 +363,160 @@ function PrintRightPanel() {
       <div class="panel-actions">
         <Button variant="primary" icon="export" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => c.showExportDialog('3mf')}>
           Exporter le plateau (3MF)
+        </Button>
+      </div>
+    </aside>
+  );
+}
+
+// ----- Documents
+
+function DocsSection() {
+  const c = useController();
+  const data = useAppState(
+    (s) => {
+      const current = c.docsPart();
+      const bom = c.billOfMaterials();
+      return {
+        current,
+        parts: s.doc.parts.filter((p) => (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0).map((p) => ({ id: p.id, name: p.name, color: p.color })),
+        bom: { source: bom.source, rows: bom.rows.map((r) => ({ mark: r.mark, name: r.name, quantity: r.quantity, size: bomSizeText(r.size) })) },
+      };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  return (
+    <section class="panel-section grow" aria-labelledby="docs-title">
+      <div class="panel-header">
+        <span id="docs-title">Documents</span>
+      </div>
+      <div class="panel-body">
+        <p class="field-help">Choisissez une pièce (ici ou en cliquant dans la vue 3D) pour voir sa mise en plan.</p>
+        <ul class="feature-list fab-list" aria-label="Pièces à mettre en plan">
+          {data.parts.map((p) => (
+            <li key={p.id}>
+              <button type="button" class={`doc-part${p.id === data.current ? ' selected' : ''}`} aria-pressed={p.id === data.current} onClick={() => c.setFabricationPart(p.id)}>
+                <span class="color-swatch" style={{ background: p.color, width: '14px', height: '14px' }} />
+                <span>{p.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <h3 class="sub-title">Nomenclature</h3>
+        <p class="field-help">
+          {data.bom.source === 'assembly' ? 'Pièces de l’assemblage et nombre d’exemplaires.' : 'Pas encore d’assemblage : une ligne par pièce.'}
+        </p>
+        {data.bom.rows.length ? (
+          <table class="bom-table" aria-label="Nomenclature">
+            <thead>
+              <tr>
+                <th scope="col">Rep.</th>
+                <th scope="col">Désignation</th>
+                <th scope="col">Qté</th>
+                <th scope="col">L × l × h (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.bom.rows.map((r) => (
+                <tr key={r.mark}>
+                  <td>{r.mark}</td>
+                  <td>{r.name}</td>
+                  <td>{r.quantity}</td>
+                  <td>{r.size}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+        <div class="docs-actions">
+          <Button small icon="export" disabledReason={data.bom.rows.length ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportBom()}>
+            Nomenclature (CSV)
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Aperçu d'une page de mise en plan (fond blanc, comme le papier). */
+function DrawingPreview({ page, label }: { page: DrawingPage; label: string }) {
+  const y = (v: number) => page.height - v;
+  return (
+    <svg class="drawing-preview" viewBox={`0 0 ${page.width} ${page.height}`} role="img" aria-label={label}>
+      <rect width={page.width} height={page.height} fill="#ffffff" />
+      {page.lines.map((l, i) => (
+        <line
+          key={i}
+          x1={l.a.x}
+          y1={y(l.a.y)}
+          x2={l.b.x}
+          y2={y(l.b.y)}
+          stroke={l.style === 'hidden' ? '#555555' : '#000000'}
+          stroke-width={l.style === 'thick' ? 0.5 : 0.25}
+          stroke-dasharray={l.style === 'hidden' ? '2 1.2' : undefined}
+          stroke-linecap="round"
+        />
+      ))}
+      {page.texts.map((t, i) => (
+        <text
+          key={i}
+          x={t.at.x}
+          y={y(t.at.y)}
+          font-size={t.size}
+          font-family="Helvetica, Arial, sans-serif"
+          fill="#000000"
+          text-anchor={t.anchor ?? 'start'}
+          transform={t.angle ? `rotate(${-t.angle} ${t.at.x} ${y(t.at.y)})` : undefined}
+        >
+          {t.text}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+function DocsRightPanel() {
+  const c = useController();
+  const info = useAppState((s) => {
+    const id = c.docsPart();
+    const part = id ? s.doc.parts.find((p) => p.id === id) : null;
+    return { id, name: part?.name ?? '', drawing: id ? c.drawingOf(id) : null };
+  }, (a, b) => a.id === b.id && a.name === b.name && a.drawing === b.drawing);
+  return (
+    <aside class="panel right-panel" aria-label="Mise en plan">
+      <div class="panel-title">
+        <Icon name="drawing" />
+        <span>Mise en plan</span>
+      </div>
+      <div class="panel-content">
+        <p class="vocab">
+          <strong>Mise en plan</strong> : la pièce vue de face, de dessus et de gauche, avec ses dimensions. Les traits interrompus montrent ce qui
+          est caché.
+        </p>
+        {info.drawing ? (
+          <figure class="sheet-preview">
+            <DrawingPreview page={info.drawing.page} label={`Mise en plan de « ${info.name} »`} />
+            <figcaption class="field-help">
+              « {info.name} » · A4 paysage · échelle {scaleLabel(info.drawing.scale)}
+            </figcaption>
+          </figure>
+        ) : (
+          <Callout kind="info">Aucune pièce avec un volume : extrudez une esquisse pour obtenir une mise en plan.</Callout>
+        )}
+        <p class="vocab">
+          <strong>Gabarit 1:1</strong> : le contour d’une face plate de chaque pièce, à taille réelle, pour tracer ou découper à la main (carton,
+          bois). Imprimez-le en « taille réelle ».
+        </p>
+      </div>
+      <div class="panel-actions stack">
+        <Button variant="primary" icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('pdf')}>
+          Mise en plan (PDF)
+        </Button>
+        <Button icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('svg')}>
+          Mise en plan de cette pièce (SVG)
+        </Button>
+        <Button icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportTemplate()}>
+          Gabarit 1:1 (PDF)
         </Button>
       </div>
     </aside>

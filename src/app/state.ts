@@ -122,6 +122,8 @@ export interface AppState {
   mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
   workspace: Workspace;
   fabricationTab: FabricationTab;
+  /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
+  fabricationPart: Id | null;
   assemblySelection: AssemblySelection;
   /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
   rollback: RollbackState;
@@ -156,6 +158,7 @@ export function initialState(): AppState {
     rollback: {},
     workspace: 'parts',
     fabricationTab: 'print',
+    fabricationPart: null,
     assemblySelection: null,
     mascot: { hidden: false, collapsed: false, dismissed: null },
     preview: null,

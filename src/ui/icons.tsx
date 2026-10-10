@@ -25,6 +25,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M12 11.1v4.6" />
     </>
   ),
+  drawing: (
+    <>
+      <path d="M4 4h16v16H4z" />
+      <path d="M7 8h6v5H7z" />
+      <path d="M7 16.5h6M7 15.5v2M13 15.5v2" opacity="0.6" />
+      <path d="M15.5 8h2M15.5 11h2M15.5 14h2" opacity="0.6" />
+    </>
+  ),
   laser: (
     <>
       <path d="M12 3v7" />

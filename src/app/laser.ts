@@ -24,6 +24,11 @@ export interface FlatOutline {
 const sameTag = (t: FaceTag, r: FaceRef) =>
   t.featureId === r.featureId && t.role === r.role && (t.entityId ?? null) === (r.entityId ?? null) && (t.index ?? null) === (r.index ?? null);
 
+/** Rang de la face plate désignée par une référence (−1 si elle n'existe plus). */
+export function findPlanarFace(mesh: MeshData, ref: FaceRef): number {
+  return mesh.faces.findIndex((f) => f.plane && f.tags.some((t) => sameTag(t, ref)));
+}
+
 export function loopArea(loop: Loop): number {
   let a = 0;
   for (let i = 0; i < loop.length; i++) {
@@ -182,7 +187,7 @@ export function laserLayout(
     const part = parts.find((p) => p.id === item.partId);
     const mesh = meshOf(item.partId);
     if (!part || !mesh) continue;
-    const faceIndex = item.face ? mesh.faces.findIndex((f) => f.plane && f.tags.some((t) => sameTag(t, item.face!))) : largestPlanarFace(mesh);
+    const faceIndex = item.face ? findPlanarFace(mesh, item.face) : largestPlanarFace(mesh);
     if (item.copies > 0 && faceIndex < 0) {
       warnings.push(`« ${part.name} » : la face choisie pour le contour n’existe plus ; choisissez-en une autre.`);
       continue;

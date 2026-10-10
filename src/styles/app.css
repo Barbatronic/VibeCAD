@@ -631,6 +631,10 @@ textarea {
   flex: 1;
 }
 
+.panel-actions.stack {
+  flex-direction: column;
+}
+
 /* ------------------------------------------------------------------ Pièces et historique */
 
 .part-list,
@@ -2208,4 +2212,64 @@ kbd {
   width: 100%;
   height: auto;
   border-radius: var(--radius-sm);
+}
+
+.doc-part {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-part:hover {
+  background: var(--surface-2);
+}
+
+.doc-part.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sub-title {
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bom-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.bom-table th,
+.bom-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.bom-table td:nth-child(3) {
+  text-align: right;
+}
+
+.drawing-preview {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.docs-actions {
+  margin-top: 10px;
 }

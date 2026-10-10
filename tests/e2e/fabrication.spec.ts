@@ -70,3 +70,36 @@ test('découpe laser : deux plaques à découper, export SVG et DXF à l’éche
   const dxf = readFileSync('tests/output/e2e-laser.dxf', 'utf8');
   expect((dxf.match(/\nPOLYLINE\n/g) ?? []).length).toBe(4);
 });
+
+test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomenclature CSV', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.click('#tab-fabrication');
+  await page.click('#fab-docs');
+  const preview = page.getByRole('img', { name: 'Mise en plan de « Pièce 1 »' });
+  await expect(preview).toBeVisible();
+  await expect(preview.locator('text', { hasText: 'Vue de dessus' })).toHaveCount(1);
+  await expect(preview.locator('line[stroke-dasharray]').first()).toBeAttached();
+  await expect(page.getByRole('table', { name: 'Nomenclature' }).locator('tbody tr')).toHaveCount(1);
+  await page.screenshot({ path: 'tests/output/e2e-documents.png' });
+
+  const [pdf] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-drawing')]);
+  expect(pdf.suggestedFilename()).toMatch(/mise en plan\.pdf$/);
+  await pdf.saveAs('tests/output/e2e-mise-en-plan.pdf');
+  const text = readFileSync('tests/output/e2e-mise-en-plan.pdf', 'latin1');
+  expect(text.startsWith('%PDF-1.4')).toBe(true);
+  expect(text).toContain('/Count 1');
+  expect(text).toContain('(60) Tj');
+
+  const [gabarit] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-template')]);
+  expect(gabarit.suggestedFilename()).toMatch(/gabarit\.pdf$/);
+  await gabarit.saveAs('tests/output/e2e-gabarit.pdf');
+  // A4 portrait : 595,276 × 841,89 points.
+  expect(readFileSync('tests/output/e2e-gabarit.pdf', 'latin1')).toContain('/MediaBox [0 0 595.276 841.89]');
+
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-bom')]);
+  await csv.saveAs('tests/output/e2e-nomenclature.csv');
+  const rows = readFileSync('tests/output/e2e-nomenclature.csv', 'utf8').trim().split('\r\n');
+  expect(rows).toHaveLength(2);
+  expect(rows[1]).toMatch(/^1;Pièce 1;1;60 × 30 × 5;/);
+});
