@@ -28,6 +28,14 @@ Le niveau est retenu sur l'ordinateur. Pour une classe, donner un lien qui l'imp
 exemple `…/VibeCAD/?niveau=debutant` ou `?niveau=intermediaire`. Un projet fait à un niveau
 supérieur s'ouvre toujours : ses étapes restent visibles et modifiables dans l'historique.
 
+## Bulles d'explication de Java
+
+Au survol prolongé d'un outil (environ une demi-seconde), Java, le chat, affiche une bulle qui
+explique l'outil avec le vrai vocabulaire et, s'il est indisponible, pourquoi. On peut les couper
+dans l'Aide (« Bulles d'explication de Java ») : on retrouve alors les info-bulles simples du
+navigateur. Le réglage est retenu sur l'ordinateur ; si le chat est masqué, les bulles restent,
+sans lui.
+
 ## Le parcours guidé « plaque percée »
 
 Bouton **Parcours** en haut à droite (ou Aide → Lancer le parcours guidé). Douze étapes courtes ;
