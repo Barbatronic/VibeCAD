@@ -222,6 +222,21 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Forme toute faite (`"type": "primitive"`)
+
+```json
+{ "id": "pr-…", "type": "primitive", "name": "Forme 1", "dependsOn": [],
+  "params": { "shape": "box", "position": { "x": 0, "y": 0, "z": 0 }, "width": 40, "depth": 30,
+              "height": 10, "diameter": 20, "thickness": 6, "operation": "add" } }
+```
+
+`shape` : `box` (coin en `position`, `width` × `depth` × `height`), `cylinder` (centre de la base,
+`diameter` × `height`, axe Z), `sphere` (centre, `diameter`), `torus` (centre, `diameter` de la ligne
+centrale, `thickness` du tube, axe Z). Les dimensions inutiles pour la forme sont conservées.
+`operation` : `add` (ajouter) ou `cut` (creuser). Faces : `start` (dessous), `end` (dessus), `side`
++ `x-`, `x+`, `y-`, `y+` (boîte), `wall` (cylindre), `surface` (sphère, tore). Une forme peut être
+répétée ou reproduite par symétrie.
+
 ### Symétrie (`"type": "mirror"`)
 
 ```json
