@@ -41,6 +41,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   symétrique) avec **aperçu** avant validation. Un perçage est une poche circulaire traversante.
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
   souvent de construction), tour complet ou partiel, avec aperçu.
+- **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
+  grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
+  droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
 - **Congés et chanfreins** sur des arêtes choisies à la souris, avec aperçu ; les arêtes sont
   mémorisées par leurs deux faces voisines et survivent aux modifications des cotes.
 - **Historique de construction** visible et modifiable : double-clic sur une étape pour la

@@ -201,6 +201,27 @@ arêtes. `dependsOn` contient les étapes qui ont créé ces faces.
 l'axe (`REVOLVE_CROSSES_AXIS` sinon). Faces : `start` / `end` (révolution partielle), `side` +
 élément d'esquisse.
 
+### Répétition (`"type": "pattern"`)
+
+```json
+{ "id": "pa-…", "type": "pattern", "name": "Répétition 1", "dependsOn": ["po-…"],
+  "params": { "sourceId": "po-…", "kind": "linear", "axis": { "kind": "axis", "axis": "X" },
+              "count": 3, "spacing": 15, "angle": 360, "reversed": false,
+              "second": { "axis": { "kind": "axis", "axis": "Y" }, "count": 2, "spacing": 10, "reversed": false } } }
+```
+
+`sourceId` : l'étape répétée (extrusion, poche ou révolution placée avant) ; son volume ajouté ou
+retiré est refait à chaque exemplaire. `kind` : `linear` (le long de `axis`, tous les `spacing`
+mm ; `second` facultatif pour une grille) ou `circular` (autour de `axis` ; `angle` total en
+degrés, 360 = exemplaires répartis sur un tour). `count` compte l'original. `axis` :
+`{ "kind": "axis", "axis": "X" | "Y" | "Z" }` (passant par l'origine) ou
+`{ "kind": "edge", "edge": edgeRef }` (arête droite : sa direction ; bord circulaire : son axe ;
+le sens retenu rend positive la plus grande composante, `reversed` l'inverse). Les faces de la
+copie n° k portent `featureId` = la répétition, le rôle (`start`, `end`, `side` + élément) de la
+face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs :
+`PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
+`PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
+
 ### Solide importé (`"type": "imported-solid"`)
 
 ```json
