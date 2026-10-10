@@ -8,7 +8,7 @@ const GLOSSARY: [string, string][] = [
   ['Esquisse', 'Le dessin plat, sur un plan ou une face, à partir duquel on crée un volume.'],
   ['Plan', 'Une surface plate infinie qui sert de support au dessin : XY (dessus), XZ (face), YZ (droite).'],
   ['Origine', 'Le point de départ (0, 0, 0) du repère, à la croisée des axes X (rouge), Y (vert) et Z (bleu).'],
-  ['Cote', 'Une dimension exacte imposée au dessin : une longueur, un diamètre, une distance depuis l’origine.'],
+  ['Cote', 'Une dimension exacte imposée au dessin : une longueur, un diamètre, une distance depuis l’origine. Double-clic : changer la valeur ; glisser : déplacer la cote pour la lire plus facilement.'],
   ['Contrainte', 'Une règle géométrique : deux points réunis, un segment horizontal, deux segments parallèles ou de même longueur, un segment qui touche un cercle (tangence)… Les moins courantes sont dans le menu « Contraintes ».'],
   ['Entièrement contraint', 'Le dessin ne peut plus bouger : toutes ses dimensions et sa position sont fixées (il devient vert).'],
   ['Extrusion', 'Donner une épaisseur au dessin pour créer de la matière.'],

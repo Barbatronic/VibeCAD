@@ -341,7 +341,7 @@ export class SketchView {
           this.label(`c:${c.id}`, geom.text, geom.labelAt, `vp-dim${sel.has(c.id) ? ' is-selected' : ''}`, {
             'data-constraint': c.id,
             'aria-label': `${geom.description} : ${geom.text}. Double-cliquez ou appuyez sur Entrée pour modifier.`,
-            title: `${geom.description} — double-cliquez pour modifier`,
+            title: `${geom.description} — double-cliquez pour changer la valeur, faites glisser pour déplacer la cote`,
           }, true);
           continue;
         }
@@ -525,9 +525,16 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
       b = pointPosition(sketch, c.b);
     }
     if (!a || !b || distance2(a, b) < 1e-9) return null;
-    const n = sideAwayFrom(a, b, centroid);
-    const a2 = add2(a, scale2(n, offset));
-    const b2 = add2(b, scale2(n, offset));
+    // Placement choisi à la souris (décalage signé par rapport à la normale du segment), sinon automatique.
+    let n = sideAwayFrom(a, b, centroid);
+    let dist = offset;
+    if (c.offset !== undefined) {
+      const n0 = normalize2(perp2(sub2(b, a)));
+      n = c.offset >= 0 ? n0 : scale2(n0, -1);
+      dist = Math.abs(c.offset);
+    }
+    const a2 = add2(a, scale2(n, dist));
+    const b2 = add2(b, scale2(n, dist));
     const dir = sub2(b2, a2);
     return {
       segments: [[add2(a, scale2(n, gap)), add2(a2, scale2(n, gap * 2))], [add2(b, scale2(n, gap)), add2(b2, scale2(n, gap * 2))], [a2, b2], ...arrow(a2, scale2(dir, -1), arrowSize), ...arrow(b2, dir, arrowSize)],
@@ -542,8 +549,8 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
     if (!a || !b) return null;
     const horizontal = c.type === 'distanceX';
     if (horizontal) {
-      const above = (a.y + b.y) / 2 >= centroid.y;
-      const y = (above ? Math.max(a.y, b.y) + offset : Math.min(a.y, b.y) - offset);
+      const above = c.offset !== undefined ? c.offset >= 0 : (a.y + b.y) / 2 >= centroid.y;
+      const y = c.offset !== undefined ? (a.y + b.y) / 2 + c.offset : above ? Math.max(a.y, b.y) + offset : Math.min(a.y, b.y) - offset;
       const s = above ? 1 : -1;
       const pa = { x: a.x, y };
       const pb = { x: b.x, y };
@@ -555,8 +562,8 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
       if (Math.abs(b.x - a.x) > 1e-9) segs.push(...arrow(pa, { x: a.x - b.x, y: 0 }, arrowSize), ...arrow(pb, { x: b.x - a.x, y: 0 }, arrowSize));
       return { segments: segs, labelAt: { x: (a.x + b.x) / 2, y: y + s * 12 * px }, text: formatLength(c.value), description: 'Cote horizontale' };
     }
-    const right = (a.x + b.x) / 2 >= centroid.x;
-    const x = right ? Math.max(a.x, b.x) + offset : Math.min(a.x, b.x) - offset;
+    const right = c.offset !== undefined ? c.offset >= 0 : (a.x + b.x) / 2 >= centroid.x;
+    const x = c.offset !== undefined ? (a.x + b.x) / 2 + c.offset : right ? Math.max(a.x, b.x) + offset : Math.min(a.x, b.x) - offset;
     const s = right ? 1 : -1;
     const pa = { x, y: a.y };
     const pb = { x, y: b.y };
@@ -576,16 +583,21 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
     if (!p || !a || !b || distance2(a, b) < 1e-9) return null;
     const t = normalize2(sub2(b, a));
     const s = dot2(sub2(p, a), t);
-    const foot = add2(a, scale2(t, s));
+    const foot0 = add2(a, scale2(t, s));
+    // Glissement de la ligne de cote le long du segment (placement choisi à la souris).
+    const shift = c.offset ?? 0;
+    const p1 = add2(p, scale2(t, shift));
+    const foot = add2(foot0, scale2(t, shift));
     const segs: Segment[] = [];
-    if (distance2(p, foot) > 1e-9) segs.push([p, foot], ...arrow(foot, sub2(foot, p), arrowSize), ...arrow(p, sub2(p, foot), arrowSize));
+    if (Math.abs(shift) > 1e-9) segs.push([p, p1], [foot0, foot]);
+    if (distance2(p1, foot) > 1e-9) segs.push([p1, foot], ...arrow(foot, sub2(foot, p1), arrowSize), ...arrow(p1, sub2(p1, foot), arrowSize));
     // Prolongement de la droite jusqu'au pied de la perpendiculaire.
-    if (s < 0) segs.push([foot, a]);
-    else if (s > distance2(a, b)) segs.push([b, foot]);
-    const side = distance2(p, foot) > 1e-9 ? normalize2(perp2(sub2(foot, p))) : perp2(t);
+    if (s + shift < 0) segs.push([foot, a]);
+    else if (s + shift > distance2(a, b)) segs.push([b, foot]);
+    const side = distance2(p1, foot) > 1e-9 ? normalize2(perp2(sub2(foot, p1))) : perp2(t);
     return {
       segments: segs,
-      labelAt: add2(midpoint2(p, foot), scale2(side, 14 * px)),
+      labelAt: add2(midpoint2(p1, foot), scale2(side, 14 * px)),
       text: formatLength(c.value),
       description: 'Cote de distance au segment',
     };
@@ -612,7 +624,7 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
     if (Math.abs(between(ua, vb) - c.value) > Math.abs(between(ua, scale2(vb, -1)) - c.value)) vb = scale2(vb, -1);
     const start = Math.atan2(ua.y, ua.x);
     const sweep = Math.atan2(cross2(ua, vb), dot2(ua, vb));
-    const radius = 40 * px;
+    const radius = c.offset !== undefined && c.offset > 0 ? c.offset : 40 * px;
     const n = 24;
     const arc: Segment[] = [];
     for (let i = 0; i < n; i++) {
@@ -638,10 +650,11 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
     const center = ag ? ag.center : circle && pointPosition(sketch, circle.center);
     if ((!circle && !ag) || !center) return null;
     // Pour un arc, la cote vise le milieu de l'arc.
-    const u = ag ? normalize2(sub2(arcPointAt(ag, 0.5), ag.center)) : { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+    const auto = ag ? normalize2(sub2(arcPointAt(ag, 0.5), ag.center)) : { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+    const u = c.labelAngle !== undefined ? { x: Math.cos((c.labelAngle * Math.PI) / 180), y: Math.sin((c.labelAngle * Math.PI) / 180) } : auto;
     const r = ag ? ag.radius : circle!.radius;
     const tipOut = add2(center, scale2(u, r));
-    const outside = add2(center, scale2(u, r + offset));
+    const outside = add2(center, scale2(u, r + (c.offset !== undefined ? Math.max(c.offset, 0) : offset)));
     if (c.type === 'diameter') {
       const tipIn = sub2(center, scale2(u, r));
       return {

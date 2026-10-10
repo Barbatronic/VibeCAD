@@ -656,6 +656,10 @@
               },
               "supplementary": {
                 "type": "boolean"
+              },
+              "labelAngle": {
+                "type": "number",
+                "description": "direction du libellé (diamètre, rayon), degrés"
               }
             }
           }

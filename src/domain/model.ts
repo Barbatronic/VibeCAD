@@ -206,7 +206,16 @@ interface ConstraintBase<T extends string> {
 
 /** Position d'affichage d'une cote (décalage perpendiculaire en mm), sans effet géométrique. */
 export interface DimensionPlacement {
+  /**
+   * Placement d'affichage choisi à la souris (mm, repère de l'esquisse), sans effet géométrique :
+   * longueur / distance alignée : décalage latéral de la ligne de cote ; distance horizontale ou
+   * verticale : position de la ligne de cote par rapport au milieu des deux points ; diamètre /
+   * rayon : longueur du repère au-delà du cercle ; angle : rayon de l'arc ; distance point-segment :
+   * glissement le long du segment. Absent : placement automatique.
+   */
   offset?: number;
+  /** Diamètre / rayon : direction du libellé (degrés). */
+  labelAngle?: number;
 }
 
 export type CoincidentConstraint = ConstraintBase<'coincident'> & { a: string; b: string };

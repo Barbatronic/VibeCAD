@@ -11,6 +11,7 @@ import {
   editDimension,
   editorUnit,
   escape as sketchEscape,
+  moveDimensionLabel,
   pointerDown,
   pointerLeave,
   pointerMove,
@@ -381,6 +382,7 @@ export function ViewportHost() {
           else if (type === 'up') c.updateSession((s) => pointerUp(s));
           else c.updateSession((s) => pointerLeave(s));
         },
+        onSketchLabelDrag: (id, phase, p) => c.updateSession((s) => moveDimensionLabel(s, id, p, phase)),
         onSketchLabel: (id, action, additive) => {
           if (action === 'edit') c.updateSession((s) => editDimension(s, id));
           else c.updateSession((s) => selectConstraint(s, id, additive));

@@ -464,7 +464,10 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       'angle',
       'pointLineDistance',
     ] as const);
-    const offset = typeof o.offset === 'number' && Number.isFinite(o.offset) ? { offset: o.offset } : {};
+    const offset = {
+      ...(typeof o.offset === 'number' && Number.isFinite(o.offset) ? { offset: o.offset } : {}),
+      ...(typeof o.labelAngle === 'number' && Number.isFinite(o.labelAngle) ? { labelAngle: o.labelAngle } : {}),
+    };
     switch (type) {
       case 'coincident':
         constraints.push({ id, type, a: str(v, o, 'a', cp), b: str(v, o, 'b', cp) });

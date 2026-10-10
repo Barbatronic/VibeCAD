@@ -118,6 +118,8 @@ export interface ViewportEvents {
   onPlanePick(plane: PlaneName): void;
   onSketchPointer(type: 'move' | 'down' | 'up' | 'leave', p: Vec2, mods: { shift: boolean; alt: boolean }): void;
   onSketchLabel(constraintId: string, action: 'select' | 'edit', additive: boolean): void;
+  /** Glisser du libellé d'une cote (position en coordonnées d'esquisse). */
+  onSketchLabelDrag?(constraintId: string, phase: 'move' | 'end', p: Vec2 | null): void;
   onSketchScale(pixelSize: number): void;
   onViewChange(): void;
   onContextLost(): void;
@@ -780,7 +782,23 @@ export class Viewport {
       const isDouble = !!lastLabelDown && lastLabelDown.id === id && now - lastLabelDown.time < 400;
       lastLabelDown = isDouble ? null : { id, time: now };
       this.events.onSketchLabel(id, isDouble ? 'edit' : 'select', e.shiftKey);
+      // Une cote (pas un symbole) peut être déplacée en glissant son libellé.
+      if (!isDouble && e.button === 0 && el.classList.contains('vp-dim')) labelDrag = { id, x: e.clientX, y: e.clientY, moved: false };
     });
+    let labelDrag: { id: string; x: number; y: number; moved: boolean } | null = null;
+    window.addEventListener('pointermove', (e) => {
+      if (!labelDrag) return;
+      if (!labelDrag.moved && Math.hypot(e.clientX - labelDrag.x, e.clientY - labelDrag.y) < 4) return;
+      labelDrag.moved = true;
+      lastLabelDown = null;
+      this.events.onSketchLabelDrag?.(labelDrag.id, 'move', this.sketchPoint(e));
+    });
+    const endLabelDrag = () => {
+      if (labelDrag?.moved) this.events.onSketchLabelDrag?.(labelDrag.id, 'end', null);
+      labelDrag = null;
+    };
+    window.addEventListener('pointerup', endLabelDrag);
+    window.addEventListener('pointercancel', endLabelDrag);
     labels.addEventListener('keydown', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-constraint]');
       if (!el) return;

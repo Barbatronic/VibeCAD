@@ -29,6 +29,7 @@ import {
   removeConstraints,
   removeEntities,
   setCircleRadius,
+  updateConstraint,
   type NewConstraint,
 } from './model';
 import { gridStepFor, snapPoint, type SnapResult } from './snapping';
@@ -189,6 +190,8 @@ export interface SketchSession {
   hover: SketchTarget | null;
   selection: string[];
   drag: DragState | null;
+  /** Cote en cours de déplacement à la souris (esquisse avant le geste, pour Annuler). */
+  labelDrag: { constraintId: string; base: SketchParams } | null;
   editor: DimensionEditor | null;
   message: SessionMessage | null;
   undo: SketchParams[];
@@ -237,6 +240,7 @@ export function createSession(args: {
     hover: null,
     selection: [],
     drag: null,
+    labelDrag: null,
     editor: null,
     message: res.converged ? null : { kind: 'error', text: 'Certaines contraintes de cette esquisse sont incompatibles : supprimez-en une.' },
     undo: [],
@@ -1074,6 +1078,83 @@ export function confirmEditor(s: SketchSession): SketchSession {
   });
   if (!ok) return { ...s, editor: { ...ed, error: 'Cette valeur est impossible avec les autres contraintes. Essayez une autre valeur.' } };
   return { ...session, editor: null, picks: [], selection: [added.id] };
+}
+
+/**
+ * Placement d'affichage d'une cote quand on fait glisser son libellé jusqu'au point `p` (voir
+ * `DimensionPlacement`). Ne change ni la valeur ni la géométrie.
+ */
+export function placementFor(sketch: SketchParams, c: SketchConstraint, p: Vec2): { offset?: number; labelAngle?: number } | null {
+  const round = (v: number) => Math.round(v * 100) / 100;
+  switch (c.type) {
+    case 'length':
+    case 'distance': {
+      const l = c.type === 'length' ? lineGeometry(sketch, c.line) : null;
+      const a = l ? l.a : c.type === 'distance' ? pointPosition(sketch, c.a) : undefined;
+      const b = l ? l.b : c.type === 'distance' ? pointPosition(sketch, c.b) : undefined;
+      if (!a || !b || distance2(a, b) < 1e-9) return null;
+      const d = sub2(b, a);
+      const n = normalize2({ x: -d.y, y: d.x });
+      return { offset: round(dot2(sub2(p, a), n)) };
+    }
+    case 'distanceX':
+    case 'distanceY': {
+      const a = pointPosition(sketch, c.a);
+      const b = pointPosition(sketch, c.b);
+      if (!a || !b) return null;
+      return { offset: round(c.type === 'distanceX' ? p.y - (a.y + b.y) / 2 : p.x - (a.x + b.x) / 2) };
+    }
+    case 'diameter':
+    case 'radius': {
+      const r = roundInfo(sketch, c.circle);
+      if (!r) return null;
+      const angle = (Math.atan2(p.y - r.center.y, p.x - r.center.x) * 180) / Math.PI;
+      return { labelAngle: Math.round(angle), offset: round(Math.max(0, distance2(p, r.center) - r.radius)) };
+    }
+    case 'angle': {
+      const la = lineGeometry(sketch, c.a);
+      const lb = lineGeometry(sketch, c.b);
+      if (!la || !lb) return null;
+      const denom = cross2(la.d, lb.d);
+      const o =
+        Math.abs(denom) < 1e-9
+          ? midpoint2(midpoint2(la.a, la.b), midpoint2(lb.a, lb.b))
+          : add2(la.a, scale2(la.d, cross2(sub2(lb.a, la.a), lb.d) / denom));
+      return { offset: round(Math.max(1, distance2(p, o))) };
+    }
+    case 'pointLineDistance': {
+      const pt = pointPosition(sketch, c.point);
+      const l = lineGeometry(sketch, c.line);
+      if (!pt || !l || l.len < 1e-9) return null;
+      return { offset: round(dot2(sub2(p, pt), scale2(l.d, 1 / l.len))) };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Déplace le libellé d'une cote ; `end` termine le geste (une seule action à annuler). */
+export function moveDimensionLabel(s: SketchSession, constraintId: string, p: Vec2 | null, phase: 'move' | 'end'): SketchSession {
+  if (phase === 'end') {
+    const drag = s.labelDrag;
+    if (!drag) return s;
+    const changed = drag.base !== s.sketch;
+    return {
+      ...s,
+      labelDrag: null,
+      undo: changed ? [...s.undo, drag.base].slice(-MAX_UNDO) : s.undo,
+      redo: changed ? [] : s.redo,
+      dirty: s.dirty || changed,
+      message: changed ? success('Cote déplacée (sa valeur ne change pas).') : s.message,
+    };
+  }
+  const c = s.sketch.constraints.find((k) => k.id === constraintId);
+  if (!c || !p) return s;
+  const placement = placementFor(s.sketch, c, p);
+  if (!placement) return s;
+  const base = s.labelDrag?.base ?? s.sketch;
+  const sketch = updateConstraint(s.sketch, constraintId, placement as Partial<SketchConstraint>);
+  return { ...s, sketch, labelDrag: { constraintId, base }, editor: null };
 }
 
 /** Point d'ancrage d'une cote (milieu de l'élément coté), pour placer libellé et saisie. */
