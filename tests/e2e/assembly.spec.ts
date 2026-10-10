@@ -86,7 +86,13 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   // Juste sous le bord (hors de la goupille) : c'est l'arête la plus proche qui est désignée.
   await page.mouse.click(pinEdge.x, pinEdge.y + 2);
   await expect.poll(() => appState(page, (s) => !!s.mode.moving)).toBe(true);
+  // Le repère choisi reste affiché ; au survol, l'aperçu montre le repère de la pièce de référence.
+  await expect(page.locator('.vp-tag-marker', { hasText: 'Pièce qui bouge' })).toBeVisible();
   const holeEdge = await circleEdgeOnScreen(page, 0, 5);
+  await page.mouse.move(holeEdge.x, holeEdge.y);
+  await expect(page.locator('.vp-tag-marker.is-base', { hasText: 'Accroche sur la pièce de référence' })).toBeVisible();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'tests/output/e2e-liaison-apercu.png' });
   await page.mouse.click(holeEdge.x, holeEdge.y);
   await expect.poll(async () => (await joint(page))?.kind).toBe('revolute');
   const o = await pinOrigin(page);

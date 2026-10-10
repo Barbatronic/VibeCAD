@@ -66,6 +66,10 @@ export interface ViewMarker {
   origin: Vec3;
   axis: Vec3;
   role: 'base' | 'moving';
+  /** Aperçu (repère sous la souris pendant la création d'une liaison) : trait plus fin. */
+  preview?: boolean;
+  /** Étiquette affichée au bout de l'axe. */
+  label?: string;
 }
 
 export interface ViewToolInput {
@@ -662,10 +666,19 @@ export class Viewport {
       const geometry = new LineSegmentsGeometry();
       geometry.setPositions(pts);
       const color = m.role === 'base' ? this.palette.selection : this.palette.hover;
-      const line = new LineSegments2(geometry, this.resolved(fatLineMaterial(color, 3, { depthTest: false })));
+      const line = new LineSegments2(geometry, this.resolved(fatLineMaterial(color, m.preview ? 2 : 3, { depthTest: false })));
       line.renderOrder = 41;
       this.overlayGroup.add(line);
       this.markerObjects.push(line);
+      if (m.label) {
+        const el = document.createElement('span');
+        el.className = `vp-tag vp-tag-marker${m.role === 'base' ? ' is-base' : ''}`;
+        el.textContent = m.label;
+        const label = new CSS2DObject(el);
+        label.position.copy(tip);
+        this.overlayGroup.add(label);
+        this.markerObjects.push(label);
+      }
     }
   }
 

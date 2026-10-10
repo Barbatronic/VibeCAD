@@ -1275,6 +1275,17 @@ details.advanced summary {
   outline: 3px solid currentColor;
 }
 
+.vp-tag-marker {
+  border-color: var(--vp-hover, var(--accent));
+  color: var(--vp-hover, var(--accent));
+  transform: translate(8px, -50%);
+}
+
+.vp-tag-marker.is-base {
+  border-color: var(--vp-selection);
+  color: var(--vp-selection);
+}
+
 .vp-tag-measure {
   font-size: 14px;
   border-color: var(--vp-selection);

@@ -29,7 +29,7 @@ import {
 } from '../sketch/session';
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput } from '../viewport/viewport';
-import { jointFreedoms, lcsFrame, solveAssembly } from '../app/assembly';
+import { jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { transformDirection4, transformPoint4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
@@ -82,15 +82,39 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const f = placement.jointFrames.get(sel.id);
     if (f) markers.push({ origin: f.base.origin, axis: f.base.normal, role: 'base' }, { origin: f.moving.origin, axis: f.moving.normal, role: 'moving' });
   }
+  const selection: ViewportInput['selection'] = [];
   if (s.mode.kind === 'joint' && s.mode.moving) {
     const m = s.mode.moving;
     const inst = assembly.instances.find((i) => i.id === m.instanceId);
     const mesh = inst && s.display[inst.partId]?.mesh;
     const frame = mesh ? lcsFrame(mesh, m.lcs) : null;
     const matrix = placement.matrices.get(m.instanceId);
-    if (frame && matrix) markers.push({ origin: transformPoint4(matrix, frame.origin), axis: transformDirection4(matrix, frame.normal), role: 'moving' });
+    if (frame && matrix) {
+      markers.push({ origin: transformPoint4(matrix, frame.origin), axis: transformDirection4(matrix, frame.normal), role: 'moving', label: 'Pièce qui bouge' });
+    }
+    // L'élément cliqué reste en surbrillance pendant le choix du second repère.
+    if (s.mode.movingPick) selection.push({ partId: m.instanceId, kind: s.mode.movingPick.kind, index: s.mode.movingPick.index });
   }
-  const selection: ViewportInput['selection'] = [];
+  if (s.mode.kind === 'joint' && s.hover) {
+    // Aperçu du repère qui servira d'accroche sous la souris (centre de face, de cercle, milieu d'arête).
+    const h = s.hover;
+    const inst = assembly.instances.find((i) => i.id === h.partId);
+    const part = inst && s.doc.parts.find((p) => p.id === inst.partId);
+    const mesh = inst && s.display[inst.partId]?.mesh;
+    const matrix = inst && placement.matrices.get(inst.id);
+    const r = mesh && part ? lcsFromPick(mesh, h.kind, h.index, part) : null;
+    const frame = r && !('reason' in r) && mesh ? lcsFrame(mesh, r.ref) : null;
+    if (frame && matrix) {
+      const second = !!s.mode.moving;
+      markers.push({
+        origin: transformPoint4(matrix, frame.origin),
+        axis: transformDirection4(matrix, frame.normal),
+        role: second ? 'base' : 'moving',
+        preview: true,
+        label: second ? 'Accroche sur la pièce de référence' : 'Accroche sur la pièce qui bouge',
+      });
+    }
+  }
   if (s.mode.kind === 'model' && sel?.kind === 'instance') {
     const inst = assembly.instances.find((i) => i.id === sel.id);
     const mesh = inst && s.display[inst.partId]?.mesh;
@@ -398,7 +422,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab, state.printPlate],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

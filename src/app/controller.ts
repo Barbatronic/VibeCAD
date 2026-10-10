@@ -1678,7 +1678,7 @@ export class AppController {
     if ('reason' in r) return this.explain(r.reason);
     const end = { instanceId: inst.id, lcs: r.ref };
     if (!mode.moving) {
-      this.set({ mode: { kind: 'joint', moving: end } });
+      this.set({ mode: { kind: 'joint', moving: end, movingPick: { kind: pick.kind, index: pick.index } } });
       return;
     }
     if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
