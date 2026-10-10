@@ -26,7 +26,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   coins ou par le centre, qui reste au milieu quand on cote), cercle, **arc de cercle** (centre,
   départ, arrivée ; les contours mêlant segments et arcs donnent de vrais volumes) ;
   sélection, déplacement, suppression ; accrochage à l'origine, aux points et à la grille avec
-  repères visuels et textuels.
+  repères visuels et textuels. Outil **Couper** (T) : retirer le morceau d'un trait jusqu'aux
+  croisements voisins (le morceau est montré en rouge au survol), pour réunir deux formes en un
+  seul contour ; les nouvelles extrémités restent posées sur le trait qui coupe.
 - **Cotes** : longueur, diamètre, rayon, distances horizontale / verticale / alignée, distance
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites
