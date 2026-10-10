@@ -53,7 +53,7 @@ import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
 import { clampToLimits, isSphereLcs, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
-import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
+import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
@@ -1351,6 +1351,8 @@ export class AppController {
   private drag: {
     jointId: Id;
     rotate: boolean;
+    /** Rotule : centre, point attrapé (direction et rayon) et axe de la pièce au départ. */
+    ball?: { center: Vec3; grab: Vec3; radius: number; axis0: Vec3; flip: boolean; base: { x: Vec3; y: Vec3; z: Vec3 } };
     origin: Vec3;
     axis: Vec3;
     startAngle: number;
@@ -1726,6 +1728,13 @@ export class AppController {
     this.set({ mode: { ...mode, lockedFace: { instanceId: h.partId, index: h.index } } });
   }
 
+  /** Outil Main : attraper les pièces de l'assemblage à la souris (ou seulement tourner la vue). */
+  toggleAssemblyHand(on?: boolean): void {
+    const hand = on ?? !this.state.assemblyHand;
+    if (hand && this.state.mode.kind === 'joint') this.set({ mode: model });
+    this.set({ assemblyHand: hand });
+  }
+
   /** Change une liaison (type, retournement, limites…) : une action annulable. */
   setJoint(jointId: Id, patch: Partial<AssemblyJoint>, label = 'Modifier une liaison'): void {
     this.commit(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), label);
@@ -1759,6 +1768,26 @@ export class AppController {
       const frames = joint && this.assemblyPlacement()?.jointFrames.get(joint.id);
       if (!joint || !frames) return;
       const free = jointFreedoms(joint.kind);
+      if (free.tilt && event.point) {
+        // Rotule : le point attrapé suit la souris sur une sphère centrée sur la rotule.
+        const center = frames.base.origin;
+        const g = sub3(event.point, center);
+        const radius = Math.max(Math.hypot(g.x, g.y, g.z), 5);
+        this.drag = {
+          jointId: joint.id,
+          rotate: false,
+          origin: center,
+          axis: frames.base.normal,
+          startAngle: joint.angle,
+          startOffset: joint.offset,
+          ref: null,
+          s0: 0,
+          lastDelta: 0,
+          ball: { center, grab: g, radius, axis0: frames.moving.normal, flip: joint.flip, base: { x: frames.base.xAxis, y: frames.base.yAxis, z: frames.base.normal } },
+        };
+        this.set({ assemblySelection: { kind: 'joint', id: joint.id } });
+        return;
+      }
       const rotate = free.angle && (!free.offset || !event.shift);
       const origin = frames.base.origin;
       const axis = frames.base.normal;
@@ -1773,6 +1802,22 @@ export class AppController {
     const joint = s.doc.assembly?.joints.find((j) => j.id === drag.jointId);
     if (!joint) return;
     if (event.phase === 'move') {
+      if (drag.ball) {
+        const b = drag.ball;
+        const target = raySphere(event.ray, b.center, b.radius);
+        const u0 = normalize3(b.grab);
+        const u1 = normalize3(sub3(target, b.center));
+        // Rotation qui amène le point attrapé sous la souris, appliquée à l'axe de la pièce.
+        const a1 = rotateAlong(b.axis0, u0, u1);
+        // Axe de la pièce → inclinaison et direction dans le repère de référence (voir jointMatrix).
+        const s1 = b.flip ? a1 : scale3(a1, -1);
+        const bz = Math.max(-1, Math.min(1, dot3(s1, b.base.z)));
+        let tilt = (Math.acos(bz) * 180) / Math.PI;
+        tilt = Math.min(tilt, joint.tiltLimit ?? 180);
+        const dir = tilt < 1e-6 ? (joint.tiltDirection ?? 0) : (Math.atan2(dot3(s1, b.base.y), dot3(s1, b.base.x)) * 180) / Math.PI;
+        this.setJointLive(joint.id, { tilt: Math.round(tilt * 10) / 10, tiltDirection: Math.round(dir * 10) / 10 });
+        return;
+      }
       if (drag.rotate) {
         const p = rayPlane(event.ray, drag.origin, drag.axis);
         if (!p || !drag.ref) return;
@@ -1854,4 +1899,37 @@ export class AppController {
   dismissToast(id: number): void {
     if (this.state.toasts.some((t) => t.id === id)) this.set({ toasts: this.state.toasts.filter((t) => t.id !== id) });
   }
+}
+
+/** Point d'une sphère visé par un rayon (le plus proche de l'observateur), ou le point de la sphère le plus proche du rayon. */
+function raySphere(ray: { origin: Vec3; direction: Vec3 }, center: Vec3, radius: number): Vec3 {
+  const d = normalize3(ray.direction);
+  const oc = sub3(ray.origin, center);
+  const b = dot3(oc, d);
+  const c = dot3(oc, oc) - radius * radius;
+  const disc = b * b - c;
+  if (disc >= 0) {
+    const t = -b - Math.sqrt(disc);
+    return { x: ray.origin.x + d.x * t, y: ray.origin.y + d.y * t, z: ray.origin.z + d.z * t };
+  }
+  const t = -b;
+  const closest = { x: ray.origin.x + d.x * t, y: ray.origin.y + d.y * t, z: ray.origin.z + d.z * t };
+  const v = normalize3(sub3(closest, center));
+  return { x: center.x + v.x * radius, y: center.y + v.y * radius, z: center.z + v.z * radius };
+}
+
+/** Vecteur `v` tourné de la rotation qui amène la direction `from` sur `to` (Rodrigues). */
+function rotateAlong(v: Vec3, from: Vec3, to: Vec3): Vec3 {
+  const k = cross3(from, to);
+  const sin = Math.hypot(k.x, k.y, k.z);
+  const cos = dot3(from, to);
+  if (sin < 1e-9) return v;
+  const axis = scale3(k, 1 / sin);
+  const kv = cross3(axis, v);
+  const kd = dot3(axis, v);
+  return {
+    x: v.x * cos + kv.x * sin + axis.x * kd * (1 - cos),
+    y: v.y * cos + kv.y * sin + axis.y * kd * (1 - cos),
+    z: v.z * cos + kv.z * sin + axis.z * kd * (1 - cos),
+  };
 }

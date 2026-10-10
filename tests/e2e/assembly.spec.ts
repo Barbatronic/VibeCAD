@@ -122,7 +122,9 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await expect.poll(async () => (await pinOrigin(page)).z).toBeCloseTo(0, 5);
   await page.screenshot({ path: 'tests/output/e2e-assemblage-glissiere.png' });
 
-  // À la souris : la goupille ne bouge que le long de l'axe du trou.
+  // Outil Main, à la souris : la goupille ne bouge que le long de l'axe du trou.
+  await page.click('#as-hand');
+  await expect(page.locator('#as-hand')).toHaveAttribute('aria-pressed', 'true');
   const top = await circleEdgeOnScreen(page, 1, 10);
   await page.mouse.move(top.x, top.y);
   await page.mouse.down();

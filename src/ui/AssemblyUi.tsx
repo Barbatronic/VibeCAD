@@ -93,6 +93,7 @@ export function AssemblyTools() {
   const s = useAppState(
     (st) => ({
       joint: st.mode.kind === 'joint',
+      hand: st.assemblyHand,
       count: st.doc.assembly?.instances.length ?? 0,
       sel: st.assemblySelection,
     }),
@@ -103,13 +104,25 @@ export function AssemblyTools() {
       <div class="toolbar-group" role="group" aria-label="Assembler">
         <InsertMenu />
         <ToolButton
+          id="as-hand"
+          icon="hand"
+          label="Main"
+          hint="Main : attraper une pièce et la faire bouger à la souris, selon sa liaison (tourner, glisser, pencher)"
+          pressed={s.hand}
+          onClick={() => c.toggleAssemblyHand()}
+        />
+        <ToolButton
           id="as-joint"
           icon="pivot"
           label="Liaison"
           hint="Relier deux pièces : cliquez un repère sur la pièce qui bouge, puis sur la pièce de référence"
           pressed={s.joint}
           availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
-          onClick={() => (s.joint ? c.cancelJoint() : c.startJoint())}
+          onClick={() => {
+            c.toggleAssemblyHand(false);
+            if (s.joint) c.cancelJoint();
+            else c.startJoint();
+          }}
         />
       </div>
       <div class="toolbar-group" role="group" aria-label="Édition">
@@ -298,7 +311,8 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
       <div class="panel-content">
       <p class="vocab">
         <strong>Liaison</strong> : la pièce mobile est posée sur le repère de la pièce de référence (repère orange), puis elle peut bouger selon le type.
-        Vous pouvez aussi la faire glisser à la souris dans la vue{free.angle && free.offset ? ' (Maj : translation)' : ''}.
+        Avec l’outil <strong>Main</strong> (en haut), attrapez la pièce à la souris : elle ne fait que le mouvement permis
+        {free.angle && free.offset ? ' (Maj : glisser au lieu de tourner)' : ''}.
       </p>
       {issue ? <Callout kind="error">{JOINT_ISSUE_MESSAGES[issue]}</Callout> : null}
       <div class="field" role="group" aria-label="Type de liaison">

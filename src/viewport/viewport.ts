@@ -111,6 +111,8 @@ export interface AssemblyDragEvent {
   key: string;
   ray: { origin: Vec3; direction: Vec3 };
   shift: boolean;
+  /** Au départ : point de la pièce attrapé (monde). */
+  point?: Vec3;
 }
 
 export interface ModelPick {
@@ -783,7 +785,7 @@ export class Viewport {
         this.assemblyDrag = { key: pick.partId, moved: false };
         this.rig.controls.enabled = false;
         this.renderer.domElement.style.cursor = 'grabbing';
-        this.events.onAssemblyDrag?.({ phase: 'start', key: pick.partId, ray: this.worldRay(e), shift: e.shiftKey });
+        this.events.onAssemblyDrag?.({ phase: 'start', key: pick.partId, ray: this.worldRay(e), shift: e.shiftKey, point: pick.point });
       },
       { capture: true },
     );
@@ -1074,7 +1076,8 @@ export class Viewport {
         this.hoverOverlay = overlay;
       }
     }
-    this.renderer.domElement.style.cursor = pick ? 'pointer' : '';
+    // Outil Main : une pièce qu'on peut attraper montre la main.
+    this.renderer.domElement.style.cursor = pick ? (this.input.dragTargets?.includes(pick.partId) ? 'grab' : 'pointer') : '';
     this.events.onHover(pick);
     this.requestRender();
   }

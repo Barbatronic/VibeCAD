@@ -122,9 +122,10 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     // La pièce sélectionnée : toutes ses arêtes en surbrillance.
     if (mesh) mesh.edges.forEach((_e, index) => selection.push({ partId: sel.id, kind: 'edge', index }));
   }
-  const dragTargets = assembly.joints
-    .filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset))
-    .map((j) => j.moving.instanceId);
+  // Outil Main : seules les pièces tenues par une liaison mobile peuvent être attrapées.
+  const dragTargets = s.assemblyHand && s.mode.kind === 'model'
+    ? assembly.joints.filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset)).map((j) => j.moving.instanceId)
+    : [];
   const lockedFace = s.mode.kind === 'joint' && s.mode.lockedFace ? { partId: s.mode.lockedFace.instanceId, index: s.mode.lockedFace.index } : null;
   if (lockedFace) selection.push({ partId: lockedFace.partId, kind: 'face', index: lockedFace.index });
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace };
@@ -425,7 +426,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

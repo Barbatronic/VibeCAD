@@ -93,6 +93,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
     </>
   ),
+  hand: (
+    <>
+      <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12" />
+      <path d="M11 11.5V4a1.5 1.5 0 0 1 3 0v7.5" />
+      <path d="M14 11.5V5.5a1.5 1.5 0 0 1 3 0V14" />
+      <path d="M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.5 15.5a1.6 1.6 0 0 1 2.4-2.1L8 14.5" />
+    </>
+  ),
   trim: (
     <>
       <circle cx="6" cy="6" r="2.5" />

@@ -37,4 +37,28 @@ test('rotule : choisie par son icône, expliquée, la pièce penche autour du po
   await expect.poll(() => appState(page, (s) => s.doc.assembly.joints[0])).toMatchObject({ kind: 'spherical', tilt: 30, tiltDirection: 90 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'tests/output/e2e-rotule.png' });
+
+  // Outil Main : attraper la plaque et la tirer, elle penche autrement.
+  await page.getByLabel('Pencher (inclinaison) exact').fill('0');
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.joints[0].tilt)).toBe(0);
+  await page.click('#as-hand');
+  const grab = await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const inst = c.state.doc.assembly.instances[1];
+    const part = c.viewport.parts.get(inst.id);
+    const v = c.viewport.rig.camera.position.clone().set(50, 25, 0).applyMatrix4(part.group.matrix).project(c.viewport.rig.camera);
+    return { x: ((v.x + 1) / 2) * c.viewport.width, y: ((1 - v.y) / 2) * c.viewport.height };
+  });
+  const box = (await page.locator('.vp-canvas').boundingBox())!;
+  await page.mouse.move(box.x + grab.x, box.y + grab.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + grab.x, box.y + grab.y - 40, { steps: 6 });
+  await page.mouse.move(box.x + grab.x - 20, box.y + grab.y - 70, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.joints[0].tilt)).toBeGreaterThan(5);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'tests/output/e2e-rotule-main.png' });
+  // Un seul geste à annuler.
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.joints[0].tilt)).toBe(0);
 });

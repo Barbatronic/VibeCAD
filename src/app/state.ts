@@ -138,6 +138,8 @@ export interface AppState {
   /** Plateau d'impression affiché (0, 1, 2…). */
   printPlate: number;
   assemblySelection: AssemblySelection;
+  /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
+  assemblyHand: boolean;
   /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
   rollback: RollbackState;
   /** Demande de cadrage : incrémentée quand la vue doit cadrer le modèle affiché (premier solide, projet ouvert). */
@@ -176,6 +178,7 @@ export function initialState(): AppState {
     level: 'debutant',
     workspace: 'parts',
     fabricationTab: 'print',
+    assemblyHand: false,
     fabricationPart: null,
     printPlate: 0,
     assemblySelection: null,
