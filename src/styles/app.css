@@ -1849,6 +1849,10 @@ kbd {
   .topbar .toolbar .tool-btn {
     min-width: 38px;
   }
+  .workspace-tabs button {
+    padding: 5px 7px;
+    font-size: 12.5px;
+  }
   .project-name {
     width: 110px;
   }
