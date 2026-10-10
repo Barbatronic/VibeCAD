@@ -2539,3 +2539,51 @@ kbd {
 .joint-explanation {
   margin-top: 6px;
 }
+
+/* Bulle d'explication présentée par Java au survol d'un outil. */
+.tip {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.tip p {
+  margin: 2px 0 0;
+}
+
+.tip-title {
+  display: block;
+  font-size: 13.5px;
+}
+
+.tip-cat {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tip {
+    animation: tip-in 0.15s ease-out;
+  }
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.tip-reason {
+  color: var(--warning);
+}

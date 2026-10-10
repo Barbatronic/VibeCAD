@@ -137,6 +137,14 @@ export class AppController {
     const saved = parseLevel(await this.deps.projects?.getSetting<string>('level').catch(() => undefined));
     if (fromUrl) this.setLevel(fromUrl);
     else if (saved) this.setLevel(saved, false);
+    const tips = await this.deps.projects?.getSetting<boolean>('tips').catch(() => undefined);
+    if (tips === false) this.set({ tips: false });
+  }
+
+  /** Bulles d'explication du chat au survol : activées ou non (retenu sur l'appareil). */
+  setTips(on: boolean): void {
+    this.set({ tips: on });
+    void this.deps.projects?.setSetting('tips', on).catch(() => undefined);
   }
 
   /** Change le niveau de l'interface ; ce qui n'est plus montré est refermé. */

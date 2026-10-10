@@ -42,6 +42,7 @@ export function HelpDrawer() {
   const open = useAppState((s) => s.helpOpen);
   const catHidden = useAppState((s) => s.mascot.hidden);
   const level = useAppState((s) => s.level);
+  const tips = useAppState((s) => s.tips);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -68,6 +69,10 @@ export function HelpDrawer() {
             Choisir un parcours guidé
           </Button>
         </p>
+        <label class="checkbox-row">
+          <input type="checkbox" checked={tips} onChange={() => c.setTips(!tips)} />
+          <span>Bulles d’explication de Java au survol des outils (sinon : info-bulles simples)</span>
+        </label>
         <fieldset class="help-levels">
           <legend>Niveau de l’interface</legend>
           <p class="field-help">Chaque niveau montre plus d’outils. Le niveau est retenu sur cet ordinateur ; un lien avec « ?niveau=expert » l’impose.</p>

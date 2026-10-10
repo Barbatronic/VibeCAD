@@ -131,6 +131,8 @@ export interface AppState {
   mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
   /** Niveau de l'interface (outils montrés), retenu sur l'appareil. */
   level: Level;
+  /** Bulles d'explication présentées par le chat au survol (sinon info-bulles simples). */
+  tips: boolean;
   workspace: Workspace;
   fabricationTab: FabricationTab;
   /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
@@ -176,6 +178,7 @@ export function initialState(): AppState {
     fitRequest: 0,
     rollback: {},
     level: 'debutant',
+    tips: true,
     workspace: 'parts',
     fabricationTab: 'print',
     assemblyHand: false,

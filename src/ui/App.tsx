@@ -4,6 +4,7 @@ import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
+import { TipLayer } from './TipLayer';
 import { Tutorial } from './Tutorial';
 import { ViewportHost } from './ViewportHost';
 import { useAppState } from './context';
@@ -26,6 +27,7 @@ export function App() {
       <HelpDrawer />
       <Dialogs />
       <Toasts />
+      <TipLayer />
     </div>
   );
 }
