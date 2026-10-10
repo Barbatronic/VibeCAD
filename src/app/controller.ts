@@ -1305,8 +1305,13 @@ export class AppController {
     this.set({ helpOpen: open ?? !this.state.helpOpen });
   }
 
-  toggleLeftPanel(open?: boolean): void {
-    this.set({ leftPanelOpen: open ?? !this.state.leftPanelOpen });
+  /**
+   * Bouton du panneau des pièces : sur écran étroit, ouvre ou ferme le tiroir ; sur écran large,
+   * masque ou réaffiche le panneau (la vue 3D prend la place).
+   */
+  toggleLeftPanel(open?: boolean, narrow = false): void {
+    if (narrow) this.set({ leftPanelOpen: open ?? !this.state.leftPanelOpen });
+    else this.set({ leftPanelHidden: open === undefined ? !this.state.leftPanelHidden : !open });
   }
 
   // =========================================================================

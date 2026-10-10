@@ -63,8 +63,18 @@ textarea {
   min-height: 0;
 }
 
-.main.left-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr) auto;
+/* Écran large : panneau des pièces masqué (bouton en haut à gauche), la vue prend la place. */
+@media (min-width: 981px) {
+  .main.left-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr) auto;
+  }
+  /* L'élément reste dans la grille (sinon la vue glisserait dans la colonne vide). */
+  .main.left-collapsed .left-panel {
+    visibility: hidden;
+    overflow: hidden;
+    min-width: 0;
+    border: 0;
+  }
 }
 
 /* ------------------------------------------------------------------ Barre du haut */

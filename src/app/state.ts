@@ -139,7 +139,10 @@ export interface AppState {
   projection: Projection;
   dialog: Dialog | null;
   helpOpen: boolean;
+  /** Écran étroit : panneau des pièces ouvert par-dessus la vue (tiroir). */
   leftPanelOpen: boolean;
+  /** Écran large : panneau des pièces masqué pour agrandir la vue. */
+  leftPanelHidden: boolean;
   toasts: Toast[];
   /** Parcours guidé : `id` null tant que l'utilisateur n'a pas choisi le parcours. */
   tutorial: { id: TutorialId | null; step: number } | null;
@@ -174,6 +177,7 @@ export function initialState(): AppState {
     dialog: null,
     helpOpen: false,
     leftPanelOpen: false,
+    leftPanelHidden: false,
     toasts: [],
     tutorial: null,
   };

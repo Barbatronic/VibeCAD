@@ -569,9 +569,15 @@ export function TopBar() {
   const mode = useAppState((s) => s.mode.kind);
   const workspace = useAppState((s) => s.workspace);
   const tutorialOn = useAppState((s) => s.tutorial !== null);
+  const leftShown = useAppState((s) => (window.matchMedia('(max-width: 980px)').matches ? s.leftPanelOpen : !s.leftPanelHidden));
   return (
     <header class="topbar">
-      <IconButton icon="panel" label="Afficher ou masquer le panneau des pièces" onClick={() => c.toggleLeftPanel()} />
+      <IconButton
+        icon="panel"
+        label="Afficher ou masquer le panneau des pièces"
+        pressed={leftShown}
+        onClick={() => c.toggleLeftPanel(undefined, window.matchMedia('(max-width: 980px)').matches)}
+      />
       <div class="brand">
         <CatFigure decorative class="brand-mark" size={34} />
         <span>{APP_NAME}</span>

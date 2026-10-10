@@ -10,10 +10,11 @@ import { useAppState } from './context';
 
 export function App() {
   const leftOpen = useAppState((s) => s.leftPanelOpen);
+  const leftHidden = useAppState((s) => s.leftPanelHidden);
   return (
     <div class="app">
       <TopBar />
-      <main class={`main${leftOpen ? ' left-open' : ''}`}>
+      <main class={`main${leftOpen ? ' left-open' : ''}${leftHidden ? ' left-collapsed' : ''}`}>
         <LeftPanel />
         <div style={{ position: 'relative', minWidth: 0, minHeight: 0, display: 'grid' }}>
           <ViewportHost />
