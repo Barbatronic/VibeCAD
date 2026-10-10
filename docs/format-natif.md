@@ -235,6 +235,22 @@ désignés comme les congés par leurs faces. `kind` : `fixed`, `revolute`, `sli
 `cylindrical` ; `angle` en degrés, `offset` en mm, limites facultatives `[min, max]`. Un projet
 sans assemblage n'a pas ce champ. Détails : [assemblage.md](assemblage.md).
 
+## Fabrication (champ facultatif `fabrication`)
+
+```json
+"fabrication": {
+  "print": { "bed": { "x": 220, "y": 220, "z": 250 }, "spacing": 5,
+             "items": [ { "partId": "part-…", "copies": 2, "scale": 100, "downFace": faceRef } ] },
+  "laser": { "sheet": { "w": 600, "h": 400 }, "thickness": 3, "kerf": 0.15, "spacing": 4,
+             "items": [ { "partId": "part-…", "copies": 1, "face": faceRef } ] }
+}
+```
+
+Réglages de l'onglet Fabrication : plateau d'impression (mm), espacement, et par pièce le nombre
+d'exemplaires, l'échelle (%) et la face posée sur le plateau ; pour la découpe laser, la plaque,
+l'épaisseur du matériau, le trait de coupe (kerf) et la face qui donne le contour. Voir
+[fabrication.md](fabrication.md).
+
 ## Ressources embarquées
 
 Le contenu exact des fichiers importés est copié dans le projet : il reste disponible sans le
