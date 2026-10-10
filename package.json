@@ -1,0 +1,41 @@
+{
+  "name": "vibecad",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CAO 3D paramétrique pédagogique dans le navigateur : esquisses cotées, extrusions, poches, historique éditable, échange STEP avec FreeCAD.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint:arch": "node scripts/check-architecture.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test --project=chromium",
+    "check": "npm run typecheck && npm run lint:arch && npm run test",
+    "bench": "vitest run --config vitest.bench.config.ts",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "verify:freecad": "vitest run tests/geometry/freecad.test.ts",
+    "icons": "tsc src/ui/mascot-art.ts --ignoreConfig --outDir .icons-tmp --target es2022 --module esnext && node scripts/generate-icons.mjs && node -e \"require('fs').rmSync('.icons-tmp',{recursive:true})\""
+  },
+  "dependencies": {
+    "preact": "10.29.8",
+    "replicad-opencascadejs": "1.1.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.4",
+    "@types/three": "0.186.0",
+    "ajv": "8.20.0",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "7.0.2",
+    "vite": "8.2.4",
+    "vitest": "5.0.1"
+  }
+}

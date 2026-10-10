@@ -1,0 +1,15 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+tests/output/
+*.log
+.DS_Store
+.icons-tmp/
+.claude/
+# Fichiers exportés posés à la racine par erreur (téléchargements, essais).
+/*.stl
+/*.3mf
+/*.step
+/*.stp
+/*.vibecad

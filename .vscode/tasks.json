@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Développement",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^x^" },
+        "background": { "activesBegin": true, "beginsPattern": "VITE", "endsPattern": "Local:" }
+      },
+      "group": { "kind": "build", "isDefault": true }
+    },
+    { "label": "Vérifications (types, architecture, tests)", "type": "npm", "script": "check", "group": "test", "problemMatcher": ["$tsc"] },
+    { "label": "Tests unitaires et géométriques", "type": "npm", "script": "test", "group": { "kind": "test", "isDefault": true } },
+    { "label": "Tests navigateur (Chromium)", "type": "npm", "script": "test:e2e", "group": "test" },
+    { "label": "Compilation de production", "type": "npm", "script": "build", "group": "build", "problemMatcher": ["$tsc"] },
+    { "label": "Aperçu du build", "type": "npm", "script": "preview", "isBackground": true, "problemMatcher": [] },
+    { "label": "Mesures de performance", "type": "npm", "script": "bench", "problemMatcher": [] }
+  ]
+}

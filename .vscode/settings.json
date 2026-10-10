@@ -1,0 +1,17 @@
+{
+  "editor.tabSize": 2,
+  "editor.formatOnSave": false,
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/node_modules": true,
+    "dist": true,
+    "test-results": true
+  },
+  "search.exclude": {
+    "dist": true,
+    "tests/output": true,
+    "package-lock.json": true
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "cSpell.language": "fr,en"
+}

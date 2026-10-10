@@ -1,0 +1,20 @@
+{
+  "name": "VibeCAD — CAO pour apprendre",
+  "short_name": "VibeCAD",
+  "description": "CAO 3D paramétrique pédagogique : esquisses cotées, extrusions, poches, historique modifiable, échange STEP avec FreeCAD.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e6eaf0",
+  "theme_color": "#1f5fc0",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "file_handlers": [
+    { "action": "./", "accept": { "application/vnd.vibecad+json": [".vibecad"] } }
+  ]
+}
