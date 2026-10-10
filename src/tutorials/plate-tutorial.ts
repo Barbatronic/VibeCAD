@@ -6,17 +6,9 @@
 import type { AppState } from '../app/state';
 import type { Part, SketchFeature, SketchParams } from '../domain/model';
 import { extractProfiles } from '../sketch/profiles';
+import type { TutorialStep } from './types';
 
-export interface TutorialStep {
-  id: string;
-  title: string;
-  /** Paragraphes ; `**texte**` est affiché en gras. */
-  body: string[];
-  /** Identifiant de l'élément d'interface à mettre en évidence. */
-  target?: string;
-  /** Vrai quand l'étape est réussie. */
-  check?: (s: AppState) => boolean;
-}
+export type { TutorialStep };
 
 const near = (a: number, b: number, tol = 1e-3) => Math.abs(a - b) <= tol;
 

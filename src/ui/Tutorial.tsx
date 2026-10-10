@@ -1,5 +1,5 @@
 import { useEffect } from 'preact/hooks';
-import { PLATE_TUTORIAL } from '../tutorials/plate-tutorial';
+import { TUTORIALS, tutorialById } from '../tutorials';
 import { useAppState, useController } from './context';
 import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
@@ -10,11 +10,43 @@ function RichText({ text }: { text: string }) {
   return <>{parts.map((p, i) => (i % 2 === 1 ? <strong key={i}>{p}</strong> : p))}</>;
 }
 
+/** Choix du parcours guidé. */
+function TutorialChooser({ showCat }: { showCat: boolean }) {
+  const c = useController();
+  return (
+    <section class="tutorial" aria-labelledby="tutorial-title" aria-live="polite">
+      <div class="tutorial-header">
+        <Icon name="graduation" />
+        <span>Parcours guidés</span>
+        <span class="spacer" />
+        <IconButton icon="close" label="Quitter le parcours guidé" small onClick={() => c.closeTutorial()} />
+      </div>
+      <div class={`tutorial-body${showCat ? ' with-cat' : ''}`}>
+        {showCat ? <CatFigure mood="tip" size={64} animated decorative class="tutorial-cat" /> : null}
+        <div>
+          <h3 id="tutorial-title">Que veux-tu apprendre ?</h3>
+          <ul class="tutorial-choices">
+            {TUTORIALS.map((t) => (
+              <li key={t.id}>
+                <button type="button" class="tutorial-choice" onClick={() => c.startTutorial(t.id)}>
+                  <strong>{t.title}</strong>
+                  <span>{t.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function Tutorial() {
   const c = useController();
   const tutorial = useAppState((s) => s.tutorial);
+  const steps = tutorial?.id ? tutorialById(tutorial.id).steps : [];
   const stepIndex = tutorial?.step ?? 0;
-  const step = PLATE_TUTORIAL[stepIndex];
+  const step = steps[stepIndex];
   const done = useAppState((s) => (step?.check ? step.check(s) : false));
   const showCat = useAppState((s) => !s.mascot.hidden);
 
@@ -25,17 +57,19 @@ export function Tutorial() {
     return () => el?.classList.remove('tutorial-target');
   }, [tutorial, step?.target, done]);
 
-  if (!tutorial || !step) return null;
-  const last = stepIndex === PLATE_TUTORIAL.length - 1;
+  if (!tutorial) return null;
+  if (!tutorial.id) return <TutorialChooser showCat={showCat} />;
+  if (!step) return null;
+  const last = stepIndex === steps.length - 1;
   return (
     <section class="tutorial" aria-labelledby="tutorial-title" aria-live="polite">
       <div class="tutorial-progress" aria-hidden="true">
-        <span style={{ width: `${((stepIndex + (done ? 1 : 0)) / PLATE_TUTORIAL.length) * 100}%` }} />
+        <span style={{ width: `${((stepIndex + (done ? 1 : 0)) / steps.length) * 100}%` }} />
       </div>
       <div class="tutorial-header">
         <Icon name="graduation" />
         <span>
-          Parcours guidé · étape {stepIndex + 1} / {PLATE_TUTORIAL.length}
+          {tutorialById(tutorial.id).title} · étape {stepIndex + 1} / {steps.length}
         </span>
         <span class="spacer" />
         <IconButton icon="close" label="Quitter le parcours guidé" small onClick={() => c.closeTutorial()} />
@@ -63,7 +97,11 @@ export function Tutorial() {
           <Button small onClick={() => c.setTutorialStep(stepIndex - 1)}>
             Précédent
           </Button>
-        ) : null}
+        ) : (
+          <Button small onClick={() => c.startTutorial()}>
+            Autres parcours
+          </Button>
+        )}
         {last ? (
           <Button small variant="primary" onClick={() => c.closeTutorial()}>
             Terminer

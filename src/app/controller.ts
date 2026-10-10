@@ -48,6 +48,7 @@ import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../pe
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
 import { createSession, setPixelSize, setProjectable, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
+import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
@@ -1756,12 +1757,14 @@ export class AppController {
     }
   }
 
-  startTutorial(): void {
-    this.set({ tutorial: { step: 0 }, helpOpen: false });
+  /** Ouvre le panneau des parcours guidés (sans `id` : choix du parcours). */
+  startTutorial(id: TutorialId | null = null): void {
+    this.set({ tutorial: { id, step: 0 }, helpOpen: false });
   }
 
   setTutorialStep(step: number): void {
-    this.set({ tutorial: { step } });
+    const t = this.state.tutorial;
+    if (t) this.set({ tutorial: { ...t, step } });
   }
 
   closeTutorial(): void {

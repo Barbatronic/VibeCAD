@@ -1,4 +1,5 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
+import type { TutorialId } from '../tutorials';
 import type { RollbackState } from './rollback';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
@@ -140,7 +141,8 @@ export interface AppState {
   helpOpen: boolean;
   leftPanelOpen: boolean;
   toasts: Toast[];
-  tutorial: { step: number } | null;
+  /** Parcours guidé : `id` null tant que l'utilisateur n'a pas choisi le parcours. */
+  tutorial: { id: TutorialId | null; step: number } | null;
 }
 
 export function initialState(): AppState {

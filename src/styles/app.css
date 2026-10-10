@@ -2371,3 +2371,38 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
+
+.tutorial-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tutorial-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tutorial-choice:hover,
+.tutorial-choice:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tutorial-choice span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}

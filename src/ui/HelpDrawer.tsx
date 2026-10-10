@@ -63,7 +63,7 @@ export function HelpDrawer() {
       <div class="drawer-body">
         <p>
           <Button variant="primary" icon="graduation" onClick={() => c.startTutorial()}>
-            Lancer le parcours guidé (plaque percée)
+            Choisir un parcours guidé
           </Button>
         </p>
         <div class="help-cat">

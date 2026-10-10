@@ -25,7 +25,7 @@ describe('conseils du chat', () => {
   it('se tait quand tout va bien, et pendant le parcours guidé', () => {
     expect(currentAdvice(stateWith())).toBeNull();
     const err: FeatureStatus = { featureId: 'x', state: 'error', code: 'KERNEL_FAILURE' };
-    expect(currentAdvice(stateWith([err], { tutorial: { step: 0 } }))).toBeNull();
+    expect(currentAdvice(stateWith([err], { tutorial: { id: 'plate', step: 0 } }))).toBeNull();
   });
 
   it('pièce vide : propose de commencer une esquisse', () => {
