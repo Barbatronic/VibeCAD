@@ -70,7 +70,7 @@ export interface FabricationSettings {
 
 /**
  * Repère local (LCS) posé sur une pièce, désigné de façon persistante :
- * - `face` : centre d'une face plane, axe Z = normale sortante ;
+ * - `face` : centre d'une face plane, axe Z = normale sortante ; ou centre d'une sphère (rotule) ;
  * - `circle` : centre d'un cercle ou d'un arc (bord d'un trou…), axe Z = axe du cercle ;
  * - `edge` : milieu d'une arête droite, axe Z = direction de l'arête ;
  * - `vertex` : sommet d'une face plane, axe Z = normale de la face.

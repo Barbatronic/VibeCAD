@@ -698,7 +698,7 @@ export class OcctKernel implements GeometryKernel {
     }
   }
 
-  private surfaceInfo(scope: Scope, face: TopoDS_Face): { surface: SurfaceKind; plane?: FaceMeshInfo['plane']; cylinder?: FaceMeshInfo['cylinder'] } {
+  private surfaceInfo(scope: Scope, face: TopoDS_Face): { surface: SurfaceKind; plane?: FaceMeshInfo['plane']; cylinder?: FaceMeshInfo['cylinder']; sphere?: FaceMeshInfo['sphere'] } {
     const oc = this.oc;
     const adaptor = scope.track(new oc.BRepAdaptor_Surface(face, true));
     const type = adaptor.GetType();
@@ -723,9 +723,12 @@ export class OcctKernel implements GeometryKernel {
         },
       };
     }
+    if (type === oc.GeomAbs_SurfaceType.GeomAbs_Sphere) {
+      const sph = scope.track(adaptor.Sphere());
+      return { surface: 'sphere', sphere: { center: toVec(scope.track(sph.Location())), radius: sph.Radius() } };
+    }
     const kinds: Record<string, SurfaceKind> = {
       GeomAbs_Cone: 'cone',
-      GeomAbs_Sphere: 'sphere',
       GeomAbs_Torus: 'torus',
     };
     return { surface: kinds[type] ?? 'other' };

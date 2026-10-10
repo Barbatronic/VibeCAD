@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { lcsFrame, lcsFromPick, solveAssembly } from '../../src/app/assembly';
-import { addFeature, addPart, findPart, makeExtrudeFeature, makeSketchFeature } from '../../src/domain/document';
+import { isSphereLcs, lcsFrame, lcsFromPick, solveAssembly } from '../../src/app/assembly';
+import { addFeature, addPart, createDocument, findPart, makeExtrudeFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { Assembly, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
 import { transformDirection4, transformPoint4 } from '../../src/math/mat4';
-import { addCircle, addConstraint } from '../../src/sketch/model';
+import { addArc, addCircle, addConstraint, addLine } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 import { ORIGIN_POINT_ID } from '../../src/domain/model';
 import { getKernel } from '../helpers/kernel';
@@ -137,5 +137,27 @@ describe('assemblage', () => {
     expect(moved.origin.y).toBeCloseTo(30, 6);
     // Un point qui n'est pas un coin est refusé.
     expect('reason' in lcsFromPick(mesh, 'vertex', top, findPart(doc, ids.partId)!, { x: 30, y: 15, z: 5 })).toBe(true);
+  });
+
+  it('boule : son centre sert de repère de rotule', () => {
+    let doc = createDocument('Boule');
+    const partId = doc.parts[0]!.id;
+    const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 0 });
+    // Demi-disque de rayon 10 posé sur l'axe Y, tourné d'un tour complet.
+    const arc = addArc(sk.params, { x: 0, y: 0 }, { x: 0, y: -10 }, { x: 0, y: 10 });
+    const line = addLine(arc.sketch, { x: 0, y: 10 }, { x: 0, y: -10 });
+    let params = addConstraint(line.sketch, { type: 'coincident', a: arc.end, b: line.a }).sketch;
+    params = addConstraint(params, { type: 'coincident', a: line.b, b: arc.start }).sketch;
+    doc = addFeature(doc, partId, { ...sk, params: solveSketch(params).sketch });
+    doc = addFeature(doc, partId, makeRevolveFeature(doc, findPart(doc, partId)!, sk.id, { kind: 'sketch-y' }, 360));
+    const mesh = meshes(doc).get(partId)!;
+    const sphere = mesh.faces.findIndex((f) => f.sphere);
+    expect(sphere).toBeGreaterThanOrEqual(0);
+    expect(mesh.faces[sphere]!.sphere!.radius).toBeCloseTo(10, 6);
+    const r = lcsFromPick(mesh, 'face', sphere, findPart(doc, partId)!);
+    if (!('ref' in r)) throw new Error(r.reason);
+    expect(isSphereLcs(mesh, r.ref)).toBe(true);
+    const frame = lcsFrame(mesh, r.ref)!;
+    expect(Math.hypot(frame.origin.x, frame.origin.y, frame.origin.z)).toBeCloseTo(0, 6);
   });
 });

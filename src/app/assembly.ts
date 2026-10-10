@@ -65,9 +65,12 @@ export function lcsFrame(mesh: MeshData, ref: LcsRef): Frame3D | null {
     return corner ? frameFromAxis(corner, mesh.faces[face]!.plane!.normal) : null;
   }
   if (ref.kind === 'face') {
-    const face = facesMatching(mesh, ref.face).find((i) => mesh.faces[i]!.plane);
+    const face = facesMatching(mesh, ref.face).find((i) => mesh.faces[i]!.plane || mesh.faces[i]!.sphere);
     if (face === undefined) return null;
-    return frameFromAxis(faceCentroid(mesh, face), mesh.faces[face]!.plane!.normal);
+    const f = mesh.faces[face]!;
+    // Face sphérique (rotule) : repère au centre de la sphère, axe Z de la pièce.
+    if (f.sphere) return frameFromAxis(f.sphere.center, { x: 0, y: 0, z: 1 });
+    return frameFromAxis(faceCentroid(mesh, face), f.plane!.normal);
   }
   for (const i of edgesMatching(mesh, ref.edge)) {
     const e = mesh.edges[i]!;
@@ -103,20 +106,25 @@ export function lcsFromPick(mesh: MeshData, kind: 'face' | 'edge' | 'vertex', in
   if (kind === 'face') {
     const face = mesh.faces[index];
     if (!face) return { reason: 'Face introuvable.' };
-    if (face.plane) {
+    if (face.plane || face.sphere) {
       const ref = pickFaceReference(face.tags, part);
       return ref ? { ref: { kind: 'face', face: ref } } : { reason: 'Cette face ne peut pas être désignée de façon durable.' };
     }
     // Paroi d'un trou ou d'un cylindre : le repère est le centre de l'un de ses bords circulaires.
     const circleEdge = mesh.edges.findIndex((e) => e.circle && e.faces.includes(index));
     if (circleEdge >= 0) return lcsFromPick(mesh, 'edge', circleEdge, part);
-    return { reason: 'Choisissez une face plane, un bord circulaire (trou, cylindre) ou une arête droite.' };
+    return { reason: 'Choisissez une face plane, une sphère, un bord circulaire (trou, cylindre) ou une arête droite.' };
   }
   const edge = mesh.edges[index];
   if (!edge || (!edge.circle && !edge.line)) return { reason: 'Choisissez une arête droite ou un bord circulaire.' };
   const r = edgeRefFromPick(mesh, index, part, null);
   if (r.kind !== 'ref') return { reason: r.kind === 'invalid' ? r.reason : 'Cette arête ne peut pas être désignée de façon durable.' };
   return { ref: edge.circle ? { kind: 'circle', edge: r.ref } : { kind: 'edge', edge: r.ref } };
+}
+
+/** Vrai si le repère est le centre d'une sphère (une liaison qui l'utilise est une rotule). */
+export function isSphereLcs(mesh: MeshData, ref: LcsRef): boolean {
+  return ref.kind === 'face' && facesMatching(mesh, ref.face).some((i) => !!mesh.faces[i]!.sphere);
 }
 
 /** Matrice de placement de la pièce mobile d'une liaison. */

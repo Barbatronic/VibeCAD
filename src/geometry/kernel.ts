@@ -71,6 +71,8 @@ export interface FaceMeshInfo {
   plane?: { origin: Vec3; normal: Vec3 };
   /** Pour une face cylindrique : axe et rayon. */
   cylinder?: { origin: Vec3; axis: Vec3; radius: number };
+  /** Pour une face sphérique : centre et rayon (rotules). */
+  sphere?: { center: Vec3; radius: number };
   area: number;
 }
 

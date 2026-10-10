@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -52,7 +52,7 @@ import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
-import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { clampToLimits, isSphereLcs, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
@@ -1693,7 +1693,16 @@ export class AppController {
     if (s.doc.assembly!.joints.some((j) => j.moving.instanceId === moving.instanceId)) {
       return this.explain('Cette pièce est déjà tenue par une liaison : supprimez-la d’abord pour en créer une autre.');
     }
-    const kind: JointKind = moving.lcs.kind === 'circle' && base.lcs.kind === 'circle' ? 'revolute' : 'fixed';
+    const meshOf = (end: JointEnd) => {
+      const i = s.doc.assembly!.instances.find((x) => x.id === end.instanceId);
+      return i ? s.display[i.partId]?.mesh : undefined;
+    };
+    const sphere = [moving, base].some((e) => {
+      const m = meshOf(e);
+      return !!m && isSphereLcs(m, e.lcs);
+    });
+    // Une sphère donne une rotule ; deux bords circulaires, un pivot ; sinon une liaison fixe.
+    const kind: JointKind = sphere ? 'spherical' : moving.lcs.kind === 'circle' && base.lcs.kind === 'circle' ? 'revolute' : 'fixed';
     const added = addJoint(s.doc, { kind, moving, base, flip: false, angle: 0, offset: 0 });
     this.commit(added.doc, 'Créer une liaison', { mode: model, assemblySelection: { kind: 'joint', id: added.jointId } });
   }
