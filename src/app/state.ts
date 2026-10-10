@@ -67,7 +67,7 @@ export interface Toast {
 
 export type Dialog =
   | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
-  | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; plate?: boolean }
+  | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; /** Export d'un plateau d'impression (son rang) ou de tous. */ plate?: number | 'all' }
   | {
       kind: 'import-step';
       fileName: string;
@@ -124,6 +124,8 @@ export interface AppState {
   fabricationTab: FabricationTab;
   /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
   fabricationPart: Id | null;
+  /** Plateau d'impression affiché (0, 1, 2…). */
+  printPlate: number;
   assemblySelection: AssemblySelection;
   /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
   rollback: RollbackState;
@@ -159,6 +161,7 @@ export function initialState(): AppState {
     workspace: 'parts',
     fabricationTab: 'print',
     fabricationPart: null,
+    printPlate: 0,
     assemblySelection: null,
     mascot: { hidden: false, collapsed: false, dismissed: null },
     preview: null,

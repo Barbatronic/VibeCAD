@@ -38,16 +38,31 @@ export interface PrintItem {
   downFace?: FaceRef;
 }
 
-/** Pièce plate à découper : nombre d'exemplaires et face qui donne le contour. */
+/**
+ * Pièce plate à découper : nombre d'exemplaires, face qui donne le contour et matériau
+ * (absent : celui dont l'épaisseur est la plus proche de celle de la pièce).
+ */
 export interface LaserItem {
   partId: Id;
   copies: number;
   face?: FaceRef;
+  materialId?: Id;
+}
+
+/** Matériau de découpe : une « page » de l'onglet laser, avec ses plaques (mm). */
+export interface LaserMaterial {
+  id: Id;
+  name: string;
+  thickness: number;
+  sheet: { w: number; h: number };
+  /** Largeur du trait de coupe (mm). */
+  kerf: number;
 }
 
 export interface FabricationSettings {
+  /** Les pièces qui ne tiennent pas sur un plateau passent sur le suivant. */
   print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
-  laser: { sheet: { w: number; h: number }; thickness: number; kerf: number; spacing: number; engraveNames?: boolean; items: LaserItem[] };
+  laser: { materials: LaserMaterial[]; spacing: number; engraveNames?: boolean; items: LaserItem[] };
 }
 
 // ---------------------------------------------------------------------------

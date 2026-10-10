@@ -137,30 +137,57 @@
                     }
                   }
                 }
-              }
+              },
+              "description": "Impression 3D : les pièces qui ne tiennent pas sur un plateau passent sur le suivant (plateaux calculés, non enregistrés)."
             },
             "laser": {
               "type": "object",
               "properties": {
-                "sheet": {
-                  "type": "object",
-                  "properties": {
-                    "w": {
-                      "type": "number"
-                    },
-                    "h": {
-                      "type": "number"
+                "materials": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "thickness",
+                      "sheet",
+                      "kerf"
+                    ],
+                    "properties": {
+                      "id": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "thickness": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "sheet": {
+                        "type": "object",
+                        "properties": {
+                          "w": {
+                            "type": "number"
+                          },
+                          "h": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "kerf": {
+                        "type": "number",
+                        "minimum": 0
+                      }
                     }
                   }
                 },
-                "thickness": {
-                  "type": "number"
-                },
-                "kerf": {
-                  "type": "number"
-                },
                 "spacing": {
                   "type": "number"
+                },
+                "engraveNames": {
+                  "type": "boolean"
                 },
                 "items": {
                   "type": "array",
@@ -180,11 +207,32 @@
                       },
                       "face": {
                         "$ref": "#/$defs/faceRef"
+                      },
+                      "materialId": {
+                        "$ref": "#/$defs/id"
                       }
                     }
                   }
+                },
+                "sheet": {
+                  "type": "object",
+                  "properties": {
+                    "w": {
+                      "type": "number"
+                    },
+                    "h": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "thickness": {
+                  "type": "number"
+                },
+                "kerf": {
+                  "type": "number"
                 }
-              }
+              },
+              "description": "Découpe laser : une « page » par matériau. Les champs sheet, thickness et kerf (une seule plaque) viennent des premières versions et sont convertis en un matériau à la lecture."
             }
           }
         }

@@ -8,7 +8,9 @@ import { bomSizeText, scaleLabel } from '../app/drawings';
 import { PLA_DENSITY } from '../app/fabrication';
 import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
-import { Button, Callout, ToolButton } from './components/controls';
+import { useEffect, useState } from 'preact/hooks';
+import type { LaserItem } from '../domain/model';
+import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
@@ -31,8 +33,8 @@ export function FabricationTools() {
         {tab === 'print' ? <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} /> : null}
         {tab === 'laser' ? (
           <>
-            <ToolButton id="fab-export-svg" icon="export" label="SVG" hint="Exporter les plaques en SVG (1:1, mm)" onClick={() => void c.exportLaser('svg')} />
-            <ToolButton id="fab-export-dxf" icon="export" label="DXF" hint="Exporter les plaques en DXF (mm)" onClick={() => void c.exportLaser('dxf')} />
+            <ToolButton id="fab-export-svg" icon="export" label="SVG" hint="Exporter les plaques en SVG (1:1, mm), un fichier par matériau" onClick={() => void c.exportLaser('svg')} />
+            <ToolButton id="fab-export-dxf" icon="export" label="DXF" hint="Exporter les plaques en DXF (mm), un fichier par matériau" onClick={() => void c.exportLaser('dxf')} />
           </>
         ) : null}
         {tab === 'docs' ? (
@@ -61,23 +63,28 @@ function LaserSection() {
       const layout = c.laserLayout();
       return {
         mode: s.mode.kind === 'pick-fab-face' ? s.mode.partId : null,
+        materials: f.laser.materials.map((m) => ({ id: m.id, name: m.name })),
         items: f.laser.items.map((i) => {
           const part = s.doc.parts.find((p) => p.id === i.partId)!;
-          return { ...i, name: part.name, color: part.color, thickness: layout.thickness[i.partId] ?? null };
+          return { ...i, name: part.name, color: part.color, thickness: layout.thickness[i.partId] ?? null, resolved: layout.materialOf[i.partId] ?? null };
         }),
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  const setItem = (partId: string, patch: Record<string, unknown>, label: string) =>
-    c.updateFabrication((f) => ({ ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? { ...i, ...patch } : i)) } }), label);
+  const setItem = (partId: string, change: (i: LaserItem) => LaserItem, label: string) =>
+    c.updateFabrication((f) => ({ ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? change(i) : i)) } }), label);
+  const autoName = (resolved: string | null) => data.materials.find((m) => m.id === resolved)?.name ?? '—';
   return (
     <section class="panel-section grow" aria-labelledby="laser-title">
       <div class="panel-header">
         <span id="laser-title">Découpe laser</span>
       </div>
       <div class="panel-body">
-        <p class="field-help">Pour chaque pièce plate (une extrusion de l’épaisseur du matériau), indiquez le nombre d’exemplaires à découper.</p>
+        <p class="field-help">
+          Pour chaque pièce plate (une extrusion de l’épaisseur du matériau), indiquez le nombre d’exemplaires à découper et le matériau. Par défaut, le
+          matériau est celui qui a la même épaisseur que la pièce.
+        </p>
         <ul class="feature-list fab-list" aria-label="Pièces à découper">
           {data.items.map((i) => (
             <li key={i.partId} class="fab-item">
@@ -96,16 +103,35 @@ function LaserSection() {
                   ariaLabel={`Exemplaires à découper de « ${i.name} »`}
                   onInput={(t) => {
                     const v = num(t);
-                    if (v !== null && v >= 0 && v <= 200) setItem(i.partId, { copies: Math.round(v) }, `Exemplaires à découper de « ${i.name} »`);
+                    if (v !== null && v >= 0 && v <= 200) setItem(i.partId, (x) => ({ ...x, copies: Math.round(v) }), `Exemplaires à découper de « ${i.name} »`);
                   }}
                 />
+              </label>
+              <label class="mini-field fab-material">
+                <span>Matériau</span>
+                <select
+                  class="select"
+                  aria-label={`Matériau de « ${i.name} »`}
+                  value={i.materialId ?? ''}
+                  onChange={(e) => {
+                    const id = (e.target as HTMLSelectElement).value;
+                    setItem(i.partId, ({ materialId: _old, ...rest }) => (id ? { ...rest, materialId: id } : rest), `Matériau de « ${i.name} »`);
+                  }}
+                >
+                  <option value="">Auto ({autoName(i.resolved)})</option>
+                  {data.materials.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div class="fab-face">
                 <Button small icon="target" onClick={() => (data.mode === i.partId ? c.cancelFabricationPick() : c.pickFabricationFace('laser', i.partId))}>
                   {data.mode === i.partId ? 'Cliquez une face…' : 'Face du contour'}
                 </Button>
                 {i.face ? (
-                  <button type="button" class="tl-link" onClick={() => setItem(i.partId, { face: undefined }, `Contour par défaut de « ${i.name} »`)}>
+                  <button type="button" class="tl-link" onClick={() => setItem(i.partId, ({ face: _f, ...rest }) => rest, `Contour par défaut de « ${i.name} »`)}>
                     plus grande face
                   </button>
                 ) : (
@@ -120,99 +146,169 @@ function LaserSection() {
   );
 }
 
-/** Aperçu de la première plaque (dessin réduit). */
-function SheetPreview() {
+/** Aperçu des plaques d'un matériau (dessins réduits). */
+function SheetPreview({ materialId }: { materialId: string }) {
   const c = useController();
   const svg = useAppState(() => {
-    const doc = c.laserDocument();
-    if (doc.sheets.length === 0) return null;
+    const doc = c.laserDocument(materialId);
+    if (!doc || doc.sheets.length === 0) return null;
     const { w, h } = doc.sheet;
-    const items = doc.sheets[0]!.items;
-    const paths = items.flatMap((it) => it.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z'));
-    return { w, h, paths, sheets: doc.sheets.length };
+    const sheets = doc.sheets.map((sheet) =>
+      sheet.items.flatMap((it) => it.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z')),
+    );
+    return { w, h, sheets };
   }, (a, b) => JSON.stringify(a) === JSON.stringify(b));
-  if (!svg) return null;
+  if (!svg) return <p class="empty-hint">Aucune pièce dans ce matériau.</p>;
   return (
-    <figure class="sheet-preview">
-      <svg viewBox={`0 0 ${svg.w} ${svg.h}`} role="img" aria-label="Aperçu de la première plaque">
-        <rect x="0" y="0" width={svg.w} height={svg.h} fill="var(--surface)" stroke="var(--border-strong)" stroke-width={Math.max(svg.w, svg.h) / 300} />
-        {svg.paths.map((d, i) => (
-          <path key={i} d={d} fill="none" stroke="#e03131" stroke-width={Math.max(svg.w, svg.h) / 400} />
-        ))}
-      </svg>
-      <figcaption class="field-help">Plaque 1{svg.sheets > 1 ? ` sur ${svg.sheets}` : ''}</figcaption>
-    </figure>
+    <>
+      {svg.sheets.map((paths, n) => (
+        <figure class="sheet-preview" key={n}>
+          <svg viewBox={`0 0 ${svg.w} ${svg.h}`} role="img" aria-label={`Aperçu de la plaque ${n + 1}`}>
+            <rect x="0" y="0" width={svg.w} height={svg.h} fill="var(--surface)" stroke="var(--border-strong)" stroke-width={Math.max(svg.w, svg.h) / 300} />
+            {paths.map((d, i) => (
+              <path key={i} d={d} fill="none" stroke="#e03131" stroke-width={Math.max(svg.w, svg.h) / 400} />
+            ))}
+          </svg>
+          <figcaption class="field-help">
+            Plaque {n + 1}
+            {svg.sheets.length > 1 ? ` sur ${svg.sheets.length}` : ''}
+          </figcaption>
+        </figure>
+      ))}
+    </>
   );
 }
 
+/** Nom modifiable (validé à la sortie du champ ou avec Entrée). */
+function NameField(props: { value: string; label: string; onDone: (value: string) => void }) {
+  const [text, setText] = useState(props.value);
+  useEffect(() => setText(props.value), [props.value]);
+  const done = () => {
+    const v = text.trim();
+    if (v && v !== props.value) props.onDone(v);
+    else setText(props.value);
+  };
+  return (
+    <label class="mini-field">
+      <span>{props.label}</span>
+      <input
+        class="rename-input"
+        aria-label={props.label}
+        value={text}
+        onInput={(e) => setText((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') done();
+          if (e.key === 'Escape') setText(props.value);
+        }}
+        onBlur={done}
+      />
+    </label>
+  );
+}
+
+const numberField = (label: string, value: number, unit: string, apply: (v: number) => void, opts: { step?: number; min?: number; max?: number; aria?: string } = {}) => (
+  <label class="mini-field">
+    <span>{label}</span>
+    <NumberInput
+      value={formatNumber(value, 2)}
+      unit={unit}
+      step={opts.step ?? 1}
+      min={opts.min ?? 0}
+      max={opts.max ?? 5000}
+      ariaLabel={opts.aria ?? label}
+      onInput={(t) => {
+        const v = num(t);
+        if (v !== null && v >= (opts.min ?? 0) && v <= (opts.max ?? 5000)) apply(v);
+      }}
+    />
+  </label>
+);
+
+/** Panneau de droite du laser : une page par matériau (épaisseur, plaques, aperçu, export). */
 function LaserRightPanel() {
   const c = useController();
   const info = useAppState(
     () => {
       const f = c.fabrication().laser;
       const layout = c.laserLayout();
-      return { sheet: f.sheet, thickness: f.thickness, kerf: f.kerf, spacing: f.spacing, engrave: !!f.engraveNames, count: layout.placed.length, sheets: layout.sheets, warnings: layout.warnings };
+      return {
+        spacing: f.spacing,
+        engrave: !!f.engraveNames,
+        warnings: layout.warnings,
+        pages: layout.materials.map((g) => ({ ...g.material, count: g.placed.length, sheets: g.sheets })),
+      };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
+  const [selected, setSelected] = useState<string | null>(null);
+  const page = info.pages.find((p) => p.id === selected) ?? info.pages.find((p) => p.count > 0) ?? info.pages[0];
   const set = (patch: Record<string, unknown>, label: string) => c.updateFabrication((f) => ({ ...f, laser: { ...f.laser, ...patch } }), label);
-  const field = (label: string, value: number, unit: string, apply: (v: number) => void, opts: { step?: number; min?: number; max?: number } = {}) => (
-    <label class="mini-field">
-      <span>{label}</span>
-      <NumberInput
-        value={formatNumber(value, 2)}
-        unit={unit}
-        step={opts.step ?? 1}
-        min={opts.min ?? 0}
-        max={opts.max ?? 5000}
-        ariaLabel={label}
-        onInput={(t) => {
-          const v = num(t);
-          if (v !== null && v >= (opts.min ?? 0) && v <= (opts.max ?? 5000)) apply(v);
-        }}
-      />
-    </label>
-  );
   return (
-    <aside class="panel right-panel" aria-label="Plaque de découpe">
+    <aside class="panel right-panel" aria-label="Plaques de découpe">
       <div class="panel-title">
         <Icon name="laser" />
-        <span>Plaque de découpe</span>
+        <span>Plaques de découpe</span>
       </div>
       <div class="panel-content">
         <p class="vocab">
-          <strong>Découpe laser</strong> : le contour de chaque pièce plate est tracé à l’échelle 1:1, en rouge (découpe), décalé de la moitié du trait de
-          coupe pour que les pièces aient la bonne taille, puis rangé sur la plaque.
+          <strong>Découpe laser</strong> : une page par matériau. Le contour de chaque pièce plate est tracé à l’échelle 1:1, en rouge (découpe), décalé
+          de la moitié du trait de coupe, puis rangé sur les plaques de son matériau.
         </p>
-        <div class="limits-row">
-          {field('Plaque : largeur', info.sheet.w, 'mm', (w) => set({ sheet: { ...info.sheet, w } }, 'Taille de la plaque'), { step: 10, min: 20 })}
-          {field('hauteur', info.sheet.h, 'mm', (h) => set({ sheet: { ...info.sheet, h } }, 'Taille de la plaque'), { step: 10, min: 20 })}
+        <div class="mat-tabs" role="tablist" aria-label="Matériaux">
+          {info.pages.map((p) => (
+            <button key={p.id} type="button" role="tab" aria-selected={p.id === page?.id} onClick={() => setSelected(p.id)}>
+              {p.name}
+              <span class="mat-count">{p.count}</span>
+            </button>
+          ))}
+          <IconButton icon="plus" label="Ajouter un matériau" small onClick={() => setSelected(c.addLaserMaterial())} />
         </div>
-        <div class="limits-row">
-          {field('Épaisseur du matériau', info.thickness, 'mm', (thickness) => set({ thickness }, 'Épaisseur du matériau'), { step: 0.5 })}
-          {field('Trait de coupe (kerf)', info.kerf, 'mm', (kerf) => set({ kerf }, 'Trait de coupe'), { step: 0.05, max: 2 })}
-        </div>
-        {field('Espace entre les pièces', info.spacing, 'mm', (spacing) => set({ spacing }, 'Espace entre les pièces'), { step: 1, max: 50 })}
+        {page ? (
+          <div class="mat-page" role="tabpanel" aria-label={page.name}>
+            <NameField value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
+            <div class="limits-row">
+              {numberField('Épaisseur du matériau', page.thickness, 'mm', (thickness) => c.updateLaserMaterial(page.id, { thickness }, 'Épaisseur du matériau'), { step: 0.5 })}
+              {numberField('Trait de coupe (kerf)', page.kerf, 'mm', (kerf) => c.updateLaserMaterial(page.id, { kerf }, 'Trait de coupe'), { step: 0.05, max: 2 })}
+            </div>
+            <div class="limits-row">
+              {numberField('Plaque : largeur', page.sheet.w, 'mm', (w) => c.updateLaserMaterial(page.id, { sheet: { ...page.sheet, w } }, 'Taille de la plaque'), { step: 10, min: 20 })}
+              {numberField('hauteur', page.sheet.h, 'mm', (h) => c.updateLaserMaterial(page.id, { sheet: { ...page.sheet, h } }, 'Taille de la plaque'), { step: 10, min: 20, aria: 'Plaque : hauteur' })}
+            </div>
+            <p>
+              <strong>{page.count}</strong> pièce{page.count > 1 ? 's' : ''} sur <strong>{page.sheets}</strong> plaque{page.sheets > 1 ? 's' : ''}
+            </p>
+            <SheetPreview materialId={page.id} />
+            <div class="mat-actions">
+              <Button small icon="export" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => void c.exportLaser('svg', page.id)}>
+                SVG
+              </Button>
+              <Button small icon="export" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => void c.exportLaser('dxf', page.id)}>
+                DXF
+              </Button>
+              <Button small icon="trash" disabledReason={info.pages.length <= 1 ? 'Il faut garder au moins un matériau.' : null} onClick={() => c.removeLaserMaterial(page.id)}>
+                Supprimer
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {numberField('Espace entre les pièces', info.spacing, 'mm', (spacing) => set({ spacing }, 'Espace entre les pièces'), { step: 1, max: 50 })}
         <label class="checkbox-row">
           <input type="checkbox" checked={info.engrave} onChange={() => set({ engraveNames: !info.engrave }, 'Gravure des noms')} />
           <span>Graver le nom des pièces (en bleu)</span>
         </label>
-        <p>
-          <strong>{info.count}</strong> pièce{info.count > 1 ? 's' : ''} sur <strong>{info.sheets}</strong> plaque{info.sheets > 1 ? 's' : ''}
-        </p>
         {info.warnings.map((w) => (
           <Callout key={w} kind="warning">
             {w}
           </Callout>
         ))}
-        <SheetPreview />
       </div>
-      <div class="panel-actions">
-        <Button variant="primary" icon="export" disabledReason={info.count === 0 ? 'Aucune pièce à découper.' : null} onClick={() => void c.exportLaser('svg')}>
-          Exporter SVG
+      <div class="panel-actions stack">
+        <Button variant="primary" icon="export" disabledReason={info.pages.every((p) => p.count === 0) ? 'Aucune pièce à découper.' : null} onClick={() => void c.exportLaser('svg')}>
+          Exporter tout en SVG
         </Button>
-        <Button icon="export" disabledReason={info.count === 0 ? 'Aucune pièce à découper.' : null} onClick={() => void c.exportLaser('dxf')}>
-          Exporter DXF
+        <Button icon="export" disabledReason={info.pages.every((p) => p.count === 0) ? 'Aucune pièce à découper.' : null} onClick={() => void c.exportLaser('dxf')}>
+          Exporter tout en DXF
         </Button>
       </div>
     </aside>
@@ -312,7 +408,19 @@ function PrintRightPanel() {
     () => {
       const f = c.fabrication();
       const layout = c.printLayout();
-      return { bed: f.print.bed, spacing: f.print.spacing, count: layout.placements.length, grams: layout.grams, warnings: layout.warnings };
+      const plate = c.printPlate();
+      const on = layout.placements.filter((p) => p.plate === plate);
+      return {
+        bed: f.print.bed,
+        spacing: f.print.spacing,
+        count: layout.placements.length,
+        grams: layout.grams,
+        warnings: layout.warnings,
+        plates: layout.plates,
+        plate,
+        plateCount: on.length,
+        plateGrams: on.reduce((g, p) => g + p.grams, 0),
+      };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
@@ -350,10 +458,31 @@ function PrintRightPanel() {
             ))}
           </div>
         </div>
+        {info.plates > 1 ? (
+          <div class="plate-nav" role="group" aria-label="Plateaux">
+            <IconButton icon="chevron-left" label="Plateau précédent" small disabled={info.plate === 0} onClick={() => c.setPrintPlate(info.plate - 1)} />
+            <strong aria-live="polite">
+              Plateau {info.plate + 1} sur {info.plates}
+            </strong>
+            <IconButton icon="chevron-right" label="Plateau suivant" small disabled={info.plate >= info.plates - 1} onClick={() => c.setPrintPlate(info.plate + 1)} />
+          </div>
+        ) : null}
         <p>
-          <strong>{info.count}</strong> pièce{info.count > 1 ? 's' : ''} sur le plateau · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
+          {info.plates > 1 ? (
+            <>
+              <strong>{info.plateCount}</strong> pièce{info.plateCount > 1 ? 's' : ''} sur ce plateau (≈ {formatNumber(info.plateGrams, 1)} g) ·{' '}
+              <strong>{info.count}</strong> en tout sur {info.plates} plateaux · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
+            </>
+          ) : (
+            <>
+              <strong>{info.count}</strong> pièce{info.count > 1 ? 's' : ''} sur le plateau · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
+            </>
+          )}
           <span class="field-help"> (pièces pleines en PLA, {formatNumber(PLA_DENSITY, 2)} g/cm³ ; le remplissage du logiciel d’impression en utilise moins)</span>
         </p>
+        {info.plates > 1 ? (
+          <p class="field-help">Tout ne tient pas sur un seul plateau : les pièces suivantes passent sur un nouveau plateau, à imprimer l’un après l’autre.</p>
+        ) : null}
         {info.warnings.map((w) => (
           <Callout key={w} kind="warning">
             {w}
@@ -362,7 +491,7 @@ function PrintRightPanel() {
       </div>
       <div class="panel-actions">
         <Button variant="primary" icon="export" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => c.showExportDialog('3mf')}>
-          Exporter le plateau (3MF)
+          {info.plates > 1 ? 'Exporter les plateaux (3MF)' : 'Exporter le plateau (3MF)'}
         </Button>
       </div>
     </aside>

@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -52,7 +52,7 @@ import { applyUpdate } from './offline';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
-import { fabricationSettings, printLayout, type PrintLayout } from './fabrication';
+import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
 import { billOfMaterials, bomCsv, technicalDrawing, templatePages, type Bom } from './drawings';
@@ -1120,7 +1120,7 @@ export class AppController {
     if (s.workspace === 'fabrication' && format === '3mf') {
       const layout = this.printLayout();
       if (layout.placements.length === 0) return this.explain('Le plateau est vide : indiquez au moins un exemplaire à imprimer.');
-      this.set({ dialog: { kind: 'export', format, partIds: Array.from(new Set(layout.placements.map((p) => p.partId))), busy: false, plate: true } });
+      this.set({ dialog: { kind: 'export', format, partIds: Array.from(new Set(layout.placements.map((p) => p.partId))), busy: false, plate: this.printPlate() } });
       return;
     }
     if (s.workspace === 'assembly') {
@@ -1131,6 +1131,45 @@ export class AppController {
     // Impression : la pièce active par défaut ; STEP : toutes les pièces.
     const partIds = format !== 'step' && withSolid.includes(s.activePartId) ? [s.activePartId] : withSolid;
     this.set({ dialog: { kind: 'export', format, partIds, busy: false } });
+  }
+
+  /** Choix du plateau exporté (dialogue d'export du plateau d'impression). */
+  setExportPlate(plate: number | 'all'): void {
+    const d = this.state.dialog;
+    if (d?.kind === 'export' && d.plate !== undefined) this.set({ dialog: { ...d, plate } });
+  }
+
+  /** Export 3MF d'un plateau d'impression, ou de tous (un fichier par plateau). */
+  private async exportPlates(which: number | 'all'): Promise<void> {
+    const s = this.state;
+    const layout = this.printLayout();
+    const plates = which === 'all' ? Array.from({ length: layout.plates }, (_v, i) => i) : [which];
+    try {
+      for (const plate of plates) {
+        const on = layout.placements.filter((p) => p.plate === plate);
+        const partIds = Array.from(new Set(on.map((p) => p.partId)));
+        const { bytes, warnings } = await this.deps.client.export3mf(
+          s.doc,
+          partIds,
+          on.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix })),
+        );
+        const name = layout.plates > 1 ? `${s.doc.name} - plateau ${plate + 1}` : `${s.doc.name} - plateau`;
+        const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/3mf' }), safeFileName(name, '.3mf'), {
+          description: 'Fichier 3MF',
+          mime: 'model/3mf',
+          extension: '.3mf',
+          download: true,
+        });
+        if (target) {
+          this.toast('success', `Fichier 3MF « ${target.name} » téléchargé : ${on.length} pièce(s)${layout.plates > 1 ? ` (plateau ${plate + 1} sur ${layout.plates})` : ''}, en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+        }
+      }
+      this.set({ dialog: null });
+    } catch (err) {
+      const now = this.state.dialog;
+      if (now?.kind === 'export') this.set({ dialog: { ...now, busy: false } });
+      this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
+    }
   }
 
   toggleExportPart(partId: Id): void {
@@ -1146,12 +1185,11 @@ export class AppController {
     this.set({ dialog: { ...d, busy: true } });
     const s = this.state;
     const parts = s.doc.parts.filter((p) => d.partIds.includes(p.id));
-    const baseName = d.plate ? `${s.doc.name} - plateau` : d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
+    if (d.plate !== undefined && d.format === '3mf') return this.exportPlates(d.plate);
+    const baseName = d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
     // Assemblage : chaque pièce insérée est exportée à sa place.
     const placement = d.assembly ? this.assemblyPlacement() : null;
-    const placements = d.plate
-      ? this.printLayout().placements.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix }))
-      : placement
+    const placements = placement
         ? (s.doc.assembly?.instances ?? []).map((i) => ({ partId: i.partId, name: i.name, matrix: placement.matrices.get(i.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }))
         : undefined;
     try {
@@ -1283,38 +1321,82 @@ export class AppController {
     return laserLayout(this.fabrication().laser, s.doc.parts, (id) => s.display[id]?.mesh);
   }
 
-  /** Fichier de découpe laser (SVG ou DXF) des plaques préparées. */
-  laserDocument(): VectorDocument {
+  /** Fichier de découpe laser (SVG ou DXF) des plaques d'un matériau. */
+  laserDocument(materialId: Id): VectorDocument | null {
     const f = this.fabrication().laser;
-    const layout = this.laserLayout();
-    const sheets = Array.from({ length: layout.sheets }, (_v, i) => ({
-      items: layout.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })),
+    const group = this.laserLayout().materials.find((g) => g.material.id === materialId);
+    if (!group) return null;
+    const sheets = Array.from({ length: group.sheets }, (_v, i) => ({
+      items: group.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })),
     }));
-    return { sheet: f.sheet, sheets, engraveNames: !!f.engraveNames };
+    return { sheet: group.material.sheet, sheets, engraveNames: !!f.engraveNames };
   }
 
-  async exportLaser(format: 'svg' | 'dxf'): Promise<void> {
+  /** Export laser : un fichier par matériau (celui demandé, ou chacun de ceux qui ont des pièces). */
+  async exportLaser(format: 'svg' | 'dxf', materialId?: Id): Promise<void> {
     const layout = this.laserLayout();
-    if (layout.placed.length === 0) return this.explain('Aucune pièce à découper : indiquez au moins un exemplaire.');
-    const doc = this.laserDocument();
-    const text = format === 'svg' ? toSvg(doc) : toDxf(doc);
+    const groups = layout.materials.filter((g) => g.placed.length > 0 && (!materialId || g.material.id === materialId));
+    if (groups.length === 0) return this.explain('Aucune pièce à découper : indiquez au moins un exemplaire.');
     const mime = format === 'svg' ? 'image/svg+xml' : 'application/dxf';
     try {
-      const target = await saveFile(new Blob([text], { type: mime }), safeFileName(`${this.state.doc.name} - laser`, `.${format}`), {
-        description: format === 'svg' ? 'Fichier SVG' : 'Fichier DXF',
-        mime,
-        extension: `.${format}`,
-        download: true,
-      });
-      if (target) {
-        this.toast(
-          'success',
-          `Fichier ${format.toUpperCase()} « ${target.name} » téléchargé : ${layout.placed.length} pièce(s) sur ${layout.sheets} plaque(s), à l’échelle 1:1 en millimètres (rouge : découpe, bleu : gravure).`,
-        );
+      for (const g of groups) {
+        const doc = this.laserDocument(g.material.id)!;
+        const text = format === 'svg' ? toSvg(doc) : toDxf(doc);
+        const target = await saveFile(new Blob([text], { type: mime }), safeFileName(`${this.state.doc.name} - laser - ${g.material.name}`, `.${format}`), {
+          description: format === 'svg' ? 'Fichier SVG' : 'Fichier DXF',
+          mime,
+          extension: `.${format}`,
+          download: true,
+        });
+        if (target) {
+          this.toast(
+            'success',
+            `Fichier ${format.toUpperCase()} « ${target.name} » téléchargé : ${g.placed.length} pièce(s) sur ${g.sheets} plaque(s) de ${g.material.name}, à l’échelle 1:1 en millimètres (rouge : découpe, bleu : gravure).`,
+          );
+        }
       }
     } catch (err) {
       this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
     }
+  }
+
+  addLaserMaterial(): Id {
+    const material = newLaserMaterial(this.fabrication().laser.materials);
+    this.updateFabrication((f) => ({ ...f, laser: { ...f.laser, materials: [...f.laser.materials, material] } }), 'Ajouter un matériau');
+    return material.id;
+  }
+
+  updateLaserMaterial(id: Id, patch: Partial<Omit<LaserMaterial, 'id'>>, label: string): void {
+    this.updateFabrication((f) => ({ ...f, laser: { ...f.laser, materials: f.laser.materials.map((m) => (m.id === id ? { ...m, ...patch } : m)) } }), label);
+  }
+
+  /** Supprime un matériau (sauf le dernier) : ses pièces reprennent le matériau automatique. */
+  removeLaserMaterial(id: Id): void {
+    const materials = this.fabrication().laser.materials;
+    if (materials.length <= 1) return this.explain('Il faut garder au moins un matériau.');
+    const name = materials.find((m) => m.id === id)?.name ?? '';
+    this.updateFabrication(
+      (f) => ({
+        ...f,
+        laser: {
+          ...f.laser,
+          materials: f.laser.materials.filter((m) => m.id !== id),
+          items: f.laser.items.map((i) => (i.materialId === id ? { partId: i.partId, copies: i.copies, ...(i.face ? { face: i.face } : {}) } : i)),
+        },
+      }),
+      `Supprimer le matériau « ${name} »`,
+    );
+  }
+
+  /** Plateau d'impression affiché (et exporté par défaut). */
+  setPrintPlate(plate: number): void {
+    const plates = this.printLayout().plates;
+    this.set({ printPlate: Math.max(0, Math.min(plate, plates - 1)), fitRequest: this.state.fitRequest + 1 });
+  }
+
+  /** Plateau affiché, ramené dans les plateaux existants. */
+  printPlate(): number {
+    return Math.max(0, Math.min(this.state.printPlate, this.printLayout().plates - 1));
   }
 
   // ----- Documents (mise en plan, gabarit, nomenclature)

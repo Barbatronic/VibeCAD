@@ -52,6 +52,30 @@ describe('fabrication : plateau d’impression', () => {
     expect(big.grams).toBeCloseTo((2 * 8 * PLATE * PLA_DENSITY) / 1000, 4);
   });
 
+  it('passe sur un deuxième plateau quand le premier est plein', () => {
+    const { doc, ids } = buildPlateDocument();
+    const { meshes, results } = evaluate(doc);
+    const parts = doc.parts.map((p) => ({ id: p.id, name: p.name }));
+    // 60 × 30 mm sur 220 × 220 (espacement 5) : 3 par rangée, 6 rangées → 18 par plateau.
+    const layout = printLayout({ ...DEFAULT_FABRICATION.print, items: [{ partId: ids.partId, copies: 20, scale: 100 }] }, parts, (id) => meshes.get(id), (id) => results.get(id)?.analysis);
+    expect(layout.warnings).toEqual([]);
+    expect(layout.plates).toBe(2);
+    expect(layout.placements.filter((p) => p.plate === 0)).toHaveLength(18);
+    expect(layout.placements.filter((p) => p.plate === 1)).toHaveLength(2);
+    // Le deuxième plateau recommence au coin.
+    const first = layout.placements.find((p) => p.plate === 1)!;
+    const corner = transformPoint4(first.matrix, { x: 0, y: 0, z: 0 });
+    expect(corner.x).toBeCloseTo(0, 6);
+    expect(corner.y).toBeCloseTo(0, 6);
+    // Chaque exemplaire reste dans le plateau.
+    for (const p of layout.placements) {
+      const far = transformPoint4(p.matrix, { x: 60, y: 30, z: 5 });
+      expect(far.x).toBeLessThanOrEqual(220 + 1e-6);
+      expect(far.y).toBeLessThanOrEqual(220 + 1e-6);
+    }
+    expect(layout.placements.reduce((g, p) => g + p.grams, 0)).toBeCloseTo(layout.grams, 6);
+  });
+
   it('exporte le plateau en 3MF avec l’échelle et l’orientation appliquées', async () => {
     const { doc, ids } = buildPlateDocument();
     const { meshes, results } = evaluate(doc);

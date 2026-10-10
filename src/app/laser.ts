@@ -1,9 +1,10 @@
 /**
  * Découpe laser (calculs purs, testables) : contour d'une face plate d'une pièce (à partir du
- * maillage, en 2D dans le plan de la face), compensation du trait de coupe (kerf), placement des
- * pièces sur une ou plusieurs plaques. Les écrivains SVG et DXF sont dans `io/vector.ts`.
+ * maillage, en 2D dans le plan de la face), compensation du trait de coupe (kerf), choix du
+ * matériau, placement des pièces sur une ou plusieurs plaques de chaque matériau. Les écrivains
+ * SVG et DXF sont dans `io/vector.ts`.
  */
-import type { FabricationSettings, FaceRef, Id, LaserItem } from '../domain/model';
+import type { FabricationSettings, FaceRef, Id, LaserItem, LaserMaterial } from '../domain/model';
 import { formatLength } from '../domain/units';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { worldToFrame } from '../math/frame';
@@ -154,6 +155,8 @@ function norm(v: Vec2): Vec2 {
 export interface PlacedOutline {
   partId: Id;
   name: string;
+  materialId: Id;
+  /** Rang de la plaque parmi celles de son matériau (0, 1, 2…). */
   sheet: number;
   /** Contours de découpe (déjà décalés du demi-trait de coupe), en coordonnées de la plaque (mm). */
   loops: Loop[];
@@ -161,28 +164,47 @@ export interface PlacedOutline {
   labelAt: Vec2;
 }
 
-export interface LaserLayout {
+/** Une « page » de découpe : un matériau, ses plaques et les pièces posées dessus. */
+export interface MaterialLayout {
+  material: LaserMaterial;
   sheets: number;
+  placed: PlacedOutline[];
+}
+
+export interface LaserLayout {
+  /** Dans l'ordre des matériaux des réglages (y compris ceux sans pièce). */
+  materials: MaterialLayout[];
+  /** Toutes les pièces posées, tous matériaux confondus. */
   placed: PlacedOutline[];
   warnings: string[];
   /** Épaisseur de chaque pièce (pour l'affichage). */
   thickness: Record<Id, number>;
+  /** Matériau retenu pour chaque pièce. */
+  materialOf: Record<Id, Id>;
 }
 
-/** Contours des pièces à découper, compensés et rangés sur une ou plusieurs plaques. */
+/**
+ * Matériau d'une pièce : celui choisi s'il existe encore, sinon celui dont l'épaisseur est la plus
+ * proche de celle de la pièce (le premier en cas d'égalité).
+ */
+export function resolveMaterial(item: LaserItem, materials: readonly LaserMaterial[], thickness: number | null): LaserMaterial | null {
+  const chosen = item.materialId ? materials.find((m) => m.id === item.materialId) : undefined;
+  if (chosen) return chosen;
+  if (materials.length === 0) return null;
+  if (thickness === null) return materials[0]!;
+  return materials.reduce((best, m) => (Math.abs(m.thickness - thickness) < Math.abs(best.thickness - thickness) - 1e-9 ? m : best));
+}
+
+/** Contours des pièces à découper, compensés et rangés sur les plaques de leur matériau. */
 export function laserLayout(
   settings: FabricationSettings['laser'],
   parts: readonly { id: Id; name: string }[],
   meshOf: (partId: Id) => MeshData | null | undefined,
 ): LaserLayout {
-  const placed: PlacedOutline[] = [];
   const warnings: string[] = [];
   const thickness: Record<Id, number> = {};
-  const { w, h } = settings.sheet;
-  let sheet = 0;
-  let x = settings.spacing;
-  let y = settings.spacing;
-  let rowHeight = 0;
+  const materialOf: Record<Id, Id> = {};
+  const groups = settings.materials.map((material) => ({ material, sheets: 0, placed: [] as PlacedOutline[], cursor: { sheet: 0, x: settings.spacing, y: settings.spacing, row: 0 } }));
   for (const item of settings.items as LaserItem[]) {
     const part = parts.find((p) => p.id === item.partId);
     const mesh = meshOf(item.partId);
@@ -195,11 +217,19 @@ export function laserLayout(
     const outline = faceIndex >= 0 ? faceOutline(mesh, faceIndex) : null;
     if (!outline) continue;
     thickness[part.id] = outline.thickness;
-    if (item.copies <= 0) continue;
-    if (Math.abs(outline.thickness - settings.thickness) > 0.05) {
-      warnings.push(`« ${part.name} » fait ${formatLength(outline.thickness)} d’épaisseur et le matériau ${formatLength(settings.thickness)} : vérifiez.`);
+    const material = resolveMaterial(item, settings.materials, outline.thickness);
+    if (!material) {
+      if (item.copies > 0) warnings.push('Aucun matériau : ajoutez-en un pour découper les pièces.');
+      continue;
     }
-    const half = settings.kerf / 2;
+    materialOf[part.id] = material.id;
+    if (item.copies <= 0) continue;
+    if (Math.abs(outline.thickness - material.thickness) > 0.05) {
+      warnings.push(`« ${part.name} » fait ${formatLength(outline.thickness)} d’épaisseur et le matériau « ${material.name} » ${formatLength(material.thickness)} : vérifiez.`);
+    }
+    const group = groups.find((g) => g.material.id === material.id)!;
+    const { w, h } = material.sheet;
+    const half = material.kerf / 2;
     const loops = [offsetLoop(outline.outer, half), ...outline.holes.map((hole) => offsetLoop(hole, half))];
     const xs = loops[0]!.map((p) => p.x);
     const ys = loops[0]!.map((p) => p.y);
@@ -208,33 +238,36 @@ export function laserLayout(
     const bw = Math.max(...xs) - minX;
     const bh = Math.max(...ys) - minY;
     if (bw + 2 * settings.spacing > w || bh + 2 * settings.spacing > h) {
-      warnings.push(`« ${part.name} » (${Math.ceil(bw)} × ${Math.ceil(bh)} mm) est plus grande que la plaque.`);
+      warnings.push(`« ${part.name} » (${Math.ceil(bw)} × ${Math.ceil(bh)} mm) est plus grande que les plaques de « ${material.name} » (${w} × ${h} mm).`);
       continue;
     }
+    const c = group.cursor;
     for (let copy = 0; copy < item.copies; copy++) {
-      if (x + bw + settings.spacing > w) {
-        x = settings.spacing;
-        y += rowHeight + settings.spacing;
-        rowHeight = 0;
+      if (c.x + bw + settings.spacing > w) {
+        c.x = settings.spacing;
+        c.y += c.row + settings.spacing;
+        c.row = 0;
       }
-      if (y + bh + settings.spacing > h) {
-        sheet++;
-        x = settings.spacing;
-        y = settings.spacing;
-        rowHeight = 0;
+      if (c.y + bh + settings.spacing > h) {
+        c.sheet++;
+        c.x = settings.spacing;
+        c.y = settings.spacing;
+        c.row = 0;
       }
-      const dx = x - minX;
-      const dy = y - minY;
-      placed.push({
+      const dx = c.x - minX;
+      const dy = c.y - minY;
+      group.placed.push({
         partId: part.id,
         name: item.copies > 1 ? `${part.name} ${copy + 1}` : part.name,
-        sheet,
+        materialId: material.id,
+        sheet: c.sheet,
         loops: loops.map((l) => l.map((p) => ({ x: p.x + dx, y: p.y + dy }))),
-        labelAt: { x: x + bw / 2, y: y + bh / 2 },
+        labelAt: { x: c.x + bw / 2, y: c.y + bh / 2 },
       });
-      x += bw + settings.spacing;
-      rowHeight = Math.max(rowHeight, bh);
+      c.x += bw + settings.spacing;
+      c.row = Math.max(c.row, bh);
     }
   }
-  return { sheets: placed.length ? sheet + 1 : 0, placed, warnings, thickness };
+  const materials = groups.map((g) => ({ material: g.material, sheets: g.placed.length ? g.cursor.sheet + 1 : 0, placed: g.placed }));
+  return { materials, placed: materials.flatMap((g) => g.placed), warnings: [...new Set(warnings)], thickness, materialOf };
 }

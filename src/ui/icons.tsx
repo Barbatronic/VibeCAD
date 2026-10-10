@@ -184,6 +184,7 @@ const PATHS: Record<string, JSX.Element> = {
   'chevron-up': <path d="M6 14.5l6-6 6 6" />,
   'chevron-right': <path d="M9.5 6l6 6-6 6" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  'chevron-left': <path d="M14.5 6l-6 6 6 6" />,
   part: (
     <>
       <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />

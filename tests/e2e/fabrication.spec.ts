@@ -46,29 +46,66 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   expect(Math.max(...zs)).toBeCloseTo(5, 3);
 });
 
-test('découpe laser : deux plaques à découper, export SVG et DXF à l’échelle 1:1', async ({ page }) => {
+test('découpe laser : matériau 5 mm choisi seul, page par matériau, export SVG et DXF à l’échelle 1:1', async ({ page }) => {
   await openApp(page);
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
   await page.click('#fab-laser');
   await page.getByLabel('Exemplaires à découper de « Pièce 1 »').fill('2');
-  await page.getByLabel('Épaisseur du matériau').fill('5');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.laserLayout().placed.length)).toBe(2);
+  // Pièce de 5 mm : matériau « Contreplaqué 5 mm » (préréglé, plaque 300 × 200) choisi automatiquement.
+  const tabs = page.getByRole('tablist', { name: 'Matériaux' });
+  await expect(tabs.getByRole('tab', { name: /Contreplaqué 5 mm/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.getByRole('tab')).toHaveCount(2);
   await expect(page.locator('.right-panel .callout.warning')).toHaveCount(0);
-  await expect(page.getByRole('img', { name: 'Aperçu de la première plaque' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Aperçu de la plaque 1' })).toBeVisible();
   await page.screenshot({ path: 'tests/output/e2e-laser.png' });
 
   const [svgDl] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);
-  expect(svgDl.suggestedFilename()).toMatch(/laser\.svg$/);
+  expect(svgDl.suggestedFilename()).toMatch(/laser - Contreplaqué 5 mm\.svg$/);
   await svgDl.saveAs('tests/output/e2e-laser.svg');
   const svg = readFileSync('tests/output/e2e-laser.svg', 'utf8');
-  expect(svg).toContain('width="600mm"');
+  expect(svg).toContain('width="300mm"');
   expect((svg.match(/<polygon /g) ?? []).length).toBe(4);
 
   const [dxfDl] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-dxf')]);
   await dxfDl.saveAs('tests/output/e2e-laser.dxf');
   const dxf = readFileSync('tests/output/e2e-laser.dxf', 'utf8');
   expect((dxf.match(/\nPOLYLINE\n/g) ?? []).length).toBe(4);
+
+  // Imposer le 3 mm : avertissement d'épaisseur, la pièce passe sur l'autre page.
+  await page.getByLabel('Matériau de « Pièce 1 »').selectOption({ label: 'Contreplaqué 3 mm' });
+  await expect(page.locator('.right-panel .callout.warning')).toContainText('Contreplaqué 3 mm');
+  // Nouveau matériau, renommé.
+  await page.getByRole('button', { name: 'Ajouter un matériau' }).click();
+  await expect(tabs.getByRole('tab')).toHaveCount(3);
+  await page.getByLabel('Nom du matériau').fill('Plexiglas 3 mm');
+  await page.getByLabel('Nom du matériau').press('Enter');
+  await expect(tabs.getByRole('tab', { name: /Plexiglas 3 mm/ })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('impression 3D : vingt exemplaires répartis sur deux plateaux, export de chaque plateau', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.click('#tab-fabrication');
+  await page.getByLabel('Exemplaires de « Pièce 1 »').fill('20');
+  await expect(page.getByRole('group', { name: 'Plateaux' })).toContainText('Plateau 1 sur 2');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.parts.size)).toBe(18);
+  await page.getByRole('button', { name: 'Plateau suivant' }).click();
+  await expect(page.getByRole('group', { name: 'Plateaux' })).toContainText('Plateau 2 sur 2');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.parts.size)).toBe(2);
+  await page.screenshot({ path: 'tests/output/e2e-plateaux.png' });
+
+  await page.click('#fab-export-3mf');
+  const dialog = page.getByRole('dialog', { name: /3MF/ });
+  await expect(dialog.getByRole('radio', { name: 'Plateau 2' })).toBeChecked();
+  await dialog.getByRole('radio', { name: /Tous les plateaux/ }).check();
+  const downloads: string[] = [];
+  page.on('download', (d) => downloads.push(d.suggestedFilename()));
+  await dialog.getByRole('button', { name: 'Exporter' }).click();
+  await expect.poll(() => downloads.length).toBe(2);
+  expect(downloads[0]).toMatch(/plateau 1\.3mf$/);
+  expect(downloads[1]).toMatch(/plateau 2\.3mf$/);
 });
 
 test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomenclature CSV', async ({ page }) => {

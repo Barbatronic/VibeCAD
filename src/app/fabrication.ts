@@ -3,15 +3,30 @@
  * « face posée sur le plateau », disposition des pièces et des exemplaires sur le plateau
  * d'impression, estimation de matière.
  */
-import type { CadDocument, FabricationSettings, FaceRef, Id, PrintItem } from '../domain/model';
+import type { CadDocument, FabricationSettings, FaceRef, Id, LaserMaterial, PrintItem } from '../domain/model';
 import type { FaceTag, MeshData, ShapeAnalysis } from '../geometry/kernel';
 import { multiply4, translation4, type Mat4 } from '../math/mat4';
 import { normalize3, type Vec3 } from '../math/vec';
 
+/** Matériaux préréglés : plaques de 300 × 200 mm en 3 et 5 mm. */
+export const DEFAULT_LASER_MATERIALS: LaserMaterial[] = [
+  { id: 'mat-3', name: 'Contreplaqué 3 mm', thickness: 3, sheet: { w: 300, h: 200 }, kerf: 0.15 },
+  { id: 'mat-5', name: 'Contreplaqué 5 mm', thickness: 5, sheet: { w: 300, h: 200 }, kerf: 0.15 },
+];
+
 export const DEFAULT_FABRICATION: FabricationSettings = {
   print: { bed: { x: 220, y: 220, z: 250 }, spacing: 5, items: [] },
-  laser: { sheet: { w: 600, h: 400 }, thickness: 3, kerf: 0.15, spacing: 4, items: [] },
+  laser: { materials: DEFAULT_LASER_MATERIALS, spacing: 4, items: [] },
 };
+
+/** Nouveau matériau : identifiant libre, réglages copiés du dernier matériau (ou des préréglages). */
+export function newLaserMaterial(existing: readonly LaserMaterial[]): LaserMaterial {
+  const taken = new Set(existing.map((m) => m.id));
+  let n = existing.length + 1;
+  while (taken.has(`mat-${n}`)) n++;
+  const model = existing[existing.length - 1] ?? DEFAULT_LASER_MATERIALS[0]!;
+  return { ...model, id: `mat-${n}`, name: `Matériau ${existing.length + 1}`, sheet: { ...model.sheet } };
+}
 
 /** Densité du PLA (g/cm³), pour l'estimation de matière. */
 export const PLA_DENSITY = 1.24;
@@ -86,12 +101,18 @@ export interface PrintPlacement {
   partId: Id;
   name: string;
   copy: number;
+  /** Plateau (0, 1, 2…) : quand un plateau est plein, on passe au suivant. */
+  plate: number;
   matrix: Mat4;
   size: Vec3;
+  /** Matière estimée de cet exemplaire (g). */
+  grams: number;
 }
 
 export interface PrintLayout {
   placements: PrintPlacement[];
+  /** Nombre de plateaux nécessaires. */
+  plates: number;
   /** Matière estimée (g) pour des pièces pleines en PLA. */
   grams: number;
   /** Messages pour l'utilisateur (pièce trop grande, plateau trop petit, face disparue…). */
@@ -101,7 +122,7 @@ export interface PrintLayout {
 /**
  * Dispose les pièces (et leurs exemplaires) sur le plateau : chaque pièce est orientée (face
  * choisie vers le bas), mise à l'échelle, posée à z = 0 puis rangée en lignes, de gauche à droite
- * et d'avant en arrière.
+ * et d'avant en arrière. Quand le plateau est plein, la suite va sur un nouveau plateau.
  */
 export function printLayout(
   settings: FabricationSettings['print'],
@@ -112,6 +133,7 @@ export function printLayout(
   const placements: PrintPlacement[] = [];
   const warnings: string[] = [];
   let grams = 0;
+  let plate = 0;
   let x = 0;
   let y = 0;
   let rowDepth = 0;
@@ -132,19 +154,25 @@ export function printLayout(
     if (size.x > settings.bed.x || size.y > settings.bed.y || size.z > settings.bed.z) {
       warnings.push(`« ${part.name} » (${Math.ceil(size.x)} × ${Math.ceil(size.y)} × ${Math.ceil(size.z)} mm) est plus grande que le plateau.`);
     }
-    grams += ((analysisOf(item.partId)?.volume ?? 0) * s * s * s * item.copies * PLA_DENSITY) / 1000;
+    const each = ((analysisOf(item.partId)?.volume ?? 0) * s * s * s * PLA_DENSITY) / 1000;
+    grams += each * item.copies;
     for (let copy = 0; copy < item.copies; copy++) {
       if (x > 0 && x + size.x > settings.bed.x) {
         x = 0;
         y += rowDepth + settings.spacing;
         rowDepth = 0;
       }
+      if (y > 0 && y + size.y > settings.bed.y) {
+        plate++;
+        x = 0;
+        y = 0;
+        rowDepth = 0;
+      }
       const at = translation4({ x: x - b.min.x, y: y - b.min.y, z: -b.min.z });
-      placements.push({ partId: item.partId, name: item.copies > 1 ? `${part.name} (${copy + 1})` : part.name, copy, matrix: multiply4(at, oriented), size });
+      placements.push({ partId: item.partId, name: item.copies > 1 ? `${part.name} (${copy + 1})` : part.name, copy, plate, matrix: multiply4(at, oriented), size, grams: each });
       x += size.x + settings.spacing;
       rowDepth = Math.max(rowDepth, size.y);
     }
   }
-  if (y + rowDepth > settings.bed.y + 1e-6) warnings.push('Tout ne tient pas sur le plateau : réduisez le nombre d’exemplaires ou imprimez en plusieurs fois.');
-  return { placements, grams, warnings };
+  return { placements, plates: placements.length ? plate + 1 : 0, grams, warnings };
 }

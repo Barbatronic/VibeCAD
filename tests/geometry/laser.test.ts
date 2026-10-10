@@ -41,20 +41,28 @@ describe('découpe laser', () => {
     expect(Math.abs(loopArea(offsetLoop(hole, 0.1)))).toBeCloseTo(9.8 * 9.8, 9);
   });
 
-  it('range les exemplaires sur la plaque et écrit SVG et DXF', () => {
-    const settings = { ...DEFAULT_FABRICATION.laser, thickness: 5, kerf: 0.2, items: [{ partId, copies: 3 }] };
+  it('range les exemplaires sur une plaque du matériau de même épaisseur et écrit SVG et DXF', () => {
+    const materials = DEFAULT_FABRICATION.laser.materials.map((m) => ({ ...m, kerf: 0.2 }));
+    const settings = { ...DEFAULT_FABRICATION.laser, materials, items: [{ partId, copies: 3 }] };
     const layout = laserLayout(settings, [{ id: partId, name: 'Plaque' }], () => mesh);
     expect(layout.warnings).toEqual([]);
     expect(layout.placed).toHaveLength(3);
-    expect(layout.sheets).toBe(1);
+    // Pièce de 5 mm : matériau « 5 mm » choisi automatiquement, une seule plaque de 300 × 200.
+    expect(layout.materialOf[partId]).toBe('mat-5');
+    expect(layout.materials.map((g) => [g.material.id, g.sheets, g.placed.length])).toEqual([
+      ['mat-3', 0, 0],
+      ['mat-5', 1, 3],
+    ]);
     expect(loopArea(layout.placed[0]!.loops[0]!)).toBeCloseTo(60.2 * 30.2, 1);
     const xs = layout.placed.map((p) => Math.min(...p.loops[0]!.map((q) => q.x)));
     expect(xs[1]! - xs[0]!).toBeCloseTo(60.2 + settings.spacing, 3);
-    // Matériau différent de la pièce : avertissement.
-    expect(laserLayout({ ...settings, thickness: 3 }, [{ id: partId, name: 'Plaque' }], () => mesh).warnings[0]).toMatch(/5 mm d’épaisseur/);
-    const doc = { sheet: settings.sheet, sheets: [{ items: layout.placed.map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })) }], engraveNames: true };
+    // Matériau imposé d'une autre épaisseur : avertissement.
+    const forced = laserLayout({ ...settings, items: [{ partId, copies: 1, materialId: 'mat-3' }] }, [{ id: partId, name: 'Plaque' }], () => mesh);
+    expect(forced.warnings[0]).toMatch(/5 mm d’épaisseur et le matériau « Contreplaqué 3 mm » 3 mm/);
+    const group = layout.materials[1]!;
+    const doc = { sheet: group.material.sheet, sheets: [{ items: group.placed.map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })) }], engraveNames: true };
     const svg = toSvg(doc);
-    expect(svg).toContain('width="600mm" height="400mm"');
+    expect(svg).toContain('width="300mm" height="200mm"');
     expect((svg.match(/<polygon /g) ?? []).length).toBe(6);
     expect(svg).toContain('stroke="#ff0000"');
     expect(svg).toContain('fill="#0000ff">Plaque');
@@ -65,9 +73,40 @@ describe('découpe laser', () => {
   });
 
   it('passe sur une seconde plaque quand la première est pleine', () => {
-    const settings = { ...DEFAULT_FABRICATION.laser, sheet: { w: 150, h: 80 }, thickness: 5, kerf: 0, items: [{ partId, copies: 5 }] };
-    const layout = laserLayout(settings, [{ id: partId, name: 'Plaque' }], () => mesh);
-    expect(layout.sheets).toBe(2);
+    const materials = [{ id: 'm', name: 'Petite plaque', thickness: 5, sheet: { w: 150, h: 80 }, kerf: 0 }];
+    const layout = laserLayout({ ...DEFAULT_FABRICATION.laser, materials, items: [{ partId, copies: 5 }] }, [{ id: partId, name: 'Plaque' }], () => mesh);
+    expect(layout.materials[0]!.sheets).toBe(2);
     expect(layout.placed.filter((p) => p.sheet === 0)).toHaveLength(4);
+  });
+
+  it('sépare les pièces de 3 mm et de 5 mm sur les plaques de leur matériau', () => {
+    // Même plaque, amincie à 3 mm.
+    const thin: MeshData = {
+      ...mesh,
+      positions: mesh.positions.map((v, i) => (i % 3 === 2 ? v * 0.6 : v)),
+      edgePositions: mesh.edgePositions.map((v, i) => (i % 3 === 2 ? v * 0.6 : v)),
+      faces: mesh.faces.map((f) => (f.plane ? { ...f, plane: { ...f.plane, origin: { ...f.plane.origin, z: f.plane.origin.z * 0.6 } } } : f)),
+    };
+    const parts = [
+      { id: partId, name: 'Épaisse' },
+      { id: 'thin', name: 'Fine' },
+    ];
+    const layout = laserLayout(
+      { ...DEFAULT_FABRICATION.laser, items: [{ partId, copies: 2 }, { partId: 'thin', copies: 1 }] },
+      parts,
+      (id) => (id === 'thin' ? thin : mesh),
+    );
+    expect(layout.warnings).toEqual([]);
+    expect(layout.thickness.thin).toBeCloseTo(3, 6);
+    expect(layout.materials.map((g) => g.placed.map((p) => p.name))).toEqual([['Fine'], ['Épaisse 1', 'Épaisse 2']]);
+    // Chaque matériau commence sa propre plaque, à l’espacement du bord.
+    expect(layout.materials.map((g) => g.sheets)).toEqual([1, 1]);
+    expect(Math.min(...layout.materials[0]!.placed[0]!.loops[0]!.map((p) => p.x))).toBeCloseTo(4, 3);
+  });
+
+  it('sans matériau : avertissement, rien n’est posé', () => {
+    const layout = laserLayout({ ...DEFAULT_FABRICATION.laser, materials: [], items: [{ partId, copies: 1 }] }, [{ id: partId, name: 'Plaque' }], () => mesh);
+    expect(layout.placed).toHaveLength(0);
+    expect(layout.warnings).toEqual(['Aucun matériau : ajoutez-en un pour découper les pièces.']);
   });
 });

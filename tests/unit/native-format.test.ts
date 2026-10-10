@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
+import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -22,6 +23,28 @@ describe('format natif .vibecad', () => {
     expect(parsed.doc).toEqual(doc);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.savedAt).toBe('2026-10-09T12:00:00.000Z');
+  });
+
+  it('conserve les matériaux de découpe et lit l’ancien réglage à une seule plaque', () => {
+    const { doc, ids } = buildPlateDocument();
+    const fabrication = {
+      ...DEFAULT_FABRICATION,
+      laser: { ...DEFAULT_FABRICATION.laser, items: [{ partId: ids.partId, copies: 2, materialId: 'mat-5' }] },
+    };
+    const withFab = { ...doc, fabrication };
+    const parsed = parseNativeFile(serializeDocument(withFab, '2026-10-10T12:00:00.000Z'));
+    expect(parsed.ok && parsed.doc.fabrication).toEqual(fabrication);
+    // Fichier des premières versions : plaque, épaisseur et kerf uniques.
+    const legacy = JSON.parse(serializeDocument(withFab, '2026-10-10T12:00:00.000Z'));
+    legacy.document.fabrication.laser = { sheet: { w: 600, h: 400 }, thickness: 4.5, kerf: 0.1, spacing: 3, items: [{ partId: ids.partId, copies: 1 }] };
+    const old = parseNativeFile(JSON.stringify(legacy));
+    expect(old.ok).toBe(true);
+    if (!old.ok) return;
+    expect(old.doc.fabrication!.laser).toEqual({
+      materials: [{ id: 'mat-1', name: 'Plaque 4,5 mm', thickness: 4.5, sheet: { w: 600, h: 400 }, kerf: 0.1 }],
+      spacing: 3,
+      items: [{ partId: ids.partId, copies: 1 }],
+    });
   });
 
   it('permet de modifier la première esquisse après réouverture', () => {

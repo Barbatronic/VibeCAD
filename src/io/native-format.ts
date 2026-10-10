@@ -15,6 +15,7 @@ import type {
   EdgeRef,
   FaceRef,
   Feature,
+  LaserMaterial,
   Part,
   Resource,
   SketchConstraint,
@@ -242,7 +243,6 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
   const pr = obj(v, o.print, `${path}.print`) ?? {};
   const la = obj(v, o.laser, `${path}.laser`) ?? {};
   const bed = obj(v, pr.bed, `${path}.print.bed`) ?? {};
-  const sheet = obj(v, la.sheet, `${path}.laser.sheet`) ?? {};
   const face = (io: Record<string, unknown>, key: string, p: string) => (io[key] !== undefined ? { [key]: readFaceRef(v, io[key], `${p}.${key}`) } : {});
   return {
     print: {
@@ -256,20 +256,48 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
         })
         .filter((i) => partIds.has(i.partId)),
     },
-    laser: {
-      sheet: { w: num(v, sheet, 'w', `${path}.laser.sheet`, { min: 1 }), h: num(v, sheet, 'h', `${path}.laser.sheet`, { min: 1 }) },
-      thickness: num(v, la, 'thickness', `${path}.laser`, { min: 0 }),
-      kerf: num(v, la, 'kerf', `${path}.laser`, { min: 0 }),
-      spacing: num(v, la, 'spacing', `${path}.laser`, { min: 0 }),
-      ...(la.engraveNames === true ? { engraveNames: true } : {}),
-      items: arr(v, la, 'items', `${path}.laser`)
-        .map((raw, i) => {
-          const ip = `${path}.laser.items[${i}]`;
-          const io = obj(v, raw, ip) ?? {};
-          return { partId: str(v, io, 'partId', ip), copies: num(v, io, 'copies', ip, { min: 0, integer: true }), ...face(io, 'face', ip) };
-        })
-        .filter((i) => partIds.has(i.partId)),
-    },
+    laser: readLaser(v, la, `${path}.laser`, partIds),
+  };
+}
+
+/** Réglages laser : matériaux (« pages ») ; un fichier antérieur à une seule plaque devient un matériau. */
+function readLaser(v: Validator, la: Record<string, unknown>, path: string, partIds: ReadonlySet<string>): FabricationSettings['laser'] {
+  const sheetOf = (o: Record<string, unknown>, p: string) => {
+    const sheet = obj(v, o.sheet, `${p}.sheet`) ?? {};
+    return { w: num(v, sheet, 'w', `${p}.sheet`, { min: 1 }), h: num(v, sheet, 'h', `${p}.sheet`, { min: 1 }) };
+  };
+  const materials: LaserMaterial[] = [];
+  if (la.materials !== undefined) {
+    arr(v, la, 'materials', path).forEach((raw, i) => {
+      const mp = `${path}.materials[${i}]`;
+      const mo = obj(v, raw, mp) ?? {};
+      const id = str(v, mo, 'id', mp);
+      if (materials.some((m) => m.id === id)) v.error(`${mp}.id`, `identifiant en double : ${id}`);
+      materials.push({ id, name: str(v, mo, 'name', mp), thickness: num(v, mo, 'thickness', mp, { min: 0 }), sheet: sheetOf(mo, mp), kerf: num(v, mo, 'kerf', mp, { min: 0 }) });
+    });
+  } else {
+    // Format des premières versions : une seule plaque, une seule épaisseur.
+    const thickness = num(v, la, 'thickness', path, { min: 0 });
+    materials.push({ id: 'mat-1', name: `Plaque ${String(thickness).replace('.', ',')} mm`, thickness, sheet: sheetOf(la, path), kerf: num(v, la, 'kerf', path, { min: 0 }) });
+  }
+  const materialIds = new Set(materials.map((m) => m.id));
+  return {
+    materials,
+    spacing: num(v, la, 'spacing', path, { min: 0 }),
+    ...(la.engraveNames === true ? { engraveNames: true } : {}),
+    items: arr(v, la, 'items', path)
+      .map((raw, i) => {
+        const ip = `${path}.items[${i}]`;
+        const io = obj(v, raw, ip) ?? {};
+        const materialId = io.materialId !== undefined ? str(v, io, 'materialId', ip) : null;
+        return {
+          partId: str(v, io, 'partId', ip),
+          copies: num(v, io, 'copies', ip, { min: 0, integer: true }),
+          ...(io.face !== undefined ? { face: readFaceRef(v, io.face, `${ip}.face`) } : {}),
+          ...(materialId && materialIds.has(materialId) ? { materialId } : {}),
+        };
+      })
+      .filter((i) => partIds.has(i.partId)),
   };
 }
 

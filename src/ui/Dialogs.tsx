@@ -143,6 +143,7 @@ function ExportDialog() {
   const d = useAppState((s) => (s.dialog?.kind === 'export' ? s.dialog : null));
   const parts = useAppState((s) => s.doc.parts.map((p) => ({ part: p, display: s.display[p.id] })));
   const assemblyCount = useAppState((s) => s.doc.assembly?.instances.length ?? 0);
+  const plates = useAppState((s) => (s.dialog?.kind === 'export' && s.dialog.plate !== undefined ? c.printLayout().plates : 0));
   if (!d) return null;
   const close = () => c.setDialog(null);
   const isStep = d.format === 'step';
@@ -159,10 +160,27 @@ function ExportDialog() {
         </>
       }
     >
-      {d.plate ? (
-        <p>
-          Le <strong>plateau préparé</strong> est exporté tel quel : chaque exemplaire avec son orientation, son échelle et sa place.
-        </p>
+      {d.plate !== undefined ? (
+        <>
+          <p>
+            Le <strong>plateau préparé</strong> est exporté tel quel : chaque exemplaire avec son orientation, son échelle et sa place.
+          </p>
+          {plates > 1 ? (
+            <fieldset style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
+              <legend class="field-label">Plateaux à exporter</legend>
+              {Array.from({ length: plates }, (_v, i) => (
+                <label class="checkbox-row" key={i}>
+                  <input type="radio" name="export-plate" checked={d.plate === i} onChange={() => c.setExportPlate(i)} />
+                  <span>Plateau {i + 1}</span>
+                </label>
+              ))}
+              <label class="checkbox-row">
+                <input type="radio" name="export-plate" checked={d.plate === 'all'} onChange={() => c.setExportPlate('all')} />
+                <span>Tous les plateaux (un fichier 3MF par plateau)</span>
+              </label>
+            </fieldset>
+          ) : null}
+        </>
       ) : d.assembly ? (
         <p>
           Toutes les pièces de l’assemblage sont exportées <strong>à leur place</strong>, chacune avec son nom et sa couleur

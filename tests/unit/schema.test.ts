@@ -1,6 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
 import { addResource, newResourceId } from '../../src/domain/document';
 import { serializeDocument } from '../../src/io/native-format';
 import { buildPlateDocument } from '../helpers/plate';
@@ -26,6 +27,14 @@ describe('schéma JSON publié du format .vibecad', () => {
     const ok = validate(file);
     expect(validate.errors ?? []).toEqual([]);
     expect(ok).toBe(true);
+  });
+
+  it('valide les réglages de fabrication (matériaux de découpe)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const fabrication = { ...DEFAULT_FABRICATION, laser: { ...DEFAULT_FABRICATION.laser, items: [{ partId: ids.partId, copies: 1, materialId: 'mat-3' }] } };
+    const file = JSON.parse(serializeDocument({ ...doc, fabrication }));
+    validate(file);
+    expect(validate.errors ?? []).toEqual([]);
   });
 
   it('refuse un fichier incohérent', () => {

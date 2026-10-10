@@ -103,7 +103,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets };
 }
 
-/** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau. */
+/** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau affiché. */
 function buildFabricationInput(s: AppState): ViewportInput {
   const hasSolid = (id: string) => (s.display[id]?.result.analysis?.solidCount ?? 0) > 0;
   const settings = fabricationSettings(s.doc, hasSolid);
@@ -115,7 +115,8 @@ function buildFabricationInput(s: AppState): ViewportInput {
     return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face', fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
   }
   const layout = printLayout(settings.print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
-  const parts: ViewPartInput[] = layout.placements.map((p) => {
+  const plate = Math.max(0, Math.min(s.printPlate, layout.plates - 1));
+  const parts: ViewPartInput[] = layout.placements.filter((p) => p.plate === plate).map((p) => {
     const part = s.doc.parts.find((x) => x.id === p.partId);
     const d = s.display[p.partId];
     return { partId: `fab:${p.partId}:${p.copy}`, color: part?.color ?? '#888888', visible: true, meshKey: d?.meshKey ?? null, mesh: d?.mesh ?? null, appearance: 'normal', matrix: p.matrix };
@@ -397,7 +398,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab, state.printPlate],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;
