@@ -5,11 +5,11 @@
 import { allows } from '../app/levels';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { clampToLimits, JOINT_ISSUE_MESSAGES, jointFreedoms } from '../app/assembly';
-import { JOINT_LABELS } from '../domain/document';
+import { JOINT_EXPLANATIONS, JOINT_LABELS } from '../domain/document';
 import type { AssemblyJoint, JointKind } from '../domain/model';
 import { formatLength, formatNumber } from '../domain/units';
 import { useAppState, useController } from './context';
-import { Button, Callout, IconButton, Segmented, ToolButton } from './components/controls';
+import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
@@ -185,8 +185,14 @@ export function AssemblySection() {
           {data.joints.map((j) => (
             <li key={j.id}>
               <div class={`feature-row${data.sel?.kind === 'joint' && data.sel.id === j.id ? ' is-selected' : ''}`}>
-                <button type="button" class="feature-main" aria-pressed={data.sel?.kind === 'joint' && data.sel.id === j.id} onClick={() => c.selectInAssembly({ kind: 'joint', id: j.id })}>
-                  <Icon name="pivot" class="feature-icon" />
+                <button
+                  type="button"
+                  class="feature-main"
+                  aria-pressed={data.sel?.kind === 'joint' && data.sel.id === j.id}
+                  title={`${JOINT_LABELS[j.kind]} : ${JOINT_EXPLANATIONS[j.kind]}`}
+                  onClick={() => c.selectInAssembly({ kind: 'joint', id: j.id })}
+                >
+                  <Icon name={`joint-${j.kind}`} class="feature-icon" />
                   <span class="feature-texts">
                     <span class="name">
                       {j.name} · {JOINT_LABELS[j.kind]}
@@ -282,11 +288,11 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
   const c = useController();
   const issue = useAppState(() => c.assemblyPlacement()?.issues.get(joint.id) ?? null);
   const free = jointFreedoms(joint.kind);
-  const kinds: JointKind[] = ['fixed', 'revolute', 'slider', 'cylindrical'];
+  const kinds: JointKind[] = ['fixed', 'revolute', 'slider', 'cylindrical', 'spherical'];
   return (
     <>
       <div class="panel-title">
-        <Icon name="pivot" />
+        <Icon name={`joint-${joint.kind}`} />
         <span>{joint.name}</span>
       </div>
       <div class="panel-content">
@@ -295,12 +301,27 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         Vous pouvez aussi la faire glisser à la souris dans la vue{free.angle && free.offset ? ' (Maj : translation)' : ''}.
       </p>
       {issue ? <Callout kind="error">{JOINT_ISSUE_MESSAGES[issue]}</Callout> : null}
-      <Segmented
-        label="Type de liaison"
-        value={joint.kind}
-        options={kinds.map((k) => ({ value: k, label: JOINT_LABELS[k] }))}
-        onChange={(kind) => c.setJoint(joint.id, { kind }, `Liaison : ${JOINT_LABELS[kind]}`)}
-      />
+      <div class="field" role="group" aria-label="Type de liaison">
+        <span class="field-label">Type de liaison</span>
+        <div class="joint-kinds">
+          {kinds.map((k) => (
+            <button
+              key={k}
+              type="button"
+              class="joint-kind"
+              aria-pressed={joint.kind === k}
+              title={`${JOINT_LABELS[k]} : ${JOINT_EXPLANATIONS[k]}`}
+              onClick={() => c.setJoint(joint.id, { kind: k }, `Liaison : ${JOINT_LABELS[k]}`)}
+            >
+              <Icon name={`joint-${k}`} />
+              <span>{JOINT_LABELS[k]}</span>
+            </button>
+          ))}
+        </div>
+        <p class="field-help joint-explanation">
+          <strong>{JOINT_LABELS[joint.kind]}</strong> : {JOINT_EXPLANATIONS[joint.kind]}
+        </p>
+      </div>
       <MotionField
         id="joint-angle"
         label={free.angle ? 'Angle (rotation)' : 'Angle (fixe)'}
@@ -312,6 +333,32 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         onCommit={() => c.commitLive('Tourner la pièce')}
         onExact={(angle) => c.setJoint(joint.id, { angle }, 'Tourner la pièce')}
       />
+      {free.tilt ? (
+        <>
+          <MotionField
+            id="joint-tilt"
+            label="Pencher (inclinaison)"
+            unit="°"
+            value={joint.tilt ?? 0}
+            limits={[0, joint.tiltLimit ?? 180]}
+            range={[0, joint.tiltLimit ?? 180]}
+            onLive={(tilt) => c.setJointLive(joint.id, { tilt: Math.max(0, Math.min(tilt, joint.tiltLimit ?? 180)) })}
+            onCommit={() => c.commitLive('Pencher la pièce')}
+            onExact={(tilt) => c.setJoint(joint.id, { tilt }, 'Pencher la pièce')}
+          />
+          <MotionField
+            id="joint-tilt-direction"
+            label="Direction de l’inclinaison"
+            unit="°"
+            value={joint.tiltDirection ?? 0}
+            limits={undefined}
+            range={[-180, 180]}
+            onLive={(tiltDirection) => c.setJointLive(joint.id, { tiltDirection })}
+            onCommit={() => c.commitLive('Pencher la pièce')}
+            onExact={(tiltDirection) => c.setJoint(joint.id, { tiltDirection }, 'Pencher la pièce')}
+          />
+        </>
+      ) : null}
       <MotionField
         id="joint-offset"
         label={free.offset ? 'Décalage (glissement)' : 'Décalage (fixe)'}
@@ -335,7 +382,32 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         {free.offset ? (
           <LimitsField label="le décalage" unit="mm" limits={joint.offsetLimits} fallback={[0, 20]} onChange={(offsetLimits) => c.setJoint(joint.id, { ...(offsetLimits ? { offsetLimits } : { offsetLimits: undefined }) }, 'Limites de la liaison')} />
         ) : null}
-        {!free.angle && !free.offset ? <p class="field-help">Une liaison fixe ne bouge pas : choisissez Pivot ou Glissière pour la faire bouger.</p> : null}
+        {free.tilt ? (
+          <div class="field">
+            <label class="checkbox-row">
+              <input
+                type="checkbox"
+                checked={joint.tiltLimit !== undefined}
+                onChange={() => c.setJoint(joint.id, { tiltLimit: joint.tiltLimit !== undefined ? undefined : 45 }, 'Limites de la liaison')}
+              />
+              <span>Limiter l’inclinaison</span>
+            </label>
+            {joint.tiltLimit !== undefined ? (
+              <NumberInput
+                value={formatNumber(joint.tiltLimit, 1)}
+                unit="°"
+                min={0}
+                max={180}
+                ariaLabel="Inclinaison maximale"
+                onInput={(t) => {
+                  const v = Number(t.replace(',', '.'));
+                  if (Number.isFinite(v) && v >= 0 && v <= 180) c.setJoint(joint.id, { tiltLimit: v, tilt: Math.min(joint.tilt ?? 0, v) }, 'Limites de la liaison');
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        {!free.angle && !free.offset ? <p class="field-help">Une liaison fixe ne bouge pas : choisissez un autre type pour la faire bouger.</p> : null}
       </details>
       </div>
       <div class="panel-actions">

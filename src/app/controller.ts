@@ -1699,7 +1699,7 @@ export class AppController {
   }
 
   /** Réglage en continu (curseur, glisser) : le modèle suit sans remplir l'historique. */
-  setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset'>>): void {
+  setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset' | 'tilt' | 'tiltDirection'>>): void {
     if (!this.liveStart) this.liveStart = this.state.doc;
     this.set({ doc: updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })) });
   }

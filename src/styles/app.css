@@ -2491,3 +2491,40 @@ kbd {
 .status-dot.dot-error {
   background: var(--danger);
 }
+
+.joint-kinds {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 4px;
+}
+
+.joint-kind {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.joint-kind svg {
+  width: 26px;
+  height: 26px;
+}
+
+.joint-kind[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.joint-explanation {
+  margin-top: 6px;
+}

@@ -7,7 +7,7 @@ import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointKind, LcsRef, 
 import { pickFaceReference } from '../features/sketch/support';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
-import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
+import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationX4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
 import { cross3, dot3, length3, scale3, sub3, type Vec3 } from '../math/vec';
 import { edgeRefFromPick } from './edges';
 
@@ -91,8 +91,19 @@ export function lcsFromPick(mesh: MeshData, kind: 'face' | 'edge', index: number
 }
 
 /** Matrice de placement de la pièce mobile d'une liaison. */
-export function jointMatrix(joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'>, baseMatrix: Mat4, baseFrame: Frame3D, movingFrame: Frame3D): Mat4 {
+export function jointMatrix(
+  joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'> & Partial<Pick<AssemblyJoint, 'kind' | 'tilt' | 'tiltDirection'>>,
+  baseMatrix: Mat4,
+  baseFrame: Frame3D,
+  movingFrame: Frame3D,
+): Mat4 {
   let m = multiply4(baseMatrix, frameMatrix4(baseFrame));
+  if (joint.kind === 'spherical' && joint.tilt) {
+    // Rotule : la pièce se penche de `tilt` vers la direction `tiltDirection`, autour du point d'accroche.
+    // Direction 0° : la pièce penche vers l'axe X du repère de référence ; 90° : vers son axe Y.
+    const dir = (((joint.tiltDirection ?? 0) - 90) * Math.PI) / 180;
+    m = multiply4(m, multiply4(rotationZ4(dir), multiply4(rotationX4(-(joint.tilt * Math.PI) / 180), rotationZ4(-dir))));
+  }
   m = multiply4(m, rotationZ4((joint.angle * Math.PI) / 180));
   m = multiply4(m, translation4({ x: 0, y: 0, z: joint.offset }));
   // Par défaut, les axes Z sont opposés : les faces se touchent, la goupille entre dans le trou.
@@ -185,8 +196,8 @@ export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshDa
 }
 
 /** Mouvements libres d'un type de liaison. */
-export function jointFreedoms(kind: JointKind): { angle: boolean; offset: boolean } {
-  return { angle: kind === 'revolute' || kind === 'cylindrical', offset: kind === 'slider' || kind === 'cylindrical' };
+export function jointFreedoms(kind: JointKind): { angle: boolean; offset: boolean; tilt: boolean } {
+  return { angle: kind === 'revolute' || kind === 'cylindrical' || kind === 'spherical', offset: kind === 'slider' || kind === 'cylindrical', tilt: kind === 'spherical' };
 }
 
 /** Valeur ramenée dans ses limites éventuelles. */

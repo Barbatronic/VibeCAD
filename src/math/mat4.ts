@@ -46,6 +46,12 @@ export function translation4(v: Vec3): Mat4 {
   return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, v.x, v.y, v.z, 1];
 }
 
+export function rotationX4(radians: number): Mat4 {
+  const c = Math.cos(radians);
+  const s = Math.sin(radians);
+  return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1];
+}
+
 export function rotationZ4(radians: number): Mat4 {
   const c = Math.cos(radians);
   const s = Math.sin(radians);

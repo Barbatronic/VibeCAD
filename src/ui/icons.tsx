@@ -55,6 +55,44 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M8 12h8" stroke-dasharray="1.5 1.5" opacity="0.6" />
     </>
   ),
+  'joint-fixed': (
+    <>
+      <path d="M4 14h16v6H4z" />
+      <path d="M9 14V6h6v8" />
+      <path d="M7 17h2M11 17h2M15 17h2" opacity="0.6" />
+    </>
+  ),
+  'joint-revolute': (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 9V3M5 18l4.5-4" />
+      <path d="M18.5 8.5a8 8 0 0 1-1 9.5" opacity="0.7" />
+      <path d="M18.8 15.4l-1.3 2.6-2.6-.9" opacity="0.7" />
+    </>
+  ),
+  'joint-slider': (
+    <>
+      <path d="M3 15h18M3 19h18" opacity="0.6" />
+      <path d="M8 9h8v6H8z" />
+      <path d="M17 6h4M19 4l2 2-2 2M7 6H3M5 4L3 6l2 2" />
+    </>
+  ),
+  'joint-cylindrical': (
+    <>
+      <path d="M12 3v18" />
+      <path d="M8 9h8v6H8z" />
+      <path d="M5 6.5a7 3 0 0 0 14 0" opacity="0.7" />
+      <path d="M17.5 4.8l1.5 1.7-2.2.7" opacity="0.7" />
+    </>
+  ),
+  'joint-spherical': (
+    <>
+      <circle cx="12" cy="15" r="4" />
+      <path d="M12 11L17 3" />
+      <path d="M8 21h8" opacity="0.6" />
+      <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
+    </>
+  ),
   trim: (
     <>
       <circle cx="6" cy="6" r="2.5" />

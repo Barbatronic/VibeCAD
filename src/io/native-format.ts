@@ -356,7 +356,7 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     const joint: AssemblyJoint = {
       id: str(v, jo, 'id', jp),
       name: str(v, jo, 'name', jp),
-      kind: oneOf(v, jo, 'kind', jp, ['fixed', 'revolute', 'slider', 'cylindrical'] as const),
+      kind: oneOf(v, jo, 'kind', jp, ['fixed', 'revolute', 'slider', 'cylindrical', 'spherical'] as const),
       moving: end('moving'),
       base: end('base'),
       flip: jo.flip === true,
@@ -367,6 +367,9 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     const offsetLimits = readLimits(v, jo, 'offsetLimits', jp);
     if (angleLimits) joint.angleLimits = angleLimits;
     if (offsetLimits) joint.offsetLimits = offsetLimits;
+    for (const key of ['tilt', 'tiltDirection', 'tiltLimit'] as const) {
+      if (jo[key] !== undefined) joint[key] = num(v, jo, key, jp, key === 'tiltLimit' ? { min: 0, max: 180 } : {});
+    }
     if (!ids.has(joint.moving.instanceId) || !ids.has(joint.base.instanceId)) {
       v.warnings.push(`Assemblage : la liaison « ${joint.name} » vise une pièce retirée ; elle est supprimée.`);
       return;

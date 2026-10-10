@@ -1131,7 +1131,8 @@
                   "fixed",
                   "revolute",
                   "slider",
-                  "cylindrical"
+                  "cylindrical",
+                  "spherical"
                 ]
               },
               "moving": {
@@ -1166,6 +1167,20 @@
                 },
                 "minItems": 2,
                 "maxItems": 2
+              },
+              "tilt": {
+                "type": "number",
+                "description": "Rotule : inclinaison (degrés)."
+              },
+              "tiltDirection": {
+                "type": "number",
+                "description": "Rotule : direction de l'inclinaison (degrés, autour de l'axe du repère de référence)."
+              },
+              "tiltLimit": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 180,
+                "description": "Rotule : inclinaison maximale (degrés)."
               }
             }
           }

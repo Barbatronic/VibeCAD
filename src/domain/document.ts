@@ -166,7 +166,16 @@ export function removeInstance(doc: CadDocument, instanceId: Id): CadDocument {
   };
 }
 
-export const JOINT_LABELS: Record<JointKind, string> = { fixed: 'Fixe', revolute: 'Pivot', slider: 'Glissière', cylindrical: 'Pivot glissant' };
+export const JOINT_LABELS: Record<JointKind, string> = { fixed: 'Fixe', revolute: 'Pivot', slider: 'Glissière', cylindrical: 'Pivot glissant', spherical: 'Rotule' };
+
+/** Ce que fait chaque liaison, avec un exemple de la vie courante. */
+export const JOINT_EXPLANATIONS: Record<JointKind, string> = {
+  fixed: 'Les deux pièces sont collées : rien ne bouge, comme une étagère vissée au mur.',
+  revolute: 'La pièce tourne autour d’un axe, comme une roue, une porte ou l’aiguille d’une montre.',
+  slider: 'La pièce glisse le long d’un axe sans tourner, comme un tiroir.',
+  cylindrical: 'La pièce tourne et glisse le long d’un axe, comme un piston ou le siège d’un tabouret à vis.',
+  spherical: 'La pièce tourne dans tous les sens autour d’un point, comme l’épaule, une lampe de bureau ou une manette de jeu.',
+};
 
 export function addJoint(doc: CadDocument, joint: Omit<AssemblyJoint, 'id' | 'name'>): { doc: CadDocument; jointId: Id } {
   const assembly = doc.assembly ?? emptyAssembly();

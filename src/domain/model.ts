@@ -90,12 +90,14 @@ export interface JointEnd {
   lcs: LcsRef;
 }
 
-export type JointKind = 'fixed' | 'revolute' | 'slider' | 'cylindrical';
+export type JointKind = 'fixed' | 'revolute' | 'slider' | 'cylindrical' | 'spherical';
 
 /**
  * Liaison : le repère de la pièce mobile est superposé à celui de la pièce de référence (axes Z
  * opposés, `flip` les rend identiques), tourné de `angle` degrés autour de l'axe et décalé de
  * `offset` mm le long de l'axe. Les limites bornent les mouvements libres.
+ * Rotule : en plus, la pièce mobile se penche de `tilt` degrés vers la direction `tiltDirection`
+ * (degrés, autour de l'axe du repère de référence) ; son point d'accroche ne bouge pas.
  */
 export interface AssemblyJoint {
   id: Id;
@@ -108,6 +110,10 @@ export interface AssemblyJoint {
   offset: number;
   angleLimits?: [number, number];
   offsetLimits?: [number, number];
+  tilt?: number;
+  tiltDirection?: number;
+  /** Inclinaison maximale (degrés) d'une rotule. */
+  tiltLimit?: number;
 }
 
 export interface Assembly {
