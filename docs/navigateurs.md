@@ -11,8 +11,23 @@ persistant, deux pièces, mode hors ligne) passent sur :
 | Chromium (Playwright) | build 1243 (Playwright 1.63) | `npm run test:e2e` |
 | Firefox (Playwright) | 155.0 | `npm run test:e2e:firefox` |
 
-Firefox 156 est le navigateur installé sur la machine de développement ; Edge (Chromium) et
-Safari récents disposent des mêmes technologies mais n'ont pas été testés automatiquement.
+Firefox 156 est le navigateur installé sur la machine de développement.
+
+### Safari (WebKit) et Edge
+
+Les mêmes parcours sont prêts pour **Safari** (moteur WebKit de Playwright) et **Edge**, mais ils
+n'ont pas encore été exécutés : la machine de développement n'a ni les bibliothèques système de
+WebKit ni Edge. Pour les lancer :
+
+| Navigateur | Préparation (une fois) | Commande |
+| --- | --- | --- |
+| Safari (WebKit, Linux / macOS / Windows) | `npx playwright install webkit` puis, sous Linux, `sudo npx playwright install-deps webkit` | `npm run test:e2e:webkit` |
+| Edge | installer Microsoft Edge (ou `npx playwright install msedge`) | `npm run test:e2e:edge` |
+
+Sans option `--project`, `npx playwright test` lance **tous** les navigateurs déclarés : préférer
+les commandes ci-dessus. Edge utilise le même moteur que Chrome (Chromium) : les risques
+d'écart sont faibles. Le WebKit de Playwright est proche de Safari sans être identique : un essai
+sur un vrai Mac ou iPad reste conseillé avant un usage en classe.
 
 ## Technologies requises
 
