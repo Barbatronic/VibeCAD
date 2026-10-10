@@ -74,7 +74,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Échanges** : export STEP (une ou plusieurs pièces), import STEP comme « Solide importé »
   (contenu conservé dans le projet), export **3MF** (impression 3D : unité, noms et couleurs des
   pièces) et STL (en mm).
-- **Parcours guidé** « la plaque percée » et aide intégrée (navigation, vocabulaire, raccourcis).
+- **Parcours guidés**, au choix : « la plaque percée » (première pièce), « assembler et faire
+  bouger » (insérer, relier par un pivot, faire tourner) et « préparer la fabrication »
+  (impression 3D, découpe laser, documents). Chaque étape se valide toute seule en observant le
+  modèle ; aide intégrée (navigation, vocabulaire, raccourcis).
 - **Java, le chat de VibeCAD** (logo et mascotte, noir et blanc) : il présente les étapes du parcours, félicite quand une
   étape est réussie et, quand une étape a un souci, l'explique en une phrase avec un bouton pour
   le corriger. Discret (réductible, masquable depuis l'aide), sans réseau, il ne modifie jamais la
@@ -140,7 +143,7 @@ src/
   persistence/           IndexedDB (projets, sauvegarde automatique), fichiers
   viewport/              vue 3D Three.js : caméra, grille, pièces, esquisses, sélection
   ui/                    composants Preact : barres, panneaux, dialogues, aide, parcours
-  tutorials/             parcours guidé « plaque percée »
+  tutorials/             parcours guidés (plaque percée, assemblage, fabrication)
   styles/                jetons visuels (thèmes clair et sombre) et styles
 public/                  manifeste PWA et icônes
 tests/                   unit/ (domaine, solveur…), geometry/ (noyau réel), e2e/ (navigateur), perf/
