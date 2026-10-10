@@ -19,6 +19,7 @@ import { IconButton, ToolButton } from './components/controls';
 import { Icon } from './icons';
 import { CatFigure } from './Mascot';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
+import { FabricationTools } from './FabricationUi';
 
 function FileMenu() {
   const c = useController();
@@ -483,10 +484,10 @@ export function TopBar() {
       </div>
       <FileMenu />
       <ProjectName />
-      {mode === 'model' || mode === 'joint' ? <WorkspaceTabs /> : null}
+      {mode === 'model' || mode === 'joint' || mode === 'pick-fab-face' ? <WorkspaceTabs /> : null}
       <nav class="toolbar" aria-label="Outils">
         <UndoRedo />
-        {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : <ModelTools />}
+        {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : <ModelTools />}
       </nav>
       <div class="spacer" />
       <ToolButton icon="graduation" label="Parcours" hint="Parcours guidé : la plaque percée" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />

@@ -37,6 +37,10 @@ function helpText(s: AppState): string {
       return 'Cliquez un plan coloré (XY, XZ ou YZ) ou une face plane de la pièce. Échap pour annuler.';
     case 'measure':
       return 'Cliquez une arête ou une face pour lire ses dimensions, puis un second élément pour la distance. Échap pour terminer.';
+    case 'pick-fab-face':
+      return s.mode.purpose === 'print'
+        ? 'Cliquez la face de la pièce qui doit être posée sur le plateau (une grande face plate est idéale). Échap pour annuler.'
+        : 'Cliquez la face plate qui donne le contour à découper. Échap pour annuler.';
     case 'joint':
       return s.mode.moving
         ? 'Liaison : cliquez maintenant le repère de la pièce de référence (face plane, bord d’un trou, arête). Échap pour annuler.'

@@ -9,6 +9,7 @@ import { deleteSelection, editDimension, setTool, TOOL_HELP, type SketchSession 
 import { ISSUE_MESSAGES } from '../domain/status';
 import { useAppState, useController } from './context';
 import { AssemblyRightPanel } from './AssemblyUi';
+import { FabricationRightPanel } from './FabricationUi';
 import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
@@ -300,6 +301,7 @@ export function RightPanel() {
   const workspace = useAppState((s) => s.workspace);
   const session = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session : null));
   if (workspace === 'assembly') return <AssemblyRightPanel />;
+  if (workspace === 'fabrication') return <FabricationRightPanel />;
   if (mode === 'model') return null;
   return (
     <aside class="panel right-panel" aria-label="Paramètres de l’opération en cours">

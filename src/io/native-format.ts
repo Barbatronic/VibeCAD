@@ -7,6 +7,7 @@
  */
 import type {
   Assembly,
+  FabricationSettings,
   AssemblyInstance,
   AssemblyJoint,
   CadDocument,
@@ -63,6 +64,7 @@ export function serializeDocument(doc: CadDocument, savedAt = new Date().toISOSt
       })),
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
+      ...(doc.fabrication ? { fabrication: doc.fabrication } : {}),
     },
   };
   return JSON.stringify(file, null, 2);
@@ -223,11 +225,51 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     parts: parts.filter((p): p is Part => p !== null),
     resources,
   };
+  if (o.fabrication !== undefined) {
+    const fabrication = readFabrication(v, o.fabrication, `${path}.fabrication`, new Set(doc.parts.map((p) => p.id)));
+    if (fabrication) doc.fabrication = fabrication;
+  }
   if (o.assembly !== undefined) {
     const assembly = readAssembly(v, o.assembly, `${path}.assembly`, new Set(doc.parts.map((p) => p.id)));
     if (assembly) doc.assembly = assembly;
   }
   return doc;
+}
+
+function readFabrication(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>): FabricationSettings | null {
+  const o = obj(v, x, path);
+  if (!o) return null;
+  const pr = obj(v, o.print, `${path}.print`) ?? {};
+  const la = obj(v, o.laser, `${path}.laser`) ?? {};
+  const bed = obj(v, pr.bed, `${path}.print.bed`) ?? {};
+  const sheet = obj(v, la.sheet, `${path}.laser.sheet`) ?? {};
+  const face = (io: Record<string, unknown>, key: string, p: string) => (io[key] !== undefined ? { [key]: readFaceRef(v, io[key], `${p}.${key}`) } : {});
+  return {
+    print: {
+      bed: { x: num(v, bed, 'x', `${path}.print.bed`, { min: 1 }), y: num(v, bed, 'y', `${path}.print.bed`, { min: 1 }), z: num(v, bed, 'z', `${path}.print.bed`, { min: 1 }) },
+      spacing: num(v, pr, 'spacing', `${path}.print`, { min: 0 }),
+      items: arr(v, pr, 'items', `${path}.print`)
+        .map((raw, i) => {
+          const ip = `${path}.print.items[${i}]`;
+          const io = obj(v, raw, ip) ?? {};
+          return { partId: str(v, io, 'partId', ip), copies: num(v, io, 'copies', ip, { min: 0, integer: true }), scale: num(v, io, 'scale', ip, { min: 0 }), ...face(io, 'downFace', ip) };
+        })
+        .filter((i) => partIds.has(i.partId)),
+    },
+    laser: {
+      sheet: { w: num(v, sheet, 'w', `${path}.laser.sheet`, { min: 1 }), h: num(v, sheet, 'h', `${path}.laser.sheet`, { min: 1 }) },
+      thickness: num(v, la, 'thickness', `${path}.laser`, { min: 0 }),
+      kerf: num(v, la, 'kerf', `${path}.laser`, { min: 0 }),
+      spacing: num(v, la, 'spacing', `${path}.laser`, { min: 0 }),
+      items: arr(v, la, 'items', `${path}.laser`)
+        .map((raw, i) => {
+          const ip = `${path}.laser.items[${i}]`;
+          const io = obj(v, raw, ip) ?? {};
+          return { partId: str(v, io, 'partId', ip), copies: num(v, io, 'copies', ip, { min: 0, integer: true }), ...face(io, 'face', ip) };
+        })
+        .filter((i) => partIds.has(i.partId)),
+    },
+  };
 }
 
 function readLcs(v: Validator, x: unknown, path: string): LcsRef {

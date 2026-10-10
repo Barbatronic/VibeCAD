@@ -27,10 +27,15 @@ export type Mode =
   | { kind: 'feature'; draft: FeatureDraft }
   | { kind: 'measure'; picks: ModelPick[]; info: MeasureInfo | null; busy: boolean }
   /** Création d'une liaison d'assemblage : repère de la pièce mobile, puis de la pièce de référence. */
-  | { kind: 'joint'; moving: JointEnd | null };
+  | { kind: 'joint'; moving: JointEnd | null }
+  /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
+  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id };
 
 /** Onglet de travail : modélisation des pièces, ou assemblage. */
-export type Workspace = 'parts' | 'assembly';
+export type Workspace = 'parts' | 'assembly' | 'fabrication';
+
+/** Sous-onglet de Fabrication. */
+export type FabricationTab = 'print' | 'laser' | 'docs';
 
 export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | null;
 
@@ -62,7 +67,7 @@ export interface Toast {
 
 export type Dialog =
   | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
-  | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean }
+  | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; plate?: boolean }
   | {
       kind: 'import-step';
       fileName: string;
@@ -116,6 +121,7 @@ export interface AppState {
    */
   mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
   workspace: Workspace;
+  fabricationTab: FabricationTab;
   assemblySelection: AssemblySelection;
   /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
   rollback: RollbackState;
@@ -149,6 +155,7 @@ export function initialState(): AppState {
     fitRequest: 0,
     rollback: {},
     workspace: 'parts',
+    fabricationTab: 'print',
     assemblySelection: null,
     mascot: { hidden: false, collapsed: false, dismissed: null },
     preview: null,

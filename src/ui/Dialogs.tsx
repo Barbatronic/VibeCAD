@@ -159,7 +159,11 @@ function ExportDialog() {
         </>
       }
     >
-      {d.assembly ? (
+      {d.plate ? (
+        <p>
+          Le <strong>plateau préparé</strong> est exporté tel quel : chaque exemplaire avec son orientation, son échelle et sa place.
+        </p>
+      ) : d.assembly ? (
         <p>
           Toutes les pièces de l’assemblage sont exportées <strong>à leur place</strong>, chacune avec son nom et sa couleur
           ({assemblyCount} pièce{assemblyCount > 1 ? 's' : ''}).

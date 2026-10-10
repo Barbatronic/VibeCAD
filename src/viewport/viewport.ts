@@ -96,6 +96,8 @@ export interface ViewportInput {
   markers?: ViewMarker[];
   /** Clés des pièces qu'on peut faire glisser à la souris (pièces mobiles d'une liaison). */
   dragTargets?: string[];
+  /** Plateau d'impression (mm) dessiné à z = 0 à partir de l'origine. */
+  bed?: { x: number; y: number } | null;
 }
 
 export interface AssemblyDragEvent {
@@ -157,6 +159,8 @@ export class Viewport {
   private selectionOverlays: Object3D[] = [];
   private measureObjects: Object3D[] = [];
   private markerObjects: Object3D[] = [];
+  private bedObjects: Object3D[] = [];
+  private bedKey = '';
   private assemblyDrag: { key: string; moved: boolean } | null = null;
   private planeMeshes: { plane: PlaneName; mesh: Mesh; label: CSS2DObject }[] = [];
   private hoverPlane: PlaneName | null = null;
@@ -396,6 +400,7 @@ export class Viewport {
     this.syncSelection(input.selection);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
+    this.syncBed(input.bed ?? null);
     if (input.mode !== prevMode) this.onModeChange(prevMode, input.mode);
     if (input.fitRequest !== undefined && input.fitRequest !== this.lastFitRequest) {
       this.lastFitRequest = input.fitRequest;
@@ -601,6 +606,31 @@ export class Viewport {
     }
   }
 
+  /** Contour du plateau d'impression (et un quadrillage tous les 10 mm). */
+  private syncBed(bed: { x: number; y: number } | null): void {
+    const key = bed ? `${bed.x}x${bed.y}` : '';
+    if (key === this.bedKey) return;
+    this.bedKey = key;
+    for (const o of this.bedObjects) this.disposeOverlay(o);
+    this.bedObjects = [];
+    if (!bed) return;
+    const outline = [0, 0, 0, bed.x, 0, 0, bed.x, 0, 0, bed.x, bed.y, 0, bed.x, bed.y, 0, 0, bed.y, 0, 0, bed.y, 0, 0, 0, 0];
+    const grid: number[] = [];
+    for (let x = 10; x < bed.x; x += 10) grid.push(x, 0, 0, x, bed.y, 0);
+    for (let y = 10; y < bed.y; y += 10) grid.push(0, y, 0, bed.x, y, 0);
+    for (const [pts, color, width] of [
+      [grid, this.palette.gridMajor, 1],
+      [outline, this.palette.selection, 3],
+    ] as const) {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(pts as number[]);
+      const line = new LineSegments2(geometry, this.resolved(fatLineMaterial(color, width)));
+      line.renderOrder = 5;
+      this.overlayGroup.add(line);
+      this.bedObjects.push(line);
+    }
+  }
+
   /** Repères de liaison : axe (flèche) et petit anneau autour de l'origine. */
   private syncMarkers(markers: ViewMarker[]): void {
     for (const o of this.markerObjects) this.disposeOverlay(o);
@@ -694,6 +724,9 @@ export class Viewport {
     const box = new Box3();
     for (const p of this.parts.values()) if (p.group.visible) box.expandByObject(p.faces);
     for (const { view } of this.sketchViews.values()) box.expandByObject(view.group);
+    // Plateau d'impression : il fait partie de ce qu'on veut voir en entier.
+    const bed = this.input.bed;
+    if (bed) box.expandByPoint(new Vector3(0, 0, 0)).expandByPoint(new Vector3(bed.x, bed.y, 0));
     return box.isEmpty() ? null : box;
   }
 

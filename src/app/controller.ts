@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, Feature, FeatureType, Id, JointKind, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -52,13 +52,14 @@ import { applyUpdate } from './offline';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
+import { fabricationSettings, printLayout, type PrintLayout } from './fabrication';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
-import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type Mode, type PartDisplay, type Selection, type Toast } from './state';
+import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -370,6 +371,7 @@ export class AppController {
 
   handlePick(pick: ModelPick | null, info: { shift: boolean; double: boolean }): void {
     if (this.state.workspace === 'assembly') return this.assemblyPick(pick);
+    if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     const mode = this.state.mode;
     if (mode.kind === 'pick-support') {
       if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId);
@@ -1111,6 +1113,12 @@ export class AppController {
     if (!avail.ok) return this.explain(avail.reason);
     const s = this.state;
     const withSolid = s.doc.parts.filter((p) => (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0).map((p) => p.id);
+    if (s.workspace === 'fabrication' && format === '3mf') {
+      const layout = this.printLayout();
+      if (layout.placements.length === 0) return this.explain('Le plateau est vide : indiquez au moins un exemplaire à imprimer.');
+      this.set({ dialog: { kind: 'export', format, partIds: Array.from(new Set(layout.placements.map((p) => p.partId))), busy: false, plate: true } });
+      return;
+    }
     if (s.workspace === 'assembly') {
       if (!s.doc.assembly?.instances.length) return this.explain('L’assemblage est vide : insérez d’abord des pièces.');
       this.set({ dialog: { kind: 'export', format, partIds: s.doc.assembly.instances.map((i) => i.partId), busy: false, assembly: true } });
@@ -1134,12 +1142,14 @@ export class AppController {
     this.set({ dialog: { ...d, busy: true } });
     const s = this.state;
     const parts = s.doc.parts.filter((p) => d.partIds.includes(p.id));
-    const baseName = d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
+    const baseName = d.plate ? `${s.doc.name} - plateau` : d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
     // Assemblage : chaque pièce insérée est exportée à sa place.
     const placement = d.assembly ? this.assemblyPlacement() : null;
-    const placements = placement
-      ? (s.doc.assembly?.instances ?? []).map((i) => ({ partId: i.partId, name: i.name, matrix: placement.matrices.get(i.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }))
-      : undefined;
+    const placements = d.plate
+      ? this.printLayout().placements.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix }))
+      : placement
+        ? (s.doc.assembly?.instances ?? []).map((i) => ({ partId: i.partId, name: i.name, matrix: placement.matrices.get(i.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }))
+        : undefined;
     try {
       if (d.format === 'step') {
         const { text, warnings } = await this.deps.client.exportStep(s.doc, d.partIds, placements);
@@ -1236,6 +1246,59 @@ export class AppController {
     if (this.state.workspace === workspace) return;
     if (this.state.mode.kind !== 'model' && this.state.mode.kind !== 'joint') return this.explain('Terminez d’abord l’opération en cours.');
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  // ----- Fabrication
+
+  setFabricationTab(tab: FabricationTab): void {
+    this.set({ fabricationTab: tab, mode: this.state.mode.kind === 'pick-fab-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  /** Réglages de fabrication complétés (une ligne par pièce ayant un volume). */
+  fabrication(): FabricationSettings {
+    return fabricationSettings(this.state.doc, (id) => (this.state.display[id]?.result.analysis?.solidCount ?? 0) > 0);
+  }
+
+  /** Modifie les réglages de fabrication (enregistrés dans le projet, annulables). */
+  updateFabrication(change: (f: FabricationSettings) => FabricationSettings, label: string): void {
+    const next = change(this.fabrication());
+    this.commit({ ...this.state.doc, fabrication: next }, label);
+  }
+
+  pickFabricationFace(purpose: 'print' | 'laser', partId: Id): void {
+    this.set({ mode: { kind: 'pick-fab-face', purpose, partId } });
+  }
+
+  cancelFabricationPick(): void {
+    if (this.state.mode.kind === 'pick-fab-face') this.set({ mode: model });
+  }
+
+  /** Disposition actuelle du plateau d'impression. */
+  printLayout(): PrintLayout {
+    const s = this.state;
+    return printLayout(this.fabrication().print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
+  }
+
+  private fabricationPick(pick: ModelPick | null): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'pick-fab-face' || !pick || pick.kind !== 'face') return;
+    const partId = pick.partId.split(':')[1] ?? pick.partId;
+    if (partId !== mode.partId) return this.explain('Cliquez une face de la pièce choisie.');
+    const part = findPart(this.state.doc, partId);
+    const face = this.state.display[partId]?.mesh?.faces[pick.index];
+    if (!part || !face) return;
+    if (!face.plane) return this.explain('Choisissez une face plate.');
+    const ref = pickFaceReference(face.tags, part);
+    if (!ref) return;
+    const purpose = mode.purpose;
+    this.updateFabrication(
+      (f) =>
+        purpose === 'print'
+          ? { ...f, print: { ...f.print, items: f.print.items.map((i) => (i.partId === partId ? { ...i, downFace: ref } : i)) } }
+          : { ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? { ...i, face: ref } : i)) } },
+      purpose === 'print' ? `Poser « ${part.name} » sur une autre face` : `Contour de découpe de « ${part.name} »`,
+    );
+    this.set({ mode: model });
   }
 
   /** Placement actuel des pièces de l'assemblage. */

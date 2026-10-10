@@ -30,6 +30,7 @@ import {
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput } from '../viewport/viewport';
 import { jointFreedoms, lcsFrame, solveAssembly } from '../app/assembly';
+import { fabricationSettings, printLayout } from '../app/fabrication';
 import { transformDirection4, transformPoint4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
 import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
@@ -102,9 +103,36 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets };
 }
 
+/** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau. */
+function buildFabricationInput(s: AppState): ViewportInput {
+  const hasSolid = (id: string) => (s.display[id]?.result.analysis?.solidCount ?? 0) > 0;
+  const settings = fabricationSettings(s.doc, hasSolid);
+  const layout = printLayout(settings.print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
+  const parts: ViewPartInput[] = layout.placements.map((p) => {
+    const part = s.doc.parts.find((x) => x.id === p.partId);
+    const d = s.display[p.partId];
+    return { partId: `fab:${p.partId}:${p.copy}`, color: part?.color ?? '#888888', visible: true, meshKey: d?.meshKey ?? null, mesh: d?.mesh ?? null, appearance: 'normal', matrix: p.matrix };
+  });
+  return {
+    mode: 'model',
+    parts,
+    tool: null,
+    sketches: [],
+    session: null,
+    selection: [],
+    measure: null,
+    featurePicking: s.mode.kind === 'pick-fab-face',
+    fitRequest: s.fitRequest,
+    markers: [],
+    dragTargets: [],
+    bed: { x: settings.print.bed.x, y: settings.print.bed.y },
+  };
+}
+
 /** Construit la représentation d'affichage à partir de l'état de l'application. */
 export function buildViewportInput(s: AppState): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
+  if (s.workspace === 'fabrication') return buildFabricationInput(s);
   const mode = s.mode.kind;
   const parts: ViewPartInput[] = s.doc.parts.map((p) => {
     const d = s.display[p.id];
@@ -156,7 +184,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
   const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer');
-  return { mode: mode === 'joint' ? 'model' : mode, parts, tool, sketches, session, selection, measure, featurePicking, fitRequest: s.fitRequest };
+  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection, measure, featurePicking, fitRequest: s.fitRequest };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -362,7 +390,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.fabricationTab],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

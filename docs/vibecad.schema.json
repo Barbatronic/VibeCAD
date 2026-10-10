@@ -85,6 +85,108 @@
         },
         "assembly": {
           "$ref": "#/$defs/assembly"
+        },
+        "fabrication": {
+          "type": "object",
+          "description": "Réglages de l'onglet Fabrication (impression 3D, découpe laser).",
+          "properties": {
+            "print": {
+              "type": "object",
+              "properties": {
+                "bed": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "spacing": {
+                  "type": "number"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "partId",
+                      "copies",
+                      "scale"
+                    ],
+                    "properties": {
+                      "partId": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "copies": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "scale": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "downFace": {
+                        "$ref": "#/$defs/faceRef"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "laser": {
+              "type": "object",
+              "properties": {
+                "sheet": {
+                  "type": "object",
+                  "properties": {
+                    "w": {
+                      "type": "number"
+                    },
+                    "h": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "thickness": {
+                  "type": "number"
+                },
+                "kerf": {
+                  "type": "number"
+                },
+                "spacing": {
+                  "type": "number"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "partId",
+                      "copies"
+                    ],
+                    "properties": {
+                      "partId": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "copies": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "face": {
+                        "$ref": "#/$defs/faceRef"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

@@ -22,6 +22,7 @@ export function WorkspaceTabs() {
         [
           ['parts', 'Pièces', 'Modéliser les pièces'],
           ['assembly', 'Assemblage', 'Assembler les pièces et les faire bouger'],
+          ['fabrication', 'Fabrication', 'Préparer l’impression 3D et la découpe laser'],
         ] as const
       ).map(([id, label, title]) => (
         <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={workspace === id} title={title} onClick={() => c.setWorkspace(id)}>
@@ -354,8 +355,9 @@ function InstancePanel({ id }: { id: string }) {
   if (!data) return null;
   const { inst, fixed, held } = data;
   const axis = (k: 'x' | 'y' | 'z') => (
+    <label class="mini-field" key={k}>
+    <span>{k.toUpperCase()}</span>
     <NumberInput
-      key={k}
       value={formatNumber(inst.position[k], 2)}
       unit="mm"
       min={-100000}
@@ -365,6 +367,7 @@ function InstancePanel({ id }: { id: string }) {
         if (Number.isFinite(v)) c.moveInstance(id, { ...inst.position, [k]: v });
       }}
     />
+    </label>
   );
   return (
     <>

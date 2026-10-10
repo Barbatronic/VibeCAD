@@ -21,8 +21,33 @@ export interface CadDocument {
   resources: Record<Id, Resource>;
   /** Assemblage des pièces (facultatif : absent tant qu'on n'utilise pas l'onglet Assemblage). */
   assembly?: Assembly;
+  /** Préparation de la fabrication (facultatif : réglages de l'onglet Fabrication). */
+  fabrication?: FabricationSettings;
   createdAt: string;
   modifiedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Fabrication (impression 3D, découpe laser)
+
+/** Pièce à imprimer : nombre d'exemplaires, échelle (%), face posée sur le plateau. */
+export interface PrintItem {
+  partId: Id;
+  copies: number;
+  scale: number;
+  downFace?: FaceRef;
+}
+
+/** Pièce plate à découper : nombre d'exemplaires et face qui donne le contour. */
+export interface LaserItem {
+  partId: Id;
+  copies: number;
+  face?: FaceRef;
+}
+
+export interface FabricationSettings {
+  print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
+  laser: { sheet: { w: number; h: number }; thickness: number; kerf: number; spacing: number; items: LaserItem[] };
 }
 
 // ---------------------------------------------------------------------------

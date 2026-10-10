@@ -6,6 +6,7 @@ import { definitionOf, featureSummary } from '../features/registry';
 import { activeCount } from '../app/rollback';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
+import { FabricationSection } from './FabricationUi';
 import { IconButton } from './components/controls';
 import { Icon } from './icons';
 
@@ -281,6 +282,8 @@ export function LeftPanel() {
     <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : 'Pièces et historique'}>
       {workspace === 'assembly' ? (
         <AssemblySection />
+      ) : workspace === 'fabrication' ? (
+        <FabricationSection />
       ) : (
         <>
           <PartsSection />

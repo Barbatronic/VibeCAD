@@ -2132,7 +2132,7 @@ kbd {
 }
 
 .limits-row.three {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .limits-row .input-with-unit input {
@@ -2168,4 +2168,33 @@ kbd {
 /* Les cotes se déplacent en glissant leur libellé. */
 .vp-dim {
   cursor: move;
+}
+
+/* ------------------------------------------------------------------ Fabrication */
+
+.fab-item {
+  padding: 8px 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fab-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.fab-face {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
 }
