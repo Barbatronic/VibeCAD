@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -690,6 +690,7 @@ export class AppController {
     const { draft } = mode;
     const feature = draft.feature;
     if (feature.type === 'pattern') return this.pickPatternAxis(pick, feature);
+    if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
     if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
     const mesh = this.displayedMesh(pick.partId);
@@ -706,6 +707,22 @@ export class AppController {
       edges = r.kind === 'blend' ? edges.filter((_e, i) => i !== r.index) : toggleEdge(edges, r.ref);
     }
     this.updateDraft((f) => ({ ...f, params: { ...f.params, edges } }) as Feature);
+  }
+
+  /** Clic dans la vue pendant l'édition d'une symétrie : la face plane cliquée devient le plan. */
+  private pickMirrorPlane(pick: ModelPick, feature: MirrorFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une face de la pièce en cours de modification.');
+    if (pick.kind !== 'face') return this.explain('Cliquez une face plane : elle servira de miroir.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    const face = mesh?.faces[pick.index];
+    if (!face || !part) return;
+    if (!face.plane) return this.explain('Cette face est courbe : choisissez une face plane.');
+    const ref = pickFaceReference(face.tags.filter((t) => t.featureId !== feature.id), part);
+    if (!ref) return this.explain('Choisissez une face de la pièce, pas du reflet.');
+    this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, plane: { kind: 'face', ref } } } });
   }
 
   /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */

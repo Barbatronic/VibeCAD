@@ -231,7 +231,7 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'arrondis et chanfreins', types: ['fillet', 'chamfer'] },
-  { name: 'répétitions et symétries', types: ['pattern'] },
+  { name: 'répétitions et symétries', types: ['pattern', 'mirror'] },
 ];
 
 /** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */

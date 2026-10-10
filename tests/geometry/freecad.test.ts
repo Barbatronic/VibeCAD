@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makePatternFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
@@ -159,5 +159,18 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(9000 - 6 * Math.PI * 9 * 5, 3);
+  });
+
+  it('symétrie de toute la pièce (plan YZ) : un seul solide valide, volume doublé', () => {
+    const { doc, ids } = buildPlateDocument();
+    const mirrored = addFeature(doc, ids.partId, makeMirrorFeature(doc, findPart(doc, ids.partId)!));
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(mirrored);
+    const file = join(outDir, 'symetrie-yz.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Plaque symétrique', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(2 * (9000 - Math.PI * 9 * 5), 3);
+    expect(o!.bbox[0]).toBeCloseTo(-60, 3);
   });
 });

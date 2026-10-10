@@ -578,6 +578,90 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "mirror"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "source",
+                "plane"
+              ],
+              "properties": {
+                "source": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "part"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "feature"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "plane": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },

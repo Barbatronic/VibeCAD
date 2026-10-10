@@ -27,6 +27,7 @@ import {
   type CurveKind,
   type DistanceResult,
   type EdgeMeshInfo,
+  type CopyTag,
   type FaceMeshInfo,
   type FacePlaneLookup,
   type FaceTag,
@@ -74,6 +75,12 @@ export function sameFaceTag(a: FaceTag, b: FaceTag): boolean {
     (a.entityId ?? null) === (b.entityId ?? null) &&
     (a.index ?? null) === (b.index ?? null)
   );
+}
+
+/** Étiquette d'une face copiée (voir `CopyTag`). */
+function copyTag(t: FaceTag, retag: CopyTag): FaceTag {
+  if ('index' in retag) return { featureId: retag.featureId, role: t.role, ...(t.entityId !== undefined ? { entityId: t.entityId } : {}), index: retag.index };
+  return { featureId: retag.featureId, role: t.role, entityId: `${t.featureId}/${t.entityId ?? ''}`, ...(t.index !== undefined ? { index: t.index } : {}) };
 }
 
 function addTags(target: FaceTag[], tags: readonly FaceTag[]): void {
@@ -568,7 +575,7 @@ export class OcctKernel implements GeometryKernel {
     return out;
   }
 
-  transformed(shapeIn: KernelShape, m: readonly number[], retag?: { featureId: Id; index: number }): KernelShape {
+  transformed(shapeIn: KernelShape, m: readonly number[], retag?: CopyTag): KernelShape {
     const base = asOcct(shapeIn);
     const oc = this.oc;
     return this.guard('placement', () =>
@@ -576,27 +583,42 @@ export class OcctKernel implements GeometryKernel {
         const trsf = scope.track(new oc.gp_Trsf());
         // gp_Trsf attend la matrice 3 × 4 par lignes.
         trsf.SetValues(m[0]!, m[4]!, m[8]!, m[12]!, m[1]!, m[5]!, m[9]!, m[13]!, m[2]!, m[6]!, m[10]!, m[14]!);
-        const op = scope.track(new oc.BRepBuilderAPI_Transform(base.shape, trsf, true, false));
-        if (!op.IsDone()) throw new KernelError('La pièce n’a pas pu être placée.');
-        const shape = op.Shape();
-        const faces = this.taggedFaces(shape);
-        if (retag) {
-          // La copie garde la topologie de l'original, dans le même ordre : chaque face copiée reçoit
-          // le rôle de la face d'origine, au nom de la répétition et avec le numéro de la copie.
-          const originals = this.explore(base.shape, 'face');
-          originals.forEach((orig, i) => {
-            const k = this.indexOfFace(base.faces, orig);
-            const target = faces[i];
-            if (k >= 0 && target) {
-              const tags = base.faces[k]!.tags.map((t) => ({ featureId: retag.featureId, role: t.role, ...(t.entityId !== undefined ? { entityId: t.entityId } : {}), index: retag.index }));
-              addTags(target.tags, tags);
-            }
-            orig.delete();
-          });
-        }
-        return new OcctShape(shape, faces);
+        return this.copyWith(scope, base, trsf, retag);
       }),
     );
+  }
+
+  mirrored(shapeIn: KernelShape, origin: Vec3, normal: Vec3, retag?: CopyTag): KernelShape {
+    const base = asOcct(shapeIn);
+    const oc = this.oc;
+    return this.guard('symétrie', () =>
+      withScope((scope) => {
+        const trsf = scope.track(new oc.gp_Trsf());
+        trsf.SetMirror(scope.track(new oc.gp_Ax2(this.pnt(scope, origin), this.dir(scope, normal))));
+        return this.copyWith(scope, base, trsf, retag);
+      }),
+    );
+  }
+
+  /**
+   * Copie transformée d'une forme. Avec `retag`, la copie garde la topologie de l'original, dans
+   * le même ordre : chaque face copiée reçoit l'étiquette d'origine réécrite au nom de la copie.
+   */
+  private copyWith(scope: Scope, base: OcctShape, trsf: InstanceType<OpenCascadeInstance['gp_Trsf']>, retag?: CopyTag): OcctShape {
+    const op = scope.track(new this.oc.BRepBuilderAPI_Transform(base.shape, trsf, true, false));
+    if (!op.IsDone()) throw new KernelError('La copie n’a pas pu être placée.');
+    const shape = op.Shape();
+    const faces = this.taggedFaces(shape);
+    if (retag) {
+      const originals = this.explore(base.shape, 'face');
+      originals.forEach((orig, i) => {
+        const k = this.indexOfFace(base.faces, orig);
+        const target = faces[i];
+        if (k >= 0 && target) addTags(target.tags, base.faces[k]!.tags.map((t) => copyTag(t, retag)));
+        orig.delete();
+      });
+    }
+    return new OcctShape(shape, faces);
   }
 
   edgeCurves(shapeIn: KernelShape, ref: EdgeRef): EdgeCurve[] {

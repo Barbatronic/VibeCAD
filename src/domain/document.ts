@@ -5,6 +5,9 @@
  */
 import { createId } from './ids';
 import type {
+  MirrorFeature,
+  MirrorParams,
+  MirrorPlane,
   PatternFeature,
   PatternParams,
   RevolveAxis,
@@ -45,6 +48,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   fillet: 'Congé',
   chamfer: 'Chanfrein',
   pattern: 'Répétition',
+  mirror: 'Symétrie',
 };
 
 export function nowIso(): string {
@@ -201,7 +205,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -244,6 +248,10 @@ export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, k
     name: nextFeatureName(part, 'pattern'),
     params: { sourceId, kind, axis: { kind: 'axis', axis: kind === 'linear' ? 'X' : 'Z' }, count: kind === 'linear' ? 3 : 6, spacing: 10, angle: 360, reversed: false },
   };
+}
+
+export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorParams['source'] = { kind: 'part' }, plane: MirrorPlane = { kind: 'plane', plane: 'YZ' }): MirrorFeature {
+  return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
 }
 
 export function makePocketFeature(

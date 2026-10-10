@@ -126,7 +126,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -147,6 +147,7 @@ export type ImportedSolidFeature = FeatureBase<'imported-solid', ImportedSolidPa
 export type FilletFeature = FeatureBase<'fillet', FilletParams>;
 export type ChamferFeature = FeatureBase<'chamfer', ChamferParams>;
 export type PatternFeature = FeatureBase<'pattern', PatternParams>;
+export type MirrorFeature = FeatureBase<'mirror', MirrorParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -166,8 +167,9 @@ export type SketchSupport =
  * - `side` : face latérale engendrée par l'élément d'esquisse `entityId` ;
  * - `imported` : face n° `index` d'un solide importé (ordre de lecture du fichier STEP embarqué) ;
  * - `blend` : face créée par un congé ou un chanfrein sur l'arête n° `index` de ses paramètres.
- * Quand `featureId` est une répétition, la face appartient à la copie n° `index` et `role` /
- * `entityId` sont ceux de la face d'origine.
+ * Quand `featureId` est une répétition (ou la symétrie d'une étape), la face appartient à la
+ * copie n° `index` et `role` / `entityId` sont ceux de la face d'origine. Pour la symétrie de toute
+ * la pièce, `entityId` vaut « <étape d'origine>/<élément> » et `index` est celui d'origine.
  */
 export interface FaceRef {
   featureId: Id;
@@ -430,6 +432,18 @@ export interface PatternParams {
   angle: number;
   reversed: boolean;
   second?: PatternDirection;
+}
+
+/** Plan de symétrie : un plan d'origine (XY, XZ, YZ) ou une face plane de la pièce. */
+export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; ref: FaceRef };
+
+/**
+ * Symétrie (miroir) : la copie symétrique de toute la pièce, ou du volume ajouté / retiré par une
+ * étape (extrusion, poche, révolution), par rapport à un plan.
+ */
+export interface MirrorParams {
+  source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
+  plane: MirrorPlane;
 }
 
 export interface ExtrudeParams {

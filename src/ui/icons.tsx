@@ -41,6 +41,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M5.5 5.5h13M16 3.5l2.5 2-2.5 2" />
     </>
   ),
+  mirror: (
+    <>
+      <path d="M12 3v18" stroke-dasharray="2 2" />
+      <path d="M9 6L3 18h6z" />
+      <path d="M15 6l6 12h-6z" opacity="0.55" />
+    </>
+  ),
   laser: (
     <>
       <path d="M12 3v7" />

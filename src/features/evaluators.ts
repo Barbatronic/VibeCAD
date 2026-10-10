@@ -1,6 +1,7 @@
 /** Registre des évaluateurs géométriques (exécutés dans le worker de calcul ou dans les tests). */
 import type { Feature, FeatureType } from '../domain/model';
 import type { FeatureEvaluator } from './evaluation';
+import { evaluateMirror } from './mirror/evaluate';
 import { evaluateChamfer } from './chamfer/evaluate';
 import { evaluateExtrude } from './extrude/evaluate';
 import { evaluateFillet } from './fillet/evaluate';
@@ -18,6 +19,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   pocket: evaluatePocket,
   revolve: evaluateRevolve,
   pattern: evaluatePattern,
+  mirror: evaluateMirror,
   fillet: evaluateFillet,
   chamfer: evaluateChamfer,
   'imported-solid': evaluateImportedSolid,

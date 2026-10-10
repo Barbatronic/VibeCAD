@@ -139,6 +139,14 @@ export interface DistanceResult {
   pointB: Vec3;
 }
 
+/**
+ * Étiquetage des faces d'une copie :
+ * - `index` : copie n° `index` d'une répétition (ou d'une symétrie d'étape) : rôle et élément gardés ;
+ * - `whole` : symétrie de toute la pièce : l'élément devient « <étape d'origine>/<élément> » et
+ *   l'index d'origine est conservé.
+ */
+export type CopyTag = { featureId: Id; index: number } | { featureId: Id; whole: true };
+
 export class KernelError extends Error {
   constructor(
     message: string,
@@ -164,10 +172,12 @@ export interface GeometryKernel {
   findFacePlane(shape: KernelShape, ref: FaceRef): FacePlaneLookup;
   /**
    * Copie déplacée d'un solide (matrice 4 × 4 de placement, par colonnes) : export d'assemblage,
-   * répétition. Avec `retag`, chaque face copiée reçoit le rôle de la face d'origine au nom de
-   * `featureId`, avec `index` = numéro de la copie (sans `retag`, les copies n'ont pas d'étiquette).
+   * répétition. Avec `retag`, les faces copiées sont étiquetées au nom de la copie (voir
+   * `CopyTag`) ; sans, elles n'ont pas d'étiquette.
    */
-  transformed(shape: KernelShape, matrix: readonly number[], retag?: { featureId: Id; index: number }): KernelShape;
+  transformed(shape: KernelShape, matrix: readonly number[], retag?: CopyTag): KernelShape;
+  /** Copie symétrique d'un solide par rapport au plan (point, normale) ; mêmes étiquettes que `transformed`. */
+  mirrored(shape: KernelShape, origin: Vec3, normal: Vec3, retag?: CopyTag): KernelShape;
   /** Géométrie exacte des arêtes désignées par une référence persistante (vide si introuvable). */
   edgeCurves(shape: KernelShape, ref: EdgeRef): EdgeCurve[];
   /**

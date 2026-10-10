@@ -36,6 +36,8 @@ export type FeatureIssueCode =
   | 'PATTERN_SOURCE_MISSING'
   | 'PATTERN_AXIS_INVALID'
   | 'PATTERN_COPIES_OUTSIDE'
+  | 'MIRROR_PLANE_LOST'
+  | 'MIRROR_NOTHING_ADDED'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
 
@@ -92,6 +94,8 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
     'L’étape à répéter n’a pas de volume à copier : elle a échoué, a été supprimée ou se trouve après la répétition. Choisissez une extrusion, une poche ou une révolution placée avant.',
   PATTERN_AXIS_INVALID: 'Cette arête ne donne pas de direction : choisissez une arête droite ou le bord d’un trou, ou un axe X, Y ou Z.',
   PATTERN_COPIES_OUTSIDE: 'Certains exemplaires tombent en dehors de la pièce et ne retirent rien : réduisez l’espacement ou le nombre.',
+  MIRROR_PLANE_LOST: 'La face choisie comme plan de symétrie n’existe plus ou n’est pas plane : choisissez un autre plan.',
+  MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',
   BLEND_FAILED: 'Cette valeur est trop grande pour les arêtes choisies : essayez une valeur plus petite.',

@@ -72,7 +72,7 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
   }
   if (def.tool.input === 'edges') return yes;
   if (def.tool.input === 'part') {
-    if (!part.features.some((f) => PATTERN_SOURCE_TYPES.includes(f.type))) {
+    if (type === 'pattern' && !part.features.some((f) => PATTERN_SOURCE_TYPES.includes(f.type))) {
       return no('Il n’y a encore rien à répéter : faites d’abord une extrusion, une poche ou une révolution.');
     }
     return yes;
