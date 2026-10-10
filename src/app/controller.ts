@@ -48,6 +48,7 @@ import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../pe
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
 import { createSession, setPixelSize, setProjectable, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
+import { applyUpdate } from './offline';
 import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
@@ -1417,6 +1418,8 @@ export class AppController {
         return this.startSketch();
       case 'rollback-end':
         return this.rollbackToEnd(action.partId);
+      case 'update-app':
+        return applyUpdate();
     }
   }
 

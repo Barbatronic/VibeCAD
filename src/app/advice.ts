@@ -17,7 +17,8 @@ export type AdviceAction =
   | { kind: 'edit-feature'; featureId: Id; label: string }
   | { kind: 'repair-support'; featureId: Id; label: string }
   | { kind: 'start-sketch'; label: string }
-  | { kind: 'rollback-end'; partId: Id; label: string };
+  | { kind: 'rollback-end'; partId: Id; label: string }
+  | { kind: 'update-app'; label: string };
 
 export interface Advice {
   /** Clé stable : un conseil réduit par l'utilisateur ne revient pas tant qu'il ne change pas. */
@@ -77,6 +78,15 @@ function featureAdvice(s: AppState, status: FeatureStatus): Advice {
 /** Conseil le plus utile à cet instant, ou null (le chat reste discret). */
 export function currentAdvice(s: AppState): Advice | null {
   if (s.kernel.status !== 'ready' || s.tutorial) return null;
+  if (s.offline.status === 'update-ready' && s.mode.kind === 'model') {
+    return {
+      id: 'update-ready',
+      level: 'conseil',
+      mood: 'happy',
+      text: 'Une nouvelle version de VibeCAD est arrivée ! Ton travail est sauvegardé : on peut mettre à jour tout de suite.',
+      action: { kind: 'update-app', label: 'Mettre à jour' },
+    };
+  }
   const part = s.doc.parts.find((p) => p.id === s.activePartId) ?? s.doc.parts[0];
   if (!part) return null;
 

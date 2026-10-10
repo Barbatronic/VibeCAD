@@ -3,6 +3,7 @@ import { isDirty } from '../app/state';
 import { formatLength } from '../domain/units';
 import { describeFaceRef, pickFaceReference } from '../features/sketch/support';
 import { TOOL_HELP } from '../sketch/session';
+import { applyUpdate } from '../app/offline';
 import type { ModelPick } from '../viewport/viewport';
 import { useAppState } from './context';
 import { Icon } from './icons';
@@ -86,7 +87,10 @@ export function StatusBar() {
         </span>
       ) : offline.status === 'update-ready' ? (
         <span class="item">
-          <span class="dot warn" /> Nouvelle version prête (rechargez la page)
+          <span class="dot warn" /> Nouvelle version disponible{' '}
+          <button type="button" class="tl-link" onClick={() => applyUpdate()}>
+            Mettre à jour
+          </button>
         </span>
       ) : offline.status === 'error' ? (
         <span class="item" title={offline.message}>
