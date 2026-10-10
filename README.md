@@ -54,8 +54,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
   pièce ne suit que le mouvement permis). Export STEP / 3MF de l'assemblage. Voir
   [docs/assemblage.md](docs/assemblage.md).
 - **Fabrication** (onglet à part) : préparer le plateau d'impression 3D (face posée, exemplaires,
-  échelle, taille du plateau, estimation de matière) et l'exporter en 3MF ; préparer la découpe
-  laser (contour d'une face, trait de coupe compensé, placement sur plaques) en SVG et DXF ;
+  échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière) et l'exporter
+  en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
+  préréglages 3 et 5 mm en 300 × 200 mm ; contour d'une face, trait de coupe compensé, placement
+  sur plaques) en SVG et DXF ;
   documents : mise en plan cotée (3 vues, PDF / SVG), gabarit papier 1:1 (PDF), nomenclature (CSV).
   Voir [docs/fabrication.md](docs/fabrication.md).
 - **Vue 3D** : rotation, déplacement, zoom vers le curseur, vues standard, cadrage, projection

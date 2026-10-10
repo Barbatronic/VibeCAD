@@ -241,14 +241,19 @@ sans assemblage n'a pas ce champ. Détails : [assemblage.md](assemblage.md).
 "fabrication": {
   "print": { "bed": { "x": 220, "y": 220, "z": 250 }, "spacing": 5,
              "items": [ { "partId": "part-…", "copies": 2, "scale": 100, "downFace": faceRef } ] },
-  "laser": { "sheet": { "w": 600, "h": 400 }, "thickness": 3, "kerf": 0.15, "spacing": 4,
-             "items": [ { "partId": "part-…", "copies": 1, "face": faceRef } ] }
+  "laser": { "materials": [ { "id": "mat-3", "name": "Contreplaqué 3 mm", "thickness": 3,
+                              "sheet": { "w": 300, "h": 200 }, "kerf": 0.15 } ],
+             "spacing": 4,
+             "items": [ { "partId": "part-…", "copies": 1, "face": faceRef, "materialId": "mat-3" } ] }
 }
 ```
 
 Réglages de l'onglet Fabrication : plateau d'impression (mm), espacement, et par pièce le nombre
-d'exemplaires, l'échelle (%) et la face posée sur le plateau ; pour la découpe laser, la plaque,
-l'épaisseur du matériau, le trait de coupe (kerf) et la face qui donne le contour. Voir
+d'exemplaires, l'échelle (%) et la face posée sur le plateau (les plateaux supplémentaires sont
+calculés, pas enregistrés) ; pour la découpe laser, les matériaux (nom, épaisseur, plaque, trait de
+coupe), et par pièce la face qui donne le contour et le matériau (`materialId` absent : choix
+automatique par l'épaisseur). Les premiers fichiers avaient une seule plaque (`sheet`,
+`thickness`, `kerf` directement sous `laser`) : ils sont lus comme un matériau unique. Voir
 [fabrication.md](fabrication.md).
 
 ## Ressources embarquées

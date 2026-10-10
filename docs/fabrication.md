@@ -11,23 +11,36 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
   plateau (la pièce est retournée en conséquence). « orientation d'origine » annule ce choix.
 - **Plateau** : taille X × Y × hauteur (220 × 220 × 250 mm par défaut). Les exemplaires sont
   rangés en lignes, espacés de 5 mm. Un avertissement apparaît si une pièce est plus grande que le
-  plateau ou si tout ne tient pas.
+  plateau.
+- **Plusieurs plateaux** : quand tout ne tient pas sur un plateau, les exemplaires suivants passent
+  sur un nouveau plateau (calculé automatiquement, à imprimer l'un après l'autre). Les flèches
+  « Plateau 1 sur N » choisissent le plateau affiché ; la matière est donnée pour ce plateau et
+  pour l'ensemble.
 - **Matière** : estimation pour des pièces pleines en PLA (1,24 g/cm³). Le logiciel d'impression,
   avec son remplissage, en utilisera moins.
 - **Exporter le plateau (3MF)** : un objet par exemplaire, à sa place, orienté et mis à
-  l'échelle, en millimètres, avec le nom et la couleur de la pièce.
+  l'échelle, en millimètres, avec le nom et la couleur de la pièce. S'il y a plusieurs plateaux, le
+  dialogue propose le plateau affiché, un autre, ou **tous** (un fichier 3MF par plateau).
 
 ## Découpe laser (SVG, DXF)
 
-- Pour chaque pièce plate (une extrusion de l'épaisseur du matériau) : **nombre d'exemplaires**
-  et **face du contour** (par défaut la plus grande face plate ; un clic sur une autre face plate
-  la remplace). L'épaisseur de la pièce est affichée et comparée à celle du **matériau**.
+- **Matériaux** : une « page » par matériau (onglets du panneau de droite), avec son nom, son
+  **épaisseur**, la taille de ses **plaques** et son **trait de coupe**. Deux matériaux sont
+  préréglés : contreplaqué 3 mm et 5 mm, plaques de 300 × 200 mm, trait de 0,15 mm. « + » ajoute
+  un matériau (plexiglas, carton…), « Supprimer » en retire un (il en reste toujours au moins un).
+  Un même projet peut ainsi mélanger plusieurs matériaux et plusieurs épaisseurs.
+- Pour chaque pièce plate (une extrusion de l'épaisseur du matériau) : **nombre d'exemplaires**,
+  **matériau** (« Auto » par défaut : celui dont l'épaisseur est la plus proche de celle de la
+  pièce) et **face du contour** (par défaut la plus grande face plate ; un clic sur une autre face
+  plate la remplace). Un avertissement apparaît si l'épaisseur de la pièce diffère de celle du
+  matériau choisi.
 - **Trait de coupe (kerf)** : le contour extérieur est décalé vers l'extérieur et les trous vers
   l'intérieur de la moitié du trait, pour que les pièces découpées aient la bonne taille.
-- **Plaque** : largeur × hauteur (600 × 400 mm par défaut), espace entre les pièces (4 mm). Les
-  pièces sont rangées en lignes ; quand une plaque est pleine, on passe à la suivante (plaques
-  posées côte à côte dans le fichier, séparées de 20 mm). Aperçu de la première plaque.
-- **Export** à l'échelle 1:1 en millimètres : SVG (traits rouges de 0,1 mm = découpe, textes
+- **Plaques** : les pièces de chaque matériau sont rangées en lignes sur ses plaques, espacées de
+  4 mm ; quand une plaque est pleine, on passe à la suivante. Aperçu de chaque plaque sur la page
+  du matériau.
+- **Export** à l'échelle 1:1 en millimètres, **un fichier par matériau** (ses plaques posées côte
+  à côte, séparées de 20 mm ; boutons SVG / DXF de la page, ou « Exporter tout ») : SVG (traits rouges de 0,1 mm = découpe, textes
   bleus = gravure du nom des pièces si demandé) et DXF R12 (polylignes fermées sur le calque
   `DECOUPE` en rouge, textes sur le calque `GRAVURE` en bleu), lisibles par LightBurn, Inkscape,
   LibreCAD et la plupart des logiciels de découpe.
