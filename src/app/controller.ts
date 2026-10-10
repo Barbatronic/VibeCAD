@@ -143,6 +143,11 @@ export class AppController {
     if (tips === false) this.set({ tips: false });
   }
 
+  /** Montre ou cache le centre de gravité de la pièce active. */
+  toggleCentroid(on?: boolean): void {
+    this.set({ showCentroid: on ?? !this.state.showCentroid });
+  }
+
   // ----- Vue en coupe (affichage seulement)
 
   private sectionSeq = 0;

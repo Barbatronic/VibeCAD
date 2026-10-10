@@ -68,6 +68,8 @@ export interface ShapeAnalysis {
   solidCount: number;
   /** Résultat de la vérification topologique et géométrique (BRepCheck). */
   valid: boolean;
+  /** Centre de gravité du volume (matière homogène), null sans volume. */
+  centroid: Vec3 | null;
 }
 
 export type FacePlaneLookup =

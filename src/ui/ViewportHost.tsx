@@ -42,6 +42,7 @@ import { MascotBubble } from './Mascot';
 import { formatNumber } from '../domain/units';
 import { Icon } from './icons';
 import { allows } from '../app/levels';
+import type { Vec3 } from '../math/vec';
 import { formatLength } from '../domain/units';
 
 function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderInput {
@@ -230,7 +231,11 @@ export function buildViewportInput(s: AppState): ViewportInput {
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
   const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'shell');
-  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces };
+  // Centre de gravité de la pièce active (pièce entière : pas pendant une coupe ni une esquisse).
+  const points: { at: Vec3; label: string }[] = [];
+  const active = s.display[s.activePartId]?.result.analysis;
+  if (s.showCentroid && allows(s.level, 'view-centroid') && !cut && mode !== 'sketch' && active?.centroid) points.push({ at: active.centroid, label: 'G' });
+  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -490,7 +495,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

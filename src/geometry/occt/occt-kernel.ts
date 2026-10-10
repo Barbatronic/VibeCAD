@@ -569,7 +569,13 @@ export class OcctKernel implements GeometryKernel {
             };
         const solids = this.explore(shape, 'solid');
         for (const s of solids) s.delete();
-        return { volume: vp.Mass(), area: sp.Mass(), bbox, solidCount: solids.length, valid: this.isValid(shape) };
+        const volume = vp.Mass();
+        let centroid: Vec3 | null = null;
+        if (volume > 1e-12) {
+          const c = scope.track(vp.CentreOfMass());
+          centroid = { x: c.X(), y: c.Y(), z: c.Z() };
+        }
+        return { volume, area: sp.Mass(), bbox, solidCount: solids.length, valid: this.isValid(shape), centroid };
       }),
     );
   }

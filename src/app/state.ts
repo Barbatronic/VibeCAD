@@ -136,6 +136,8 @@ export interface AppState {
   tips: boolean;
   /** Vue en coupe (affichage seulement) et pièces coupées reçues du moteur. */
   section: SectionPlane | null;
+  /** Repère du centre de gravité de la pièce active dans la vue. */
+  showCentroid: boolean;
   sectionParts: { key: string; parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> } | null;
   workspace: Workspace;
   fabricationTab: FabricationTab;
@@ -184,6 +186,7 @@ export function initialState(): AppState {
     level: 'debutant',
     tips: true,
     section: null,
+    showCentroid: false,
     sectionParts: null,
     workspace: 'parts',
     fabricationTab: 'print',

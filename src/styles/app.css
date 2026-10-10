@@ -2640,3 +2640,28 @@ kbd {
   width: 20px;
   height: 20px;
 }
+
+/* Centre de gravité : le symbole des plans (cercle à quartiers noirs et blancs). */
+.vp-centroid {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #1f2126;
+  border-radius: 50%;
+  background: conic-gradient(#1f2126 0 25%, #ffffff 0 50%, #1f2126 0 75%, #ffffff 0);
+  box-shadow: 0 0 0 1.5px #ffffff;
+  pointer-events: none;
+}
+
+.vp-tag-centroid {
+  /* Décalé à côté du symbole (la position est gérée par la vue : pas de transform ici). */
+  margin: -26px 0 0 26px;
+  pointer-events: none;
+}
+
+.part-figures {
+  margin: 12px 4px 0;
+}
+
+.part-figures .field-help {
+  margin: 0 0 4px;
+}

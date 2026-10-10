@@ -98,6 +98,8 @@ export interface ViewportInput {
   fitRequest?: number;
   /** Repères des liaisons à montrer (assemblage). */
   markers?: ViewMarker[];
+  /** Points remarquables (centre de gravité), avec une étiquette. */
+  points?: { at: Vec3; label: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
   sectionFaces?: ViewSelection[];
   /** Face verrouillée (touche Maj maintenue) : le survol et le clic désignent le sommet le plus proche. */
@@ -410,6 +412,7 @@ export class Viewport {
     this.syncSession(input.session);
     this.syncSelection(input.selection);
     this.syncSectionFaces(input.sectionFaces ?? []);
+    this.syncPoints(input.points ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
     this.syncBed(input.bed ?? null);
@@ -616,6 +619,33 @@ export class Viewport {
         this.selectionOverlays.push(overlay);
       }
     }
+  }
+
+  private pointObjects: Object3D[] = [];
+  private pointsKey = '';
+
+  /** Symbole du centre de gravité : cercle à quartiers, visible à travers la pièce. */
+  private syncPoints(points: { at: Vec3; label: string }[]): void {
+    const key = JSON.stringify(points);
+    if (key === this.pointsKey) return;
+    this.pointsKey = key;
+    for (const o of this.pointObjects) this.disposeOverlay(o);
+    this.pointObjects = [];
+    for (const p of points) {
+      const el = document.createElement('span');
+      el.className = 'vp-centroid';
+      el.setAttribute('aria-hidden', 'true');
+      const tag = document.createElement('span');
+      tag.className = 'vp-tag vp-tag-centroid';
+      tag.textContent = p.label;
+      const symbol = new CSS2DObject(el);
+      symbol.position.set(p.at.x, p.at.y, p.at.z);
+      const label = new CSS2DObject(tag);
+      label.position.set(p.at.x, p.at.y, p.at.z);
+      this.overlayGroup.add(symbol, label);
+      this.pointObjects.push(symbol, label);
+    }
+    this.requestRender();
   }
 
   private sectionOverlays: Object3D[] = [];

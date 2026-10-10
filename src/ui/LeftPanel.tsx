@@ -1,7 +1,9 @@
+import { allows } from '../app/levels';
+import { PLA_DENSITY } from '../app/fabrication';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Feature, Id, Part } from '../domain/model';
 import type { FeatureStatus } from '../domain/status';
-import { formatVolume } from '../domain/units';
+import { formatNumber, formatVolume } from '../domain/units';
 import { definitionOf, featureSummary } from '../features/registry';
 import { activeCount } from '../app/rollback';
 import { useAppState, useController } from './context';
@@ -187,6 +189,8 @@ function HistorySection() {
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const analysis = useAppState((s) => (part ? s.display[part.id]?.result.analysis : null));
+  const showCentroid = useAppState((s) => s.showCentroid);
+  const canCentroid = useAppState((s) => allows(s.level, 'view-centroid'));
   const selection = useAppState((s) => s.selection);
   const draft = useAppState((s) => (s.mode.kind === 'feature' && s.mode.draft.isNew ? s.mode.draft.feature : null));
   const editingSketch = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.featureId : null));
@@ -295,10 +299,22 @@ function HistorySection() {
           {active === part.features.length ? draftRow : null}
         </ol>
         {analysis && analysis.solidCount > 0 ? (
-          <p class="field-help" style={{ margin: '12px 4px 0' }}>
-            Volume de la pièce : <strong>{formatVolume(analysis.volume)}</strong>
-            {analysis.solidCount > 1 ? ` (${analysis.solidCount} morceaux séparés)` : ''}
-          </p>
+          <div class="part-figures">
+            <p class="field-help">
+              Volume de la pièce : <strong>{formatVolume(analysis.volume)}</strong>
+              {analysis.solidCount > 1 ? ` (${analysis.solidCount} morceaux séparés)` : ''}
+              <br />
+              Masse en PLA (pleine) : <strong>≈ {formatNumber((analysis.volume * PLA_DENSITY) / 1000, 1)} g</strong>
+            </p>
+            {canCentroid && analysis.centroid ? (
+              <label class="checkbox-row" title="Le centre de gravité est le point d’équilibre de la pièce : posée sur une pointe à cet endroit, elle tiendrait en équilibre.">
+                <input type="checkbox" checked={showCentroid} onChange={() => c.toggleCentroid()} />
+                <span>
+                  Centre de gravité : {formatNumber(analysis.centroid.x, 1)} ; {formatNumber(analysis.centroid.y, 1)} ; {formatNumber(analysis.centroid.z, 1)} mm
+                </span>
+              </label>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </section>
