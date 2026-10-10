@@ -24,7 +24,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Pièces** : une ou plusieurs pièces indépendantes dans un document ; nom, visibilité, couleur.
 - **Esquisses** sur les plans XY, XZ, YZ ou sur une face plane : segment, rectangle (par deux
   coins ou par le centre, qui reste au milieu quand on cote), cercle, **arc de cercle** (centre,
-  départ, arrivée ; les contours mêlant segments et arcs donnent de vrais volumes) ;
+  départ, arrivée ; les contours mêlant segments et arcs donnent de vrais volumes), **polygone
+  régulier** (centre et sommet, 3 à 32 côtés, inscrit dans un cercle de construction qu'on cote),
+  **oblong** (rainure : deux centres et une largeur) ;
   sélection, déplacement, suppression ; accrochage à l'origine, aux points et à la grille avec
   repères visuels et textuels. Outil **Couper** (T) : retirer le morceau d'un trait jusqu'aux
   croisements voisins (le morceau est montré en rouge au survol), pour réunir deux formes en un
