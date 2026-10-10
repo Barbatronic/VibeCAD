@@ -1,0 +1,108 @@
+/*
+ * Jetons visuels. Toutes les couleurs de l'interface et de la vue 3D sont définies ici,
+ * avec une variante sombre automatique. Contrastes visés : WCAG AA (4,5:1 pour le texte).
+ */
+:root {
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+
+  --bg-app: #e6eaf0;
+  --surface: #ffffff;
+  --surface-2: #f5f7fa;
+  --surface-3: #ebeff4;
+  --border: #d2d8e0;
+  --border-strong: #aeb8c5;
+  --text: #19212c;
+  --text-muted: #4f5b6b;
+  --text-faint: #6b7686;
+  --accent: #1f5fc0;
+  --accent-hover: #194e9e;
+  --accent-soft: #e3ecfa;
+  --accent-text: #ffffff;
+  --success: #1a7a43;
+  --success-soft: #e1f3e8;
+  --warning: #8f5400;
+  --warning-soft: #fcefd7;
+  --danger: #b02a26;
+  --danger-soft: #fae4e3;
+  --focus: #0b57d0;
+  --focus-gap: #ffffff;
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --shadow-2: 0 2px 6px rgba(16, 24, 40, 0.1), 0 10px 28px rgba(16, 24, 40, 0.12);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --target: 40px;
+
+  /* Vue 3D */
+  --vp-bg: #eef2f7;
+  --vp-bg-bottom: #d6dee9;
+  --vp-grid-minor: #c3ccd8;
+  --vp-grid-major: #a2afc0;
+  --vp-axis-x: #d0403b;
+  --vp-axis-y: #2b9443;
+  --vp-axis-z: #2f6fd6;
+  --vp-edge: #25303d;
+  --vp-sketch: #1f5fbf;
+  --vp-sketch-constrained: #18803f;
+  --vp-sketch-selected: #d96400;
+  --vp-sketch-hover: #3d8bff;
+  --vp-sketch-reference: #a03fc4;
+  --vp-dimension: #3f4a58;
+  --vp-preview: #5f6b7b;
+  --vp-preview-add: #23a363;
+  --vp-preview-cut: #d93c3c;
+  --vp-selection: #e06c00;
+  --vp-hover: #3d8bff;
+  --vp-error: #cc2f2a;
+  --vp-plane: #4f86d6;
+  --vp-stale: #9aa4b0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg-app: #12161c;
+    --surface: #1b2129;
+    --surface-2: #222a33;
+    --surface-3: #2a333e;
+    --border: #36414e;
+    --border-strong: #4c5969;
+    --text: #e8edf3;
+    --text-muted: #b2bdca;
+    --text-faint: #8d99a8;
+    --accent: #5b9bff;
+    --accent-hover: #7aaeff;
+    --accent-soft: #1d2f4b;
+    --accent-text: #0b1220;
+    --success: #5fd08e;
+    --success-soft: #16301f;
+    --warning: #f0b45a;
+    --warning-soft: #3a2a12;
+    --danger: #ff8a84;
+    --danger-soft: #3d1b1a;
+    --focus: #8ab8ff;
+    --focus-gap: #1b2129;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+
+    --vp-bg: #2a313b;
+    --vp-bg-bottom: #1d232b;
+    --vp-grid-minor: #3a4451;
+    --vp-grid-major: #4f5c6c;
+    --vp-edge: #0f1419;
+    --vp-sketch: #6aa5ff;
+    --vp-sketch-constrained: #63d18f;
+    --vp-sketch-selected: #ffa04d;
+    --vp-sketch-hover: #9cc4ff;
+    --vp-sketch-reference: #d68cf2;
+    --vp-dimension: #c5ced9;
+    --vp-preview: #a7b2c0;
+    --vp-plane: #6f9fe6;
+    --vp-stale: #6d7682;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

@@ -1,0 +1,1449 @@
+/**
+ * Contrôleur de l'application : traduit les actions de l'utilisateur en transactions sur le
+ * document (annulables), déclenche les recalculs dans le worker, gère les modes d'édition,
+ * l'enregistrement, la sauvegarde automatique et les échanges de fichiers.
+ */
+import { emptyHistory, recordAction, redoAction, undoAction } from '../commands/history';
+import {
+  addFeature,
+  addInstance,
+  addJoint,
+  insertFeatureAfter,
+  removeInstance,
+  removeJoint,
+  updateInstance,
+  updateJoint,
+  addPart,
+  addResource,
+  createDocument,
+  findFeature,
+  findPart,
+  makeImportedSolidFeature,
+  makeSketchFeature,
+  newResourceId,
+  removeFeaturesCascade,
+  removePart,
+  renameFeature,
+  renamePart,
+  replaceFeature,
+  setPartColor,
+  setPartVisible,
+  updateFeature,
+} from '../domain/document';
+import type { AssemblyJoint, CadDocument, Feature, FeatureType, Id, JointKind, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import { formatArea, formatLength, formatVolume } from '../domain/units';
+import type { FeatureDefinition, ToolInput } from '../features/definition';
+import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
+import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
+import { pickFaceReference } from '../features/sketch/support';
+import type { GeometryClient } from '../geometry/client';
+import type { PartResult } from '../geometry/protocol';
+import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
+import { createStepResource, verifyResources } from '../io/resources';
+import { STL_UNIT_NOTE } from '../io/stl';
+import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
+import { distance3 } from '../math/vec';
+import { AutosaveScheduler } from '../persistence/autosave';
+import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
+import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
+import { createSession, setPixelSize, setProjectable, type SketchSession } from '../sketch/session';
+import type { AdviceAction } from './advice';
+import { clampToLimits, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { cross3, dot3, sub3, type Vec3 } from '../math/vec';
+import { projectableCurves } from './projection';
+import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
+import type { Projection, StandardView } from '../viewport/camera-rig';
+import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
+import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
+import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
+import type { Store } from './store';
+import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type Mode, type PartDisplay, type Selection, type Toast } from './state';
+
+export interface ControllerDeps {
+  client: GeometryClient;
+  projects: ProjectStore | null;
+}
+
+const model: Mode = { kind: 'model' };
+
+function displayFor(prev: PartDisplay | undefined, result: PartResult): PartDisplay {
+  const failed = result.failedFeatureId !== null;
+  if (failed && prev?.mesh) return { result, mesh: prev.mesh, meshKey: prev.meshKey, stale: true };
+  return { result, mesh: result.mesh, meshKey: result.meshKey, stale: failed };
+}
+
+export class AppController {
+  private viewport: Viewport | null = null;
+  private readonly autosave: AutosaveScheduler | null;
+  private toastId = 1;
+  private evalSeq = 0;
+  private previewSeq = 0;
+  private fitPending = true;
+  /** Nouvelle esquisse en cours de création (pas encore dans le document). */
+  private newSketch: SketchFeature | null = null;
+  /** Derniers repères connus des esquisses (édition d'une esquisse bloquée). */
+  private readonly lastFrames = new Map<Id, Frame3D>();
+
+  constructor(
+    readonly store: Store<AppState>,
+    private readonly deps: ControllerDeps,
+  ) {
+    this.autosave = deps.projects ? new AutosaveScheduler(deps.projects, (autosave) => this.patchProject({ autosave })) : null;
+  }
+
+  get state(): AppState {
+    return this.store.get();
+  }
+
+  private set(partial: Partial<AppState>): void {
+    this.store.patch(partial);
+  }
+
+  private patchProject(partial: Partial<AppState['project']>): void {
+    this.set({ project: { ...this.state.project, ...partial } });
+  }
+
+  attachViewport(viewport: Viewport | null): void {
+    this.viewport = viewport;
+  }
+
+  // =========================================================================
+  // Démarrage
+
+  async start(): Promise<void> {
+    this.deps.client.ready
+      .then((info) => {
+        this.set({ kernel: { status: 'ready', initMs: info.initMs } });
+        void this.evaluate();
+      })
+      .catch((err: Error) => {
+        this.set({ kernel: { status: 'error', message: err.message } });
+      });
+    await this.restoreLastSession();
+    if (this.deps.projects) void requestPersistentStorage();
+    const mascot = await this.deps.projects?.getSetting<{ hidden?: boolean; collapsed?: boolean }>('mascot').catch(() => undefined);
+    if (mascot) this.set({ mascot: { ...this.state.mascot, hidden: !!mascot.hidden, collapsed: !!mascot.collapsed } });
+  }
+
+  private async restoreLastSession(): Promise<void> {
+    const store = this.deps.projects;
+    if (!store) {
+      this.patchProject({ storageAvailable: false });
+      return;
+    }
+    try {
+      const lastId = await store.getSetting<string>('lastProjectId');
+      const drafts = await store.listAutosaves();
+      const draft = drafts.find((d) => d.projectId === lastId) ?? drafts[0];
+      if (draft) {
+        const saved = await store.getProject(draft.projectId);
+        this.set({ dialog: { kind: 'recovery', autosave: draft, savedAt: saved?.savedAt ?? null } });
+        return;
+      }
+      if (lastId) {
+        const project = await store.getProject(lastId);
+        if (project) this.loadFromText(project.text, { savedAt: project.savedAt, dirty: false });
+      }
+    } catch {
+      this.patchProject({ storageAvailable: false });
+    }
+  }
+
+  async recover(): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'recovery' || !this.deps.projects) return;
+    const rec = await this.deps.projects.getAutosave(d.autosave.projectId);
+    this.set({ dialog: null });
+    if (rec) {
+      this.loadFromText(rec.text, { savedAt: d.savedAt, dirty: true });
+      this.toast('success', 'Travail récupéré. Pensez à l’enregistrer.');
+    }
+  }
+
+  async openSavedInsteadOfRecovery(): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'recovery' || !this.deps.projects) return;
+    const project = await this.deps.projects.getProject(d.autosave.projectId);
+    await this.deps.projects.deleteAutosave(d.autosave.projectId);
+    this.set({ dialog: null });
+    if (project) this.loadFromText(project.text, { savedAt: project.savedAt, dirty: false });
+  }
+
+  async discardRecovery(): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'recovery') return;
+    await this.deps.projects?.deleteAutosave(d.autosave.projectId);
+    this.set({ dialog: null });
+  }
+
+  // =========================================================================
+  // Document, annuler / rétablir
+
+  /** Applique une transaction annulable sur le document. */
+  commit(doc: CadDocument, label: string, extra: Partial<AppState> = {}): void {
+    const s = this.state;
+    this.set({ ...extra, doc, history: recordAction(s.history, s.doc, label), revision: s.revision + 1 });
+    this.sanitize();
+    this.afterChange();
+  }
+
+  private afterChange(): void {
+    void this.evaluate();
+    this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
+  }
+
+  /** Corrige la pièce active et la sélection si elles n'existent plus. */
+  private sanitize(): void {
+    const s = this.state;
+    const patch: Partial<AppState> = {};
+    if (!findPart(s.doc, s.activePartId) && s.doc.parts[0]) patch.activePartId = s.doc.parts[0].id;
+    const sel = s.selection;
+    if (sel) {
+      const part = findPart(s.doc, sel.partId);
+      if (!part || (sel.kind === 'feature' && !part.features.some((f) => f.id === sel.featureId))) patch.selection = null;
+    }
+    if (Object.keys(patch).length > 0) this.set(patch);
+  }
+
+  undo(): void {
+    const s = this.state;
+    if (s.mode.kind === 'sketch') return;
+    if (s.mode.kind !== 'model') {
+      this.explain('Validez ou annulez d’abord l’opération en cours.');
+      return;
+    }
+    const r = undoAction(s.history, s.doc);
+    if (!r) {
+      this.toast('info', 'Rien à annuler.');
+      return;
+    }
+    this.set({ doc: r.doc, history: r.history, revision: s.revision + 1, selection: null });
+    this.sanitize();
+    this.toast('info', `Annulé : ${r.label}`);
+    this.afterChange();
+  }
+
+  redo(): void {
+    const s = this.state;
+    if (s.mode.kind !== 'model') return;
+    const r = redoAction(s.history, s.doc);
+    if (!r) {
+      this.toast('info', 'Rien à rétablir.');
+      return;
+    }
+    this.set({ doc: r.doc, history: r.history, revision: s.revision + 1, selection: null });
+    this.sanitize();
+    this.toast('info', `Rétabli : ${r.label}`);
+    this.afterChange();
+  }
+
+  private loadFromText(text: string, meta: { savedAt: string | null; dirty: boolean; fileName?: string }): boolean {
+    const parsed = parseNativeFile(text);
+    if (!parsed.ok) {
+      this.set({ dialog: { kind: 'problem', title: 'Impossible d’ouvrir ce projet', message: parsed.error, details: parsed.details } });
+      return false;
+    }
+    this.loadDocument(parsed.doc, meta);
+    if (parsed.migratedFrom !== null) this.toast('info', `Projet converti depuis le format ${parsed.migratedFrom}. Enregistrez-le pour garder la nouvelle version.`);
+    if (parsed.warnings.length > 0) this.toast('info', `Le projet a été ouvert avec ${parsed.warnings.length} avertissement(s).`, { detail: parsed.warnings.join('\n') });
+    void verifyResources(parsed.doc.resources).then((altered) => {
+      if (altered.length > 0) this.toast('error', `Les données importées de ${altered.join(', ')} semblent modifiées.`);
+    });
+    return true;
+  }
+
+  private loadDocument(docIn: CadDocument, meta: { savedAt: string | null; dirty: boolean; fileName?: string }): void {
+    const doc = docIn.parts.length > 0 ? docIn : addPart(docIn).doc;
+    this.autosave?.cancel();
+    this.newSketch = null;
+    this.lastFrames.clear();
+    const revision = meta.dirty ? 1 : 0;
+    this.set({
+      doc,
+      history: emptyHistory(),
+      revision,
+      activePartId: doc.parts[0]!.id,
+      mode: model,
+      selection: null,
+      hover: null,
+      rollback: {},
+      display: {},
+      preview: null,
+      dialog: null,
+      project: {
+        ...this.state.project,
+        savedAt: meta.savedAt,
+        savedRevision: meta.dirty ? (meta.savedAt ? 0 : null) : 0,
+        file: meta.fileName ? { name: meta.fileName } : null,
+        autosave: { kind: 'idle' },
+      },
+    });
+    this.fitPending = true;
+    void this.deps.projects?.setSetting('lastProjectId', doc.id).catch(() => undefined);
+    void this.evaluate();
+    if (meta.dirty) this.autosave?.schedule(doc, meta.savedAt);
+  }
+
+  // =========================================================================
+  // Barre de retour en arrière (frise de l'historique)
+
+  /** Place la barre après les `count` premières étapes de la pièce (toutes : fin de l'historique). */
+  setRollback(partId: Id, count: number): void {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours pour revenir en arrière dans l’historique.');
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    const rollback = withRollbackAt(this.state.rollback, part, count);
+    if (activeCount(part, rollback) === activeCount(part, this.state.rollback)) return;
+    const sel = this.state.selection;
+    // Faces et arêtes sélectionnées appartiennent à l'ancien état de la pièce.
+    this.set({ rollback, activePartId: partId, hover: null, selection: sel && (sel.kind === 'face' || sel.kind === 'edge') ? null : sel });
+    void this.evaluate();
+  }
+
+  stepRollback(partId: Id, delta: number): void {
+    const part = findPart(this.state.doc, partId);
+    if (part) this.setRollback(partId, activeCount(part, this.state.rollback) + delta);
+  }
+
+  rollbackToEnd(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (part) this.setRollback(partId, part.features.length);
+  }
+
+  // =========================================================================
+  // Recalcul
+
+  async evaluate(): Promise<void> {
+    if (this.state.kernel.status !== 'ready') return;
+    const { doc, revision } = this.state;
+    // Barre de retour en arrière : seules les étapes actives sont calculées et affichées.
+    const rollback = normalizeRollback(doc, this.state.rollback);
+    if (rollback !== this.state.rollback) this.set({ rollback });
+    const seq = ++this.evalSeq;
+    this.set({ evaluating: true });
+    try {
+      const result = await this.deps.client.evaluate(rolledBackDocument(doc, rollback));
+      if (!result || seq !== this.evalSeq || revision !== this.state.revision || rollback !== this.state.rollback) return;
+      const prev = this.state.display;
+      const hadSolid = Object.values(prev).some((d) => (d.result.analysis?.solidCount ?? 0) > 0);
+      const display: Record<Id, PartDisplay> = {};
+      for (const part of result.parts) {
+        display[part.partId] = displayFor(prev[part.partId], part);
+        for (const sk of part.sketches) if (sk.frame) this.lastFrames.set(sk.featureId, sk.frame);
+      }
+      const hasSolid = result.parts.some((p) => (p.analysis?.solidCount ?? 0) > 0);
+      if (!hadSolid && hasSolid) this.fitPending = true;
+      // Le cadrage voyage avec les maillages : la vue cadre après les avoir reçus.
+      const fitRequest = this.fitPending ? this.state.fitRequest + 1 : this.state.fitRequest;
+      this.fitPending = false;
+      this.set({ display, fitRequest, evaluating: this.deps.client.busy, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
+      // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
+      const mode = this.state.mode;
+      if (mode.kind === 'sketch') {
+        const part = findPart(this.state.doc, mode.session.partId);
+        const mesh = display[mode.session.partId]?.mesh;
+        const session = part && mesh ? setProjectable(mode.session, projectableCurves(mesh, mode.session.frame, part, mode.session.featureId)) : mode.session;
+        if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
+      }
+    } catch (err) {
+      if (seq !== this.evalSeq) return;
+      this.set({ evaluating: false });
+      this.toast('error', 'Le recalcul de la géométrie a échoué.', { detail: (err as Error).message });
+    }
+  }
+
+  // =========================================================================
+  // Sélection
+
+  select(selection: Selection): void {
+    const patch: Partial<AppState> = { selection };
+    if (selection) patch.activePartId = selection.partId;
+    this.set(patch);
+  }
+
+  setHover(pick: ModelPick | null): void {
+    const h = this.state.hover;
+    if (h === pick || (h && pick && h.partId === pick.partId && h.kind === pick.kind && h.index === pick.index)) return;
+    this.set({ hover: pick });
+  }
+
+  handlePick(pick: ModelPick | null, info: { shift: boolean; double: boolean }): void {
+    if (this.state.workspace === 'assembly') return this.assemblyPick(pick);
+    const mode = this.state.mode;
+    if (mode.kind === 'pick-support') {
+      if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId);
+      return;
+    }
+    if (mode.kind === 'measure') {
+      if (pick) void this.measurePick(pick);
+      return;
+    }
+    if (mode.kind === 'feature') {
+      if (pick) this.pickForDraft(pick);
+      return;
+    }
+    if (mode.kind !== 'model') return;
+    if (!pick) {
+      this.select(null);
+      return;
+    }
+    this.select({ kind: pick.kind, partId: pick.partId, index: pick.index });
+    if (info.double && pick.kind === 'face') this.sketchOnFace(pick.partId, pick.index, null);
+  }
+
+  // =========================================================================
+  // Pièces et fonctions
+
+  addPart(): void {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const r = addPart(this.state.doc);
+    this.commit(r.doc, 'Ajouter une pièce', { activePartId: r.partId, selection: { kind: 'part', partId: r.partId } });
+  }
+
+  setActivePart(partId: Id): void {
+    if (this.state.mode.kind !== 'model') return;
+    this.set({ activePartId: partId, selection: { kind: 'part', partId } });
+  }
+
+  renamePart(partId: Id, name: string): void {
+    const trimmed = name.trim();
+    const part = findPart(this.state.doc, partId);
+    if (!part || !trimmed || trimmed === part.name) return;
+    this.commit(renamePart(this.state.doc, partId, trimmed), `Renommer la pièce « ${trimmed} »`);
+  }
+
+  togglePartVisible(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    this.commit(setPartVisible(this.state.doc, partId, !part.visible), part.visible ? `Masquer « ${part.name} »` : `Afficher « ${part.name} »`);
+  }
+
+  setPartColor(partId: Id, color: string): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || part.color === color) return;
+    this.commit(setPartColor(this.state.doc, partId, color), `Changer la couleur de « ${part.name} »`);
+  }
+
+  deletePart(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || this.state.mode.kind !== 'model') return;
+    let doc = removePart(this.state.doc, partId);
+    if (doc.parts.length === 0) doc = addPart(doc).doc;
+    this.commit(doc, `Supprimer la pièce « ${part.name} »`, { selection: null });
+    this.toast('info', `Pièce « ${part.name} » supprimée.`, { actionLabel: 'Annuler', action: () => this.undo() });
+  }
+
+  renameFeature(featureId: Id, name: string): void {
+    const found = findFeature(this.state.doc, featureId);
+    const trimmed = name.trim();
+    if (!found || !trimmed || trimmed === found.feature.name) return;
+    this.commit(renameFeature(this.state.doc, featureId, trimmed), `Renommer « ${trimmed} »`);
+  }
+
+  toggleSketchVisible(featureId: Id): void {
+    const found = findFeature(this.state.doc, featureId);
+    if (!found || found.feature.type !== 'sketch') return;
+    const visible = !found.feature.visible;
+    this.commit(
+      updateFeature<SketchFeature>(this.state.doc, featureId, (f) => ({ ...f, visible })),
+      visible ? `Afficher « ${found.feature.name} »` : `Masquer « ${found.feature.name} »`,
+    );
+  }
+
+  deleteFeature(featureId: Id): void {
+    const found = findFeature(this.state.doc, featureId);
+    if (!found || this.state.mode.kind !== 'model') return;
+    const { doc, removed } = removeFeaturesCascade(this.state.doc, found.part.id, [featureId], featureDependencies);
+    const names = removed.map((id) => found.part.features.find((f) => f.id === id)?.name ?? id);
+    const label = names.length > 1 ? `Supprimer « ${names[0]} » et ${names.length - 1} étape(s) dépendante(s)` : `Supprimer « ${names[0]} »`;
+    this.commit(doc, label, { selection: null });
+    const text = names.length > 1 ? `Supprimé : ${names.join(', ')} (ces étapes dépendaient de « ${names[0]} »).` : `« ${names[0]} » supprimé.`;
+    this.toast('info', text, { actionLabel: 'Annuler', action: () => this.undo() });
+  }
+
+  deleteSelection(): void {
+    const sel = this.state.selection;
+    if (!sel) return this.explain('Sélectionnez d’abord une étape de l’historique ou une pièce à supprimer.');
+    if (sel.kind === 'feature') return this.deleteFeature(sel.featureId);
+    if (sel.kind === 'part') return this.deletePart(sel.partId);
+    this.explain('Une face ou une arête ne se supprime pas directement : pour retirer de la matière, dessinez une esquisse puis faites une poche.');
+  }
+
+  /** Ouvre l'édition d'une étape existante (double-clic dans l'historique). */
+  editFeature(featureId: Id): void {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const found = findFeature(this.state.doc, featureId);
+    if (!found) return;
+    const { feature, part } = found;
+    if (part.features.indexOf(feature) >= activeCount(part, this.state.rollback)) {
+      return this.explain(`« ${feature.name} » est après la barre de retour : avancez la barre (frise en bas de la vue) pour la recalculer avant de la modifier.`);
+    }
+    if (feature.type === 'sketch') {
+      const result = this.state.display[part.id]?.result.sketches.find((s) => s.featureId === featureId);
+      const frame = result?.frame ?? this.lastFrames.get(featureId) ?? null;
+      const status = this.state.display[part.id]?.result.statuses.find((s) => s.featureId === featureId);
+      if (!frame || status?.code === 'SUPPORT_LOST' || status?.code === 'SUPPORT_NOT_PLANAR' || status?.code === 'SUPPORT_AMBIGUOUS') {
+        this.set({ mode: { kind: 'pick-support', partId: part.id, repairFeatureId: featureId }, selection: null, activePartId: part.id });
+        this.toast('info', `Choisissez le nouveau plan ou la nouvelle face de « ${feature.name} » : son dessin sera conservé.`);
+        return;
+      }
+      // Les éléments repris de la pièce ont pu bouger au recalcul : on part de la géométrie résolue.
+      const params = result?.converged ? { ...feature.params, entities: result.solved.entities } : feature.params;
+      this.openSession(part.id, featureId, false, frame, params);
+      return;
+    }
+    const def = FEATURE_DEFINITIONS[feature.type] as unknown as FeatureDefinition;
+    if (def.tool) {
+      this.openDraft({ partId: part.id, isNew: false, feature, fields: def.tool.initialFields(feature), errors: {} });
+      return;
+    }
+    this.toast('info', 'Un solide importé n’a pas de paramètres modifiables : sa forme vient du fichier STEP.');
+  }
+
+  /** Change le support d'une esquisse (réparation d'une référence perdue). */
+  repairSketch(featureId: Id): void {
+    const found = findFeature(this.state.doc, featureId);
+    if (!found || this.state.mode.kind !== 'model') return;
+    this.set({ mode: { kind: 'pick-support', partId: found.part.id, repairFeatureId: featureId }, selection: null, activePartId: found.part.id });
+  }
+
+  // =========================================================================
+  // Esquisses
+
+  startSketch(): void {
+    const avail = sketchAvailability(this.state);
+    if (!avail.ok) return this.explain(avail.reason);
+    const sel = this.state.selection;
+    if (sel?.kind === 'face' && this.sketchOnFace(sel.partId, sel.index, null)) return;
+    this.set({ mode: { kind: 'pick-support', partId: this.state.activePartId, repairFeatureId: null }, selection: null });
+  }
+
+  cancelPickSupport(): void {
+    if (this.state.mode.kind === 'pick-support') this.set({ mode: model });
+  }
+
+  pickPlane(plane: PlaneName): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'pick-support') return;
+    this.beginSketchOn(mode.partId, { kind: 'plane', plane, offset: 0 }, originPlaneFrame(plane), mode.repairFeatureId);
+  }
+
+  sketchOnFace(partId: Id, faceIndex: number, repairFeatureId: Id | null): boolean {
+    const display = this.state.display[partId];
+    const face = display?.mesh?.faces[faceIndex];
+    const part = findPart(this.state.doc, partId);
+    if (!display || !face || !part) return false;
+    if (display.stale) {
+      this.explain('La pièce affichée n’est pas à jour : corrigez d’abord l’étape en erreur avant de dessiner sur ses faces.');
+      return false;
+    }
+    if (face.surface !== 'plane' || !face.plane) {
+      this.explain('Cette face n’est pas plane : une esquisse se pose sur une face plate ou sur un plan d’origine.');
+      return false;
+    }
+    const ref = pickFaceReference(face.tags, part);
+    if (!ref) return false;
+    if (repairFeatureId) {
+      const index = part.features.findIndex((f) => f.id === repairFeatureId);
+      const refIndex = part.features.findIndex((f) => f.id === ref.featureId);
+      if (refIndex >= index) {
+        this.explain('Cette face est créée après l’esquisse dans l’historique : choisissez une face plus ancienne ou un plan.');
+        return false;
+      }
+    }
+    this.beginSketchOn(partId, { kind: 'face', ref }, canonicalFrame(face.plane.origin, face.plane.normal), repairFeatureId);
+    return true;
+  }
+
+  private beginSketchOn(partId: Id, support: SketchSupport, frame: Frame3D, repairFeatureId: Id | null): void {
+    const s = this.state;
+    const part = findPart(s.doc, partId);
+    if (!part) return;
+    if (repairFeatureId) {
+      const found = findFeature(s.doc, repairFeatureId);
+      if (!found || found.feature.type !== 'sketch') return;
+      this.openSession(partId, repairFeatureId, false, frame, { ...found.feature.params, support }, true);
+      return;
+    }
+    const feature = makeSketchFeature(s.doc, part, support);
+    this.newSketch = feature;
+    this.openSession(partId, feature.id, true, frame, feature.params);
+  }
+
+  private openSession(partId: Id, featureId: Id, isNew: boolean, frame: Frame3D, params: SketchFeature['params'], supportChanged = false): void {
+    const part = findPart(this.state.doc, partId);
+    const projectable = part ? projectableCurves(this.state.display[partId]?.mesh, frame, part, featureId) : [];
+    let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable });
+    if (supportChanged) session = { ...session, dirty: true };
+    const px = this.viewport?.pixelSize();
+    if (px) session = setPixelSize(session, px);
+    this.set({ mode: { kind: 'sketch', session }, activePartId: partId, selection: null, hover: null });
+  }
+
+  /** Applique une transformation à la session d'esquisse en cours. */
+  updateSession(fn: (session: SketchSession) => SketchSession): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'sketch') return;
+    const next = fn(mode.session);
+    if (next !== mode.session) this.set({ mode: { kind: 'sketch', session: next } });
+  }
+
+  finishSketch(): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'sketch') return;
+    const session = mode.session;
+    const s = this.state;
+    if (session.isNew) {
+      const feature = this.newSketch;
+      this.newSketch = null;
+      if (!feature || session.sketch.entities.length === 0) {
+        this.set({ mode: model });
+        this.toast('info', 'Esquisse vide : rien n’a été ajouté.');
+        return;
+      }
+      const sketch: SketchFeature = { ...feature, params: session.sketch };
+      this.commit(this.insertAtMarker(s.doc, session.partId, sketch), `Créer « ${sketch.name} »`, {
+        mode: model,
+        selection: { kind: 'feature', partId: session.partId, featureId: sketch.id },
+        ...this.markerAfterInsert(session.partId, sketch.id),
+      });
+      return;
+    }
+    const found = findFeature(s.doc, session.featureId);
+    if (!found || found.feature.type !== 'sketch') {
+      this.set({ mode: model });
+      return;
+    }
+    if (!session.dirty) {
+      this.set({ mode: model, selection: { kind: 'feature', partId: session.partId, featureId: session.featureId } });
+      return;
+    }
+    const updated: SketchFeature = { ...found.feature, params: session.sketch };
+    this.commit(replaceFeature(s.doc, updated), `Modifier « ${updated.name} »`, {
+      mode: model,
+      selection: { kind: 'feature', partId: session.partId, featureId: updated.id },
+    });
+  }
+
+  cancelSketch(force = false): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'sketch') return;
+    if (mode.session.dirty && !force) {
+      this.set({ dialog: { kind: 'confirm-leave-sketch' } });
+      return;
+    }
+    this.newSketch = null;
+    this.set({ mode: model, dialog: null });
+  }
+
+  // =========================================================================
+  // Opérations volumiques (extrusion, poche…) : panneau de paramètres avec aperçu
+
+  /** Démarre une opération proposée par la barre d'outils (voir `FeatureDefinition.tool`). */
+  startFeature(type: FeatureType): void {
+    const avail = toolAvailability(this.state, type);
+    if (!avail.ok) return this.explain(avail.reason);
+    const def = FEATURE_DEFINITIONS[type] as unknown as FeatureDefinition;
+    const tool = def.tool!;
+    const sel = this.state.selection;
+    const part = (sel && findPart(this.state.doc, sel.partId)) || activePart(this.state)!;
+    const result = this.state.display[part.id]?.result;
+    let input: ToolInput;
+    let sketchFrame = null;
+    if (tool.input === 'sketch') {
+      const sketch = suggestedSketch(this.state, part)!;
+      input = { kind: 'sketch', sketchId: sketch.id };
+      sketchFrame = result?.sketches.find((x) => x.featureId === sketch.id)?.frame ?? null;
+    } else {
+      // Arête déjà sélectionnée dans la vue : elle devient la première arête de l'opération.
+      const mesh = this.state.display[part.id]?.mesh;
+      const pick = sel?.kind === 'edge' && mesh ? edgeRefFromPick(mesh, sel.index, part, null) : null;
+      input = { kind: 'edges', edges: pick?.kind === 'ref' ? [pick.ref] : [] };
+    }
+    const feature = tool.create(this.state.doc, part, input, { sketchFrame, partBounds: result?.analysis?.bbox ?? null });
+    this.openDraft({ partId: part.id, isNew: true, feature, fields: tool.initialFields(feature), errors: {} });
+  }
+
+  /** Maillage affiché d'une pièce (l'aperçu pendant l'édition d'une opération). */
+  private displayedMesh(partId: Id) {
+    const s = this.state;
+    if (s.mode.kind === 'feature' && s.mode.draft.partId === partId) {
+      const preview = s.preview?.parts[partId];
+      if (preview?.mesh) return preview.mesh;
+    }
+    return s.display[partId]?.mesh ?? null;
+  }
+
+  /** Clic dans la vue pendant l'édition d'un congé ou d'un chanfrein : ajoute ou retire une arête. */
+  private pickForDraft(pick: ModelPick): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    const { draft } = mode;
+    const feature = draft.feature;
+    if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
+    if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    let edges = feature.params.edges;
+    if (pick.kind === 'face') {
+      const index = blendIndexFromFacePick(mesh, pick.index, feature.id);
+      if (index === null) return this.explain('Cliquez une arête (le trait entre deux faces) pour l’ajouter.');
+      edges = edges.filter((_e, i) => i !== index);
+    } else {
+      const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+      if (r.kind === 'invalid') return this.explain(r.reason);
+      edges = r.kind === 'blend' ? edges.filter((_e, i) => i !== r.index) : toggleEdge(edges, r.ref);
+    }
+    this.updateDraft((f) => ({ ...f, params: { ...f.params, edges } }) as Feature);
+  }
+
+  private openDraft(draft: FeatureDraft): void {
+    this.set({ mode: { kind: 'feature', draft }, activePartId: draft.partId, selection: null, preview: null });
+    void this.previewDraft();
+  }
+
+  private draftDocument(draft: FeatureDraft): CadDocument {
+    return draft.isNew ? this.insertAtMarker(this.state.doc, draft.partId, draft.feature) : replaceFeature(this.state.doc, draft.feature);
+  }
+
+  /** Ajoute une étape à la position de la barre de retour (à la fin si elle n'est pas utilisée). */
+  private insertAtMarker(doc: CadDocument, partId: Id, feature: Feature): CadDocument {
+    const part = findPart(doc, partId);
+    const after = part ? insertionPoint(part, this.state.rollback) : undefined;
+    return after === undefined ? addFeature(doc, partId, feature) : insertFeatureAfter(doc, partId, after, feature);
+  }
+
+  /** Après une insertion en arrière, la barre se place juste après la nouvelle étape. */
+  private markerAfterInsert(partId: Id, featureId: Id): Partial<AppState> {
+    const part = findPart(this.state.doc, partId);
+    if (!part || !isRolledBack(part, this.state.rollback)) return {};
+    return { rollback: { ...this.state.rollback, [partId]: featureId } };
+  }
+
+  /** Document de l'aperçu : en cas de retour en arrière, calculé jusqu'à l'étape éditée. */
+  private previewDocument(draft: FeatureDraft): CadDocument {
+    const doc = this.draftDocument(draft);
+    const part = findPart(this.state.doc, draft.partId);
+    if (!part || !isRolledBack(part, this.state.rollback)) return rolledBackDocument(doc, this.state.rollback);
+    return rolledBackDocument(doc, { ...this.state.rollback, [draft.partId]: draft.feature.id });
+  }
+
+  private async previewDraft(): Promise<void> {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature' || this.state.kernel.status !== 'ready') return;
+    const draft = mode.draft;
+    const seq = ++this.previewSeq;
+    try {
+      const result = await this.deps.client.evaluate(this.previewDocument(draft), draft.feature.id);
+      const now = this.state.mode;
+      if (!result || seq !== this.previewSeq || now.kind !== 'feature') return;
+      const parts: Record<Id, PartResult> = {};
+      for (const p of result.parts) parts[p.partId] = p;
+      const toolPart = result.parts.find((p) => p.previewTool);
+      const previewKind = (FEATURE_DEFINITIONS[draft.feature.type] as unknown as FeatureDefinition).tool?.previewKind ?? 'add';
+      const tool = toolPart?.previewTool && previewKind !== 'modify'
+        ? {
+            partId: toolPart.partId,
+            key: `${toolPart.previewTool.featureId}|${toolPart.meshKey}|${JSON.stringify(now.draft.feature.params)}`,
+            mesh: toolPart.previewTool.mesh,
+            kind: previewKind,
+          }
+        : null;
+      this.set({ preview: { parts, tool }, evaluating: this.deps.client.busy });
+    } catch (err) {
+      this.toast('error', 'L’aperçu n’a pas pu être calculé.', { detail: (err as Error).message });
+    }
+  }
+
+  /** Modifie l'opération en cours puis recalcule l'aperçu. */
+  updateDraft(change: (feature: Feature) => Feature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    this.set({ mode: { kind: 'feature', draft: { ...mode.draft, feature: change(mode.draft.feature) } } });
+    void this.previewDraft();
+  }
+
+  /** Mémorise la saisie d'un champ ; une saisie valide met à jour l'opération et l'aperçu. */
+  setDraftField(name: string, text: string, result: FieldUpdate<Feature>): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    const fields = { ...mode.draft.fields, [name]: text };
+    const errors = { ...mode.draft.errors };
+    if ('error' in result) {
+      errors[name] = result.error;
+      this.set({ mode: { kind: 'feature', draft: { ...mode.draft, fields, errors } } });
+      return;
+    }
+    delete errors[name];
+    this.set({ mode: { kind: 'feature', draft: { ...mode.draft, feature: result.feature, fields, errors } } });
+    void this.previewDraft();
+  }
+
+  /** Statut de l'opération en cours d'après le dernier aperçu (null : pas encore calculé). */
+  draftStatus() {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return null;
+    const part = this.state.preview?.parts[mode.draft.partId];
+    return part?.statuses.find((s) => s.featureId === mode.draft.feature.id) ?? null;
+  }
+
+  /** Raison qui empêche de valider l'opération en cours (null : validation possible). */
+  draftBlockReason(): string | null {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return null;
+    const firstError = Object.values(mode.draft.errors)[0];
+    if (firstError) return firstError;
+    const status = this.draftStatus();
+    return status?.state === 'error' ? (status.message ?? 'Cette opération est impossible avec ces paramètres.') : null;
+  }
+
+  confirmDraft(): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    const { draft } = mode;
+    const reason = this.draftBlockReason();
+    if (reason) return this.explain(reason);
+    let doc = this.draftDocument(draft);
+    // Comme dans FreeCAD, l'esquisse utilisée par un nouveau volume est masquée (elle reste dans l'historique).
+    if (draft.isNew) {
+      for (const dep of featureDependencies(draft.feature)) {
+        doc = updateFeature<SketchFeature>(doc, dep, (f) => (f.type === 'sketch' ? { ...f, visible: false } : f));
+      }
+    }
+    const label = draft.isNew ? `Créer « ${draft.feature.name} »` : `Modifier « ${draft.feature.name} »`;
+    this.commit(doc, label, {
+      mode: model,
+      preview: null,
+      selection: { kind: 'feature', partId: draft.partId, featureId: draft.feature.id },
+      ...(draft.isNew ? this.markerAfterInsert(draft.partId, draft.feature.id) : {}),
+    });
+  }
+
+  cancelDraft(): void {
+    if (this.state.mode.kind !== 'feature') return;
+    this.previewSeq++;
+    this.set({ mode: model, preview: null });
+  }
+
+  // =========================================================================
+  // Mesure
+
+  startMeasure(): void {
+    const avail = measureAvailability(this.state);
+    if (!avail.ok) return this.explain(avail.reason);
+    this.set({ mode: { kind: 'measure', picks: [], info: null, busy: false }, selection: null });
+  }
+
+  exitMeasure(): void {
+    if (this.state.mode.kind === 'measure') this.set({ mode: model });
+  }
+
+  private async measurePick(pick: ModelPick): Promise<void> {
+    const mode = this.state.mode;
+    if (mode.kind !== 'measure') return;
+    const picks = mode.picks.length >= 2 ? [pick] : [...mode.picks, pick];
+    const single = this.describePick(pick);
+    if (picks.length === 1) {
+      this.set({ mode: { kind: 'measure', picks, info: single, busy: false } });
+      return;
+    }
+    this.set({ mode: { kind: 'measure', picks, info: null, busy: true } });
+    try {
+      const [a, b] = picks as [ModelPick, ModelPick];
+      const r = await this.deps.client.measure(this.state.doc, { partId: a.partId, kind: a.kind, index: a.index }, { partId: b.partId, kind: b.kind, index: b.index });
+      const now = this.state.mode;
+      if (now.kind !== 'measure') return;
+      const lines = [`Distance minimale : ${formatLength(r.distance)}`];
+      const dx = Math.abs(r.pointB.x - r.pointA.x);
+      const dy = Math.abs(r.pointB.y - r.pointA.y);
+      const dz = Math.abs(r.pointB.z - r.pointA.z);
+      lines.push(`Écarts : X ${formatLength(dx)} · Y ${formatLength(dy)} · Z ${formatLength(dz)}`);
+      this.set({
+        mode: {
+          kind: 'measure',
+          picks,
+          busy: false,
+          info: { title: 'Distance entre les deux éléments', lines, segment: { a: r.pointA, b: r.pointB, label: formatLength(r.distance) } },
+        },
+      });
+    } catch (err) {
+      this.set({ mode: { kind: 'measure', picks: [], info: { title: 'Mesure impossible', lines: [(err as Error).message] }, busy: false } });
+    }
+  }
+
+  describePick(pick: ModelPick): { title: string; lines: string[] } {
+    const mesh = this.state.display[pick.partId]?.mesh;
+    if (pick.kind === 'face') {
+      const f = mesh?.faces[pick.index];
+      if (!f) return { title: 'Face', lines: [] };
+      const lines = [`Aire : ${formatArea(f.area)}`];
+      if (f.surface === 'cylinder' && f.cylinder) lines.unshift(`Face cylindrique — diamètre ${formatLength(f.cylinder.radius * 2)}`);
+      if (f.surface === 'plane' && f.plane) lines.unshift('Face plane');
+      const volume = this.state.display[pick.partId]?.result.analysis?.volume;
+      if (volume !== undefined) lines.push(`Volume de la pièce : ${formatVolume(volume)}`);
+      return { title: 'Face sélectionnée', lines };
+    }
+    const e = mesh?.edges[pick.index];
+    if (!e) return { title: 'Arête', lines: [] };
+    const lines = [`Longueur : ${formatLength(e.length)}`];
+    if (e.curve === 'circle' && e.circle) lines.unshift(`Arête circulaire — diamètre ${formatLength(e.circle.radius * 2)}`);
+    if (e.curve === 'line' && e.line) lines.unshift(`Arête droite de ${formatLength(distance3(e.line.start, e.line.end))}`);
+    return { title: 'Arête sélectionnée', lines };
+  }
+
+  // =========================================================================
+  // Projet et fichiers
+
+  renameProject(name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === this.state.doc.name) return;
+    this.commit({ ...this.state.doc, name: trimmed }, `Renommer le projet « ${trimmed} »`);
+  }
+
+  private guardUnsaved(action: Extract<Dialog, { kind: 'unsaved' }>['action'], payload?: string): boolean {
+    if (!isDirty(this.state)) return false;
+    this.set({ dialog: { kind: 'unsaved', action, ...(payload ? { payload } : {}) } });
+    return true;
+  }
+
+  async resolveUnsaved(choice: 'save' | 'discard'): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'unsaved') return;
+    if (choice === 'save' && !(await this.save())) return;
+    if (choice === 'discard') await this.deps.projects?.deleteAutosave(this.state.doc.id).catch(() => undefined);
+    this.set({ dialog: null });
+    if (d.action === 'new') this.newProject(true);
+    else if (d.action === 'open-project' && d.payload) void this.openProject(d.payload, true);
+    else if (d.action === 'open-draft' && d.payload) void this.openAutosaveDraft(d.payload, true);
+    else if (d.action === 'open-file') void this.openFile(true);
+  }
+
+  newProject(force = false): void {
+    if (this.state.mode.kind !== 'model') this.set({ mode: model });
+    if (!force && this.guardUnsaved('new')) return;
+    this.loadDocument(createDocument(), { savedAt: null, dirty: false });
+    this.toast('info', 'Nouveau projet créé.');
+  }
+
+  async showOpenDialog(): Promise<void> {
+    this.set({ dialog: { kind: 'open', projects: [], drafts: [], loading: true } });
+    try {
+      const [projects, drafts] = await Promise.all([this.deps.projects?.listProjects() ?? [], this.deps.projects?.listAutosaves() ?? []]);
+      if (this.state.dialog?.kind === 'open') this.set({ dialog: { kind: 'open', projects, drafts, loading: false } });
+    } catch {
+      this.set({ dialog: { kind: 'open', projects: [], drafts: [], loading: false } });
+    }
+  }
+
+  async openProject(id: Id, force = false): Promise<void> {
+    if (!force && id !== this.state.doc.id && this.guardUnsaved('open-project', id)) return;
+    const rec = await this.deps.projects?.getProject(id);
+    if (!rec) return this.toast('error', 'Ce projet est introuvable dans le navigateur.');
+    if (this.loadFromText(rec.text, { savedAt: rec.savedAt, dirty: false })) this.toast('success', `Projet « ${rec.name} » ouvert.`);
+  }
+
+  async openAutosaveDraft(projectId: Id, force = false): Promise<void> {
+    if (!force && projectId !== this.state.doc.id && this.guardUnsaved('open-draft', projectId)) return;
+    const rec = await this.deps.projects?.getAutosave(projectId);
+    if (!rec) return;
+    const saved = await this.deps.projects?.getProject(projectId);
+    if (this.loadFromText(rec.text, { savedAt: saved?.savedAt ?? null, dirty: true })) this.toast('success', 'Brouillon récupéré. Pensez à l’enregistrer.');
+  }
+
+  async deleteProject(id: Id): Promise<void> {
+    await this.deps.projects?.deleteProject(id);
+    await this.showOpenDialog();
+  }
+
+  async openFile(force = false): Promise<void> {
+    if (!force && this.guardUnsaved('open-file')) return;
+    this.set({ dialog: null });
+    const file = await pickFile(`${NATIVE_EXTENSION},.json,application/json,.step,.stp`);
+    if (!file) return;
+    if (/\.(step|stp)$/i.test(file.name)) {
+      await this.beginImport(file);
+      return;
+    }
+    const text = await file.text();
+    if (this.loadFromText(text, { savedAt: new Date(file.lastModified || Date.now()).toISOString(), dirty: false, fileName: file.name })) {
+      // Le projet ouvert rejoint la liste « Mes projets » du navigateur.
+      await this.save(true);
+      this.toast('success', `Fichier « ${file.name} » ouvert.`);
+    }
+  }
+
+  /** Enregistre dans le navigateur (et dans le fichier choisi si le navigateur le permet). */
+  async save(silent = false): Promise<boolean> {
+    const s = this.state;
+    const savedAt = new Date().toISOString();
+    const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
+    if (!this.deps.projects) {
+      if (!silent) return this.saveAs();
+      return false;
+    }
+    try {
+      await this.deps.projects.putProject({ id: s.doc.id, name: s.doc.name, savedAt, text, size: text.length });
+      await this.deps.projects.setSetting('lastProjectId', s.doc.id);
+      if (s.project.file?.handle) {
+        await saveFile(new Blob([text], { type: NATIVE_MIME }), s.project.file.name, {
+          description: 'Projet VibeCAD',
+          mime: NATIVE_MIME,
+          extension: NATIVE_EXTENSION,
+          reuse: s.project.file,
+        });
+      }
+      this.autosave?.cancel();
+      await this.deps.projects.deleteAutosave(s.doc.id);
+      this.patchProject({ savedAt, savedRevision: s.revision, autosave: { kind: 'idle' } });
+      if (!silent) {
+        const first = !(await this.deps.projects.getSetting<boolean>('downloadHintShown'));
+        this.toast(
+          'success',
+          first
+            ? 'Projet enregistré dans ce navigateur. Pour en garder une copie sûre, utilisez aussi « Enregistrer sous… » (fichier).'
+            : `Projet enregistré${s.project.file?.handle ? ` (navigateur et fichier « ${s.project.file.name} »)` : ' dans ce navigateur'}.`,
+        );
+        if (first) await this.deps.projects.setSetting('downloadHintShown', true);
+      }
+      return true;
+    } catch (err) {
+      this.toast(
+        'error',
+        isQuotaError(err)
+          ? 'Le stockage du navigateur est plein : utilisez « Enregistrer sous… » pour télécharger le projet.'
+          : 'L’enregistrement dans le navigateur a échoué : utilisez « Enregistrer sous… » pour télécharger le projet.',
+        { detail: (err as Error).message },
+      );
+      return false;
+    }
+  }
+
+  /** Télécharge le projet (ou l'écrit dans un fichier choisi, si le navigateur le permet). */
+  async saveAs(): Promise<boolean> {
+    const s = this.state;
+    const savedAt = new Date().toISOString();
+    const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
+    try {
+      const target = await saveFile(new Blob([text], { type: NATIVE_MIME }), safeFileName(s.doc.name, NATIVE_EXTENSION), {
+        description: 'Projet VibeCAD',
+        mime: NATIVE_MIME,
+        extension: NATIVE_EXTENSION,
+        forcePicker: true,
+      });
+      if (!target) return false;
+      this.patchProject({ file: target });
+      await this.save(true);
+      this.toast('success', target.handle ? `Projet enregistré dans « ${target.name} ».` : `Fichier « ${target.name} » téléchargé.`);
+      return true;
+    } catch (err) {
+      this.toast('error', 'Le fichier n’a pas pu être enregistré.', { detail: (err as Error).message });
+      return false;
+    }
+  }
+
+  // =========================================================================
+  // Import et export
+
+  async importStep(): Promise<void> {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const file = await pickFile('.step,.stp,model/step,application/step');
+    if (file) await this.beginImport(file);
+  }
+
+  async beginImport(file: File): Promise<void> {
+    const bytes = await readFileBytes(file);
+    this.set({ dialog: { kind: 'import-step', fileName: file.name, bytes, inspection: null, error: null, target: 'new-part', busy: true } });
+    try {
+      await this.deps.client.ready;
+      const inspection = await this.deps.client.inspectStep(bytes);
+      const d = this.state.dialog;
+      if (d?.kind === 'import-step') this.set({ dialog: { ...d, inspection, busy: false } });
+    } catch (err) {
+      const d = this.state.dialog;
+      if (d?.kind === 'import-step') this.set({ dialog: { ...d, busy: false, error: (err as Error).message } });
+    }
+  }
+
+  setImportTarget(target: 'new-part' | 'active-part'): void {
+    const d = this.state.dialog;
+    if (d?.kind === 'import-step') this.set({ dialog: { ...d, target } });
+  }
+
+  async confirmImport(): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'import-step' || !d.inspection) return;
+    let doc = this.state.doc;
+    const resource = await createStepResource(newResourceId(doc), d.fileName, d.bytes);
+    doc = addResource(doc, resource);
+    const baseName = d.fileName.replace(/\.(step|stp)$/i, '');
+    let partId = this.state.activePartId;
+    if (d.target === 'new-part') {
+      const r = addPart(doc, d.inspection.productNames.length === 1 ? d.inspection.productNames[0]! : baseName);
+      doc = r.doc;
+      partId = r.partId;
+    }
+    let lastId: Id | null = null;
+    d.inspection.solids.forEach((_s, i) => {
+      const part = findPart(doc, partId)!;
+      const name = d.inspection!.solids.length > 1 ? `${baseName} (solide ${i + 1})` : baseName;
+      const feature = makeImportedSolidFeature(doc, part, resource.id, i, name);
+      const after = lastId ?? insertionPoint(findPart(this.state.doc, partId) ?? part, this.state.rollback);
+      doc = after === undefined ? addFeature(doc, partId, feature) : insertFeatureAfter(doc, partId, after, feature);
+      lastId = feature.id;
+    });
+    this.fitPending = true;
+    this.commit(doc, `Importer « ${d.fileName} »`, {
+      dialog: null,
+      activePartId: partId,
+      selection: { kind: 'part', partId },
+      ...(lastId ? this.markerAfterInsert(partId, lastId) : {}),
+    });
+    this.toast(
+      'success',
+      `« ${d.fileName} » importé : ${d.inspection.solids.length} solide(s). Le fichier est conservé dans le projet ; ses étapes de construction d’origine ne sont pas récupérables.`,
+    );
+  }
+
+  showExportDialog(format: ExportFormat): void {
+    const avail = exportAvailability(this.state);
+    if (!avail.ok) return this.explain(avail.reason);
+    const s = this.state;
+    const withSolid = s.doc.parts.filter((p) => (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0).map((p) => p.id);
+    if (s.workspace === 'assembly') {
+      if (!s.doc.assembly?.instances.length) return this.explain('L’assemblage est vide : insérez d’abord des pièces.');
+      this.set({ dialog: { kind: 'export', format, partIds: s.doc.assembly.instances.map((i) => i.partId), busy: false, assembly: true } });
+      return;
+    }
+    // Impression : la pièce active par défaut ; STEP : toutes les pièces.
+    const partIds = format !== 'step' && withSolid.includes(s.activePartId) ? [s.activePartId] : withSolid;
+    this.set({ dialog: { kind: 'export', format, partIds, busy: false } });
+  }
+
+  toggleExportPart(partId: Id): void {
+    const d = this.state.dialog;
+    if (d?.kind !== 'export') return;
+    const partIds = d.partIds.includes(partId) ? d.partIds.filter((id) => id !== partId) : [...d.partIds, partId];
+    this.set({ dialog: { ...d, partIds } });
+  }
+
+  async confirmExport(): Promise<void> {
+    const d = this.state.dialog;
+    if (d?.kind !== 'export' || d.partIds.length === 0) return;
+    this.set({ dialog: { ...d, busy: true } });
+    const s = this.state;
+    const parts = s.doc.parts.filter((p) => d.partIds.includes(p.id));
+    const baseName = d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
+    // Assemblage : chaque pièce insérée est exportée à sa place.
+    const placement = d.assembly ? this.assemblyPlacement() : null;
+    const placements = placement
+      ? (s.doc.assembly?.instances ?? []).map((i) => ({ partId: i.partId, name: i.name, matrix: placement.matrices.get(i.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }))
+      : undefined;
+    try {
+      if (d.format === 'step') {
+        const { text, warnings } = await this.deps.client.exportStep(s.doc, d.partIds, placements);
+        const target = await saveFile(new Blob([text], { type: 'model/step' }), safeFileName(baseName, '.step'), {
+          description: 'Fichier STEP',
+          mime: 'model/step',
+          extension: '.step',
+          download: true,
+        });
+        this.set({ dialog: null });
+        if (target) this.toast('success', `Fichier STEP « ${target.name} » téléchargé : ${parts.length} pièce(s), en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+      } else if (d.format === '3mf') {
+        const { bytes, warnings } = await this.deps.client.export3mf(s.doc, d.partIds, placements);
+        const mime = 'model/3mf';
+        const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }), safeFileName(baseName, '.3mf'), {
+          description: 'Fichier 3MF',
+          mime,
+          extension: '.3mf',
+          download: true,
+        });
+        this.set({ dialog: null });
+        if (target) this.toast('success', `Fichier 3MF « ${target.name} » téléchargé : ${parts.length} pièce(s), en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+      } else {
+        const { bytes, warnings } = await this.deps.client.exportStl(s.doc, d.partIds);
+        const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/stl' }), safeFileName(baseName, '.stl'), {
+          description: 'Fichier STL',
+          mime: 'model/stl',
+          extension: '.stl',
+          download: true,
+        });
+        this.set({ dialog: null });
+        if (target) this.toast('success', `Fichier STL « ${target.name} » téléchargé. ${STL_UNIT_NOTE}`, warnings.length ? { detail: warnings.join('\n') } : {});
+      }
+    } catch (err) {
+      const now = this.state.dialog;
+      if (now?.kind === 'export') this.set({ dialog: { ...now, busy: false } });
+      this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
+    }
+  }
+
+  // =========================================================================
+  // Vue
+
+  setView(view: StandardView): void {
+    this.viewport?.setStandardView(view);
+  }
+
+  fitAll(): void {
+    this.viewport?.fitAll();
+  }
+
+  setProjection(projection: Projection): void {
+    this.viewport?.setProjection(projection);
+    this.set({ projection });
+  }
+
+  lookAtSketch(): void {
+    this.viewport?.lookAtSketch();
+  }
+
+  // =========================================================================
+  // Interface
+
+  setDialog(dialog: Dialog | null): void {
+    this.set({ dialog });
+  }
+
+  toggleHelp(open?: boolean): void {
+    this.set({ helpOpen: open ?? !this.state.helpOpen });
+  }
+
+  toggleLeftPanel(open?: boolean): void {
+    this.set({ leftPanelOpen: open ?? !this.state.leftPanelOpen });
+  }
+
+  // =========================================================================
+  // Assemblage (voir docs/assemblage.md)
+
+  /** Document au début d'un réglage en continu (curseur, glisser) : une seule action à annuler. */
+  private liveStart: CadDocument | null = null;
+  private drag: {
+    jointId: Id;
+    rotate: boolean;
+    origin: Vec3;
+    axis: Vec3;
+    startAngle: number;
+    startOffset: number;
+    ref: Vec3 | null;
+    s0: number;
+    lastDelta: number;
+  } | null = null;
+
+  setWorkspace(workspace: Workspace): void {
+    if (this.state.workspace === workspace) return;
+    if (this.state.mode.kind !== 'model' && this.state.mode.kind !== 'joint') return this.explain('Terminez d’abord l’opération en cours.');
+    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  /** Placement actuel des pièces de l'assemblage. */
+  assemblyPlacement(): AssemblyPlacement | null {
+    const assembly = this.state.doc.assembly;
+    if (!assembly) return null;
+    return solveAssembly(assembly, (partId) => this.state.display[partId]?.mesh);
+  }
+
+  selectInAssembly(selection: AppState['assemblySelection']): void {
+    this.set({ assemblySelection: selection });
+  }
+
+  insertInstance(partId: Id): void {
+    const s = this.state;
+    const part = findPart(s.doc, partId);
+    if (!part) return;
+    if ((s.display[partId]?.result.analysis?.solidCount ?? 0) === 0) return this.explain(`« ${part.name} » n’a pas encore de volume : construisez-la d’abord dans l’onglet Pièces.`);
+    // Posée à droite des pièces déjà insérées (sans se chevaucher), en attendant une liaison.
+    const placement = this.assemblyPlacement();
+    let x = 0;
+    for (const inst of s.doc.assembly?.instances ?? []) {
+      const bbox = s.display[inst.partId]?.result.analysis?.bbox;
+      const m = placement?.matrices.get(inst.id);
+      if (bbox && m) x = Math.max(x, m[12]! + bbox.max.x + 20);
+    }
+    const first = !(s.doc.assembly?.instances.length);
+    const bbox = s.display[partId]?.result.analysis?.bbox;
+    const position = first ? { x: 0, y: 0, z: 0 } : { x: x - (bbox?.min.x ?? 0), y: 0, z: 0 };
+    const r = addInstance(s.doc, partId, position);
+    this.commit(r.doc, `Insérer « ${part.name} » dans l’assemblage`, {
+      assemblySelection: { kind: 'instance', id: r.instanceId },
+      fitRequest: s.fitRequest + 1,
+    });
+    if (first) this.toast('info', `« ${part.name} » est la pièce fixe de l’assemblage (punaise). Insérez une autre pièce, puis reliez-les avec « Liaison ».`);
+  }
+
+  removeInstance(instanceId: Id): void {
+    const inst = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
+    if (!inst) return;
+    this.commit(removeInstance(this.state.doc, instanceId), `Retirer « ${inst.name} » de l’assemblage`, { assemblySelection: null });
+  }
+
+  moveInstance(instanceId: Id, position: { x: number; y: number; z: number }): void {
+    this.commit(updateInstance(this.state.doc, instanceId, (i) => ({ ...i, position })), 'Déplacer une pièce de l’assemblage');
+  }
+
+  startJoint(): void {
+    if ((this.state.doc.assembly?.instances.length ?? 0) < 2) return this.explain('Insérez d’abord deux pièces : une liaison relie une pièce mobile à une pièce de référence.');
+    this.set({ mode: { kind: 'joint', moving: null }, assemblySelection: null });
+  }
+
+  cancelJoint(): void {
+    if (this.state.mode.kind === 'joint') this.set({ mode: model });
+  }
+
+  private assemblyPick(pick: ModelPick | null): void {
+    const s = this.state;
+    const mode = s.mode;
+    if (mode.kind !== 'joint') {
+      this.set({ assemblySelection: pick ? { kind: 'instance', id: pick.partId } : null });
+      return;
+    }
+    if (!pick) return;
+    const inst = s.doc.assembly?.instances.find((i) => i.id === pick.partId);
+    const part = inst && findPart(s.doc, inst.partId);
+    const mesh = inst && s.display[inst.partId]?.mesh;
+    if (!inst || !part || !mesh) return;
+    const r = lcsFromPick(mesh, pick.kind, pick.index, part);
+    if ('reason' in r) return this.explain(r.reason);
+    const end = { instanceId: inst.id, lcs: r.ref };
+    if (!mode.moving) {
+      this.set({ mode: { kind: 'joint', moving: end } });
+      return;
+    }
+    if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
+    // La pièce fixe ne bouge jamais : si elle a été choisie en premier, les rôles sont échangés.
+    const fixedId = s.doc.assembly!.instances[0]!.id;
+    const [moving, base] = mode.moving.instanceId === fixedId ? [end, mode.moving] : [mode.moving, end];
+    if (s.doc.assembly!.joints.some((j) => j.moving.instanceId === moving.instanceId)) {
+      return this.explain('Cette pièce est déjà tenue par une liaison : supprimez-la d’abord pour en créer une autre.');
+    }
+    const kind: JointKind = moving.lcs.kind === 'circle' && base.lcs.kind === 'circle' ? 'revolute' : 'fixed';
+    const added = addJoint(s.doc, { kind, moving, base, flip: false, angle: 0, offset: 0 });
+    this.commit(added.doc, 'Créer une liaison', { mode: model, assemblySelection: { kind: 'joint', id: added.jointId } });
+  }
+
+  /** Change une liaison (type, retournement, limites…) : une action annulable. */
+  setJoint(jointId: Id, patch: Partial<AssemblyJoint>, label = 'Modifier une liaison'): void {
+    this.commit(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), label);
+  }
+
+  /** Réglage en continu (curseur, glisser) : le modèle suit sans remplir l'historique. */
+  setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset'>>): void {
+    if (!this.liveStart) this.liveStart = this.state.doc;
+    this.set({ doc: updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })) });
+  }
+
+  /** Fin d'un réglage en continu : une seule action dans l'historique. */
+  commitLive(label: string): void {
+    const start = this.liveStart;
+    this.liveStart = null;
+    if (!start || start === this.state.doc) return;
+    const s = this.state;
+    this.set({ history: recordAction(s.history, start, label), revision: s.revision + 1 });
+    this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
+  }
+
+  removeJoint(jointId: Id): void {
+    this.commit(removeJoint(this.state.doc, jointId), 'Supprimer une liaison', { assemblySelection: null });
+  }
+
+  /** Glisser une pièce : elle ne suit que le mouvement permis par sa liaison. */
+  assemblyDrag(event: AssemblyDragEvent): void {
+    const s = this.state;
+    if (event.phase === 'start') {
+      const joint = s.doc.assembly?.joints.find((j) => j.moving.instanceId === event.key);
+      const frames = joint && this.assemblyPlacement()?.jointFrames.get(joint.id);
+      if (!joint || !frames) return;
+      const free = jointFreedoms(joint.kind);
+      const rotate = free.angle && (!free.offset || !event.shift);
+      const origin = frames.base.origin;
+      const axis = frames.base.normal;
+      const p = rotate ? rayPlane(event.ray, origin, axis) : null;
+      const s0 = rotate ? 0 : rayAxisParam(event.ray, origin, axis);
+      this.drag = { jointId: joint.id, rotate, origin, axis, startAngle: joint.angle, startOffset: joint.offset, ref: p ? sub3(p, origin) : null, s0: s0 ?? 0, lastDelta: 0 };
+      this.set({ assemblySelection: { kind: 'joint', id: joint.id } });
+      return;
+    }
+    const drag = this.drag;
+    if (!drag) return;
+    const joint = s.doc.assembly?.joints.find((j) => j.id === drag.jointId);
+    if (!joint) return;
+    if (event.phase === 'move') {
+      if (drag.rotate) {
+        const p = rayPlane(event.ray, drag.origin, drag.axis);
+        if (!p || !drag.ref) return;
+        const v = sub3(p, drag.origin);
+        let delta = (Math.atan2(dot3(cross3(drag.ref, v), drag.axis), dot3(drag.ref, v)) * 180) / Math.PI;
+        // Rotation continue au-delà d'un demi-tour.
+        while (delta - drag.lastDelta > 180) delta -= 360;
+        while (delta - drag.lastDelta < -180) delta += 360;
+        drag.lastDelta = delta;
+        const angle = Math.round(clampToLimits(drag.startAngle + delta, joint.angleLimits) * 10) / 10;
+        this.setJointLive(joint.id, { angle });
+      } else {
+        const t = rayAxisParam(event.ray, drag.origin, drag.axis);
+        if (t === null) return;
+        const offset = Math.round(clampToLimits(drag.startOffset + (t - drag.s0), joint.offsetLimits) * 100) / 100;
+        this.setJointLive(joint.id, { offset });
+      }
+      return;
+    }
+    this.drag = null;
+    const inst = s.doc.assembly?.instances.find((i) => i.id === joint.moving.instanceId);
+    this.commitLive(`Déplacer « ${inst?.name ?? 'la pièce'} »`);
+  }
+
+  // =========================================================================
+  // Chat assistant
+
+  /** Change l'affichage du chat ; masqué / réduit sont retenus sur cet appareil. */
+  setMascot(patch: Partial<AppState['mascot']>): void {
+    const mascot = { ...this.state.mascot, ...patch };
+    this.set({ mascot });
+    if ('hidden' in patch || 'collapsed' in patch) {
+      void this.deps.projects?.setSetting('mascot', { hidden: mascot.hidden, collapsed: mascot.collapsed }).catch(() => undefined);
+    }
+    if (patch.hidden === true) this.toast('info', 'Le chat est masqué. Pour le faire revenir : Aide → « Afficher le chat ».');
+  }
+
+  /** Action proposée par un conseil du chat (toujours déclenchée par un clic de l'utilisateur). */
+  runAdviceAction(action: AdviceAction): void {
+    switch (action.kind) {
+      case 'edit-feature':
+        return this.editFeature(action.featureId);
+      case 'repair-support':
+        return this.repairSketch(action.featureId);
+      case 'start-sketch':
+        return this.startSketch();
+      case 'rollback-end':
+        return this.rollbackToEnd(action.partId);
+    }
+  }
+
+  startTutorial(): void {
+    this.set({ tutorial: { step: 0 }, helpOpen: false });
+  }
+
+  setTutorialStep(step: number): void {
+    this.set({ tutorial: { step } });
+  }
+
+  closeTutorial(): void {
+    this.set({ tutorial: null });
+  }
+
+  explain(text: string): void {
+    this.toast('info', text);
+  }
+
+  toast(kind: Toast['kind'], text: string, opts: { detail?: string; actionLabel?: string; action?: () => void } = {}): void {
+    const id = this.toastId++;
+    const toast: Toast = { id, kind, text, ...opts };
+    this.set({ toasts: [...this.state.toasts.filter((t) => t.text !== text), toast].slice(-4) });
+    setTimeout(() => this.dismissToast(id), kind === 'error' ? 12000 : opts.action ? 9000 : 6500);
+  }
+
+  dismissToast(id: number): void {
+    if (this.state.toasts.some((t) => t.id === id)) this.set({ toasts: this.state.toasts.filter((t) => t.id !== id) });
+  }
+}

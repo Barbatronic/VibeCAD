@@ -1,0 +1,167 @@
+/** État global de l'application (interface). Le document en est la seule partie enregistrée. */
+import type { RollbackState } from './rollback';
+import { emptyHistory, type UndoHistory } from '../commands/history';
+import { createDocument } from '../domain/document';
+import type { CadDocument, Id, JointEnd } from '../domain/model';
+import type { FeatureDraft } from '../features/panel-types';
+import type { MeshData } from '../geometry/kernel';
+import type { PartResult, StepInspection } from '../geometry/protocol';
+import type { Vec3 } from '../math/vec';
+import type { AutosaveStatus } from '../persistence/autosave';
+import type { AutosaveRecord, ProjectSummary } from '../persistence/db';
+import type { SaveTarget } from '../persistence/files';
+import type { SketchSession } from '../sketch/session';
+import type { Projection } from '../viewport/camera-rig';
+import type { ModelPick } from '../viewport/viewport';
+
+export interface MeasureInfo {
+  title: string;
+  lines: string[];
+  segment?: { a: Vec3; b: Vec3; label: string };
+}
+
+export type Mode =
+  | { kind: 'model' }
+  | { kind: 'pick-support'; partId: Id; repairFeatureId: Id | null }
+  | { kind: 'sketch'; session: SketchSession }
+  | { kind: 'feature'; draft: FeatureDraft }
+  | { kind: 'measure'; picks: ModelPick[]; info: MeasureInfo | null; busy: boolean }
+  /** Création d'une liaison d'assemblage : repère de la pièce mobile, puis de la pièce de référence. */
+  | { kind: 'joint'; moving: JointEnd | null };
+
+/** Onglet de travail : modélisation des pièces, ou assemblage. */
+export type Workspace = 'parts' | 'assembly';
+
+export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | null;
+
+export type Selection =
+  | { kind: 'part'; partId: Id }
+  | { kind: 'feature'; partId: Id; featureId: Id }
+  | { kind: 'face'; partId: Id; index: number }
+  | { kind: 'edge'; partId: Id; index: number }
+  | null;
+
+export interface PartDisplay {
+  /** Résultat du dernier recalcul (statuts, esquisses résolues…). */
+  result: PartResult;
+  /** Maillage affiché : le dernier valide si l'historique contient une erreur. */
+  mesh: MeshData | null;
+  meshKey: string | null;
+  /** La géométrie affichée n'est plus à jour (une étape est en erreur). */
+  stale: boolean;
+}
+
+export interface Toast {
+  id: number;
+  kind: 'info' | 'success' | 'error';
+  text: string;
+  detail?: string;
+  actionLabel?: string;
+  action?: () => void;
+}
+
+export type Dialog =
+  | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
+  | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean }
+  | {
+      kind: 'import-step';
+      fileName: string;
+      bytes: Uint8Array;
+      inspection: StepInspection | null;
+      error: string | null;
+      target: 'new-part' | 'active-part';
+      busy: boolean;
+    }
+  | { kind: 'recovery'; autosave: Omit<AutosaveRecord, 'text'>; savedAt: string | null }
+  | { kind: 'unsaved'; action: 'new' | 'open-project' | 'open-file' | 'open-draft'; payload?: string }
+  | { kind: 'about' }
+  | { kind: 'problem'; title: string; message: string; details: string[] }
+  | { kind: 'confirm-leave-sketch' };
+
+export type OfflineState =
+  | { status: 'dev' }
+  | { status: 'unsupported' }
+  | { status: 'preparing'; done: number; total: number }
+  | { status: 'ready'; version: string }
+  | { status: 'update-ready' }
+  | { status: 'error'; message: string };
+
+export interface ProjectMeta {
+  /** Date du dernier enregistrement explicite (null : jamais enregistré). */
+  savedAt: string | null;
+  /** Révision du document au dernier enregistrement. */
+  savedRevision: number | null;
+  file: SaveTarget | null;
+  autosave: AutosaveStatus;
+  storageAvailable: boolean;
+}
+
+export type ExportFormat = 'step' | 'stl' | '3mf';
+
+export interface AppState {
+  doc: CadDocument;
+  history: UndoHistory;
+  /** Incrémentée à chaque modification du document. */
+  revision: number;
+  activePartId: Id;
+  mode: Mode;
+  selection: Selection;
+  hover: ModelPick | null;
+  display: Record<Id, PartDisplay>;
+  evaluating: boolean;
+  lastEvaluation: { durationMs: number; memoryBytes: number } | null;
+  /**
+   * Chat assistant : masqué (préférence de l'appareil), réduit (bulle repliée), et dernier
+   * conseil refermé par l'utilisateur (il ne se rouvre que si le conseil change).
+   */
+  mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
+  workspace: Workspace;
+  assemblySelection: AssemblySelection;
+  /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
+  rollback: RollbackState;
+  /** Demande de cadrage : incrémentée quand la vue doit cadrer le modèle affiché (premier solide, projet ouvert). */
+  fitRequest: number;
+  preview: { parts: Record<Id, PartResult>; tool: { partId: Id; key: string; mesh: MeshData; kind: 'add' | 'cut' } | null } | null;
+  kernel: { status: 'loading' | 'ready' | 'error'; message?: string; initMs?: number };
+  project: ProjectMeta;
+  offline: OfflineState;
+  projection: Projection;
+  dialog: Dialog | null;
+  helpOpen: boolean;
+  leftPanelOpen: boolean;
+  toasts: Toast[];
+  tutorial: { step: number } | null;
+}
+
+export function initialState(): AppState {
+  const doc = createDocument();
+  return {
+    doc,
+    history: emptyHistory(),
+    revision: 0,
+    activePartId: doc.parts[0]!.id,
+    mode: { kind: 'model' },
+    selection: null,
+    hover: null,
+    display: {},
+    evaluating: false,
+    lastEvaluation: null,
+    fitRequest: 0,
+    rollback: {},
+    workspace: 'parts',
+    assemblySelection: null,
+    mascot: { hidden: false, collapsed: false, dismissed: null },
+    preview: null,
+    kernel: { status: 'loading' },
+    project: { savedAt: null, savedRevision: null, file: null, autosave: { kind: 'idle' }, storageAvailable: true },
+    offline: { status: 'dev' },
+    projection: 'perspective',
+    dialog: null,
+    helpOpen: false,
+    leftPanelOpen: false,
+    toasts: [],
+    tutorial: null,
+  };
+}
+
+export const isDirty = (s: AppState) => s.project.savedRevision !== s.revision && (s.revision > 0 || s.project.savedRevision !== null);
