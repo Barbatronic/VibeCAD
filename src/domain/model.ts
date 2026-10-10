@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -160,6 +160,7 @@ export type FilletFeature = FeatureBase<'fillet', FilletParams>;
 export type ChamferFeature = FeatureBase<'chamfer', ChamferParams>;
 export type PatternFeature = FeatureBase<'pattern', PatternParams>;
 export type MirrorFeature = FeatureBase<'mirror', MirrorParams>;
+export type PrimitiveFeature = FeatureBase<'primitive', PrimitiveParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -456,6 +457,26 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
 export interface MirrorParams {
   source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
   plane: MirrorPlane;
+}
+
+export type PrimitiveShape = 'box' | 'cylinder' | 'sphere' | 'torus';
+
+/**
+ * Forme toute faite, ajoutée à la pièce ou creusée dedans (`cut`, comme un trou). Boîte : coin
+ * en `position`, `width` (X) × `depth` (Y) × `height` (Z) ; cylindre : centre de la base,
+ * `diameter` × `height` ; sphère : centre, `diameter` ; tore (anneau) : centre, `diameter` de la
+ * ligne centrale et `thickness` (diamètre du tube). Les dimensions inutiles sont conservées pour
+ * pouvoir changer de forme sans tout ressaisir.
+ */
+export interface PrimitiveParams {
+  shape: PrimitiveShape;
+  position: { x: number; y: number; z: number };
+  width: number;
+  depth: number;
+  height: number;
+  diameter: number;
+  thickness: number;
+  operation: 'add' | 'cut';
 }
 
 export interface ExtrudeParams {

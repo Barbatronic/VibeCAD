@@ -5,6 +5,8 @@
  */
 import { createId } from './ids';
 import type {
+  PrimitiveFeature,
+  PrimitiveShape,
   MirrorFeature,
   MirrorParams,
   MirrorPlane,
@@ -49,6 +51,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   chamfer: 'Chanfrein',
   pattern: 'Répétition',
   mirror: 'Symétrie',
+  primitive: 'Forme',
 };
 
 export function nowIso(): string {
@@ -214,7 +217,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -248,7 +251,7 @@ export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, a
 }
 
 /** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */
-export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve'];
+export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive'];
 
 export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, kind: PatternParams['kind'] = 'linear'): PatternFeature {
   return {
@@ -261,6 +264,15 @@ export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, k
 
 export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorParams['source'] = { kind: 'part' }, plane: MirrorPlane = { kind: 'plane', plane: 'YZ' }): MirrorFeature {
   return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
+}
+
+export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: PrimitiveShape = 'box', operation: 'add' | 'cut' = 'add'): PrimitiveFeature {
+  return {
+    id: newFeatureId(doc, 'primitive'),
+    type: 'primitive',
+    name: nextFeatureName(part, 'primitive'),
+    params: { shape, position: { x: 0, y: 0, z: 0 }, width: 20, depth: 20, height: 20, diameter: 20, thickness: 6, operation },
+  };
 }
 
 export function makePocketFeature(

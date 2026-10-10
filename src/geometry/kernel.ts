@@ -40,6 +40,22 @@ export interface RevolveRequest {
   angle: number;
 }
 
+/**
+ * Forme toute faite. Boîte : coin en `position`, dimensions `width` (X), `depth` (Y), `height` (Z) ;
+ * cylindre : centre de la base en `position`, axe Z ; sphère et tore : centre en `position`, axe Z
+ * (tore : `diameter` = diamètre de la ligne centrale, `thickness` = diamètre du tube).
+ */
+export interface PrimitiveRequest {
+  featureId: Id;
+  shape: 'box' | 'cylinder' | 'sphere' | 'torus';
+  position: Vec3;
+  width: number;
+  depth: number;
+  height: number;
+  diameter: number;
+  thickness: number;
+}
+
 export interface BoundingBox {
   min: Vec3;
   max: Vec3;
@@ -162,6 +178,11 @@ export class KernelError extends Error {
 export interface GeometryKernel {
   /** Extrusion de régions planes entre deux positions le long de la normale du repère. */
   makePrism(request: PrismRequest): KernelShape;
+  /**
+   * Forme toute faite ; faces étiquetées `start` (dessous), `end` (dessus), `side` + élément
+   * (`x-`, `x+`, `y-`, `y+` pour la boîte, `wall` pour le cylindre, `surface` pour la sphère et le tore).
+   */
+  makePrimitive(request: PrimitiveRequest): KernelShape;
   /** Solide de révolution ; faces étiquetées `start`, `end` (révolution partielle) et `side`. */
   makeRevolution(request: RevolveRequest): KernelShape;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;

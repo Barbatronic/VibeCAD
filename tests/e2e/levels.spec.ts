@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp } from './helpers';
+import { openApp, openFileMenu } from './helpers';
 
 const BASE = 'http://localhost:5174/';
 
@@ -12,8 +12,12 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   await expect(page.locator('#tool-pocket')).toBeVisible();
   await expect(page.locator('#tool-revolve')).toHaveCount(0);
   await expect(page.locator('#tool-pattern')).toHaveCount(0);
-  await expect(page.locator('#tool-import')).toHaveCount(0);
   await expect(page.locator('#tab-assembly')).toHaveCount(0);
+  // L'import STEP (menu Fichier) est un outil Expert ; les formes toutes faites sont pour tous.
+  await expect(page.locator('#tool-primitive')).toBeVisible();
+  await openFileMenu(page);
+  await expect(page.getByRole('menuitem', { name: /Importer un fichier STEP/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.click('#tool-sketch');
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect(page.locator('#sk-line')).toBeVisible();
@@ -35,12 +39,12 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   await page.getByRole('button', { name: /Annuler/ }).last().click();
   await expect(page.locator('#tool-revolve')).toBeVisible();
   await expect(page.locator('#tab-assembly')).toBeVisible();
-  await expect(page.locator('#tool-import')).toHaveCount(0);
 
   // Retenu après rechargement.
   await page.reload();
   await page.waitForFunction(() => (window as any).vibecad?.store?.get().kernel.status === 'ready');
   await expect(page.getByLabel('Niveau de l’interface')).toHaveValue('intermediaire');
   await page.getByLabel('Niveau de l’interface').selectOption('expert');
-  await expect(page.locator('#tool-import')).toBeVisible();
+  await openFileMenu(page);
+  await expect(page.getByRole('menuitem', { name: /Importer un fichier STEP/ })).toBeVisible();
 });

@@ -11,6 +11,7 @@ import type { FeaturePanelProps } from '../features/panel-types';
 import { PocketPanel } from '../features/pocket/panel';
 import { MirrorPanel } from '../features/mirror/panel';
 import { PatternPanel } from '../features/pattern/panel';
+import { PrimitivePanel } from '../features/primitive/panel';
 import { RevolvePanel } from '../features/revolve/panel';
 
 export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<FeaturePanelProps<never>>>> = {
@@ -18,6 +19,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   pocket: PocketPanel as FunctionComponent<FeaturePanelProps<never>>,
   revolve: RevolvePanel as FunctionComponent<FeaturePanelProps<never>>,
   pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
+  primitive: PrimitivePanel as FunctionComponent<FeaturePanelProps<never>>,
   mirror: MirrorPanel as FunctionComponent<FeaturePanelProps<never>>,
   fillet: FilletPanel as FunctionComponent<FeaturePanelProps<never>>,
   chamfer: ChamferPanel as FunctionComponent<FeaturePanelProps<never>>,

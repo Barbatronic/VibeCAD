@@ -4,6 +4,7 @@
  */
 import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
+import { primitiveDefinition } from './primitive/definition';
 import { mirrorDefinition } from './mirror/definition';
 import { chamferDefinition } from './chamfer/definition';
 import { extrudeDefinition } from './extrude/definition';
@@ -17,6 +18,7 @@ import { sketchDefinition } from './sketch/definition';
 export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   sketch: sketchDefinition,
   extrude: extrudeDefinition,
+  primitive: primitiveDefinition,
   pocket: pocketDefinition,
   revolve: revolveDefinition,
   pattern: patternDefinition,

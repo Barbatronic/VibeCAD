@@ -93,6 +93,38 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
     </>
   ),
+  primitive: (
+    <>
+      <path d="M3 9l5-3 5 3v6l-5 3-5-3z" />
+      <path d="M3 9l5 3 5-3M8 12v6" opacity="0.6" />
+      <circle cx="17.5" cy="15.5" r="3.5" />
+      <path d="M14 15.5a3.5 1.2 0 0 0 7 0" opacity="0.6" />
+    </>
+  ),
+  'prim-box': (
+    <>
+      <path d="M4 8l8-4 8 4v8l-8 4-8-4z" />
+      <path d="M4 8l8 4 8-4M12 12v8" opacity="0.6" />
+    </>
+  ),
+  'prim-cylinder': (
+    <>
+      <ellipse cx="12" cy="6" rx="7" ry="2.5" />
+      <path d="M5 6v12a7 2.5 0 0 0 14 0V6" />
+    </>
+  ),
+  'prim-sphere': (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12a8 3 0 0 0 16 0" opacity="0.6" />
+    </>
+  ),
+  'prim-torus': (
+    <>
+      <ellipse cx="12" cy="12" rx="9" ry="5" />
+      <ellipse cx="12" cy="11.5" rx="3.5" ry="1.6" />
+    </>
+  ),
   hand: (
     <>
       <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12" />

@@ -35,6 +35,7 @@ import {
   type KernelShape,
   type MeshData,
   type MeshOptions,
+  type PrimitiveRequest,
   type PrismRequest,
   type RevolveRequest,
   type ShapeAnalysis,
@@ -331,6 +332,43 @@ export class OcctKernel implements GeometryKernel {
       for (const p of parts) if (!p.disposed) this.dispose(p);
       throw err;
     }
+  }
+
+  makePrimitive(request: PrimitiveRequest): KernelShape {
+    const oc = this.oc;
+    const r = request;
+    const positive = r.shape === 'box' ? [r.width, r.depth, r.height] : r.shape === 'cylinder' ? [r.diameter, r.height] : r.shape === 'sphere' ? [r.diameter] : [r.diameter, r.thickness];
+    if (positive.some((v) => !(v > 0))) throw new KernelError('Les dimensions de la forme doivent être positives.');
+    if (r.shape === 'torus' && r.thickness >= r.diameter) throw new KernelError('L’épaisseur de l’anneau doit être plus petite que son diamètre.');
+    return this.guard('forme', () =>
+      withScope((scope) => {
+        // Construction à l'origine (constructeurs sans ambiguïté), puis déplacement.
+        const maker =
+          r.shape === 'box'
+            ? scope.track(new oc.BRepPrimAPI_MakeBox(r.width, r.depth, r.height))
+            : r.shape === 'cylinder'
+              ? scope.track(new oc.BRepPrimAPI_MakeCylinder(r.diameter / 2, r.height))
+              : r.shape === 'sphere'
+                ? scope.track(new oc.BRepPrimAPI_MakeSphere(r.diameter / 2))
+                : scope.track(new oc.BRepPrimAPI_MakeTorus(r.diameter / 2, r.thickness / 2));
+        const trsf = scope.track(new oc.gp_Trsf());
+        trsf.SetTranslation(this.vec(scope, r.position));
+        const moved = scope.track(new oc.BRepBuilderAPI_Transform(maker.Shape(), trsf, true, false));
+        const shape = moved.Shape();
+        const faces = this.taggedFaces(shape);
+        for (const f of faces) {
+          const info = this.surfaceInfo(scope, f.face);
+          let tag: FaceTag;
+          if (info.plane && Math.abs(info.plane.normal.z) > 0.99) tag = { featureId: r.featureId, role: info.plane.normal.z < 0 ? 'start' : 'end' };
+          else if (info.plane) {
+            const n = info.plane.normal;
+            tag = { featureId: r.featureId, role: 'side', entityId: Math.abs(n.x) > Math.abs(n.y) ? (n.x < 0 ? 'x-' : 'x+') : n.y < 0 ? 'y-' : 'y+' };
+          } else tag = { featureId: r.featureId, role: 'side', entityId: r.shape === 'cylinder' ? 'wall' : 'surface' };
+          addTags(f.tags, [tag]);
+        }
+        return new OcctShape(shape, faces);
+      }),
+    );
   }
 
   makeRevolution(request: RevolveRequest): KernelShape {

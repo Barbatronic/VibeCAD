@@ -2503,12 +2503,14 @@ kbd {
   background: var(--danger);
 }
 
+.choice-grid,
 .joint-kinds {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 4px;
 }
 
+.choice-card,
 .joint-kind {
   display: flex;
   flex-direction: column;
@@ -2524,11 +2526,13 @@ kbd {
   cursor: pointer;
 }
 
+.choice-card svg,
 .joint-kind svg {
   width: 26px;
   height: 26px;
 }
 
+.choice-card[aria-pressed='true'],
 .joint-kind[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -2586,4 +2590,8 @@ kbd {
 
 .tip-reason {
   color: var(--warning);
+}
+
+.position-row .field {
+  margin: 0;
 }

@@ -410,7 +410,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -437,6 +437,24 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         name,
         type,
         params: { sketchId: str(v, p, 'sketchId', pp), axis, angle: num(v, p, 'angle', pp, { min: 0, max: 360 }), reversed: p.reversed === true },
+      };
+    }
+    case 'primitive': {
+      const pos = obj(v, p.position, `${pp}.position`) ?? {};
+      return {
+        id,
+        name,
+        type,
+        params: {
+          shape: oneOf(v, p, 'shape', pp, ['box', 'cylinder', 'sphere', 'torus'] as const),
+          position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
+          width: num(v, p, 'width', pp, { min: 0 }),
+          depth: num(v, p, 'depth', pp, { min: 0 }),
+          height: num(v, p, 'height', pp, { min: 0 }),
+          diameter: num(v, p, 'diameter', pp, { min: 0 }),
+          thickness: num(v, p, 'thickness', pp, { min: 0 }),
+          operation: oneOf(v, p, 'operation', pp, ['add', 'cut'] as const),
+        },
       };
     }
     case 'mirror': {

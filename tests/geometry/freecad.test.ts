@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
@@ -172,5 +172,21 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(2 * (9000 - Math.PI * 9 * 5), 3);
     expect(o!.bbox[0]).toBeCloseTo(-60, 3);
+  });
+
+  it('formes toutes faites : boîte creusée d’une demi-boule, solide valide, volume exact', () => {
+    let doc = createDocument('Bac');
+    const partId = doc.parts[0]!.id;
+    const box = makePrimitiveFeature(doc, findPart(doc, partId)!, 'box');
+    doc = addFeature(doc, partId, { ...box, params: { ...box.params, width: 40, depth: 30, height: 10 } });
+    const ball = makePrimitiveFeature(doc, findPart(doc, partId)!, 'sphere', 'cut');
+    doc = addFeature(doc, partId, { ...ball, params: { ...ball.params, diameter: 16, position: { x: 20, y: 15, z: 10 } } });
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
+    const file = join(outDir, 'formes-bac.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Bac', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(12000 - ((4 / 3) * Math.PI * 512) / 2, 2);
   });
 });

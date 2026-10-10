@@ -28,6 +28,7 @@ function FileMenu() {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const exportOk = useAppState((s) => exportAvailability(s).ok);
+  const canImport = useAppState((s) => allows(s.level, 'import-step'));
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -83,7 +84,7 @@ function FileMenu() {
           {item('save', 'Enregistrer', () => void c.save(), 'Ctrl+S')}
           {item('export', 'Enregistrer sous… (fichier)', () => void c.saveAs(), 'Ctrl+Maj+S')}
           <div class="menu-sep" role="separator" />
-          {item('import', 'Importer un fichier STEP…', () => void c.importStep())}
+          {canImport ? item('import', 'Importer un fichier STEP…', () => void c.importStep()) : null}
           {item('export', 'Exporter en STEP (FreeCAD)…', () => c.showExportDialog('step'), undefined, !exportOk)}
           {item('print3d', 'Exporter en 3MF (impression 3D)…', () => c.showExportDialog('3mf'), undefined, !exportOk)}
           {item('stl', 'Exporter en STL (impression 3D)…', () => c.showExportDialog('stl'), undefined, !exportOk)}
@@ -203,9 +204,6 @@ function ModelTools() {
       </div>
       <div class="toolbar-group" role="group" aria-label="Pièces">
         <ToolButton id="tool-new-part" icon="part" label="Pièce" hint="Ajouter une nouvelle pièce indépendante" availability={a.importOk} onClick={() => c.addPart()} />
-        {allows(level, 'import-step') ? (
-          <ToolButton id="tool-import" icon="import" label="Importer" hint="Importer un fichier STEP" availability={a.importOk} onClick={() => void c.importStep()} />
-        ) : null}
         <ToolButton id="tool-export" icon="export" label="STEP" hint="Exporter en STEP pour FreeCAD" availability={a.importOk} onClick={() => c.showExportDialog('step')} />
       </div>
       <div class="toolbar-group" role="group" aria-label="Outils">

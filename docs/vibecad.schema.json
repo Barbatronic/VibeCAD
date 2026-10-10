@@ -662,6 +662,81 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "primitive"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "shape",
+                "position",
+                "width",
+                "depth",
+                "height",
+                "diameter",
+                "thickness",
+                "operation"
+              ],
+              "properties": {
+                "shape": {
+                  "enum": [
+                    "box",
+                    "cylinder",
+                    "sphere",
+                    "torus"
+                  ]
+                },
+                "position": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "width": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "depth": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "diameter": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "thickness": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },
