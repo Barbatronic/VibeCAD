@@ -185,7 +185,11 @@ function ModelTools() {
           if (group) {
             // Un seul bouton par groupe, à la place du premier de ses membres.
             if (types.find((x) => group.types.includes(x)) !== t) return null;
-            const members = types.flatMap((x, k) => (group.types.includes(x) ? [{ type: x, availability: a.tools[k]! }] : []));
+            // Dans l'ordre du groupe : le premier outil est celui montré par défaut.
+            const members = group.types.flatMap((x) => {
+              const k = types.indexOf(x);
+              return k >= 0 ? [{ type: x, availability: a.tools[k]! }] : [];
+            });
             return <FeatureSplit key={group.name} name={group.name} members={members} />;
           }
           return (
@@ -234,7 +238,7 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
 
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
-  { name: 'arrondis et chanfreins', types: ['fillet', 'chamfer'] },
+  { name: 'arrondis, chanfreins et coques', types: ['fillet', 'chamfer', 'shell'] },
   { name: 'répétitions et symétries', types: ['pattern', 'mirror'] },
 ];
 

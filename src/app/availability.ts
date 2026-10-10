@@ -70,7 +70,7 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
   if (def.tool.requiresSolid && !partHasSolid(state, part.id)) {
     return no(def.tool.requiresSolidReason ?? `Il faut d’abord un volume pour créer une ${label}.`);
   }
-  if (def.tool.input === 'edges') return yes;
+  if (def.tool.input === 'edges' || def.tool.input === 'faces') return yes;
   if (def.tool.input === 'part') {
     if (type === 'pattern' && !part.features.some((f) => PATTERN_SOURCE_TYPES.includes(f.type))) {
       return no('Il n’y a encore rien à répéter : faites d’abord une extrusion, une poche ou une révolution.');

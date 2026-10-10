@@ -20,7 +20,7 @@ test('frise de l’historique : revenir après l’extrusion, y insérer un chan
   const edge = await worldToScreen(page, 30, 0, 5);
   await page.mouse.click(edge.x, edge.y);
   await expect.poll(() => appState(page, (s) => s.selection?.kind)).toBe('edge');
-  await page.getByRole('button', { name: 'Autres outils : arrondis et chanfreins' }).click();
+  await page.getByRole('button', { name: 'Autres outils : arrondis, chanfreins et coques' }).click();
   await page.click('#tool-menu-chamfer');
   await page.locator('#draft-size').fill('2');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

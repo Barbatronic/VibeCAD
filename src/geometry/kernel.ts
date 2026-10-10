@@ -140,6 +140,17 @@ export interface BlendRequest {
   size: number;
 }
 
+/** Coque : la pièce est vidée en gardant une paroi d'épaisseur `thickness` ; les faces `open` sont retirées. */
+export interface ShellRequest {
+  featureId: Id;
+  open: FaceRef[];
+  thickness: number;
+  /** Vrai : la paroi est ajoutée à l'extérieur (la pièce garde sa forme intérieure). */
+  outward: boolean;
+}
+
+export type ShellResult = { status: 'ok'; shape: KernelShape } | { status: 'faces-lost'; missing: number[] } | { status: 'failed'; detail: string };
+
 export type BlendResult =
   | { status: 'ok'; shape: KernelShape }
   | { status: 'edges-lost'; missing: number[] }
@@ -208,6 +219,8 @@ export interface GeometryKernel {
    * sont étiquetées `{ featureId, role: 'blend', index }` (rang de l'arête dans la demande).
    */
   blend(base: KernelShape, request: BlendRequest): BlendResult;
+  /** Coque ; les faces intérieures créées sont étiquetées `side` + `inner` + rang de la face d'origine. */
+  shell(base: KernelShape, request: ShellRequest): ShellResult;
   mesh(shape: KernelShape, options: MeshOptions): MeshData;
   exportStep(items: StepExportItem[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */

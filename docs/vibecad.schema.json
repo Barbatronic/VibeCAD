@@ -737,6 +737,36 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "shell"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "open",
+                "thickness",
+                "outward"
+              ],
+              "properties": {
+                "open": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/faceRef"
+                  }
+                },
+                "thickness": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "outward": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       ]
     },

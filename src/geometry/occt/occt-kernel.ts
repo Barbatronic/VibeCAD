@@ -39,6 +39,8 @@ import {
   type PrismRequest,
   type RevolveRequest,
   type ShapeAnalysis,
+  type ShellRequest,
+  type ShellResult,
   type StepExportItem,
   type StepReadResult,
   type SurfaceKind,
@@ -732,6 +734,77 @@ export class OcctKernel implements GeometryKernel {
       });
     } catch (err) {
       const e = this.toKernelError(request.kind === 'fillet' ? 'congé' : 'chanfrein', err);
+      return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
+    }
+  }
+
+  shell(baseIn: KernelShape, request: ShellRequest): ShellResult {
+    const base = asOcct(baseIn);
+    const oc = this.oc;
+    if (!(request.thickness > 0)) return { status: 'failed', detail: 'L’épaisseur doit être positive.' };
+    try {
+      return withScope((scope) => {
+        const resolved = request.open.map((ref) => base.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref))));
+        const missing = resolved.flatMap((faces, i) => (faces.length === 0 ? [i] : []));
+        if (missing.length > 0) return { status: 'faces-lost', missing };
+        const list = scope.track(new oc.NCollection_List_TopoDS_Shape());
+        const added: TaggedFace[] = [];
+        for (const faces of resolved) for (const f of faces) if (!added.includes(f)) (added.push(f), list.Append(f.face));
+        const mk = scope.track(new oc.BRepOffsetAPI_MakeThickSolid());
+        // Jointures « intersection » : coins vifs (par défaut, le moteur les arrondit vers l'extérieur).
+        mk.MakeThickSolidByJoin(
+          base.shape,
+          list,
+          request.outward ? request.thickness : -request.thickness,
+          1e-3,
+          oc.BRepOffset_Mode.BRepOffset_Skin,
+          false,
+          false,
+          oc.GeomAbs_JoinType.GeomAbs_Intersection,
+        );
+        if (!mk.IsDone()) return { status: 'failed', detail: 'Construction impossible avec cette épaisseur.' };
+        if (added.length === 0) {
+          // Sans face ouverte, le moteur rend le volume décalé (intérieur ou agrandi) : la pièce
+          // creuse fermée s'obtient en le retirant de la pièce (ou la pièce du volume agrandi).
+          const offset = mk.Shape();
+          const offsetFaces = this.taggedFaces(offset);
+          offsetFaces.forEach((f, index) => addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: request.outward ? 'outer' : 'inner', index }]));
+          const tool = new OcctShape(offset, offsetFaces);
+          try {
+            const closed = request.outward ? this.boolean('cut', tool, base) : this.boolean('cut', base, tool);
+            return { status: 'ok', shape: closed };
+          } finally {
+            this.dispose(tool);
+          }
+        }
+        const result = mk.Shape();
+        const faces = this.taggedFaces(result);
+        base.faces.forEach((tf, index) => {
+          if (tf.tags.length === 0) return;
+          // Faces d'origine conservées (ou modifiées) : mêmes étiquettes.
+          if (!mk.IsDeleted(tf.face)) {
+            const modified = this.listToArray(scope.track(mk.Modified(tf.face)));
+            const targets = modified.length === 0 ? [tf.face] : modified.map((m) => scope.track(m));
+            for (const m of targets) {
+              const i = this.indexOfFace(faces, m);
+              if (i >= 0) addTags(faces[i]!.tags, tf.tags);
+            }
+          }
+          // Faces de la paroi intérieure, engendrées par le décalage de la face d'origine.
+          for (const g of this.listToArray(scope.track(mk.Generated(tf.face)))) {
+            scope.track(g);
+            const i = this.indexOfFace(faces, g);
+            if (i >= 0 && faces[i]!.tags.length === 0) addTags(faces[i]!.tags, [{ featureId: request.featureId, role: 'side', entityId: 'inner', index }]);
+          }
+        });
+        // Faces restantes sans étiquette (jointures) : rattachées à la coque.
+        faces.forEach((f, k) => {
+          if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: 'join', index: k }]);
+        });
+        return { status: 'ok', shape: new OcctShape(result, faces) };
+      });
+    } catch (err) {
+      const e = this.toKernelError('coque', err);
       return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
     }
   }

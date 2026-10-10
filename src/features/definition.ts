@@ -4,7 +4,7 @@
  * L'évaluation géométrique (`evaluate.ts`) et le panneau d'interface (`panel.tsx`) de chaque
  * fonction sont dans le même dossier, enregistrés dans leurs registres respectifs.
  */
-import type { CadDocument, EdgeRef, Feature, FeatureType, Id, Part } from '../domain/model';
+import type { CadDocument, EdgeRef, FaceRef, Feature, FeatureType, Id, Part } from '../domain/model';
 import type { BoundingBox } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
 
@@ -26,7 +26,7 @@ export interface CreateContext {
  * Ce que l'utilisateur fournit à la création : une esquisse fermée, des arêtes de la pièce, ou
  * rien de plus que la pièce elle-même (la répétition choisit l'étape à copier dans son panneau).
  */
-export type ToolInput = { kind: 'sketch'; sketchId: Id } | { kind: 'edges'; edges: EdgeRef[] } | { kind: 'part' };
+export type ToolInput = { kind: 'sketch'; sketchId: Id } | { kind: 'edges'; edges: EdgeRef[] } | { kind: 'faces'; faces: FaceRef[] } | { kind: 'part' };
 
 /** Fonction proposée dans la barre d'outils, avec un panneau de paramètres et un aperçu. */
 export interface FeatureTool<F extends Feature> {

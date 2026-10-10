@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -700,6 +700,12 @@ export class AppController {
       sketchFrame = result?.sketches.find((x) => x.featureId === sketch.id)?.frame ?? null;
     } else if (tool.input === 'part') {
       input = { kind: 'part' };
+    } else if (tool.input === 'faces') {
+      // Face déjà sélectionnée dans la vue : elle devient la première face de l'opération.
+      const mesh = this.state.display[part.id]?.mesh;
+      const face = sel?.kind === 'face' && mesh ? mesh.faces[sel.index] : undefined;
+      const ref = face ? pickFaceReference(face.tags, part) : null;
+      input = { kind: 'faces', faces: ref ? [ref] : [] };
     } else {
       // Arête déjà sélectionnée dans la vue : elle devient la première arête de l'opération.
       const mesh = this.state.display[part.id]?.mesh;
@@ -728,6 +734,7 @@ export class AppController {
     const feature = draft.feature;
     if (feature.type === 'pattern') return this.pickPatternAxis(pick, feature);
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
+    if (feature.type === 'shell') return this.pickShellFace(pick, feature);
     if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
     const mesh = this.displayedMesh(pick.partId);
@@ -744,6 +751,31 @@ export class AppController {
       edges = r.kind === 'blend' ? edges.filter((_e, i) => i !== r.index) : toggleEdge(edges, r.ref);
     }
     this.updateDraft((f) => ({ ...f, params: { ...f.params, edges } }) as Feature);
+  }
+
+  /** Clic dans la vue pendant l'édition d'une coque : la face cliquée est ouverte, ou refermée. */
+  private pickShellFace(pick: ModelPick, feature: ShellFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une face de la pièce en cours de modification.');
+    if (pick.kind !== 'face') return this.explain('Cliquez une face (pas une arête) pour l’ouvrir ou la refermer.');
+    const part = findPart(this.state.doc, pick.partId);
+    const shown = this.displayedMesh(pick.partId);
+    const face = shown?.faces[pick.index];
+    if (!part || !face) return;
+    let tags = face.tags.filter((t) => t.featureId !== feature.id);
+    if (tags.length === 0) {
+      // Clic sur la paroi intérieure de l'aperçu : la face d'origine la plus proche du point cliqué,
+      // sur la pièce telle qu'elle était avant la coque.
+      const before = this.state.display[pick.partId]?.mesh;
+      const nearest = before ? nearestFace(before, pick.point) : -1;
+      tags = nearest >= 0 ? before!.faces[nearest]!.tags.filter((t) => t.featureId !== feature.id) : [];
+    }
+    const ref = pickFaceReference(tags, part);
+    if (!ref) return this.explain('Cette face appartient à la paroi intérieure : cliquez une face de la pièce d’origine.');
+    const same = (a: FaceRef, b: FaceRef) => a.featureId === b.featureId && a.role === b.role && (a.entityId ?? null) === (b.entityId ?? null) && (a.index ?? null) === (b.index ?? null);
+    const open = feature.params.open.some((f) => same(f, ref)) ? feature.params.open.filter((f) => !same(f, ref)) : [...feature.params.open, ref];
+    this.updateDraft((f) => ({ ...f, params: { ...(f as ShellFeature).params, open } }) as Feature);
   }
 
   /** Clic dans la vue pendant l'édition d'une symétrie : la face plane cliquée devient le plan. */
@@ -1940,4 +1972,47 @@ function rotateAlong(v: Vec3, from: Vec3, to: Vec3): Vec3 {
     y: v.y * cos + kv.y * sin + axis.y * kd * (1 - cos),
     z: v.z * cos + kv.z * sin + axis.z * kd * (1 - cos),
   };
+}
+
+/** Face d'un maillage la plus proche d'un point (distance aux triangles). */
+function nearestFace(mesh: { positions: Float32Array; indices: Uint32Array; faces: { start: number; count: number }[] }, p: Vec3): number {
+  let best = -1;
+  let bestD = Infinity;
+  const v = (i: number): Vec3 => ({ x: mesh.positions[i * 3]!, y: mesh.positions[i * 3 + 1]!, z: mesh.positions[i * 3 + 2]! });
+  mesh.faces.forEach((f, fi) => {
+    for (let k = f.start; k < f.start + f.count; k += 3) {
+      const d = pointTriangleDistance(p, v(mesh.indices[k]!), v(mesh.indices[k + 1]!), v(mesh.indices[k + 2]!));
+      if (d < bestD) {
+        bestD = d;
+        best = fi;
+      }
+    }
+  });
+  return best;
+}
+
+/** Distance d'un point à un triangle (projection sur le plan, sinon aux côtés). */
+function pointTriangleDistance(p: Vec3, a: Vec3, b: Vec3, c: Vec3): number {
+  const ab = sub3(b, a);
+  const ac = sub3(c, a);
+  const n = cross3(ab, ac);
+  const len = Math.hypot(n.x, n.y, n.z);
+  if (len > 1e-12) {
+    const nn = scale3(n, 1 / len);
+    const d = dot3(sub3(p, a), nn);
+    const q = sub3(p, scale3(nn, d));
+    const inside = [
+      [a, b],
+      [b, c],
+      [c, a],
+    ].every(([u, w]) => dot3(cross3(sub3(w!, u!), sub3(q, u!)), nn) >= -1e-9);
+    if (inside) return Math.abs(d);
+  }
+  const seg = (u: Vec3, w: Vec3) => {
+    const uw = sub3(w, u);
+    const t = Math.max(0, Math.min(1, dot3(sub3(p, u), uw) / Math.max(dot3(uw, uw), 1e-18)));
+    const q = { x: u.x + uw.x * t, y: u.y + uw.y * t, z: u.z + uw.z * t };
+    return Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+  };
+  return Math.min(seg(a, b), seg(b, c), seg(c, a));
 }

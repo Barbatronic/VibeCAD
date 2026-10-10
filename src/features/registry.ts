@@ -4,6 +4,7 @@
  */
 import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
+import { shellDefinition } from './shell/definition';
 import { primitiveDefinition } from './primitive/definition';
 import { mirrorDefinition } from './mirror/definition';
 import { chamferDefinition } from './chamfer/definition';
@@ -23,6 +24,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   revolve: revolveDefinition,
   pattern: patternDefinition,
   mirror: mirrorDefinition,
+  shell: shellDefinition,
   fillet: filletDefinition,
   chamfer: chamferDefinition,
   'imported-solid': importedSolidDefinition,

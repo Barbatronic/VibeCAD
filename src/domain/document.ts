@@ -5,6 +5,7 @@
  */
 import { createId } from './ids';
 import type {
+  ShellFeature,
   PrimitiveFeature,
   PrimitiveShape,
   MirrorFeature,
@@ -52,6 +53,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   pattern: 'Répétition',
   mirror: 'Symétrie',
   primitive: 'Forme',
+  shell: 'Coque',
 };
 
 export function nowIso(): string {
@@ -217,7 +219,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -273,6 +275,10 @@ export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: Primit
     name: nextFeatureName(part, 'primitive'),
     params: { shape, position: { x: 0, y: 0, z: 0 }, width: 20, depth: 20, height: 20, diameter: 20, thickness: 6, operation },
   };
+}
+
+export function makeShellFeature(doc: CadDocument, part: Part, open: FaceRef[] = [], thickness = 2): ShellFeature {
+  return { id: newFeatureId(doc, 'shell'), type: 'shell', name: nextFeatureName(part, 'shell'), params: { open, thickness, outward: false } };
 }
 
 export function makePocketFeature(

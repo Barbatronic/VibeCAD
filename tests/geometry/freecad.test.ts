@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makePrimitiveFeature, makeShellFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
@@ -188,5 +188,20 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(12000 - ((4 / 3) * Math.PI * 512) / 2, 2);
+  });
+
+  it('coque : boîte vidée ouverte sur le dessus (pot), solide valide, volume exact', () => {
+    let doc = createDocument('Pot');
+    const partId = doc.parts[0]!.id;
+    const box = makePrimitiveFeature(doc, findPart(doc, partId)!, 'box');
+    doc = addFeature(doc, partId, { ...box, params: { ...box.params, width: 40, depth: 30, height: 20 } });
+    doc = addFeature(doc, partId, makeShellFeature(doc, findPart(doc, partId)!, [{ featureId: box.id, role: 'end' }], 2));
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
+    const file = join(outDir, 'coque-pot.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Pot', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(24000 - 36 * 26 * 18, 2);
   });
 });

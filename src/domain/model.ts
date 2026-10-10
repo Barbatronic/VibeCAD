@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -161,6 +161,7 @@ export type ChamferFeature = FeatureBase<'chamfer', ChamferParams>;
 export type PatternFeature = FeatureBase<'pattern', PatternParams>;
 export type MirrorFeature = FeatureBase<'mirror', MirrorParams>;
 export type PrimitiveFeature = FeatureBase<'primitive', PrimitiveParams>;
+export type ShellFeature = FeatureBase<'shell', ShellParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -477,6 +478,17 @@ export interface PrimitiveParams {
   diameter: number;
   thickness: number;
   operation: 'add' | 'cut';
+}
+
+/**
+ * Coque : la pièce est vidée en gardant une paroi d'épaisseur `thickness` (mm). Les faces
+ * `open` sont retirées (l'ouverture d'un pot, d'une boîte) ; sans face ouverte, la pièce est
+ * creuse et fermée. `outward` ajoute la paroi à l'extérieur.
+ */
+export interface ShellParams {
+  open: FaceRef[];
+  thickness: number;
+  outward: boolean;
 }
 
 export interface ExtrudeParams {
