@@ -107,6 +107,28 @@ function StatusBadge({ status }: { status: FeatureStatus | undefined }) {
   );
 }
 
+/**
+ * Pastille à côté de l'icône d'une étape : orange pour une esquisse qui n'est pas entièrement
+ * contrainte (degrés de liberté restants), rouge pour une erreur ou un défaut.
+ */
+function StatusDot({ status, dof }: { status: FeatureStatus | undefined; dof: number | null }) {
+  let tone: 'error' | 'free' | null = null;
+  let text = '';
+  if (status?.state === 'error' || status?.state === 'warning') {
+    tone = 'error';
+    text = status.state === 'error' ? 'Erreur dans cette étape' : 'Défaut dans cette étape';
+  } else if (dof !== null && dof > 0) {
+    tone = 'free';
+    text = `Esquisse pas entièrement contrainte : encore ${dof} degré${dof > 1 ? 's' : ''} de liberté`;
+  }
+  if (!tone) return null;
+  return (
+    <span class={`status-dot dot-${tone}`} title={text}>
+      <span class="visually-hidden">{text}</span>
+    </span>
+  );
+}
+
 function IssueBox(props: { part: Part; feature: Feature; status: FeatureStatus }) {
   const c = useController();
   const { status, part } = props;
@@ -160,6 +182,10 @@ function HistorySection() {
   const c = useController();
   const part = useAppState((s) => s.doc.parts.find((p) => p.id === s.activePartId) ?? s.doc.parts[0]);
   const statuses = useAppState((s) => (part ? s.display[part.id]?.result.statuses : undefined));
+  const sketchDof = useAppState(
+    (s) => Object.fromEntries((part ? (s.display[part.id]?.result.sketches ?? []) : []).map((k) => [k.featureId, k.dof])) as Record<Id, number>,
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
   const analysis = useAppState((s) => (part ? s.display[part.id]?.result.analysis : null));
   const selection = useAppState((s) => s.selection);
   const draft = useAppState((s) => (s.mode.kind === 'feature' && s.mode.draft.isNew ? s.mode.draft.feature : null));
@@ -240,7 +266,10 @@ function HistorySection() {
                         }
                       }}
                     >
-                      <Icon name={def.icon} class="feature-icon" />
+                      <span class="feature-icon-wrap">
+                        <Icon name={def.icon} class="feature-icon" />
+                        {after ? null : <StatusDot status={status} dof={f.type === 'sketch' ? (sketchDof[f.id] ?? null) : null} />}
+                      </span>
                       <span class="feature-texts">
                         <span class="name">{f.name}</span>
                         <span class="status-line">
