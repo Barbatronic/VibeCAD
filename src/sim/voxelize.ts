@@ -135,12 +135,15 @@ function pointTriangle(p: number[], a: number[], b: number[], c: number[]): numb
   return at([a[0]! + ab[0]! * v + ac[0]! * w, a[1]! + ab[1]! * v + ac[1]! * w, a[2]! + ab[2]! * v + ac[2]! * w]);
 }
 
-/** Nœuds des cubes pleins à moins de `tolerance` (mm) de l'un des triangles donnés (une face). */
-export function nodesNearTriangles(g: VoxelGrid, triangles: ArrayLike<number>, tolerance: number): number[] {
+/**
+ * Nœuds des cubes pleins à moins de `tolerance` (mm) de l'un des triangles donnés (une face) ;
+ * `candidates` restreint la recherche (par exemple aux nœuds de surface).
+ */
+export function nodesNearTriangles(g: VoxelGrid, triangles: ArrayLike<number>, tolerance: number, candidates?: readonly number[]): number[] {
   const tris: number[][][] = [];
   for (let t = 0; t + 8 < triangles.length; t += 9) tris.push([0, 1, 2].map((v) => [triangles[t + 3 * v]!, triangles[t + 3 * v + 1]!, triangles[t + 3 * v + 2]!]));
   const out: number[] = [];
-  for (const n of activeNodes(g)) {
+  for (const n of candidates ?? activeNodes(g)) {
     const p = nodePosition(g, n);
     const q = [p.x, p.y, p.z];
     for (const [a, b, c] of tris) {

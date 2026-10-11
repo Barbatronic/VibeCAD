@@ -54,6 +54,11 @@ const RULES = [
     forbidPackages: ['three', 'preact', 'replicad-opencascadejs'],
   },
   {
+    layer: 'sim',
+    forbidInternal: ['domain', 'sketch', 'features', 'geometry', 'io', 'persistence', 'commands', 'app', 'ui', 'viewport', 'workers', 'tutorials'],
+    forbidPackages: ['three', 'preact', 'replicad-opencascadejs'],
+  },
+  {
     layer: 'viewport',
     forbidInternal: ['app', 'ui', 'workers', 'geometry/occt', 'persistence', 'tutorials'],
     forbidPackages: ['preact', 'replicad-opencascadejs'],
