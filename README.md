@@ -57,6 +57,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
 - **Symétrie** : ajouter le reflet de toute la pièce, ou d'une seule étape (un trou, un plot…),
   par rapport au plan XY, XZ, YZ ou à une face plane cliquée.
+- **Découpe** (niveau Expert) : couper la pièce en deux par le plan XY, XZ, YZ (à la position
+  choisie) ou par une face plane cliquée (décalée), et garder un côté ou les deux morceaux écartés
+  (par exemple pour imprimer une pièce trop grande en deux fois).
 - **Coque** : vider la pièce en gardant une paroi d'épaisseur choisie (vers l'intérieur ou
   l'extérieur), en cliquant les faces à laisser ouvertes (un pot, une boîte) ; sans face ouverte, la
   pièce est creuse et fermée.

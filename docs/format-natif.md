@@ -222,6 +222,22 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Découpe (`"type": "split"`)
+
+```json
+{ "id": "sp-…", "type": "split", "name": "Découpe 1",
+  "params": { "plane": { "kind": "plane", "plane": "XY" }, "offset": 2.5, "keep": "both", "gap": 10 } }
+```
+
+`plane` : comme pour la symétrie, `{ "kind": "plane", "plane": "XY" | "XZ" | "YZ" }` (normale +Z,
++Y ou +X, plan placé à la coordonnée `offset`) ou `{ "kind": "face", "ref": faceRef }` (face plane,
+plan décalé de `offset` mm le long de sa normale extérieure ; négatif : dans la pièce). `keep` :
+`below` (côté opposé à la normale), `above` (côté de la normale) ou `both` (les deux morceaux, celui
+du dessus écarté de `gap` mm le long de la normale, au moins 0,5 mm ; ses faces gardent leurs
+étiquettes). Faces de coupe : `start` (morceau du dessous) et `end` (morceau du dessus), au nom de
+la découpe. Erreurs : `SPLIT_PLANE_LOST`, `SPLIT_NOTHING_LEFT` (rien de ce côté) ; avertissement
+`SPLIT_OUTSIDE` quand le plan ne traverse pas la pièce.
+
 ### Balayage (`"type": "sweep"`)
 
 ```json
