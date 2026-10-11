@@ -915,6 +915,9 @@ export class Viewport {
 
   private contentBounds(): Box3 | null {
     const box = new Box3();
+    // Les placements (pièces d'un assemblage) viennent peut-être de changer : sans cette mise à
+    // jour, le cadrage utiliserait la position de l'image précédente.
+    this.partsGroup.updateMatrixWorld(true);
     for (const p of this.parts.values()) if (p.group.visible) box.expandByObject(p.faces);
     for (const { view } of this.sketchViews.values()) box.expandByObject(view.group);
     // Plateau d'impression : il fait partie de ce qu'on veut voir en entier.
