@@ -34,6 +34,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   **Décalage** (niveau Expert) : recopier un contour fermé à une distance choisie à la souris
   (arrondie au demi-millimètre) ou tapée, à l'extérieur ou à l'intérieur ; le contour recopié reste
   parallèle à l'original, à distance cotée (un cadre, une paroi d'épaisseur régulière).
+  **Ellipse** et **spline** (niveau Expert) : ellipse par son centre, le bout du grand axe et sa
+  largeur ; spline lisse passant par des points cliqués, ouverte ou fermée, modelée en faisant
+  glisser ses points ; extrudables, et une spline peut servir de chemin de balayage.
 - **Cotes** : longueur, diamètre, rayon, distances horizontale / verticale / alignée, distance
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites

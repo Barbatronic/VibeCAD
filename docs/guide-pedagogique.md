@@ -22,7 +22,7 @@ grisés.
 | --- | --- |
 | **Débutant** (par défaut) | Esquisse : segment, rectangle, cercle, cote, coïncidence, horizontal, vertical. Extrusion, poche, formes toutes faites (boîte, cylindre, boule), mesure. Impression 3D. Parcours « plaque percée ». |
 | **Intermédiaire** | En plus : l'anneau, arc, rectangle centré, polygone, oblong, couper, projeter, construction, autres contraintes ; révolution, congé, chanfrein, coque, répétition, symétrie ; vue en coupe, centre de gravité ; onglet Assemblage ; découpe laser et documents ; parcours assemblage et fabrication. |
-| **Expert** | En plus : lissage, balayage, « Garder » (intersection), découpe en deux, dépouille, extrusion jusqu'à une face, décalage de contour (esquisse), épaissir, import de fichiers STEP (menu Fichier). |
+| **Expert** | En plus : lissage, balayage, « Garder » (intersection), découpe en deux, dépouille, extrusion jusqu'à une face, décalage de contour, ellipse et spline (esquisse), épaissir, import de fichiers STEP (menu Fichier). |
 
 Le niveau est retenu sur l'ordinateur ; il se change aussi dans les **Préférences** (roue dentée
 en haut à droite), avec les bulles d'explication, le chat, le thème et l'aimantation à la grille. Pour une classe, donner un lien qui l'impose, par
