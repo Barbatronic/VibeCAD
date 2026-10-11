@@ -63,6 +63,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Coque** : vider la pièce en gardant une paroi d'épaisseur choisie (vers l'intérieur ou
   l'extérieur), en cliquant les faces à laisser ouvertes (un pot, une boîte) ; sans face ouverte, la
   pièce est creuse et fermée.
+- **Dépouille** (niveau Expert) : incliner de quelques degrés les côtés cliqués (plans ou
+  cylindriques) autour d'un plan neutre (XY, XZ, YZ ou une face plane), comme une pièce qui doit
+  sortir d'un moule.
 - **Congés et chanfreins** sur des arêtes choisies à la souris, avec aperçu ; les arêtes sont
   mémorisées par leurs deux faces voisines et survivent aux modifications des cotes.
 - **Historique de construction** visible et modifiable : double-clic sur une étape pour la

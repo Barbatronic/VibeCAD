@@ -222,6 +222,20 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Dépouille (`"type": "draft"`)
+
+```json
+{ "id": "dp-…", "type": "draft", "name": "Dépouille 1", "dependsOn": ["pr-…"],
+  "params": { "faces": [faceRef, …], "angle": 5, "neutral": { "kind": "plane", "plane": "XY" }, "reversed": false } }
+```
+
+`faces` : faces à incliner (planes, cylindriques ou coniques). `angle` : degrés (0 à 45 dans
+l'interface). `neutral` : plan où les faces ne bougent pas, comme `plane` de la symétrie. Sens de
+démoulage : +Z, +Y ou +X pour un plan d'origine, vers l'intérieur de la pièce pour une face ; la
+pièce rétrécit dans ce sens (`reversed` : elle s'élargit). Les faces gardent leurs étiquettes.
+Avertissement `DRAFT_NO_FACE` (aucune face, pièce inchangée) ; erreurs `DRAFT_FACE_LOST`,
+`DRAFT_NEUTRAL_LOST`, `DRAFT_FAILED` (face parallèle au plan neutre, raccord impossible).
+
 ### Découpe (`"type": "split"`)
 
 ```json
