@@ -12,6 +12,6 @@ charges ; elles ont été prises pour ne pas bloquer le développement et peuven
 | [0004](0004-solveur-esquisse.md) | Solveur de contraintes maison (Newton pondéré) | adoptée |
 | [0005](0005-references-persistantes.md) | Références sémantiques de faces et repère canonique | adoptée |
 | [0006](0006-licence.md) | Licence MIT pour le code de l'application | provisoire |
-| [0007](0007-nom-application.md) | Nom « VibeCAD » (identifiants techniques `vibecad` conservés) | adoptée |
+| [0007](0007-nom-application.md) | Nom « VibeCAD » (identifiants techniques `vibecad`) | adoptée |
 | [0008](0008-stockage-hors-ligne.md) | IndexedDB, fichiers, PWA | adoptée |
 | [0009](0009-memoire-wasm.md) | Contournements mémoire d'OCCT en WASM | adoptée (mesurée) |
