@@ -586,6 +586,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M14 19.5l1-3.5 5-5 2.5 2.5-5 5z" />
     </>
   ),
+  /** Visserie : vis à tête cylindrique, vue de côté. */
+  screw: (
+    <>
+      <path d="M8 3h8v5H8z" />
+      <path d="M10.5 8v11.5l1.5 1.5 1.5-1.5V8" />
+      <path d="M10.5 11l3-1M10.5 14l3-1M10.5 17l3-1" />
+    </>
+  ),
   /** Simulation : poutre qui fléchit sous une flèche. */
   simulate: (
     <>

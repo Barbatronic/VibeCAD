@@ -19,7 +19,7 @@ function facesMatching(mesh: MeshData, ref: FaceRef): number[] {
 }
 
 /** Arêtes communes à deux faces désignées. */
-function edgesMatching(mesh: MeshData, ref: EdgeRef): number[] {
+export function edgesMatching(mesh: MeshData, ref: EdgeRef): number[] {
   const a = new Set(facesMatching(mesh, ref.faces[0]));
   const b = new Set(facesMatching(mesh, ref.faces[1]));
   return mesh.edges.flatMap((e, i) => (e.faces.some((f) => a.has(f)) && e.faces.some((f) => b.has(f)) ? [i] : []));

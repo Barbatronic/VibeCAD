@@ -30,6 +30,7 @@ import {
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
 import { jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
+import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
@@ -81,6 +82,16 @@ function buildAssemblyInput(s: AppState): ViewportInput {
       matrix: placement.matrices.get(inst.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     };
   });
+  // Visserie : un objet par élément, placé sur son bord de trou (maillages partagés).
+  const fasteners = assembly.fasteners?.length
+    ? placeFasteners(assembly, (partId) => s.display[partId]?.mesh, (id) => placement.matrices.get(id))
+    : null;
+  for (const f of assembly.fasteners ?? []) {
+    const matrix = fasteners?.matrices.get(f.id);
+    if (!matrix) continue;
+    const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
+    parts.push({ partId: `fs:${f.id}`, color: FASTENER_COLOR, visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+  }
   const markers: ViewMarker[] = [];
   const sel = s.assemblySelection;
   if (sel?.kind === 'joint') {
@@ -119,6 +130,12 @@ function buildAssemblyInput(s: AppState): ViewportInput {
         preview: true,
         label: second ? 'Accroche sur la pièce de référence' : 'Accroche sur la pièce qui bouge',
       });
+    }
+  }
+  if (s.mode.kind === 'model' && sel?.kind === 'fasteners') {
+    for (const id of sel.ids) {
+      const f = assembly.fasteners?.find((x) => x.id === id);
+      if (f) fastenerMesh(f.kind, f.size, f.length).mesh.edges.forEach((_e, index) => selection.push({ partId: `fs:${id}`, kind: 'edge', index }));
     }
   }
   if (s.mode.kind === 'model' && sel?.kind === 'instance') {
@@ -290,7 +307,7 @@ export function buildViewportInput(s: AppState, simulationPart: string | null = 
   const points: { at: Vec3; label: string }[] = [];
   const active = s.display[s.activePartId]?.result.analysis;
   if (s.showCentroid && allows(s.level, 'view-centroid') && !cut && mode !== 'sketch' && active?.centroid) points.push({ at: active.centroid, label: 'G' });
-  return { mode: mode === 'joint' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {

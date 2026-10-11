@@ -12,6 +12,7 @@ import { useAppState, useController } from './context';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
+import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
 
 /** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
 export function WorkspaceTabs() {
@@ -173,14 +174,15 @@ export function AssemblyTools() {
             else c.startJoint();
           }}
         />
+        <FastenerMenu />
       </div>
       <div class="toolbar-group" role="group" aria-label="Édition">
         <ToolButton
           icon="trash"
           label="Supprimer"
           shortcut="Suppr"
-          availability={s.sel ? { ok: true } : { ok: false, reason: 'Sélectionnez une pièce insérée ou une liaison.' }}
-          onClick={() => (s.sel?.kind === 'joint' ? c.removeJoint(s.sel.id) : s.sel ? c.removeInstance(s.sel.id) : undefined)}
+          availability={s.sel ? { ok: true } : { ok: false, reason: 'Sélectionnez une pièce insérée, une liaison ou de la visserie.' }}
+          onClick={() => (s.sel?.kind === 'joint' ? c.removeJoint(s.sel.id) : s.sel?.kind === 'fasteners' ? c.removeFasteners(s.sel.ids) : s.sel ? c.removeInstance(s.sel.id) : undefined)}
         />
       </div>
       <div class="toolbar-group" role="group" aria-label="Exporter">
@@ -276,6 +278,7 @@ export function AssemblySection() {
             </li>
           ))}
         </ul>
+        <FastenerList />
       </div>
     </section>
   );
@@ -544,10 +547,15 @@ export function AssemblyRightPanel() {
   const sel = useAppState((s) => s.assemblySelection);
   const joint = useAppState((s) => (sel?.kind === 'joint' ? s.doc.assembly?.joints.find((j) => j.id === sel.id) ?? null : null));
   const jointMode = useAppState((s) => (s.mode.kind === 'joint' ? s.mode : null));
+  const fastenerKind = useAppState((s) => (s.mode.kind === 'fastener' ? s.mode.fastenerKind : null));
   const c = useController();
   return (
     <aside class="panel right-panel" aria-label="Réglages de l’assemblage">
-      {jointMode ? (
+      {fastenerKind ? (
+        <FastenerModePanel kind={fastenerKind} />
+      ) : sel?.kind === 'fasteners' ? (
+        <FastenerPanel ids={sel.ids} />
+      ) : jointMode ? (
         <>
           <div class="panel-title">
             <Icon name="pivot" />

@@ -8,6 +8,9 @@ import {
   addFeature,
   addInstance,
   addJoint,
+  addFastener,
+  updateFastener,
+  removeFasteners,
   insertFeatureAfter,
   removeInstance,
   removeJoint,
@@ -30,7 +33,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -68,6 +71,8 @@ import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewpor
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
+import { fastenerForHole, holeFromPick, holeOf, placeFasteners, type FastenerPlacement } from './fasteners';
+import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
 import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
@@ -1647,7 +1652,7 @@ export class AppController {
     if (this.state.workspace === workspace) return;
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
-    if (!['model', 'joint', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
+    if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
   }
 
@@ -2100,10 +2105,13 @@ export class AppController {
   private assemblyPick(pick: ModelPick | null): void {
     const s = this.state;
     const mode = s.mode;
+    if (mode.kind === 'fastener') return this.fastenerPick(pick, mode.fastenerKind);
     if (mode.kind !== 'joint') {
-      this.set({ assemblySelection: pick ? { kind: 'instance', id: pick.partId } : null });
+      const fastener = pick?.partId.startsWith('fs:') ? pick.partId.slice(3) : null;
+      this.set({ assemblySelection: fastener ? { kind: 'fasteners', ids: [fastener] } : pick ? { kind: 'instance', id: pick.partId } : null });
       return;
     }
+    if (pick?.partId.startsWith('fs:')) return this.explain('Choisissez un repère sur une pièce, pas sur une vis.');
     if (!pick) return;
     const inst = s.doc.assembly?.instances.find((i) => i.id === pick.partId);
     const part = inst && findPart(s.doc, inst.partId);
@@ -2145,6 +2153,81 @@ export class AppController {
       const issue = this.assemblyPlacement()?.issues.get(added.jointId);
       this.toast(issue ? 'error' : 'success', issue ? JOINT_ISSUE_MESSAGES[issue] : 'Boucle refermée : faites tourner une pièce de la boucle, les autres suivent.');
     }
+  }
+
+  // ----- Visserie
+
+  /** Poser de la visserie : chaque clic sur un trou pose un élément (Échap termine). */
+  startFastener(kind: FastenerKind): void {
+    if (!(this.state.doc.assembly?.instances.length ?? 0)) return this.explain('Insérez d’abord une pièce percée dans l’assemblage.');
+    this.toggleAssemblyHand(false);
+    this.set({ mode: { kind: 'fastener', fastenerKind: kind }, assemblySelection: null });
+  }
+
+  cancelFastener(): void {
+    if (this.state.mode.kind === 'fastener') this.set({ mode: model });
+  }
+
+  private fastenerPick(pick: ModelPick | null, kind: FastenerKind): void {
+    if (!pick || pick.kind === 'vertex') return;
+    const s = this.state;
+    // Clic sur un élément déjà posé : le nouveau se pose sur le même trou (rondelle sous une vis…).
+    const onto = pick.partId.startsWith('fs:') ? s.doc.assembly?.fasteners?.find((f) => f.id === pick.partId.slice(3)) : undefined;
+    if (onto) {
+      const inst = s.doc.assembly!.instances.find((i) => i.id === onto.at.instanceId);
+      const mesh = inst && s.display[inst.partId]?.mesh;
+      const found = mesh ? holeOf(mesh, onto.at.edge) : null;
+      if (!found) return this.explain('Le trou de cet élément a disparu : cliquez un autre trou.');
+      const spec = fastenerForHole(kind, { edge: onto.at.edge, ...found });
+      if ('reason' in spec) return this.explain(spec.reason);
+      const added = addFastener(s.doc, { ...spec, at: onto.at, ...(onto.flip ? { flip: true } : {}) });
+      return this.commit(added.doc, `Poser ${designation(spec.kind, spec.size, spec.length)}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
+    }
+    if (pick.partId.startsWith('fs:')) return;
+    const inst = s.doc.assembly?.instances.find((i) => i.id === pick.partId);
+    const part = inst && findPart(s.doc, inst.partId);
+    const mesh = inst && s.display[inst.partId]?.mesh;
+    if (!inst || !part || !mesh) return;
+    const placed = this.assemblyPlacement()?.matrices.get(inst.id);
+    const local = placed ? transformPoint4(invertRigid4(placed), pick.point) : pick.point;
+    const hole = holeFromPick(mesh, part, pick.kind, pick.index, local);
+    if ('reason' in hole) return this.explain(hole.reason);
+    const spec = fastenerForHole(kind, hole);
+    if ('reason' in spec) return this.explain(spec.reason);
+    const added = addFastener(s.doc, { ...spec, at: { instanceId: inst.id, edge: hole.edge } });
+    const name = designation(spec.kind, spec.size, spec.length);
+    this.commit(added.doc, `Poser ${name}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
+  }
+
+  /** Modifie des éléments (un groupe identique) ; la longueur est ramenée à une longueur normalisée. */
+  updateFasteners(ids: readonly Id[], patch: Partial<Pick<AssemblyFastener, 'kind' | 'size' | 'length' | 'flip'>>, label: string): void {
+    let doc = this.state.doc;
+    for (const id of ids) {
+      doc = updateFastener(doc, id, (f) => {
+        const next = { ...f, ...patch };
+        const lengths = lengthsOf(next.kind, next.size);
+        if (lengths.length === 0) {
+          const { length: _l, ...rest } = next;
+          return rest;
+        }
+        const wanted = next.length ?? lengths[0]!;
+        return { ...next, length: lengths.reduce((best, l) => (Math.abs(l - wanted) < Math.abs(best - wanted) ? l : best), lengths[0]!) };
+      });
+    }
+    this.commit(doc, label);
+  }
+
+  removeFasteners(ids: readonly Id[]): void {
+    if (ids.length === 0) return;
+    this.commit(removeFasteners(this.state.doc, ids), ids.length > 1 ? `Supprimer ${ids.length} éléments de visserie` : 'Supprimer un élément de visserie', { assemblySelection: null });
+  }
+
+  /** Placement de la visserie dans l'assemblage. */
+  fastenerPlacement(): FastenerPlacement | null {
+    const assembly = this.state.doc.assembly;
+    if (!assembly?.fasteners?.length) return null;
+    const placement = this.assemblyPlacement();
+    return placeFasteners(assembly, (partId) => this.state.display[partId]?.mesh, (id) => placement?.matrices.get(id));
   }
 
   /**

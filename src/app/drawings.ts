@@ -9,6 +9,7 @@ import type { DrawingPage, LineStyle } from '../io/drawing';
 import type { MeshData } from '../geometry/kernel';
 import { dot3, type Vec2, type Vec3 } from '../math/vec';
 import { faceOutline, largestPlanarFace, type Loop } from './laser';
+import { fastenerGroups } from './fasteners';
 
 // ----- Projection des vues
 
@@ -431,7 +432,8 @@ export function templatePages(
 export interface BomRow {
   /** Repère (1, 2, 3…) */
   mark: number;
-  partId: Id;
+  /** Pièce du projet ; null pour la visserie normalisée (désignation seule). */
+  partId: Id | null;
   name: string;
   quantity: number;
   /** Encombrement (mm) de la pièce telle que modélisée. */
@@ -460,7 +462,7 @@ export function meshSize(mesh: MeshData): Vec3 {
 
 /**
  * Nomenclature : les pièces de l'assemblage avec leur nombre d'exemplaires (dans l'ordre
- * d'insertion), ou à défaut toutes les pièces ayant un volume, une de chaque.
+ * d'insertion) puis sa visserie, ou à défaut toutes les pièces ayant un volume, une de chaque.
  */
 export function billOfMaterials(
   doc: CadDocument,
@@ -478,6 +480,10 @@ export function billOfMaterials(
     if (!part) continue;
     const mesh = meshOf(partId);
     rows.push({ mark: rows.length + 1, partId, name: part.name, quantity, size: mesh ? meshSize(mesh) : null, volume: volumeOf(partId) ?? null });
+  }
+  // Visserie normalisée : une ligne par désignation (« Vis CHC ISO 4762 M3 × 12 »).
+  if (source === 'assembly') {
+    for (const g of fastenerGroups(doc.assembly)) rows.push({ mark: rows.length + 1, partId: null, name: g.name, quantity: g.ids.length, size: null, volume: null });
   }
   return { rows, source };
 }

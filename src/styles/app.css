@@ -2926,3 +2926,44 @@ kbd {
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------------
+   Visserie (assemblage) : groupe replié dans la liste de gauche */
+
+.fastener-list {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.fastener-list > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fastener-list > summary svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.fastener-list > summary:hover {
+  background: var(--surface-2);
+}
+
+.fastener-list > summary .count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

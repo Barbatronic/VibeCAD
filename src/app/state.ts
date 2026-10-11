@@ -6,6 +6,7 @@ import type { RollbackState } from './rollback';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
 import type { CadDocument, Id, JointEnd } from '../domain/model';
+import type { FastenerKind } from '../domain/fasteners';
 import type { FeatureDraft } from '../features/panel-types';
 import type { MeshData } from '../geometry/kernel';
 import type { PartResult, StepInspection } from '../geometry/protocol';
@@ -42,6 +43,8 @@ export type Mode =
     }
   /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
   | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id }
+  /** Assemblage : poser de la visserie dans les trous (chaque clic sur un trou en pose un élément). */
+  | { kind: 'fastener'; fastenerKind: FastenerKind }
   /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */
   | { kind: 'pick-sim-face'; role: 'fixed' | 'load'; partId: Id };
 
@@ -64,7 +67,8 @@ export interface SimulationRun {
 /** Sous-onglet de Fabrication. */
 export type FabricationTab = 'print' | 'laser' | 'docs';
 
-export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | null;
+/** Visserie : un ou plusieurs éléments (un groupe d'éléments identiques de la liste). */
+export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | { kind: 'fasteners'; ids: Id[] } | null;
 
 export type Selection =
   | { kind: 'part'; partId: Id }

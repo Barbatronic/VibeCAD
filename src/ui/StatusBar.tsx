@@ -42,6 +42,8 @@ function helpText(s: AppState): string {
       return s.mode.purpose === 'print'
         ? 'Cliquez la face de la pièce qui doit être posée sur le plateau (une grande face plate est idéale). Échap pour annuler.'
         : 'Cliquez la face plate qui donne le contour à découper. Échap pour annuler.';
+    case 'fastener':
+      return 'Cliquez le bord d’un trou (ou l’intérieur du trou) : la taille vient du trou, selon la norme. Un clic par élément ; Échap pour terminer.';
     case 'pick-sim-face':
       return s.mode.role === 'fixed'
         ? 'Cliquez les faces où la pièce est tenue (vissée, collée, posée). Un second clic retire une face. Échap pour terminer.'

@@ -148,6 +148,9 @@ export function installKeyboard(controller: AppController): () => void {
         case 'pick-sim-face':
           controller.cancelSimulationPick();
           return;
+        case 'fastener':
+          controller.cancelFastener();
+          return;
         default:
           if (s.workspace === 'assembly') controller.selectInAssembly(null);
           else controller.select(null);
@@ -166,6 +169,7 @@ export function installKeyboard(controller: AppController): () => void {
       else if (s.workspace === 'assembly') {
         const sel = s.assemblySelection;
         if (sel?.kind === 'joint') controller.removeJoint(sel.id);
+        else if (sel?.kind === 'fasteners') controller.removeFasteners(sel.ids);
         else if (sel) controller.removeInstance(sel.id);
       } else if (s.mode.kind === 'model') controller.deleteSelection();
       return;

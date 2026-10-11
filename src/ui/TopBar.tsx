@@ -617,7 +617,7 @@ export function TopBar() {
       </div>
       <FileMenu />
       <ProjectName />
-      {mode === 'model' || mode === 'joint' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? <WorkspaceTabs /> : null}
+      {mode === 'model' || mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? <WorkspaceTabs /> : null}
       <nav class="toolbar" aria-label="Outils">
         <UndoRedo />
         {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
