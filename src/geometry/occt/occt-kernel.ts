@@ -638,35 +638,10 @@ export class OcctKernel implements GeometryKernel {
           const raw = scope.track(new oc.TopoDS_Shape());
           const okRead = scope.track(new oc.StlAPI_Reader()).Read(raw, fileName);
           if (!okRead || raw.IsNull()) throw new KernelError('Ce fichier n’est pas un fichier STL lisible.');
-          // Triangles → coque cousue → solides fermés.
-          const sewing = scope.track(new oc.BRepBuilderAPI_Sewing(1e-4, true, true, true, false));
-          sewing.Load(raw);
-          sewing.Perform(scope.track(new oc.Message_ProgressRange()));
-          // Arêtes libres (bordées d'un seul triangle) : le maillage a des trous, pas de volume fermé.
-          const free = sewing.NbFreeEdges();
-          if (free > 0) throw new KernelError(`Le maillage STL est troué (${free} bord${free > 1 ? 's' : ''} ouvert${free > 1 ? 's' : ''}) : il ne forme pas un volume fermé. Réparez-le dans un autre logiciel avant de l’importer.`);
-          const sewed = scope.track(sewing.SewedShape());
-          const fix = scope.track(new oc.ShapeFix_Solid());
-          const solids: OcctShape[] = [];
-          for (const shell of this.explore(sewed, 'shell')) {
-            scope.track(shell);
-            const solid = scope.track(fix.SolidFromShell(oc.TopoDS.Shell(shell)));
-            // Fusion des triangles coplanaires : une face plane redevient une seule face.
-            const unify = scope.track(new oc.ShapeUpgrade_UnifySameDomain(solid, true, true, false));
-            unify.Build();
-            const merged = unify.Shape();
-            solids.push(new OcctShape(merged, this.taggedFaces(merged)));
-          }
-          const closed = solids.filter((s) => {
-            const a = this.analyze(s);
-            return a.solidCount > 0 && a.volume > 0;
-          });
-          if (closed.length === 0) {
-            solids.forEach((s) => this.dispose(s));
-            throw new KernelError('Le fichier STL ne forme pas de volume fermé (maillage troué ou seulement des surfaces).');
-          }
-          solids.filter((s) => !closed.includes(s)).forEach((s) => this.dispose(s));
-          return { solids: closed, productNames: [] };
+          // Triangles → coque cousue → solides fermés, triangles coplanaires réunis.
+          const solids = this.solidsFromSurfaces(scope, raw, true, 'Le maillage STL');
+          if (solids.length === 0) throw new KernelError('Le fichier STL ne forme pas de volume fermé (maillage troué ou seulement des surfaces).');
+          return { solids, productNames: [] };
         } finally {
           try {
             oc.FS.unlink(fileName);
@@ -676,6 +651,38 @@ export class OcctKernel implements GeometryKernel {
         }
       }),
     );
+  }
+
+  /**
+   * Volumes fermés reconstitués à partir de surfaces (triangles d'un STL, coques d'un STEP
+   * surfacique) : couture des faces, refus s'il reste des bords libres (trous), puis chaque coque
+   * fermée devient un solide ; `unify` réunit les faces coplanaires (triangles d'un STL).
+   */
+  private solidsFromSurfaces(scope: Scope, raw: TopoDS_Shape, unify: boolean, what: string): OcctShape[] {
+    const oc = this.oc;
+    const sewing = scope.track(new oc.BRepBuilderAPI_Sewing(1e-4, true, true, true, false));
+    sewing.Load(raw);
+    sewing.Perform(scope.track(new oc.Message_ProgressRange()));
+    // Arêtes libres (bordées d'une seule face) : la surface a des trous, pas de volume fermé.
+    const free = sewing.NbFreeEdges();
+    if (free > 0) throw new KernelError(`${what} est troué (${free} bord${free > 1 ? 's' : ''} ouvert${free > 1 ? 's' : ''}) : il ne forme pas un volume fermé. Réparez-le dans un autre logiciel avant de l’importer.`);
+    const sewed = scope.track(sewing.SewedShape());
+    const fix = scope.track(new oc.ShapeFix_Solid());
+    const solids: OcctShape[] = [];
+    for (const shell of this.explore(sewed, 'shell')) {
+      scope.track(shell);
+      let solid: TopoDS_Shape = scope.track(fix.SolidFromShell(oc.TopoDS.Shell(shell)));
+      if (unify) {
+        const u = scope.track(new oc.ShapeUpgrade_UnifySameDomain(solid, true, true, false));
+        u.Build();
+        solid = u.Shape();
+      } else solid = solid.Oriented(solid.Orientation());
+      const s = new OcctShape(solid, this.taggedFaces(solid));
+      const a = this.analyze(s);
+      if (a.solidCount > 0 && a.volume > 0 && a.valid) solids.push(s);
+      else this.dispose(s);
+    }
+    return solids;
   }
 
   readStep(data: Uint8Array): StepReadResult {
@@ -693,7 +700,14 @@ export class OcctKernel implements GeometryKernel {
           }
           reader.TransferRoots(scope.track(new oc.Message_ProgressRange()));
           const shape = scope.track(reader.OneShape());
-          const solids = this.explore(shape, 'solid').map((s) => new OcctShape(s, this.taggedFaces(s)));
+          let solids = this.explore(shape, 'solid').map((s) => new OcctShape(s, this.taggedFaces(s)));
+          // STEP surfacique (coques sans solide déclaré, exports de certains logiciels) : les
+          // coques fermées sont réunies en volumes (le lecteur répare déjà les petits défauts).
+          if (solids.length === 0) {
+            const faces = this.explore(shape, 'face');
+            faces.forEach((f) => f.delete());
+            if (faces.length > 0) solids = this.solidsFromSurfaces(scope, shape, false, 'Le modèle surfacique');
+          }
           if (solids.length === 0) {
             throw new KernelError('Le fichier STEP ne contient aucun solide fermé (seulement des surfaces ou des courbes).');
           }
