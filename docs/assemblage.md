@@ -98,6 +98,47 @@ repères sont des cercles, Fixe sinon).
 - Format natif : champ facultatif `assembly` du document (`instances`, `joints`) ; les anciens
   projets s'ouvrent sans changement.
 
+## Visserie
+
+Bouton **Visserie** de la barre d'outils : choisir l'élément, puis cliquer le bord d'un trou rond
+(ou l'intérieur du trou) d'une pièce insérée. Un clic pose un élément ; Échap ou « Terminé »
+arrête la pose. Le filetage n'est pas dessiné.
+
+| Élément | Norme | Tailles |
+| --- | --- | --- |
+| Vis CHC (tête cylindrique, six pans creux) | ISO 4762 | M2 à M12 |
+| Vis BHC (tête bombée, six pans creux) | ISO 7380-1 | M3 à M12 |
+| Vis FHC (tête fraisée à 90°, six pans creux) | ISO 10642 | M3 à M12 |
+| Vis H (tête hexagonale) | ISO 4017 | M3 à M12 |
+| Écrou H | ISO 4032 | M2 à M12 |
+| Rondelle plate | ISO 7089 | M2 à M12 |
+
+- **Pas de vis de mauvaise taille** : la taille est déduite du diamètre du trou — trou de passage
+  (du diamètre nominal, courant en impression 3D, jusqu'à la série large ISO 273) ou perçage avant
+  taraudage (± 0,15 mm). Un trou qui ne correspond à aucune vis est refusé avec un exemple de bons
+  diamètres. Ensuite, seules les tailles qui conviennent au trou et existent dans la norme sont
+  proposées. Une vis FHC accepte aussi le bord d'une fraisure (diamètre de sa tête) : sa tête y
+  affleure.
+- **Longueur** : seules les longueurs normalisées de la taille sont proposées ; à la pose, la plus
+  courte qui traverse le trou et dépasse d'un diamètre (de quoi prendre un écrou ou se visser dans
+  la pièce suivante).
+- **Placement** : l'élément est accroché au bord du trou (référence persistante, comme les
+  liaisons) et suit la pièce quand elle bouge. La tête est du côté du bord cliqué, la tige entre
+  dans le trou ; « Retourner » le met de l'autre côté. Sur un même bord, les rondelles se placent
+  contre la pièce, puis l'écrou ou la tête de vis, quel que soit l'ordre de pose. Cliquer un élément
+  déjà posé en ajoute un sur le même trou (une rondelle sous une vis, par exemple). Pour un écrou,
+  cliquer le bord de sortie du trou.
+- **Liste** : un groupe « Visserie » replié, sous les liaisons ; les éléments identiques y sont
+  regroupés (« Vis CHC ISO 4762 M3 × 12 × 4 »). Choisir une ligne sélectionne le groupe : type,
+  taille et longueur se changent pour tous ses éléments.
+- **Nomenclature** (Fabrication › Documents, CSV) : une ligne par désignation, après les pièces.
+- Si la pièce est modifiée et que le trou disparaît ou change de diamètre, l'élément est signalé
+  (« Souci ») au lieu d'être déplacé au hasard.
+- Format natif : champ facultatif `assembly.fasteners` (`kind`, `size`, `length`, `at` = pièce
+  insérée et arête du trou, `flip`) ; une taille ou une longueur hors norme rend le fichier invalide.
+- La visserie n'est pas encore incluse dans les exports STEP et 3MF ni dans la recherche de
+  collisions.
+
 ## Hors périmètre (pour l'instant)
 
 Engrenages, ressorts, efforts et vitesses (cinématique automatique), limites de course prises en

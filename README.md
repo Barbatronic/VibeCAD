@@ -90,7 +90,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
   pièce ne suit que le mouvement permis). **Boucles fermées** (quadrilatère articulé,
   bielle-manivelle) : une liaison de plus referme la boucle, et quand on tourne une pièce les
   autres suivent. Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en
-  commun en rouge). Voir [docs/assemblage.md](docs/assemblage.md).
+  commun en rouge). **Visserie** normalisée (vis CHC, BHC, FHC, H, écrous, rondelles, de M2 à
+  M12, sans filetage) posée d'un clic dans les trous : la taille vient du trou (passage ISO 273
+  ou taraudage), les longueurs sont celles de la norme, et elle apparaît dans la nomenclature.
+  Voir [docs/assemblage.md](docs/assemblage.md).
 - **Fabrication** (onglet à part) : préparer le plateau d'impression 3D (face posée, exemplaires,
   échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière) et l'exporter
   en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
@@ -237,7 +240,8 @@ Le choix de la licence MIT est provisoire et peut être revu
   courbes quelconques). Une arête projetée qui disparaît garde sa dernière position (signalé).
 - La position de la frise de l'historique n'est pas enregistrée dans le fichier : un projet
   rouvert montre toutes les étapes.
-- Assemblage : une liaison par pièce (pas de boucles), pas de détection de collisions.
+- Assemblage : pas de contact entre pièces ni d'engrenages ; la visserie n'est pas encore
+  incluse dans les exports STEP et 3MF.
 - L'export STEP contient les formes finales, pas l'historique : ce n'est pas un arbre Part
   Design de FreeCAD. L'historique complet reste dans le fichier `.vibecad`.
 - Un STEP importé n'apporte pas les esquisses ni les étapes de construction d'origine.

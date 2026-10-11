@@ -363,6 +363,12 @@ puisque le fichier est figé dans le projet).
       "moving": { "instanceId": "in-…", "lcs": { "kind": "circle", "edge": { "faces": [faceRef, faceRef] } } },
       "base":   { "instanceId": "in-…", "lcs": { "kind": "face", "face": faceRef } },
       "flip": false, "angle": 90, "offset": -5, "angleLimits": [0, 110] }
+  ],
+  "fasteners": [
+    { "id": "fs-…", "kind": "iso4762", "size": "M3", "length": 12,
+      "at": { "instanceId": "in-…", "edge": { "faces": [faceRef, faceRef] } } },
+    { "id": "fs-…", "kind": "iso4032", "size": "M3",
+      "at": { "instanceId": "in-…", "edge": { "faces": [faceRef, faceRef] } }, "flip": true }
   ]
 }
 ```
@@ -375,6 +381,30 @@ le centre de la sphère,
 désignés comme les congés par leurs faces. `kind` : `fixed`, `revolute`, `slider`,
 `cylindrical`, `spherical` (rotule : `tilt` inclinaison et `tiltDirection` direction en degrés, `tiltLimit` inclinaison maximale facultative) ; `angle` en degrés, `offset` en mm, limites facultatives `[min, max]`. Un projet
 sans assemblage n'a pas ce champ. Détails : [assemblage.md](assemblage.md).
+
+`fasteners` (facultatif) : visserie normalisée posée sur le bord circulaire (`at.edge`) d'un trou
+d'une pièce insérée. `kind` : `iso4762` (vis CHC), `iso7380` (BHC), `iso10642` (FHC), `iso4017`
+(vis H), `iso4032` (écrou H), `iso7089` (rondelle plate) ; `size` de `M2` à `M12` ; `length` (mm,
+vis seulement) ; `flip` facultatif. Une taille absente de la norme ou une longueur non normalisée
+rend le fichier invalide ; un élément posé sur une pièce retirée est supprimé à la lecture (avec un
+avertissement).
+
+## Simulation (champ facultatif `simulation`)
+
+```json
+"simulation": {
+  "studies": [
+    { "partId": "part-…", "materialId": "pla", "quality": "normal",
+      "fixed": [faceRef],
+      "load": { "faces": [faceRef], "kind": "mass", "value": 1, "direction": "-z" } }
+  ]
+}
+```
+
+Une étude par pièce. `materialId` : `pla`, `petg`, `abs`, `tpu`, `plywood`, `acrylic`,
+`aluminium`, `steel` ; `quality` : `coarse`, `normal`, `fine` ; charge `mass` (kg) ou `force` (N),
+`direction` : `push` (appuie sur la face) ou un axe (`-z`, `+z`, `-x`, `+x`, `-y`, `+y`). Les
+résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).
 
 ## Fabrication (champ facultatif `fabrication`)
 
