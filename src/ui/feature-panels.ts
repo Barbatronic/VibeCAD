@@ -17,6 +17,7 @@ import { PrimitivePanel } from '../features/primitive/panel';
 import { ShellPanel } from '../features/shell/panel';
 import { RevolvePanel } from '../features/revolve/panel';
 import { SplitPanel } from '../features/split/panel';
+import { DraftPanel } from '../features/draft/panel';
 
 export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<FeaturePanelProps<never>>>> = {
   extrude: ExtrudePanel as FunctionComponent<FeaturePanelProps<never>>,
@@ -27,6 +28,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
   primitive: PrimitivePanel as FunctionComponent<FeaturePanelProps<never>>,
   shell: ShellPanel as FunctionComponent<FeaturePanelProps<never>>,
+  draft: DraftPanel as FunctionComponent<FeaturePanelProps<never>>,
   split: SplitPanel as FunctionComponent<FeaturePanelProps<never>>,
   mirror: MirrorPanel as FunctionComponent<FeaturePanelProps<never>>,
   fillet: FilletPanel as FunctionComponent<FeaturePanelProps<never>>,

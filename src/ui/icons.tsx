@@ -48,6 +48,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M15 6l6 12h-6z" opacity="0.55" />
     </>
   ),
+  draft: (
+    <>
+      <path d="M3 20h18" />
+      <path d="M7 20l2-14h6l2 14" />
+      <path d="M7 6v14" stroke-dasharray="2 2" opacity="0.55" />
+    </>
+  ),
   split: (
     <>
       <path d="M5 13h14v6H5z" />

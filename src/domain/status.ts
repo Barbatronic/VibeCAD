@@ -38,6 +38,10 @@ export type FeatureIssueCode =
   | 'PATTERN_COPIES_OUTSIDE'
   | 'MIRROR_PLANE_LOST'
   | 'SPLIT_PLANE_LOST'
+  | 'DRAFT_NO_FACE'
+  | 'DRAFT_FACE_LOST'
+  | 'DRAFT_NEUTRAL_LOST'
+  | 'DRAFT_FAILED'
   | 'SPLIT_OUTSIDE'
   | 'SPLIT_NOTHING_LEFT'
   | 'SHELL_FACE_LOST'
@@ -106,6 +110,10 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   LOFT_PROFILE: 'Chaque esquisse d’un lissage doit avoir un seul contour fermé, sans trou, sur un plan différent des autres.',
   SHELL_FAILED: 'La coque n’a pas pu être calculée : essayez une épaisseur plus petite que les parties fines de la pièce, ou ouvrez d’autres faces.',
   MIRROR_PLANE_LOST: 'La face choisie comme plan de symétrie n’existe plus ou n’est pas plane : choisissez un autre plan.',
+  DRAFT_NO_FACE: 'Cliquez dans la vue 3D les faces à incliner (les côtés de la pièce).',
+  DRAFT_FACE_LOST: 'Une face à incliner n’existe plus : retirez-la ou cliquez-en une autre.',
+  DRAFT_NEUTRAL_LOST: 'La face choisie comme plan neutre n’existe plus ou n’est pas plane : choisissez un autre plan.',
+  DRAFT_FAILED: 'La dépouille n’a pas pu être faite : seules les faces planes ou cylindriques, non parallèles au plan neutre, peuvent être inclinées. Essayez aussi un angle plus petit.',
   SPLIT_PLANE_LOST: 'La face choisie pour la découpe n’existe plus ou n’est pas plane : choisissez un autre plan.',
   SPLIT_OUTSIDE: 'Le plan de découpe ne traverse pas la pièce : rien n’est coupé. Changez sa position.',
   SPLIT_NOTHING_LEFT: 'Il ne reste rien de ce côté du plan : gardez l’autre côté ou déplacez le plan.',

@@ -41,6 +41,8 @@ import {
   type PrismRequest,
   type RevolveRequest,
   type ShapeAnalysis,
+  type DraftRequest,
+  type DraftResult,
   type ShellRequest,
   type ShellResult,
   type StepExportItem,
@@ -891,6 +893,46 @@ export class OcctKernel implements GeometryKernel {
       });
     } catch (err) {
       const e = this.toKernelError('coque', err);
+      return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
+    }
+  }
+
+  draft(baseIn: KernelShape, request: DraftRequest): DraftResult {
+    const base = asOcct(baseIn);
+    const oc = this.oc;
+    try {
+      return withScope((scope) => {
+        const resolved = request.faces.map((ref) => base.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref))));
+        const missing = resolved.flatMap((faces, i) => (faces.length === 0 ? [i] : []));
+        if (missing.length > 0) return { status: 'faces-lost', missing };
+        const mk = scope.track(new oc.BRepOffsetAPI_DraftAngle(base.shape));
+        const dir = this.dir(scope, request.direction);
+        const neutral = scope.track(new oc.gp_Pln(this.pnt(scope, request.origin), dir));
+        const done: TaggedFace[] = [];
+        for (let i = 0; i < resolved.length; i++) {
+          for (const f of resolved[i]!) {
+            if (done.includes(f)) continue;
+            done.push(f);
+            mk.Add(f.face, dir, (request.angle * Math.PI) / 180, neutral, true);
+            if (!mk.AddDone()) return { status: 'failed', detail: 'Cette face ne peut pas être inclinée (elle doit être plane ou cylindrique, et pas parallèle au plan neutre).', face: i };
+          }
+        }
+        mk.Build(scope.track(new oc.Message_ProgressRange()));
+        if (!mk.IsDone()) return { status: 'failed', detail: 'Les faces inclinées ne se raccordent pas : essayez un angle plus petit.' };
+        const result = mk.Shape();
+        const faces = this.taggedFaces(result);
+        // Faces d'origine (inclinées ou simplement raccourcies) : mêmes étiquettes.
+        for (const tf of base.faces) {
+          if (tf.tags.length === 0) continue;
+          // Le moteur ne donne pas l'historique « Modified » des faces inclinées : on prend la forme modifiée.
+          const m = scope.track(mk.ModifiedShape(tf.face));
+          const i = this.indexOfFace(faces, m);
+          if (i >= 0) addTags(faces[i]!.tags, tf.tags);
+        }
+        return { status: 'ok', shape: new OcctShape(result, faces) };
+      });
+    } catch (err) {
+      const e = this.toKernelError('dépouille', err);
       return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
     }
   }

@@ -410,7 +410,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -486,6 +486,21 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           diameter: num(v, p, 'diameter', pp, { min: 0 }),
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
+        },
+      };
+    }
+    case 'draft': {
+      const pl = obj(v, p.neutral, `${pp}.neutral`) ?? {};
+      const plKind = oneOf(v, pl, 'kind', `${pp}.neutral`, ['plane', 'face'] as const);
+      return {
+        id,
+        name,
+        type,
+        params: {
+          faces: arr(v, p, 'faces', pp).map((f, i) => readFaceRef(v, f, `${pp}.faces[${i}]`)),
+          angle: num(v, p, 'angle', pp, { min: 0, max: 90 }),
+          neutral: plKind === 'plane' ? { kind: 'plane', plane: oneOf(v, pl, 'plane', `${pp}.neutral`, ['XY', 'XZ', 'YZ'] as const) } : { kind: 'face', ref: readFaceRef(v, pl.ref, `${pp}.neutral.ref`) },
+          reversed: p.reversed === true,
         },
       };
     }

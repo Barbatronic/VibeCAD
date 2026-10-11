@@ -166,6 +166,19 @@ export interface ShellRequest {
   outward: boolean;
 }
 
+export interface DraftRequest {
+  featureId: Id;
+  faces: FaceRef[];
+  /** Angle de dépouille (degrés) : positif, la pièce rétrécit en allant dans le sens `direction`. */
+  angle: number;
+  /** Plan neutre (là où les faces ne bougent pas) et sens de démoulage (sa normale). */
+  origin: Vec3;
+  direction: Vec3;
+}
+
+/** `failed` : `face` = rang de la face (dans la demande) que le moteur n'a pas pu incliner. */
+export type DraftResult = { status: 'ok'; shape: KernelShape } | { status: 'faces-lost'; missing: number[] } | { status: 'failed'; detail: string; face?: number };
+
 export type ShellResult = { status: 'ok'; shape: KernelShape } | { status: 'faces-lost'; missing: number[] } | { status: 'failed'; detail: string };
 
 export type BlendResult =
@@ -246,6 +259,8 @@ export interface GeometryKernel {
   blend(base: KernelShape, request: BlendRequest): BlendResult;
   /** Coque ; les faces intérieures créées sont étiquetées `side` + `inner` + rang de la face d'origine. */
   shell(base: KernelShape, request: ShellRequest): ShellResult;
+  /** Dépouille : faces planes ou cylindriques inclinées autour du plan neutre ; étiquettes conservées. */
+  draft(base: KernelShape, request: DraftRequest): DraftResult;
   mesh(shape: KernelShape, options: MeshOptions): MeshData;
   exportStep(items: StepExportItem[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */

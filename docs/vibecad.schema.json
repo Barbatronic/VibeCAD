@@ -902,6 +902,76 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "draft"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "faces",
+                "angle",
+                "neutral",
+                "reversed"
+              ],
+              "properties": {
+                "faces": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/faceRef"
+                  }
+                },
+                "angle": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 90
+                },
+                "neutral": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "reversed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       ]
     },

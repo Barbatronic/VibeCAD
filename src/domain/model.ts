@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -165,6 +165,7 @@ export type ShellFeature = FeatureBase<'shell', ShellParams>;
 export type LoftFeature = FeatureBase<'loft', LoftParams>;
 export type SweepFeature = FeatureBase<'sweep', SweepParams>;
 export type SplitFeature = FeatureBase<'split', SplitParams>;
+export type DraftFeature = FeatureBase<'draft', DraftParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -461,6 +462,19 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
 export interface MirrorParams {
   source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
   plane: MirrorPlane;
+}
+
+/**
+ * Dépouille : les faces choisies (planes ou cylindriques) sont inclinées de `angle` degrés autour
+ * du plan neutre, où elles ne bougent pas ; la pièce rétrécit en s'éloignant de ce plan (dans le
+ * sens +X, +Y ou +Z d'un plan d'origine, vers l'intérieur de la pièce pour une face), comme une
+ * pièce qui doit sortir d'un moule. `reversed` inverse ce sens.
+ */
+export interface DraftParams {
+  faces: FaceRef[];
+  angle: number;
+  neutral: MirrorPlane;
+  reversed: boolean;
 }
 
 /** Côté gardé par une découpe : sous le plan, au-dessus, ou les deux morceaux écartés. */

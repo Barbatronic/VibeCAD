@@ -239,7 +239,7 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
-  { name: 'arrondis, chanfreins et coques', types: ['fillet', 'chamfer', 'shell'] },
+  { name: 'arrondis, chanfreins, coques et dépouilles', types: ['fillet', 'chamfer', 'shell', 'draft'] },
   { name: 'répétitions, symétries et découpes', types: ['pattern', 'mirror', 'split'] },
 ];
 
