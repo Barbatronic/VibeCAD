@@ -30,7 +30,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
   sélection, déplacement, suppression ; accrochage à l'origine, aux points et à la grille avec
   repères visuels et textuels. Outil **Couper** (T) : retirer le morceau d'un trait jusqu'aux
   croisements voisins (le morceau est montré en rouge au survol), pour réunir deux formes en un
-  seul contour ; les nouvelles extrémités restent posées sur le trait qui coupe.
+  seul contour ; les nouvelles extrémités restent posées sur le trait qui coupe. Outil
+  **Décalage** (niveau Expert) : recopier un contour fermé à une distance choisie à la souris
+  (arrondie au demi-millimètre) ou tapée, à l'extérieur ou à l'intérieur ; le contour recopié reste
+  parallèle à l'original, à distance cotée (un cadre, une paroi d'épaisseur régulière).
 - **Cotes** : longueur, diamètre, rayon, distances horizontale / verticale / alignée, distance
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites
