@@ -64,8 +64,15 @@ résistance retenue est bien inférieure aux 60 à 70 MPa des fiches techniques.
   est un hexaèdre à 8 nœuds avec **modes incompatibles** (Wilson-Taylor) condensés, sans lesquels
   ces cubes seraient environ 30 % trop raides en flexion. Tous les cubes étant identiques, la
   raideur élémentaire (24 × 24) est calculée une fois.
-- **Résolution** sans matrice globale : gradient conjugué préconditionné par la diagonale ;
-  contraintes de von Mises au centre de chaque cube.
+- **Résolution** sans matrice globale ; contraintes de von Mises au centre de chaque cube.
+  Au-delà de 1 000 cubes, le gradient conjugué est préconditionné par **multigrille**
+  (`src/sim/multigrid.ts`) : grilles 2h, 4h… (un cube grossier regroupe 2 × 2 × 2 cubes, raideur
+  proportionnelle à sa part de matière), interpolation trilinéaire, lissage de Jacobi amorti
+  (4 / 3λmax, λmax estimée par la méthode de la puissance), grille la plus grossière (~400 cubes)
+  résolue directement (Cholesky), cycle en V dans un gradient conjugué flexible. Le résultat est
+  identique (test : écart < 10⁻⁶ de la flèche) ; seul le nombre d'itérations baisse. Essai écarté :
+  ne pas grossir l'épaisseur d'une plaque (pavés 2h × 2h × h) rend le lissage inefficace (six fois
+  plus d'itérations).
 - **Conditions aux limites** : nœuds de surface (touchant un cube vide) à moins de 0,75 `h` d'une
   face cliquée — bloqués (encastrement) ou chargés (force totale répartie également).
 - **Affichage** : le maillage de la pièce est subdivisé (arêtes ≤ 1,5 `h`, découpe conforme, sans
@@ -91,10 +98,19 @@ maillage) : flèche à ± 15 % de la théorie. `tests/e2e/simulation.spec.ts` �
 poutre en PLA chargée de 1 kg sur le dessus : 0,497 mm affichés pour 0,49 mm attendus
 (W·L³ / (8·E·I)) ; verdict « La pièce tient », puis « Risque de casser » à 100 kg.
 
-Durée (machine de référence) : 640 cubes 0,1 s ; 5 000 cubes 1,9 s ; 41 000 cubes 29 s. Si c'est
-trop lent sur un ordinateur d'école, une méthode multigrille réduira fortement le nombre
-d'itérations.
+Durée de l'étude complète (découpe, calcul, report sur le maillage ; machine de développement),
+avant → après le multigrille :
 
-## Suite prévue
+| Pièce | Rapide (~3 000 cubes) | Normale (~8 000) | Fine (~20 000) |
+| --- | --- | --- | --- |
+| Poutre 100 × 10 × 10 | 0,7 → 0,5 s | 1,8 → 1,1 s | 12,7 → 1,9 s |
+| Plaque 120 × 60 × 3 | 9,7 → 1,5 s | 8,5 → 1,5 s | 42 → 4,2 s |
+| Bloc 60 × 40 × 30 | 0,5 → 0,8 s | 2,3 → 0,5 s | 8,4 → 1,9 s |
 
-- multigrille si le calcul est trop lent.
+Une plaque mince demandait plus de 1 400 itérations ; elle en demande moins de 70. Un bloc de
+72 000 cubes se calcule en environ 4 s.
+
+## Suite possible
+
+- mesurer sur un ordinateur d'école ; si besoin, réduire encore le coût d'une itération (produit
+  matrice-vecteur par nœud plutôt que par cube).
