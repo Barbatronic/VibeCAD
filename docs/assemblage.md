@@ -90,8 +90,11 @@ repères sont des cercles, Fixe sinon).
   (`LOOP_UNSOLVED`) et les pièces restent à leurs réglages enregistrés. Lors de la création d'une
   liaison, si la première pièce choisie est déjà tenue et pas la seconde, les rôles sont échangés.
 - Les repères sont calculés à partir du maillage des pièces (centre de face, cercle, arête), déjà
-  présent dans l'interface ; l'export STEP / 3MF de l'assemblage applique les mêmes placements aux
-  solides exacts dans le worker.
+  présent dans l'interface ; l'export 3MF de l'assemblage applique les mêmes placements aux
+  solides exacts dans le worker. L'export STEP garde l'**arborescence** : un assemblage au nom du
+  projet, une définition par pièce (nom, couleur) et une instance placée par pièce insérée (une
+  pièce insérée plusieurs fois n'est écrite qu'une fois) ; FreeCAD et les autres logiciels de CAO
+  retrouvent l'assemblage et ses pièces.
 - Format natif : champ facultatif `assembly` du document (`instances`, `joints`) ; les anciens
   projets s'ouvrent sans changement.
 
