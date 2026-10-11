@@ -2797,6 +2797,12 @@ kbd {
   cursor: pointer;
 }
 
+.sim-part svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
 .sim-part:hover {
   background: var(--surface-2, rgba(127, 127, 127, 0.08));
 }

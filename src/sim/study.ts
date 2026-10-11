@@ -18,6 +18,8 @@ export interface StudyInput {
   material: Material;
   /** Nombre de cubes visé (précision). */
   targetCells: number;
+  /** Assemblage : un solide fermé par plage d'indices (voir `voxelize`). */
+  parts?: { start: number; count: number }[];
 }
 
 export interface StudyOutput {
@@ -31,13 +33,15 @@ export interface StudyOutput {
   maxDisplacement: number;
   maxStress: number;
   cells: number;
+  /** Cubes écartés : morceaux qui ne touchent aucune face fixée (ils flotteraient). */
+  ignoredCells: number;
   cellSize: number;
   iterations: number;
   converged: boolean;
   durationMs: number;
 }
 
-export type StudyErrorCode = 'NO_FIXED' | 'NO_LOAD' | 'EMPTY';
+export type StudyErrorCode = 'NO_FIXED' | 'NO_LOAD' | 'EMPTY' | 'LOAD_FLOATING';
 
 export class StudyError extends Error {
   constructor(readonly code: StudyErrorCode) {
@@ -68,7 +72,7 @@ const solidCount = (g: VoxelGrid) => g.solid.reduce((s, v) => s + v, 0);
  * plus petite dimension de la pièce (son épaisseur, souvent) compte un nombre entier de cubes :
  * sinon la grille l'épaissirait d'un demi-cube et la pièce paraîtrait trop raide.
  */
-export function gridFor(positions: Float32Array, indices: Uint32Array, target: number): VoxelGrid {
+export function gridFor(positions: Float32Array, indices: Uint32Array, target: number, parts?: { start: number; count: number }[]): VoxelGrid {
   const volume = meshVolume(positions, indices);
   let h = Math.cbrt(Math.max(volume, 1e-6) / target);
   const lo = [Infinity, Infinity, Infinity];
@@ -80,10 +84,10 @@ export function gridFor(positions: Float32Array, indices: Uint32Array, target: n
   const thin = Math.min(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!);
   const snap = (x: number) => (thin > 0 ? thin / Math.max(1, Math.round(thin / x)) : x);
   h = snap(h);
-  let grid = voxelize({ positions, indices }, h);
+  let grid = voxelize({ positions, indices }, h, parts);
   for (let i = 0; i < 4 && solidCount(grid) < target / 3; i++) {
     h = snap(h / 1.5);
-    grid = voxelize({ positions, indices }, h);
+    grid = voxelize({ positions, indices }, h, parts);
   }
   return grid;
 }
@@ -181,6 +185,50 @@ export function refineMesh(positionsIn: ArrayLike<number>, indicesIn: ArrayLike<
   return { positions: Float32Array.from(pos), indices: Uint32Array.from(tris) };
 }
 
+/**
+ * Retire les morceaux de matière qui ne touchent aucun nœud bloqué (cubes reliés dès qu'ils
+ * partagent un nœud) : sans appui, ils flotteraient et le calcul n'aurait pas de solution.
+ * Renvoie le nombre de cubes retirés.
+ */
+export function removeFloating(g: VoxelGrid, fixedNodes: ReadonlySet<number>): number {
+  const n = g.nx * g.ny * g.nz;
+  const label = new Int32Array(n).fill(-1);
+  let removed = 0;
+  const stack: number[] = [];
+  for (let start = 0; start < n; start++) {
+    if (!g.solid[start] || label[start]! >= 0) continue;
+    // Parcours du morceau, en notant s'il touche un nœud bloqué.
+    const members: number[] = [];
+    let held = false;
+    label[start] = start;
+    stack.push(start);
+    while (stack.length) {
+      const e = stack.pop()!;
+      members.push(e);
+      const i = e % g.nx;
+      const j = Math.floor(e / g.nx) % g.ny;
+      const k = Math.floor(e / (g.nx * g.ny));
+      if (!held) for (let c = 0; c < 8 && !held; c++) held = fixedNodes.has(i + (c & 1) + (g.nx + 1) * (j + ((c >> 1) & 1) + (g.ny + 1) * (k + ((c >> 2) & 1))));
+      for (let dk = -1; dk <= 1; dk++)
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const a = i + di, b = j + dj, c = k + dk;
+            if (a < 0 || b < 0 || c < 0 || a >= g.nx || b >= g.ny || c >= g.nz) continue;
+            const f = a + g.nx * (b + g.ny * c);
+            if (g.solid[f] && label[f]! < 0) {
+              label[f] = start;
+              stack.push(f);
+            }
+          }
+    }
+    if (!held) {
+      for (const e of members) g.solid[e] = 0;
+      removed += members.length;
+    }
+  }
+  return removed;
+}
+
 /** Cube plein le plus proche d'un point (cube qui le contient s'il est plein). */
 function nearestSolidCell(g: VoxelGrid, x: number, y: number, z: number): [number, number, number] | null {
   const clamp = (v: number, n: number) => Math.min(n - 1, Math.max(0, Math.floor(v)));
@@ -208,16 +256,19 @@ function nearestSolidCell(g: VoxelGrid, x: number, y: number, z: number): [numbe
 /** Lance l'étude ; `onProgress` reçoit l'avancement du calcul (0 → 1). */
 export function runStudy(input: StudyInput, onProgress?: (f: number) => void): StudyOutput {
   const t0 = performance.now();
-  const g = gridFor(input.positions, input.indices, input.targetCells);
-  const cells = solidCount(g);
-  if (cells === 0) throw new StudyError('EMPTY');
-  const surface = surfaceNodes(g);
+  const g = gridFor(input.positions, input.indices, input.targetCells, input.parts);
+  if (solidCount(g) === 0) throw new StudyError('EMPTY');
   const tol = 0.75 * g.h;
-  const fixed = nodesNearTriangles(g, input.fixed, tol, surface);
+  const fixed = nodesNearTriangles(g, input.fixed, tol, surfaceNodes(g));
   if (fixed.length === 0) throw new StudyError('NO_FIXED');
   const fixedSet = new Set(fixed);
-  const loaded = nodesNearTriangles(g, input.loaded, tol, surface).filter((n) => !fixedSet.has(n));
-  if (loaded.length === 0) throw new StudyError('NO_LOAD');
+  const loadedBefore = nodesNearTriangles(g, input.loaded, tol, surfaceNodes(g)).filter((n) => !fixedSet.has(n));
+  if (loadedBefore.length === 0) throw new StudyError('NO_LOAD');
+  const ignoredCells = removeFloating(g, fixedSet);
+  const cells = solidCount(g);
+  const loaded = ignoredCells ? nodesNearTriangles(g, input.loaded, tol, surfaceNodes(g)).filter((n) => !fixedSet.has(n)) : loadedBefore;
+  // La charge appuie sur un morceau qui ne touche rien de tenu : il flotterait.
+  if (loaded.length === 0) throw new StudyError('LOAD_FLOATING');
   const share = { x: input.force.x / loaded.length, y: input.force.y / loaded.length, z: input.force.z / loaded.length };
   const forces = new Map(loaded.map((n) => [n, share]));
   const result = solveFea({ grid: g, material: input.material, fixedNodes: fixed, forces }, { tolerance: 1e-6, maxIterations: 8000, ...(onProgress ? { onProgress } : {}) });
@@ -284,6 +335,7 @@ export function runStudy(input: StudyInput, onProgress?: (f: number) => void): S
     maxDisplacement,
     maxStress,
     cells,
+    ignoredCells,
     cellSize: g.h,
     iterations: result.iterations,
     converged: result.converged,

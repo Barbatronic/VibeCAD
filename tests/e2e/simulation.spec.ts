@@ -109,6 +109,68 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   await expect.poll(async () => (await study(page)).materialId).toBe('tpu');
 });
 
+/** Clique le centre d'une face d'une pièce insérée (repérée par son rang dans l'assemblage). */
+async function clickInstanceFace(page: Page, instance: number, normal: [number, number, number]) {
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.rig.animating)).toBe(false);
+  const c = await faceCenter(page, normal);
+  const m = await page.evaluate((i) => {
+    const ctl = (window as any).vibecad.controller;
+    return ctl.assemblyPlacement().matrices.get(ctl.state.doc.assembly.instances[i].id);
+  }, instance);
+  const p = await worldToScreen(page, c.x + m[12], c.y + m[13], c.z + m[14]);
+  await page.mouse.click(p.x, p.y);
+}
+
+test('simulation : assemblage collé, deux moitiés de poutre ; une pièce isolée flotterait', async ({ page }) => {
+  await openApp(page);
+  // Demi-poutre 50 × 10 × 10, insérée deux fois bout à bout.
+  await page.click('#tool-primitive');
+  await page.locator('#draft-width').fill('50');
+  await page.locator('#draft-depth').fill('10');
+  await page.locator('#draft-height').fill('10');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expectVolume(page, 5000);
+  await page.click('#tab-assembly');
+  for (let i = 0; i < 2; i++) {
+    await page.click('#as-insert');
+    await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
+  }
+  const place = (x: number) =>
+    page.evaluate((dx) => {
+      const c = (window as any).vibecad.controller;
+      const [a, b] = c.state.doc.assembly.instances;
+      c.moveInstance(a.id, { x: 0, y: 0, z: 0 });
+      c.moveInstance(b.id, { x: dx, y: 0, z: 0 });
+    }, x);
+  await place(50);
+
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.getByRole('radio', { name: 'Assemblage (pièces collées)' }).click();
+  await expect(page.locator('.right-panel')).toContainText('Simulation de l’assemblage');
+  // Encastrée au bout de la seconde moitié (+X), chargée sur le dessus de la première.
+  await page.click('#sim-pick-fixed');
+  await clickInstanceFace(page, 1, [1, 0, 0]);
+  await expect.poll(async () => (await study(page))?.fixed.map((f: any) => !!f.instanceId)).toEqual([true]);
+  await page.click('#sim-pick-load');
+  await clickInstanceFace(page, 0, [0, 0, 1]);
+  await expect.poll(async () => (await study(page))?.load.faces.length).toBe(1);
+  await page.keyboard.press('Escape');
+  await page.locator('.right-panel').getByRole('button', { name: 'Calculer', exact: true }).click();
+  await expect(page.locator('.sim-verdict')).toBeVisible({ timeout: 60_000 });
+  const run = () => page.evaluate(() => (window as any).vibecad.controller.state.simulationRun);
+  expect((await run()).result.ignoredCells).toBe(0);
+  expect((await run()).result.maxDisplacement).toBeGreaterThan(0.05);
+  await page.screenshot({ path: 'tests/output/e2e-simulation-assemblage.png' });
+
+  // Moitiés écartées de 10 mm : celle qui porte la charge flotterait.
+  await page.click('#tab-assembly');
+  await place(60);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.locator('.right-panel').getByRole('button', { name: 'Calculer', exact: true }).click();
+  await expect(page.getByText('elle flotterait')).toBeVisible({ timeout: 60_000 });
+});
+
 test('simulation : onglet réservé au niveau Intermédiaire', async ({ page }) => {
   await openApp(page, 'http://localhost:5174/?niveau=debutant');
   await expect(page.getByRole('tab', { name: 'Fabrication' })).toBeVisible();

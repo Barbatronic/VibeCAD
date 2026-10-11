@@ -57,8 +57,7 @@ export interface SimulationRun {
   key: string;
   status: 'running' | 'done' | 'error';
   progress: number;
-  /** Maillage sur lequel les résultats ont été reportés, et sa taille (diagonale, mm). */
-  mesh: MeshData;
+  /** Taille (diagonale, mm) de ce qui est étudié : règle l'exagération de la déformée. */
   size: number;
   result?: StudyOutput;
   error?: string;

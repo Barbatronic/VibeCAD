@@ -4,7 +4,7 @@
  * la pièce apparaît déformée (exagérée) et colorée selon l'effort. Voir docs/simulation.md.
  */
 import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, verdict } from '../app/simulation';
-import type { LoadDirection, SimulationStudy } from '../domain/model';
+import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
 import { formatNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
 import { exaggerationFor } from '../sim/study';
@@ -38,6 +38,8 @@ export function SimulationSection() {
     (s) => ({
       current: c.simulationPartId(),
       parts: s.doc.parts.filter((p) => s.display[p.id]?.mesh).map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      // Assemblage collé (niveau Expert), dès qu'il a deux pièces.
+      assembly: (s.doc.assembly?.instances.length ?? 0) >= 2 && !!c.simulationSource(ASSEMBLY_STUDY),
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
@@ -57,6 +59,21 @@ export function SimulationSection() {
               </button>
             </li>
           ))}
+          {data.assembly ? (
+            <li>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={data.current === ASSEMBLY_STUDY}
+                class={`sim-part${data.current === ASSEMBLY_STUDY ? ' is-current' : ''}`}
+                title="Toutes les pièces de l’assemblage, à leur place : celles qui se touchent sont considérées comme collées."
+                onClick={() => c.setSimulationPart(ASSEMBLY_STUDY)}
+              >
+                <Icon name="part" />
+                <span>Assemblage (pièces collées)</span>
+              </button>
+            </li>
+          ) : null}
         </ul>
         <ol class="sim-steps field-help">
           <li>Choisissez le matériau.</li>
@@ -81,19 +98,20 @@ export function SimulationRightPanel() {
   const info = useAppState(
     (s) => {
       const partId = c.simulationPartId();
-      const d = partId ? s.display[partId] : undefined;
-      if (!partId || !d?.mesh || !d.meshKey) return null;
+      const source = partId ? c.simulationSource(partId) : null;
+      if (!partId || !source) return null;
       const study = studyOf(s.doc, partId);
-      const problem = studyInput(study, d.mesh);
+      const problem = studyInput(study, source);
       const run = s.simulationRun?.partId === partId ? s.simulationRun : null;
-      const current = !!run && run.key === studyKey(study, d.meshKey);
+      const current = !!run && run.key === studyKey(study, source.key);
       return {
         partId,
-        name: s.doc.parts.find((p) => p.id === partId)?.name ?? '',
+        name: partId === ASSEMBLY_STUDY ? 'l’assemblage' : `« ${s.doc.parts.find((p) => p.id === partId)?.name ?? ''} »`,
+        assembly: partId === ASSEMBLY_STUDY,
         study,
         missing: problem.ok ? null : problem.message,
         picking: s.mode.kind === 'pick-sim-face' ? s.mode.role : null,
-        run: run ? { status: run.status, progress: run.progress, error: run.error ?? null, current, result: run.result ? { maxStress: run.result.maxStress, maxDisplacement: run.result.maxDisplacement, cells: run.result.cells, cellSize: run.result.cellSize, converged: run.result.converged, durationMs: run.result.durationMs } : null } : null,
+        run: run ? { status: run.status, progress: run.progress, error: run.error ?? null, current, result: run.result ? { maxStress: run.result.maxStress, maxDisplacement: run.result.maxDisplacement, cells: run.result.cells, ignoredCells: run.result.ignoredCells, cellSize: run.result.cellSize, converged: run.result.converged, durationMs: run.result.durationMs } : null } : null,
         exaggeration: run?.result ? exaggerationFor(run.result.maxDisplacement, run.size) : 1,
         // Au-delà de 5 % de la taille de la pièce, l'hypothèse des petites déformations ne tient plus.
         large: !!run?.result && run.result.maxDisplacement > 0.05 * run.size,
@@ -128,9 +146,15 @@ export function SimulationRightPanel() {
     <aside class="panel right-panel" aria-label="Simulation">
       <div class="panel-title">
         <Icon name="simulate" />
-        <span>Simulation de « {info.name} »</span>
+        <span>Simulation de {info.name}</span>
       </div>
       <div class="panel-content">
+        {info.assembly ? (
+          <p class="field-help">
+            Les pièces de l’assemblage sont étudiées à leur place, toutes dans le même matériau. Celles qui se touchent sont considérées comme collées : ni
+            jeu, ni glissement. Cliquez les faces sur n’importe quelle pièce.
+          </p>
+        ) : null}
         <label class="field">
           <span class="field-label">Matériau</span>
           <select id="sim-material" class="select" value={study.materialId} onChange={(e) => update((s) => ({ ...s, materialId: (e.target as HTMLSelectElement).value }), 'Matériau de la simulation')}>
@@ -295,6 +319,12 @@ export function SimulationRightPanel() {
               Résultat indicatif : la pièce est découpée en {formatNumber(result.cells, 0)} cubes de {formatNumber(result.cellSize, 2)} mm. Une pièce imprimée dépend aussi
               du remplissage et du sens des couches.
             </p>
+            {result.ignoredCells > 0 ? (
+              <Callout kind="warning">
+                Une partie de la matière ne touche aucune face fixée, même par une autre pièce : elle flotterait, elle a été laissée de côté (en bleu, sans
+                déformation). Vérifiez que les pièces se touchent vraiment.
+              </Callout>
+            ) : null}
             {info.large ? (
               <Callout kind="warning">
                 La pièce se déforme beaucoup : ce calcul suppose de petites déformations, la forme réelle sera différente. Une pièce souple (TPU) plie souvent

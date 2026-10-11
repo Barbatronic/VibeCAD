@@ -33,7 +33,8 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import { ASSEMBLY_STUDY } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -73,7 +74,7 @@ import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
 import { fastenerForHole, holeFromPick, holeOf, placeFasteners, type FastenerPlacement } from './fasteners';
 import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
-import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay } from './simulation';
+import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay, type StudySource } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
@@ -91,6 +92,7 @@ const STUDY_ERRORS: Record<StudyErrorCode, string> = {
   NO_FIXED: 'Les faces fixées sont trop petites pour la précision choisie : choisissez une précision plus fine.',
   NO_LOAD: 'Les faces chargées sont trop petites pour la précision choisie : choisissez une précision plus fine.',
   EMPTY: 'La pièce est trop fine pour être découpée en cubes : choisissez une précision plus fine.',
+  LOAD_FLOATING: 'La charge appuie sur une pièce qui ne touche pas les pièces tenues (même par une autre pièce) : elle flotterait. Vérifiez que les pièces se touchent.',
 };
 
 function displayFor(prev: PartDisplay | undefined, result: PartResult): PartDisplay {
@@ -1658,13 +1660,37 @@ export class AppController {
 
   // ----- Simulation
 
-  /** Pièce étudiée : celle choisie, sinon la pièce active, sinon la première qui a un volume. */
+  /**
+   * Pièce étudiée (ou `ASSEMBLY_STUDY`) : celle choisie, sinon la pièce active, sinon la première
+   * qui a un volume. L'assemblage n'est étudiable qu'au niveau Expert, avec au moins une pièce.
+   */
   simulationPartId(): Id | null {
     const s = this.state;
+    if (s.simulationPart === ASSEMBLY_STUDY && this.simulationSource(ASSEMBLY_STUDY)) return ASSEMBLY_STUDY;
     const ok = (id: Id | null): id is Id => !!id && !!s.display[id]?.mesh && s.doc.parts.some((p) => p.id === id);
     if (ok(s.simulationPart)) return s.simulationPart;
     if (ok(s.activePartId)) return s.activePartId;
     return s.doc.parts.find((p) => ok(p.id))?.id ?? null;
+  }
+
+  /** Ce qu'on étudie : le maillage de la pièce, ou les pièces de l'assemblage à leur place. */
+  simulationSource(partId: Id): StudySource | null {
+    const s = this.state;
+    if (partId !== ASSEMBLY_STUDY) {
+      const d = s.display[partId];
+      return d?.mesh && d.meshKey ? { kind: 'part', mesh: d.mesh, key: d.meshKey } : null;
+    }
+    const assembly = s.doc.assembly;
+    if (!assembly || !this.can('simulation:assembly')) return null;
+    const placement = this.assemblyPlacement();
+    const items = assembly.instances.flatMap((inst) => {
+      const d = s.display[inst.partId];
+      const matrix = placement?.matrices.get(inst.id);
+      return d?.mesh && d.meshKey && matrix ? [{ instanceId: inst.id, mesh: d.mesh, matrix, meshKey: d.meshKey }] : [];
+    });
+    if (items.length === 0) return null;
+    const key = items.map((i) => `${i.instanceId}:${i.meshKey}:${i.matrix.map((v) => v.toFixed(4)).join(',')}`).join('|');
+    return { kind: 'assembly', items: items.map(({ meshKey: _k, ...rest }) => rest), key };
   }
 
   setSimulationPart(partId: Id): void {
@@ -1699,14 +1725,18 @@ export class AppController {
   private simulationPick(pick: ModelPick | null): void {
     const mode = this.state.mode;
     if (mode.kind !== 'pick-sim-face' || !pick || pick.kind !== 'face') return;
-    if (pick.partId !== mode.partId) return this.explain('Cliquez une face de la pièce étudiée.');
-    const part = findPart(this.state.doc, pick.partId);
-    const face = this.state.display[pick.partId]?.mesh?.faces[pick.index];
-    const ref = part && face ? pickFaceReference(face.tags, part) : null;
-    if (!ref) return;
+    // Étude de l'assemblage : la face est repérée sur une pièce insérée.
+    const instance = mode.partId === ASSEMBLY_STUDY ? this.state.doc.assembly?.instances.find((i) => i.id === pick.partId) : undefined;
+    if (mode.partId !== ASSEMBLY_STUDY && pick.partId !== mode.partId) return this.explain('Cliquez une face de la pièce étudiée.');
+    const partId = instance ? instance.partId : pick.partId;
+    const part = findPart(this.state.doc, partId);
+    const face = this.state.display[partId]?.mesh?.faces[pick.index];
+    const faceRef = part && face ? pickFaceReference(face.tags, part) : null;
+    if (!faceRef) return;
+    const ref: StudyFace = instance ? { ...faceRef, instanceId: instance.id } : faceRef;
     const role = mode.role;
     this.updateStudy(
-      pick.partId,
+      mode.partId,
       (st) => {
         const list = role === 'fixed' ? st.fixed : st.load.faces;
         const other = role === 'fixed' ? st.load.faces : st.fixed;
@@ -1723,14 +1753,15 @@ export class AppController {
   /** Lance le calcul de la pièce étudiée (dans le worker de simulation). */
   async runSimulation(): Promise<void> {
     const partId = this.simulationPartId();
-    const d = partId ? this.state.display[partId] : undefined;
-    if (!partId || !d?.mesh || !d.meshKey) return this.explain('Choisissez une pièce qui a un volume.');
-    if (d.stale) return this.explain('La pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
+    const source = partId ? this.simulationSource(partId) : null;
+    if (!partId || !source) return this.explain('Choisissez une pièce qui a un volume.');
+    const stale = partId === ASSEMBLY_STUDY ? (this.state.doc.assembly?.instances ?? []).some((i) => this.state.display[i.partId]?.stale) : this.state.display[partId]?.stale;
+    if (stale) return this.explain('Une pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
     const study = studyOf(this.state.doc, partId);
-    const problem = studyInput(study, d.mesh);
+    const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
-    const key = studyKey(study, d.meshKey);
-    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, mesh: d.mesh, size: meshSize(d.mesh.positions) } });
+    const key = studyKey(study, source.key);
+    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, size: meshSize(problem.input.positions) } });
     const runner = this.deps.simulation ?? inlineSimRunner;
     const current = () => {
       const r = this.state.simulationRun;

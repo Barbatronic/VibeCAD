@@ -45,7 +45,7 @@ import { Icon } from './icons';
 import { allows } from '../app/levels';
 import type { Vec3 } from '../math/vec';
 import { formatLength } from '../domain/units';
-import { faceIndices, resultGeometry, studyInput, studyKey, studyOf } from '../app/simulation';
+import { resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
 import { exaggerationFor } from '../sim/study';
 
 function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderInput {
@@ -198,14 +198,12 @@ function reducedMotion(): boolean {
 let resultCache: { key: string; value: NonNullable<ViewportInput['resultMesh']> } | null = null;
 
 /** Vue de l'onglet Simulation : la pièce étudiée, ses faces fixées et chargées, le résultat. */
-function buildSimulationInput(s: AppState, partId: string | null): ViewportInput {
+function buildSimulationInput(s: AppState, partId: string | null, source: StudySource | null): ViewportInput {
   const base: ViewportInput = { mode: 'model', parts: [], tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-sim-face', fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
-  const part = partId ? s.doc.parts.find((p) => p.id === partId) : undefined;
-  const d = partId ? s.display[partId] : undefined;
-  if (!part || !d?.mesh || !d.meshKey) return base;
-  const study = studyOf(s.doc, part.id);
+  if (!partId || !source) return base;
+  const study = studyOf(s.doc, partId);
   const run = s.simulationRun;
-  const done = run?.status === 'done' && run.result && run.partId === part.id && run.key === studyKey(study, d.meshKey) && s.mode.kind !== 'pick-sim-face' ? run : null;
+  const done = run?.status === 'done' && run.result && run.partId === partId && run.key === studyKey(study, source.key) && s.mode.kind !== 'pick-sim-face' ? run : null;
   let resultMesh: ViewportInput['resultMesh'] = null;
   if (done?.result) {
     const scale = s.simulationDeformed ? exaggerationFor(done.result.maxDisplacement, done.size) : 0;
@@ -224,16 +222,25 @@ function buildSimulationInput(s: AppState, partId: string | null): ViewportInput
     }
     resultMesh = resultCache.value;
   }
-  const parts: ViewPartInput[] = [{ partId: part.id, color: part.color, visible: true, meshKey: d.meshKey, mesh: d.mesh, appearance: resultMesh ? 'ghost' : 'normal' }];
+  const appearance = resultMesh ? 'ghost' : 'normal';
+  // Pièce seule, ou pièces de l'assemblage à leur place (repérées par leur insertion).
+  const parts: ViewPartInput[] =
+    source.kind === 'part'
+      ? [{ partId, color: s.doc.parts.find((p) => p.id === partId)?.color ?? '#888888', visible: true, meshKey: source.key, mesh: source.mesh, appearance }]
+      : source.items.map((it) => {
+          const inst = s.doc.assembly?.instances.find((i) => i.id === it.instanceId);
+          const color = s.doc.parts.find((p) => p.id === inst?.partId)?.color ?? '#888888';
+          return { partId: it.instanceId, color, visible: true, meshKey: s.display[inst?.partId ?? '']?.meshKey ?? null, mesh: it.mesh, appearance, matrix: it.matrix };
+        });
   const markedFaces: NonNullable<ViewportInput['markedFaces']> = resultMesh
     ? []
-    : [
-        ...faceIndices(d.mesh, study.fixed).map((index) => ({ partId: part.id, index, role: 'fixed' as const })),
-        ...faceIndices(d.mesh, study.load.faces).map((index) => ({ partId: part.id, index, role: 'load' as const })),
-      ];
+    : studyFaces(study, source).flatMap((f) => [
+        ...f.fixed.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'fixed' as const })),
+        ...f.load.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'load' as const })),
+      ]);
   // Flèche de la charge : elle arrive sur le centre des faces chargées.
   const markers: ViewMarker[] = [];
-  const problem = studyInput(study, d.mesh);
+  const problem = studyInput(study, source);
   if (problem.ok) {
     const t = problem.input.loaded;
     let cx = 0, cy = 0, cz = 0;
@@ -253,10 +260,10 @@ function buildSimulationInput(s: AppState, partId: string | null): ViewportInput
 }
 
 /** Construit la représentation d'affichage à partir de l'état de l'application. */
-export function buildViewportInput(s: AppState, simulationPart: string | null = null): ViewportInput {
+export function buildViewportInput(s: AppState, simulation: { partId: string | null; source: StudySource | null } = { partId: null, source: null }): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
-  if (s.workspace === 'simulation') return buildSimulationInput(s, simulationPart);
+  if (s.workspace === 'simulation') return buildSimulationInput(s, simulation.partId, simulation.source);
   const mode = s.mode.kind;
   // Vue en coupe : les pièces coupées remplacent les pièces (hors esquisse et opération en cours).
   const cut = s.section && s.sectionParts && (mode === 'model' || mode === 'measure') ? s.sectionParts : null;
@@ -582,7 +589,11 @@ export function ViewportHost() {
   const tickPending = useRef(false);
   const state = useAppState((s) => s);
   const input = useMemo(
-    () => buildViewportInput(state, state.workspace === 'simulation' ? c.simulationPartId() : null),
+    () => {
+      if (state.workspace !== 'simulation') return buildViewportInput(state);
+      const partId = c.simulationPartId();
+      return buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
+    },
     [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
   );
   const kernel = state.kernel;

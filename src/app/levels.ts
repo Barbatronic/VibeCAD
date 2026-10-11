@@ -25,6 +25,7 @@ export type Capability =
   | 'sketch-lists'
   | 'workspace:assembly'
   | 'workspace:simulation'
+  | 'simulation:assembly'
   | 'fabrication:laser'
   | 'fabrication:docs'
   | 'import-step'
@@ -64,6 +65,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'sketch-construction': 'intermediaire',
   'workspace:assembly': 'intermediaire',
   'workspace:simulation': 'intermediaire',
+  'simulation:assembly': 'expert',
   'fabrication:laser': 'intermediaire',
   'fabrication:docs': 'intermediaire',
   'tutorial:assembly': 'intermediaire',

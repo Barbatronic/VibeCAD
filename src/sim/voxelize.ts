@@ -11,8 +11,12 @@ export interface TriangleMesh {
   indices: ArrayLike<number>;
 }
 
-/** Grille de cubes d'arête `h` couvrant la boîte du maillage. */
-export function voxelize(mesh: TriangleMesh, h: number): VoxelGrid {
+/**
+ * Grille de cubes d'arête `h` couvrant la boîte du maillage. `parts` (rangs de début et nombres
+ * d'indices) découpe le maillage en solides fermés traités chacun à part puis réunis : deux pièces
+ * qui se chevauchent ne s'annulent pas, deux pièces qui se touchent partagent des nœuds (collées).
+ */
+export function voxelize(mesh: TriangleMesh, h: number, parts?: readonly { start: number; count: number }[]): VoxelGrid {
   const pos = mesh.positions;
   const idx = mesh.indices;
   const min = { x: Infinity, y: Infinity, z: Infinity };
@@ -30,9 +34,17 @@ export function voxelize(mesh: TriangleMesh, h: number): VoxelGrid {
   const ny = n(min.y, max.y);
   const nz = n(min.z, max.z);
   const grid: VoxelGrid = { nx, ny, nz, h, origin: { ...min }, solid: new Uint8Array(nx * ny * nz) };
+  for (const part of parts ?? [{ start: 0, count: idx.length }]) fillSolid(grid, pos, idx, part.start, part.start + part.count);
+  return grid;
+}
+
+/** Marque pleins les cubes dont le centre est dans le solide fermé formé des triangles [from, to[. */
+function fillSolid(grid: VoxelGrid, pos: ArrayLike<number>, idx: ArrayLike<number>, from: number, to: number): void {
+  const { nx, ny, nz, h } = grid;
+  const min = grid.origin;
   // Triangles rangés par lignes (j, k) que couvre leur ombre dans le plan YZ.
   const rows: number[][] = Array.from({ length: ny * nz }, () => []);
-  for (let t = 0; t + 2 < idx.length; t += 3) {
+  for (let t = from; t + 2 < to; t += 3) {
     let y0 = Infinity;
     let y1 = -Infinity;
     let z0 = Infinity;
@@ -81,7 +93,6 @@ export function voxelize(mesh: TriangleMesh, h: number): VoxelGrid {
       }
     }
   }
-  return grid;
 }
 
 /** Position d'un nœud de la grille. */

@@ -69,6 +69,46 @@ describe('simulation : étude d’une pièce', () => {
     expect(-r.displacement[3 * 1 + 2]! / theory).toBeLessThan(1.15);
   });
 
+  it('assemblage collé : deux moitiés de poutre qui se touchent plient comme une seule ; un bloc isolé est écarté', () => {
+    // Maillages fusionnés : moitié [0, 50], moitié [50, 100], bloc isolé [0, 10] décalé en y.
+    const shift = (m: ReturnType<typeof boxMesh>, dx: number, dy: number) => {
+      const p = Float32Array.from(m.positions);
+      for (let i = 0; i < p.length; i += 3) {
+        p[i] = p[i]! + dx;
+        p[i + 1] = p[i + 1]! + dy;
+      }
+      return { positions: p, indices: m.indices };
+    };
+    const pieces = [shift(boxMesh(50, B, B), 0, 0), shift(boxMesh(50, B, B), 50, 0), shift(boxMesh(10, B, B), 0, 40)];
+    const positions = new Float32Array(pieces.reduce((n, m) => n + m.positions.length, 0));
+    const indices: number[] = [];
+    const parts: { start: number; count: number }[] = [];
+    let offset = 0;
+    for (const m of pieces) {
+      positions.set(m.positions, offset);
+      parts.push({ start: indices.length, count: m.indices.length });
+      for (const i of m.indices) indices.push(i + offset / 3);
+      offset += m.positions.length;
+    }
+    const F = 10;
+    const r = runStudy({
+      positions,
+      indices: Uint32Array.from(indices),
+      parts,
+      fixed: endFace(0, B, B),
+      loaded: endFace(L, B, B),
+      force: { x: 0, y: 0, z: -F },
+      material: PLA,
+      targetCells: 4000,
+    });
+    expect(r.converged).toBe(true);
+    expect(r.ignoredCells).toBeGreaterThan(0);
+    const theory = (F * L ** 3) / (3 * PLA.E * (B ** 4 / 12));
+    // Sommet du bout libre (x = 100) de la seconde moitié : rang 8 + 1.
+    expect(-r.displacement[3 * 9 + 2]! / theory).toBeGreaterThan(0.85);
+    expect(-r.displacement[3 * 9 + 2]! / theory).toBeLessThan(1.15);
+  });
+
   it('erreurs : aucune face fixée, aucune face chargée', () => {
     const m = boxMesh(L, B, B);
     const base = { ...m, force: { x: 0, y: 0, z: -1 }, material: PLA, targetCells: 500 };

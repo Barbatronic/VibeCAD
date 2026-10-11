@@ -3,7 +3,8 @@
  * triangles du maillage, force appliquée, signature d'un calcul, verdict et affichage du résultat
  * (pièce déformée, couleurs). Le calcul lui-même est dans `src/sim`. Voir docs/simulation.md.
  */
-import type { CadDocument, FaceRef, Id, LoadDirection, SimulationStudy } from '../domain/model';
+import type { CadDocument, FaceRef, Id, LoadDirection, SimulationStudy, StudyFace } from '../domain/model';
+import { transformPoint4, type Mat4 } from '../math/mat4';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { GRAVITY, simMaterial } from '../sim/materials';
 import { heatColor, type StudyInput, type StudyOutput } from '../sim/study';
@@ -41,7 +42,8 @@ export function withStudy(doc: CadDocument, study: SimulationStudy): CadDocument
 const sameTag = (t: FaceTag, r: FaceRef) =>
   t.featureId === r.featureId && t.role === r.role && (t.entityId ?? null) === (r.entityId ?? null) && (t.index ?? null) === (r.index ?? null);
 
-export const sameFaceRef = (a: FaceRef, b: FaceRef) => a.featureId === b.featureId && a.role === b.role && (a.entityId ?? null) === (b.entityId ?? null) && (a.index ?? null) === (b.index ?? null);
+export const sameFaceRef = (a: StudyFace, b: StudyFace) =>
+  a.featureId === b.featureId && a.role === b.role && (a.entityId ?? null) === (b.entityId ?? null) && (a.index ?? null) === (b.index ?? null) && (a.instanceId ?? null) === (b.instanceId ?? null);
 
 /** Rangs des faces du maillage désignées (une référence peut désigner plusieurs faces). */
 export function faceIndices(mesh: MeshData, refs: readonly FaceRef[]): number[] {
@@ -99,13 +101,73 @@ const AXES: Record<Exclude<LoadDirection, 'push'>, { x: number; y: number; z: nu
 export type StudyProblem = { ok: true; input: StudyInput } | { ok: false; message: string };
 
 /** Données du calcul, ou ce qui manque pour le lancer. */
-export function studyInput(study: SimulationStudy, mesh: MeshData): StudyProblem {
-  const fixedFaces = faceIndices(mesh, study.fixed);
-  const loadFaces = faceIndices(mesh, study.load.faces).filter((f) => !fixedFaces.includes(f));
-  if (fixedFaces.length === 0) return { ok: false, message: 'Choisissez au moins une face fixée (là où la pièce est tenue).' };
-  if (loadFaces.length === 0) return { ok: false, message: 'Choisissez au moins une face où appuie la charge.' };
+/**
+ * Ce qu'on étudie : une pièce (son maillage), ou l'assemblage (chaque pièce insérée placée par
+ * sa matrice). `key` change dès que la géométrie ou les placements changent.
+ */
+export type StudySource =
+  | { kind: 'part'; mesh: MeshData; key: string }
+  | { kind: 'assembly'; items: { instanceId: Id; mesh: MeshData; matrix: Mat4 }[]; key: string };
+
+/** Pièces de la source, avec les faces de l'étude qui les concernent. */
+function sourceItems(source: StudySource, refs: readonly StudyFace[]): { mesh: MeshData; matrix: Mat4 | null; refs: StudyFace[]; instanceId: Id | null }[] {
+  if (source.kind === 'part') return [{ mesh: source.mesh, matrix: null, refs: [...refs], instanceId: null }];
+  return source.items.map((it) => ({ mesh: it.mesh, matrix: it.matrix, refs: refs.filter((r) => r.instanceId === it.instanceId), instanceId: it.instanceId }));
+}
+
+function transformed(tris: Float32Array, matrix: Mat4 | null): Float32Array {
+  if (!matrix) return tris;
+  const out = new Float32Array(tris.length);
+  for (let k = 0; k < tris.length; k += 3) {
+    const p = transformPoint4(matrix, { x: tris[k]!, y: tris[k + 1]!, z: tris[k + 2]! });
+    out[k] = p.x;
+    out[k + 1] = p.y;
+    out[k + 2] = p.z;
+  }
+  return out;
+}
+
+const concat = (arrays: Float32Array[]) => {
+  const out = new Float32Array(arrays.reduce((n, a) => n + a.length, 0));
+  let o = 0;
+  for (const a of arrays) {
+    out.set(a, o);
+    o += a.length;
+  }
+  return out;
+};
+
+/** Faces désignées de chaque pièce de la source (rangs dans son maillage), sans doublon fixé/chargé. */
+export function studyFaces(study: SimulationStudy, source: StudySource): { instanceId: Id | null; fixed: number[]; load: number[] }[] {
+  const fixed = sourceItems(source, study.fixed);
+  const load = sourceItems(source, study.load.faces);
+  return fixed.map((f, i) => {
+    const fixedFaces = faceIndices(f.mesh, f.refs);
+    return { instanceId: f.instanceId, fixed: fixedFaces, load: faceIndices(f.mesh, load[i]!.refs).filter((x) => !fixedFaces.includes(x)) };
+  });
+}
+
+/** Données du calcul, ou ce qui manque pour le lancer. */
+export function studyInput(study: SimulationStudy, source: StudySource): StudyProblem {
+  const items = sourceItems(source, []);
+  const faces = studyFaces(study, source);
+  if (faces.every((f) => f.fixed.length === 0)) return { ok: false, message: 'Choisissez au moins une face fixée (là où la pièce est tenue).' };
+  if (faces.every((f) => f.load.length === 0)) return { ok: false, message: 'Choisissez au moins une face où appuie la charge.' };
   if (!(study.load.value > 0)) return { ok: false, message: 'Indiquez la valeur de la charge.' };
-  const loaded = faceTriangles(mesh, loadFaces);
+  // Maillage fusionné (coordonnées de l'assemblage) : un solide fermé par pièce.
+  const positions = concat(items.map((it) => transformed(it.mesh.positions, it.matrix)));
+  const indices = new Uint32Array(items.reduce((n, it) => n + it.mesh.indices.length, 0));
+  const parts: { start: number; count: number }[] = [];
+  let offset = 0;
+  let vertexOffset = 0;
+  for (const it of items) {
+    for (let k = 0; k < it.mesh.indices.length; k++) indices[offset + k] = it.mesh.indices[k]! + vertexOffset;
+    parts.push({ start: offset, count: it.mesh.indices.length });
+    offset += it.mesh.indices.length;
+    vertexOffset += it.mesh.positions.length / 3;
+  }
+  const loaded = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.load), it.matrix)));
+  const fixed = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.fixed), it.matrix)));
   const F = loadNewtons(study);
   const dir = study.load.direction === 'push' ? meanNormal(loaded) : AXES[study.load.direction];
   const sign = study.load.direction === 'push' ? -1 : 1;
@@ -113,9 +175,10 @@ export function studyInput(study: SimulationStudy, mesh: MeshData): StudyProblem
   return {
     ok: true,
     input: {
-      positions: mesh.positions,
-      indices: mesh.indices,
-      fixed: faceTriangles(mesh, fixedFaces),
+      positions,
+      indices,
+      ...(source.kind === 'assembly' ? { parts } : {}),
+      fixed,
       loaded,
       force: { x: sign * F * dir.x, y: sign * F * dir.y, z: sign * F * dir.z },
       material: { E: material.E, nu: material.nu },
@@ -136,8 +199,8 @@ export function meshSize(positions: ArrayLike<number>): number {
 }
 
 /** Signature d'un calcul : le résultat affiché est périmé dès qu'elle change. */
-export function studyKey(study: SimulationStudy, meshKey: string): string {
-  return `${meshKey}|${JSON.stringify(study)}`;
+export function studyKey(study: SimulationStudy, sourceKey: string): string {
+  return `${sourceKey}|${JSON.stringify(study)}`;
 }
 
 export type Verdict = { level: 'ok' | 'tight' | 'fail'; margin: number; label: string };
