@@ -1,13 +1,13 @@
 import type { SplitFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
 import type { KernelShape } from '../../geometry/kernel';
-import { canonicalFrame } from '../../math/frame';
 import { add3, length3, scale3, vec3, type Vec3 } from '../../math/vec';
 import type { FeatureEvaluator } from '../evaluation';
+import { halfSpace } from '../half-space';
 import { SPLIT_AXIS, splitDefinition } from './definition';
 
 /**
- * Découpe : la pièce est coupée par deux demi-espaces (de grandes boîtes posées sur le plan).
+ * Découpe : la pièce est coupée par deux demi-espaces (voir `halfSpace`).
  * La face de coupe du morceau du dessous vient de la boîte du dessus (rôle `start`), celle du
  * morceau du dessus de la boîte du dessous (rôle `end`), toutes deux au nom de la découpe.
  */
@@ -29,30 +29,11 @@ export const evaluateSplit: FeatureEvaluator<SplitFeature> = (feature, ctx) => {
     normal = found.normal;
     origin = add3(found.origin, scale3(found.normal, p.offset));
   }
-  // Demi-espaces : boîtes assez grandes pour contenir toute la pièce, dans le repère du plan.
-  const f = canonicalFrame(origin, normal);
+  // Demi-espaces : boîtes assez grandes pour contenir toute la pièce.
   const { min, max } = ctx.shapeAnalysis.bbox;
-  const size = 10 + 2 * (length3(vec3(max.x - min.x, max.y - min.y, max.z - min.z)) + length3(add3(min, scale3(f.origin, -1))));
-  const matrix = [f.xAxis.x, f.xAxis.y, f.xAxis.z, 0, f.yAxis.x, f.yAxis.y, f.yAxis.z, 0, f.normal.x, f.normal.y, f.normal.z, 0, f.origin.x, f.origin.y, f.origin.z, 1];
-  const halfSpace = (above: boolean): KernelShape => {
-    const local = kernel.makePrimitive({
-      featureId: feature.id,
-      shape: 'box',
-      position: { x: -size, y: -size, z: above ? 0 : -size },
-      width: 2 * size,
-      depth: 2 * size,
-      height: size,
-      diameter: 1,
-      thickness: 1,
-    });
-    try {
-      return kernel.transformed(local, matrix, { keep: true });
-    } finally {
-      kernel.dispose(local);
-    }
-  };
+  const size = 10 + 2 * (length3(vec3(max.x - min.x, max.y - min.y, max.z - min.z)) + length3(add3(min, scale3(origin, -1))));
   const side = (keepAbove: boolean): KernelShape | null => {
-    const box = halfSpace(!keepAbove);
+    const box = halfSpace(kernel, feature.id, origin, normal, size, keepAbove ? 'opposite' : 'normal');
     try {
       const piece = kernel.cut(ctx.shape!, box);
       if (kernel.analyze(piece).solidCount > 0) return piece;
