@@ -191,6 +191,8 @@ export interface AppState {
   /** Couleurs du résultat : contrainte ou déplacement ; pièce montrée déformée (exagérée). */
   simulationDisplay: ResultDisplay;
   simulationDeformed: boolean;
+  /** Déformée animée (aller-retour), sauf si le système demande moins d'animations. */
+  simulationAnimate: boolean;
   assemblySelection: AssemblySelection;
   /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
   assemblyHand: boolean;
@@ -249,6 +251,7 @@ export function initialState(): AppState {
     simulationRun: null,
     simulationDisplay: 'stress',
     simulationDeformed: true,
+    simulationAnimate: true,
     assemblySelection: null,
     mascot: { hidden: false, collapsed: false, dismissed: null },
     preview: null,

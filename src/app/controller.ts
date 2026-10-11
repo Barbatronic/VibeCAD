@@ -1763,6 +1763,10 @@ export class AppController {
     this.set({ simulationDeformed: on });
   }
 
+  setSimulationAnimate(on: boolean): void {
+    this.set({ simulationAnimate: on });
+  }
+
   // ----- Fabrication
 
   setFabricationTab(tab: FabricationTab): void {

@@ -189,6 +189,11 @@ function buildFabricationInput(s: AppState): ViewportInput {
   };
 }
 
+/** Le système demande moins d'animations (réglage d'accessibilité). */
+function reducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /** Dernier résultat mis en forme (pièce déformée, couleurs) : recalculé seulement s'il change. */
 let resultCache: { key: string; value: NonNullable<ViewportInput['resultMesh']> } | null = null;
 
@@ -204,8 +209,19 @@ function buildSimulationInput(s: AppState, partId: string | null): ViewportInput
   let resultMesh: ViewportInput['resultMesh'] = null;
   if (done?.result) {
     const scale = s.simulationDeformed ? exaggerationFor(done.result.maxDisplacement, done.size) : 0;
-    const key = `${done.key}|${s.simulationDisplay}|${scale}`;
-    if (resultCache?.key !== key) resultCache = { key, value: { key, ...resultGeometry(done.result, s.simulationDisplay, scale), indices: done.result.indices } };
+    const animate = scale > 0 && s.simulationAnimate && !reducedMotion();
+    const key = `${done.key}|${s.simulationDisplay}|${scale}|${animate}`;
+    if (resultCache?.key !== key) {
+      resultCache = {
+        key,
+        value: {
+          key,
+          ...resultGeometry(done.result, s.simulationDisplay, scale),
+          indices: done.result.indices,
+          ...(animate ? { animation: { base: done.result.positions, displacement: done.result.displacement, scale } } : {}),
+        },
+      };
+    }
     resultMesh = resultCache.value;
   }
   const parts: ViewPartInput[] = [{ partId: part.id, color: part.color, visible: true, meshKey: d.meshKey, mesh: d.mesh, appearance: resultMesh ? 'ghost' : 'normal' }];
@@ -567,7 +583,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state, state.workspace === 'simulation' ? c.simulationPartId() : null),
-    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
+    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

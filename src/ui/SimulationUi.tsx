@@ -99,6 +99,7 @@ export function SimulationRightPanel() {
         large: !!run?.result && run.result.maxDisplacement > 0.05 * run.size,
         display: s.simulationDisplay,
         deformed: s.simulationDeformed,
+        animate: s.simulationAnimate,
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -284,6 +285,12 @@ export function SimulationRightPanel() {
               <input type="checkbox" checked={info.deformed} onChange={(e) => c.setSimulationDeformed((e.target as HTMLInputElement).checked)} />
               <span>Montrer la déformation{info.exaggeration > 1.01 ? ` (exagérée × ${formatNumber(info.exaggeration, 0)})` : ''}</span>
             </label>
+            {info.deformed ? (
+              <label class="checkbox-row">
+                <input id="sim-animate" type="checkbox" checked={info.animate} onChange={(e) => c.setSimulationAnimate((e.target as HTMLInputElement).checked)} />
+                <span>Animer : la pièce va et vient entre sa forme de départ et la déformée</span>
+              </label>
+            ) : null}
             <p class="field-help">
               Résultat indicatif : la pièce est découpée en {formatNumber(result.cells, 0)} cubes de {formatNumber(result.cellSize, 2)} mm. Une pièce imprimée dépend aussi
               du remplissage et du sens des couches.

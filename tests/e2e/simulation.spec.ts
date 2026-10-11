@@ -67,6 +67,27 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.resultObject)).toBe(true);
   await page.screenshot({ path: 'tests/output/e2e-simulation.png' });
 
+  // Déformée animée : la pièce va et vient (le bout libre ne reste pas au même endroit).
+  const tipZ = () =>
+    page.evaluate(() => {
+      const o = (window as any).vibecad.controller.viewport.resultObject;
+      const a = o.geometry.getAttribute('position').array as Float32Array;
+      let min = Infinity;
+      for (let k = 2; k < a.length; k += 3) min = Math.min(min, a[k]!);
+      return min;
+    });
+  const samples: number[] = [];
+  for (let k = 0; k < 6; k++) {
+    samples.push(await tipZ());
+    await page.waitForTimeout(170);
+  }
+  expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(0.5);
+  await page.locator('#sim-animate').uncheck();
+  await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.resultAnimation)).toBe(false);
+  const still = await tipZ();
+  await page.waitForTimeout(300);
+  expect(await tipZ()).toBe(still);
+
   // Couleurs du déplacement ; puis une charge 100 fois plus lourde casse la pièce.
   await page.getByRole('button', { name: 'Déplacement', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Déplacement', exact: true })).toHaveAttribute('aria-pressed', 'true');

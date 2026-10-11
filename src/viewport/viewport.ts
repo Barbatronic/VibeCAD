@@ -50,6 +50,9 @@ import { fatLineMaterial, hatchMaterial, PartObject, type PartAppearance } from 
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 
+/** Durée d'un aller-retour de la déformée animée (ms). */
+const RESULT_PERIOD_MS = 1600;
+
 export type ViewportMode = 'model' | 'pick-support' | 'sketch' | 'feature' | 'measure';
 
 export interface ViewPartInput {
@@ -114,8 +117,18 @@ export interface ViewportInput {
   bed?: { x: number; y: number } | null;
   /** Simulation : faces fixées (bleu) et chargées (orange), hachurées. */
   markedFaces?: { partId: Id; index: number; role: 'fixed' | 'load' }[];
-  /** Simulation : pièce déformée, une couleur par sommet (rouge, vert, bleu entre 0 et 1). */
-  resultMesh?: { key: string; positions: Float32Array; colors: Float32Array; indices: Uint32Array } | null;
+  /**
+   * Simulation : pièce déformée, une couleur par sommet (rouge, vert, bleu entre 0 et 1).
+   * `animation` : la pièce va et vient entre sa forme d'origine (`base`) et la déformée
+   * (`base + scale × displacement`).
+   */
+  resultMesh?: {
+    key: string;
+    positions: Float32Array;
+    colors: Float32Array;
+    indices: Uint32Array;
+    animation?: { base: Float32Array; displacement: Float32Array; scale: number };
+  } | null;
 }
 
 export interface AssemblyDragEvent {
@@ -254,6 +267,7 @@ export class Viewport {
     this.frameHandle = requestAnimationFrame(this.loop);
     const now = performance.now();
     const animating = this.rig.tick(now);
+    this.stepResultAnimation(now);
     if (this.hoverPending) {
       const e = this.hoverPending;
       this.hoverPending = null;
@@ -740,6 +754,7 @@ export class Viewport {
     const key = result?.key ?? '';
     if (key === this.resultKey) return;
     this.resultKey = key;
+    this.resultAnimation = null;
     if (this.resultObject) {
       this.resultObject.parent?.remove(this.resultObject);
       this.resultObject.geometry.dispose();
@@ -756,6 +771,23 @@ export class Viewport {
     mesh.renderOrder = 2;
     this.overlayGroup.add(mesh);
     this.resultObject = mesh;
+    // Les normales restent celles de la déformée complète : les recalculer à chaque image coûterait
+    // cher pour une différence à peine visible.
+    if (result.animation) this.resultAnimation = { ...result.animation, start: performance.now() };
+  }
+
+  /** Animation de la déformée (aller-retour). */
+  private resultAnimation: { base: Float32Array; displacement: Float32Array; scale: number; start: number } | null = null;
+
+  private stepResultAnimation(now: number): void {
+    const anim = this.resultAnimation;
+    const attr = this.resultObject?.geometry.getAttribute('position');
+    if (!anim || !attr) return;
+    const f = (anim.scale * (1 - Math.cos(((now - anim.start) / RESULT_PERIOD_MS) * 2 * Math.PI))) / 2;
+    const out = attr.array as Float32Array;
+    for (let k = 0; k < out.length; k++) out[k] = anim.base[k]! + f * anim.displacement[k]!;
+    attr.needsUpdate = true;
+    this.needsRender = true;
   }
 
   /** Contour du plateau d'impression (et un quadrillage tous les 10 mm). */
