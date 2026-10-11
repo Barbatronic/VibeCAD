@@ -230,7 +230,7 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 ```
 
 `profileId` : esquisse du profil (un contour fermé, trous permis) ; `pathId` : esquisse du chemin
-(segments et arcs bout à bout, ouverts ou fermés, ou un cercle seul). `operation` : `add` ou `cut`.
+(segments et arcs bout à bout, ouverts ou fermés, ou un cercle seul). `operation` : `add`, `cut` ou `common`.
 Faces : `start`, `end` et `side` + élément du profil.
 
 ### Lissage (`"type": "loft"`)
@@ -241,9 +241,9 @@ Faces : `start`, `end` et `side` + élément du profil.
 ```
 
 `sketchIds` : au moins deux esquisses, chacune avec un seul contour fermé sans trou, reliées dans
-cet ordre (celui de l'historique). `ruled` : raccords droits. `operation` : `add` ou `cut`.
+cet ordre (celui de l'historique). `ruled` : raccords droits. `operation` : `add`, `cut` ou `common`.
 Faces : `start` (premier contour), `end` (dernier), `side` + élément du premier contour.
-Erreur `LOFT_PROFILE` si une esquisse n'a pas exactement un contour fermé sans trou.
+Avec `common`, une partie commune vide donne l'erreur `COMMON_EMPTY`. Erreur `LOFT_PROFILE` si une esquisse n'a pas exactement un contour fermé sans trou.
 
 ### Coque (`"type": "shell"`)
 
@@ -268,7 +268,7 @@ de la paroi (mm) ; `outward` : paroi ajoutée à l'extérieur. Faces créées : 
 `shape` : `box` (coin en `position`, `width` × `depth` × `height`), `cylinder` (centre de la base,
 `diameter` × `height`, axe Z), `sphere` (centre, `diameter`), `torus` (centre, `diameter` de la ligne
 centrale, `thickness` du tube, axe Z). Les dimensions inutiles pour la forme sont conservées.
-`operation` : `add` (ajouter) ou `cut` (creuser). Faces : `start` (dessous), `end` (dessus), `side`
+`operation` : `add` (ajouter), `cut` (creuser) ou `common` (garder seulement la matière commune, intersection). Faces : `start` (dessous), `end` (dessus), `side`
 + `x-`, `x+`, `y-`, `y+` (boîte), `wall` (cylindre), `surface` (sphère, tore). Une forme peut être
 répétée ou reproduite par symétrie.
 

@@ -50,7 +50,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Balayage** (niveau Expert) : un contour fermé qui suit un chemin dessiné dans une autre esquisse
   (segments et arcs bout à bout, ou un cercle) : tube coudé, anse, rainure ; ajouté ou creusé.
 - **Formes toutes faites** : boîte, cylindre, boule et anneau, placées par leurs coordonnées,
-  ajoutées à la pièce ou creusées dedans (comme un trou), sans passer par une esquisse.
+  ajoutées à la pièce ou creusées dedans (comme un trou), sans passer par une esquisse ; au niveau
+  Expert, « Garder » ne conserve que la matière commune (intersection).
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
   grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
   droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
