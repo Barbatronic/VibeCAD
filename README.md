@@ -106,6 +106,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Bulles d'explication** présentées par Java au survol de chaque outil (désactivables dans l'Aide).
 - **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
   droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).
+- **Préférences** (roue dentée en haut à droite, ou menu Fichier) : niveau, bulles d'explication,
+  chat, thème automatique / clair / sombre, aimantation à la grille des esquisses ; retenues sur
+  l'appareil, jamais dans le projet, avec un retour aux réglages par défaut.
 - **Parcours guidés**, au choix : « la plaque percée » (première pièce), « assembler et faire
   bouger » (insérer, relier par un pivot, faire tourner) et « préparer la fabrication »
   (impression 3D, découpe laser, documents). Chaque étape se valide toute seule en observant le
