@@ -43,6 +43,7 @@ millimètres, avec le nom et la couleur de chaque pièce).
   la pièce quand elle change.
 - **Volumes** : extrusion et poche (profondeur cotée ou traversante, sens normal / opposé /
   symétrique) avec **aperçu** avant validation. Un perçage est une poche circulaire traversante.
+  Au niveau Expert, une extrusion peut aller **jusqu'à une face** plane cliquée (même inclinée).
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
   souvent de construction), tour complet ou partiel, avec aperçu.
 - **Lissage** (niveau Expert) : un volume qui passe d'un contour fermé à un autre, dessinés sur

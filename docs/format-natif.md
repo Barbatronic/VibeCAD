@@ -157,6 +157,11 @@ direction du libellé d'un diamètre ou d'un rayon. Sans ces champs, le placemen
 ```
 
 `direction` : `default` (du côté de la normale de l'esquisse), `reversed`, `symmetric`.
+`upTo` (facultatif, faceRef) : l'extrusion part de l'esquisse et s'arrête sur le plan de cette face
+plane de la pièce (même inclinée), du côté où elle se trouve ; `distance` et `direction` sont alors
+ignorées. La face d'arrivée garde le rôle `end`. Erreurs : `EXTRUDE_FACE_LOST` (face disparue ou
+courbe), `EXTRUDE_FACE_PARALLEL` (plan parallèle à la direction d'extrusion), `EXTRUDE_FACE_MISSED`
+(face dans le plan de l'esquisse).
 
 ### Poche (`"type": "pocket"`)
 
