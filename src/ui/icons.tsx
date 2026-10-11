@@ -340,6 +340,13 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  isolate: (
+    <>
+      <circle cx="12" cy="12" r="3.5" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      <path d="M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" opacity="0.4" />
+    </>
+  ),
   'eye-off': (
     <>
       <path d="M4 4l16 16" />

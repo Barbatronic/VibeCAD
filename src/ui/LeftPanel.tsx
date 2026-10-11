@@ -9,7 +9,7 @@ import { activeCount } from '../app/rollback';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
 import { FabricationSection } from './FabricationUi';
-import { IconButton } from './components/controls';
+import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
 
 function InlineRename(props: { value: string; label: string; onDone: (value: string | null) => void }) {
@@ -40,7 +40,9 @@ function PartsSection() {
   const c = useController();
   const parts = useAppState((s) => s.doc.parts);
   const activePartId = useAppState((s) => s.activePartId);
+  const isolatedId = useAppState((s) => (s.isolatedPartId && s.doc.parts.some((p) => p.id === s.isolatedPartId) ? s.isolatedPartId : null));
   const [renaming, setRenaming] = useState<Id | null>(null);
+  const isolated = parts.find((p) => p.id === isolatedId);
   return (
     <section class="panel-section" aria-labelledby="parts-title">
       <div class="panel-header">
@@ -72,7 +74,7 @@ function PartsSection() {
               ) : (
                 <button
                   type="button"
-                  class={`part-select${p.visible ? '' : ' is-hidden'}`}
+                  class={`part-select${(isolatedId ? p.id === isolatedId : p.visible) ? '' : ' is-hidden'}`}
                   aria-pressed={p.id === activePartId}
                   title={p.id === activePartId ? 'Pièce active : les nouvelles étapes lui sont ajoutées' : 'Rendre cette pièce active'}
                   onClick={() => c.setActivePart(p.id)}
@@ -83,11 +85,30 @@ function PartsSection() {
                 </button>
               )}
               <IconButton icon="rename" label={`Renommer « ${p.name} »`} small onClick={() => setRenaming(p.id)} />
+              {parts.length > 1 ? (
+                <IconButton
+                  icon="isolate"
+                  label={p.id === isolatedId ? 'Réafficher toutes les pièces' : `Isoler « ${p.name} » (masquer les autres pièces)`}
+                  small
+                  pressed={p.id === isolatedId}
+                  onClick={() => c.toggleIsolate(p.id)}
+                />
+              ) : null}
               <IconButton icon={p.visible ? 'eye' : 'eye-off'} label={p.visible ? `Masquer « ${p.name} »` : `Afficher « ${p.name} »`} small onClick={() => c.togglePartVisible(p.id)} />
               <IconButton icon="trash" label={`Supprimer la pièce « ${p.name} »`} small onClick={() => c.deletePart(p.id)} />
             </li>
           ))}
         </ul>
+        {isolated ? (
+          <div class="isolate-banner" role="status">
+            <span>
+              « {isolated.name} » est isolée : les autres pièces sont cachées.
+            </span>
+            <Button small icon="eye" onClick={() => c.toggleIsolate(isolated.id)}>
+              Tout réafficher
+            </Button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

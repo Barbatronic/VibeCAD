@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { AppState } from '../app/state';
+import { partShown, type AppState } from '../app/state';
 import type { SketchFeature } from '../domain/model';
 import { pointPosition } from '../sketch/model';
 import { extractProfiles } from '../sketch/profiles';
@@ -186,16 +186,16 @@ export function buildViewportInput(s: AppState): ViewportInput {
     const sec = cut?.parts[p.id];
     if (cut && sec !== undefined) {
       for (const index of sec.cutFaces) sectionFaces.push({ partId: p.id, kind: 'face', index });
-      return { partId: p.id, color: p.color, visible: p.visible && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
+      return { partId: p.id, color: p.color, visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
     }
     const previewPart = mode === 'feature' && s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.preview?.parts[p.id] : undefined;
     if (previewPart?.mesh && previewPart.meshKey) {
-      return { partId: p.id, color: p.color, visible: p.visible, meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
+      return { partId: p.id, color: p.color, visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
     }
     return {
       partId: p.id,
       color: p.color,
-      visible: p.visible,
+      visible: partShown(s, p),
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
       appearance: workingPartId && p.id !== workingPartId ? 'ghost' : mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
@@ -205,7 +205,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
   const sketches: ViewportInput['sketches'] = [];
   if (mode !== 'sketch') {
     for (const part of s.doc.parts) {
-      if (!part.visible) continue;
+      if (!partShown(s, part)) continue;
       const result = s.display[part.id]?.result;
       if (!result) continue;
       for (const f of part.features) {
@@ -500,7 +500,7 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions],
+    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

@@ -141,6 +141,11 @@ export interface AppState {
   collisions: { key: string; items: { a: Id; b: Id; volume: number; mesh: MeshData }[] } | null;
   /** Repère du centre de gravité de la pièce active dans la vue. */
   showCentroid: boolean;
+  /**
+   * Pièce isolée (onglet Pièces) : elle seule est affichée, quelle que soit la visibilité enregistrée
+   * des pièces, qui reste intacte ; un second clic revient exactement à l'affichage d'avant.
+   */
+  isolatedPartId: Id | null;
   sectionParts: { key: string; parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> } | null;
   workspace: Workspace;
   fabricationTab: FabricationTab;
@@ -190,6 +195,7 @@ export function initialState(): AppState {
     tips: true,
     section: null,
     showCentroid: false,
+    isolatedPartId: null,
     collisionCheck: false,
     collisions: null,
     sectionParts: null,
@@ -215,3 +221,9 @@ export function initialState(): AppState {
 }
 
 export const isDirty = (s: AppState) => s.project.savedRevision !== s.revision && (s.revision > 0 || s.project.savedRevision !== null);
+
+/** Pièce affichée dans l'onglet Pièces : la pièce isolée seule, sinon selon sa visibilité. */
+export function partShown(s: Pick<AppState, 'isolatedPartId' | 'doc'>, part: { id: Id; visible: boolean }): boolean {
+  const isolated = s.isolatedPartId && s.doc.parts.some((p) => p.id === s.isolatedPartId) ? s.isolatedPartId : null;
+  return isolated ? part.id === isolated : part.visible;
+}

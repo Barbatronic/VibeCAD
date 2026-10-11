@@ -2728,3 +2728,16 @@ kbd {
   margin: 4px 0 0;
   padding-left: 18px;
 }
+
+/* Pièce isolée : rappel sous la liste des pièces, avec le retour à l'affichage d'avant. */
+.isolate-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+}

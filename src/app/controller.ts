@@ -562,6 +562,14 @@ export class AppController {
     this.commit(r.doc, 'Ajouter une pièce', { activePartId: r.partId, selection: { kind: 'part', partId: r.partId } });
   }
 
+  /** Isoler une pièce (elle seule est affichée), ou revenir à l'affichage d'avant. */
+  toggleIsolate(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    if (this.state.isolatedPartId === partId) return this.set({ isolatedPartId: null });
+    this.set({ isolatedPartId: partId, ...(this.state.mode.kind === 'model' ? { activePartId: partId, selection: { kind: 'part' as const, partId } } : {}) });
+  }
+
   setActivePart(partId: Id): void {
     if (this.state.mode.kind !== 'model') return;
     this.set({ activePartId: partId, selection: { kind: 'part', partId } });
