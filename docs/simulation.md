@@ -17,6 +17,10 @@ imprimée dépend aussi du remplissage et du sens des couches.
    **verdict** compare la contrainte maximale à la résistance du matériau :
    « La pièce tient » (marge ≥ 2), « C'est juste » (1 à 2), « Risque de casser » (< 1).
 
+Quand le plus grand déplacement dépasse 5 % de la taille de la pièce, un avertissement rappelle
+que le calcul suppose de petites déformations : la forme réelle sera différente (c'est le cas
+courant d'une pièce souple en TPU, qui plie beaucoup sans casser).
+
 La précision (Rapide, Normale, Fine) règle le nombre de cubes : environ 3 000, 8 000 ou 20 000.
 Les réglages sont enregistrés dans le projet (champ `simulation` du format natif, annulables) ;
 le résultat ne l'est pas : il se recalcule. Si les réglages ou la pièce changent, le résultat est
@@ -27,6 +31,7 @@ signalé comme périmé.
 | PLA imprimé | 3 000 | 0,36 | 30 |
 | PETG imprimé | 2 000 | 0,38 | 30 |
 | ABS imprimé | 1 900 | 0,35 | 25 |
+| TPU imprimé (souple) | 30 | 0,45 | 20 |
 | Contreplaqué | 6 000 | 0,3 | 25 |
 | Acrylique (PMMA) | 3 000 | 0,37 | 35 |
 | Aluminium | 69 000 | 0,33 | 150 |
