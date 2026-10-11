@@ -85,6 +85,9 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
 
   // Les réglages sont enregistrés dans le projet (annulables).
   expect((await study(page)).load.value).toBe(100);
+  // Acrylique (découpe laser) : même raideur que le PLA, un peu plus résistant.
+  await page.locator('#sim-material').selectOption({ label: 'Acrylique (PMMA)' });
+  await expect.poll(async () => (await study(page)).materialId).toBe('acrylic');
 });
 
 test('simulation : onglet réservé au niveau Intermédiaire', async ({ page }) => {

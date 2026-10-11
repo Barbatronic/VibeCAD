@@ -250,7 +250,7 @@
                   },
                   "materialId": {
                     "type": "string",
-                    "description": "pla, petg, abs, plywood, aluminium ou steel."
+                    "description": "pla, petg, abs, plywood, acrylic, aluminium ou steel."
                   },
                   "quality": {
                     "enum": [
