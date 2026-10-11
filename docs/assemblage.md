@@ -48,6 +48,12 @@ placée) : les deux repères sont superposés, axes Z opposés (les faces se tou
 Chaque type a son icône et une explication avec un exemple de la vie courante (roue, tiroir,
 lampe de bureau…), affichée sous les boutons et au survol.
 
+**Collisions** (barre d'outils de l'assemblage) : activé, chaque paire de pièces placées est
+vérifiée (partie commune calculée par le moteur) après chaque changement. Les pièces qui se
+rentrent dedans sont listées avec le volume en commun, et ce volume s'affiche en rouge dans la vue,
+à travers les pièces. Un simple contact (pièces posées l'une sur l'autre, goupille ajustée dans son
+trou) n'est pas une collision.
+
 **Outil Main** (barre d'outils de l'assemblage) : activé, on attrape une pièce tenue par une
 liaison et elle suit la souris en ne faisant que le mouvement permis (tourner, glisser ; Maj pour
 glisser un pivot glissant ; une rotule penche comme un levier, le point attrapé suivant la souris
