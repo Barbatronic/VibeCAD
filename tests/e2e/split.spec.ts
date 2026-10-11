@@ -22,6 +22,8 @@ test('découpe : couper la plaque à mi-épaisseur, puis par une face, garder le
   await history.locator('.feature-main', { hasText: 'Découpe 1' }).dblclick();
   await page.getByRole('group', { name: 'Plan de découpe' }).getByRole('button', { name: 'Face…' }).click();
   await expect(page.getByText(/Cliquez dans la vue 3D une face plane/)).toBeVisible();
+  // La vue doit être immobile (fin du recadrage), sinon le clic tombe à côté sur une machine chargée.
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.rig.animating)).toBe(false);
   const front = await worldToScreen(page, 45, 0, 1);
   await page.mouse.click(front.x, front.y);
   await expect(page.locator('#draft-offset')).toHaveValue('-15');
