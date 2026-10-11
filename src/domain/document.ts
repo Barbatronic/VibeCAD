@@ -16,6 +16,7 @@ import type {
   MirrorPlane,
   SplitFeature,
   DraftFeature,
+  ThickenFeature,
   PatternFeature,
   PatternParams,
   RevolveAxis,
@@ -63,6 +64,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   sweep: 'Balayage',
   split: 'Découpe',
   draft: 'Dépouille',
+  thicken: 'Épaisseur',
 };
 
 export function nowIso(): string {
@@ -228,7 +230,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -275,6 +277,10 @@ export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, k
 
 export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorParams['source'] = { kind: 'part' }, plane: MirrorPlane = { kind: 'plane', plane: 'YZ' }): MirrorFeature {
   return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
+}
+
+export function makeThickenFeature(doc: CadDocument, part: Part, distance = 0.2): ThickenFeature {
+  return { id: newFeatureId(doc, 'thicken'), type: 'thicken', name: nextFeatureName(part, 'thicken'), params: { distance, corners: 'round' } };
 }
 
 export function makeDraftFeature(doc: CadDocument, part: Part, faces: FaceRef[] = []): DraftFeature {

@@ -71,6 +71,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:split': 'expert',
   'sketch-lists': 'expert',
   'feature:draft': 'expert',
+  'feature:thicken': 'expert',
   'import-step': 'expert',
 };
 

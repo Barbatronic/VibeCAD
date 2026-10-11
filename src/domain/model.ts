@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -166,6 +166,7 @@ export type LoftFeature = FeatureBase<'loft', LoftParams>;
 export type SweepFeature = FeatureBase<'sweep', SweepParams>;
 export type SplitFeature = FeatureBase<'split', SplitParams>;
 export type DraftFeature = FeatureBase<'draft', DraftParams>;
+export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -464,6 +465,16 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
 export interface MirrorParams {
   source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
   plane: MirrorPlane;
+}
+
+/**
+ * Épaissir : toute la pièce est décalée de `distance` mm (positif : elle grossit ; négatif : elle
+ * s'amincit), par exemple pour ajouter du jeu entre deux pièces imprimées. Coins arrondis
+ * (décalage exact) ou vifs.
+ */
+export interface ThickenParams {
+  distance: number;
+  corners: 'round' | 'sharp';
 }
 
 /**

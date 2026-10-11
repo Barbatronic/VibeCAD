@@ -244,7 +244,7 @@ const EDIT_VARIANTS: ToolVariant[] = [
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
-  { name: 'arrondis, chanfreins, coques et dépouilles', types: ['fillet', 'chamfer', 'shell', 'draft'] },
+  { name: 'arrondis, coques et retouches', types: ['fillet', 'chamfer', 'shell', 'draft', 'thicken'] },
   { name: 'répétitions, symétries et découpes', types: ['pattern', 'mirror', 'split'] },
 ];
 

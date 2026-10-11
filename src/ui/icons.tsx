@@ -54,6 +54,12 @@ const PATHS: Record<string, JSX.Element> = {
       <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="2.5 2" />
     </>
   ),
+  thicken: (
+    <>
+      <rect x="8" y="8" width="8" height="8" rx="1" />
+      <rect x="4" y="4" width="16" height="16" rx="4" opacity="0.55" />
+    </>
+  ),
   draft: (
     <>
       <path d="M3 20h18" />

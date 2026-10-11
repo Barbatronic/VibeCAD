@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeSplitFeature, makeDraftFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeSplitFeature, makeDraftFeature, makeThickenFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addArc, addCircle, addConstraint, addLine, addRectangle } from '../../src/sketch/model';
@@ -272,5 +272,16 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo((20 / 3) * (400 + top * top + 20 * top), 2);
+  });
+  it('plaque amincie de 0,2 mm (jeu d’impression) : solide valide, trou agrandi, volume exact', () => {
+    const { doc, ids } = buildPlateDocument();
+    const thin = addFeature(doc, ids.partId, makeThickenFeature(doc, findPart(doc, ids.partId)!, -0.2));
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(thin);
+    const file = join(outDir, 'amincie.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Plaque amincie', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(59.6 * 29.6 * 4.6 - Math.PI * 3.2 * 3.2 * 4.6, 2);
   });
 });

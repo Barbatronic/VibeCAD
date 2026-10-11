@@ -26,7 +26,7 @@ test('dépouille : deux côtés d’une boîte inclinés d’un clic, puis plan 
   await page.evaluate(() => (window as any).vibecad.controller.fitAll());
   await page.waitForTimeout(700);
 
-  await page.getByRole('button', { name: 'Autres outils : arrondis, chanfreins, coques et dépouilles' }).click();
+  await page.getByRole('button', { name: 'Autres outils : arrondis, coques et retouches' }).click();
   await page.click('#tool-menu-draft');
   await expect(page.locator('#draft-angle')).toHaveValue('5');
   await expect(page.getByText(/Cliquez dans la vue 3D les faces à incliner/)).toBeVisible();

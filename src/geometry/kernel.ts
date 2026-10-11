@@ -166,6 +166,14 @@ export interface ShellRequest {
   outward: boolean;
 }
 
+export interface ThickenRequest {
+  featureId: Id;
+  /** Décalage de toutes les faces (mm) : positif, la pièce grossit ; négatif, elle s'amincit. */
+  distance: number;
+  /** Coins : arrondis (décalage exact, idéal pour un jeu) ou vifs (prolongés). */
+  corners: 'round' | 'sharp';
+}
+
 export interface DraftRequest {
   featureId: Id;
   faces: FaceRef[];
@@ -259,6 +267,8 @@ export interface GeometryKernel {
   blend(base: KernelShape, request: BlendRequest): BlendResult;
   /** Coque ; les faces intérieures créées sont étiquetées `side` + `inner` + rang de la face d'origine. */
   shell(base: KernelShape, request: ShellRequest): ShellResult;
+  /** Pièce entière décalée (épaissie ou amincie) ; chaque face garde les étiquettes de son originale. */
+  thicken(base: KernelShape, request: ThickenRequest): { status: 'ok'; shape: KernelShape } | { status: 'failed'; detail: string };
   /** Dépouille : faces planes ou cylindriques inclinées autour du plan neutre ; étiquettes conservées. */
   draft(base: KernelShape, request: DraftRequest): DraftResult;
   mesh(shape: KernelShape, options: MeshOptions): MeshData;

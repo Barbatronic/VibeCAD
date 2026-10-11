@@ -42,6 +42,7 @@ import {
   type RevolveRequest,
   type ShapeAnalysis,
   type DraftRequest,
+  type ThickenRequest,
   type DraftResult,
   type ShellRequest,
   type ShellResult,
@@ -185,9 +186,9 @@ export class OcctKernel implements GeometryKernel {
     return this.oc.ReplicadShapeHasher.HashCode(shape, HASH_UPPER);
   }
 
-  private explore(shape: TopoDS_Shape, kind: 'face' | 'edge' | 'solid'): TopoDS_Shape[] {
+  private explore(shape: TopoDS_Shape, kind: 'face' | 'edge' | 'solid' | 'shell'): TopoDS_Shape[] {
     const types = this.oc.TopAbs_ShapeEnum;
-    const type = kind === 'face' ? types.TopAbs_FACE : kind === 'edge' ? types.TopAbs_EDGE : types.TopAbs_SOLID;
+    const type = kind === 'face' ? types.TopAbs_FACE : kind === 'edge' ? types.TopAbs_EDGE : kind === 'shell' ? types.TopAbs_SHELL : types.TopAbs_SOLID;
     const ex = new this.oc.TopExp_Explorer(shape, type, types.TopAbs_SHAPE);
     const out: TopoDS_Shape[] = [];
     try {
@@ -893,6 +894,68 @@ export class OcctKernel implements GeometryKernel {
       });
     } catch (err) {
       const e = this.toKernelError('coque', err);
+      return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
+    }
+  }
+
+  thicken(baseIn: KernelShape, request: ThickenRequest): { status: 'ok'; shape: KernelShape } | { status: 'failed'; detail: string } {
+    const base = asOcct(baseIn);
+    const oc = this.oc;
+    if (!(Math.abs(request.distance) > 0)) return { status: 'failed', detail: 'Le décalage doit être non nul.' };
+    try {
+      return withScope((scope) => {
+        const mk = scope.track(new oc.BRepOffsetAPI_MakeThickSolid());
+        const none = scope.track(new oc.NCollection_List_TopoDS_Shape());
+        // Sans face ouverte, le moteur rend le solide décalé de `distance` (agrandi ou réduit).
+        mk.MakeThickSolidByJoin(
+          base.shape,
+          none,
+          request.distance,
+          1e-3,
+          oc.BRepOffset_Mode.BRepOffset_Skin,
+          false,
+          false,
+          request.corners === 'round' ? oc.GeomAbs_JoinType.GeomAbs_Arc : oc.GeomAbs_JoinType.GeomAbs_Intersection,
+        );
+        if (!mk.IsDone()) return { status: 'failed', detail: 'Décalage impossible avec cette épaisseur.' };
+        let result = mk.Shape();
+        // Le moteur rend parfois une simple enveloppe (coque fermée) : on la referme en solide.
+        if (this.explore(result, 'solid').length === 0) {
+          const shells = this.explore(result, 'shell');
+          if (shells.length !== 1) return { status: 'failed', detail: 'Le décalage n’a pas donné un volume fermé.' };
+          const fix = scope.track(new oc.ShapeFix_Solid());
+          scope.track(result);
+          result = fix.SolidFromShell(oc.TopoDS.Shell(shells[0]!));
+        }
+        const faces = this.taggedFaces(result);
+        base.faces.forEach((tf) => {
+          if (tf.tags.length === 0) return;
+          const targets = [...this.listToArray(scope.track(mk.Generated(tf.face))), ...this.listToArray(scope.track(mk.Modified(tf.face)))];
+          for (const g of targets) {
+            scope.track(g);
+            const i = this.indexOfFace(faces, g);
+            if (i >= 0) addTags(faces[i]!.tags, tf.tags);
+          }
+        });
+        // Faces de raccord (coins arrondis) : rattachées à l'étape.
+        faces.forEach((f, k) => {
+          if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: 'join', index: k }]);
+        });
+        // Vers l'extérieur, le moteur rend un solide retourné (volume négatif) : on le remet à l'endroit.
+        const vp = scope.track(new oc.GProp_GProps());
+        oc.BRepGProp.VolumeProperties(result, vp, false, false, false);
+        if (vp.Mass() >= 0) return { status: 'ok' as const, shape: new OcctShape(result, faces) };
+        scope.track(result);
+        const reversed = result.Reversed();
+        const revFaces = this.taggedFaces(reversed);
+        for (const f of revFaces) {
+          const i = this.indexOfFace(faces, f.face);
+          if (i >= 0) addTags(f.tags, faces[i]!.tags);
+        }
+        return { status: 'ok' as const, shape: new OcctShape(reversed, revFaces) };
+      });
+    } catch (err) {
+      const e = this.toKernelError('épaissir', err);
       return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
     }
   }

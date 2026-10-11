@@ -23,7 +23,7 @@ test('coque : une boîte vidée, ouverte sur le dessus d’un clic', async ({ pa
   await page.evaluate(() => (window as any).vibecad.controller.fitAll());
   await page.waitForTimeout(700);
 
-  await page.getByRole('button', { name: 'Autres outils : arrondis, chanfreins, coques et dépouilles' }).click();
+  await page.getByRole('button', { name: 'Autres outils : arrondis, coques et retouches' }).click();
   await page.click('#tool-menu-shell');
   await expect(page.locator('#draft-thickness')).toHaveValue('2');
   // Aperçu : pièce creuse et fermée tant qu'aucune face n'est ouverte.

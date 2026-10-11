@@ -39,6 +39,7 @@ export type FeatureIssueCode =
   | 'MIRROR_PLANE_LOST'
   | 'SPLIT_PLANE_LOST'
   | 'DRAFT_NO_FACE'
+  | 'THICKEN_FAILED'
   | 'EXTRUDE_FACE_LOST'
   | 'EXTRUDE_FACE_PARALLEL'
   | 'EXTRUDE_FACE_MISSED'
@@ -116,6 +117,7 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   EXTRUDE_FACE_LOST: 'La face d’arrivée de l’extrusion n’existe plus ou n’est pas plane : choisissez-en une autre, ou une longueur.',
   EXTRUDE_FACE_PARALLEL: 'La face d’arrivée est parallèle à la direction d’extrusion : l’extrusion ne l’atteint jamais. Choisissez une face en face de l’esquisse.',
   EXTRUDE_FACE_MISSED: 'L’extrusion n’atteint pas la face d’arrivée (elle est dans le plan de l’esquisse) : choisissez une autre face.',
+  THICKEN_FAILED: 'La pièce n’a pas pu être épaissie ou amincie de cette valeur : essayez une valeur plus petite (en amincissant, elle doit rester plus petite que les parties fines).',
   DRAFT_NO_FACE: 'Cliquez dans la vue 3D les faces à incliner (les côtés de la pièce).',
   DRAFT_FACE_LOST: 'Une face à incliner n’existe plus : retirez-la ou cliquez-en une autre.',
   DRAFT_NEUTRAL_LOST: 'La face choisie comme plan neutre n’existe plus ou n’est pas plane : choisissez un autre plan.',

@@ -410,7 +410,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -497,6 +497,8 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         },
       };
     }
+    case 'thicken':
+      return { id, name, type, params: { distance: num(v, p, 'distance', pp), corners: oneOf(v, p, 'corners', pp, ['round', 'sharp'] as const) } };
     case 'draft': {
       const pl = obj(v, p.neutral, `${pp}.neutral`) ?? {};
       const plKind = oneOf(v, pl, 'kind', `${pp}.neutral`, ['plane', 'face'] as const);

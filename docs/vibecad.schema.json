@@ -982,6 +982,31 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "thicken"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "distance",
+                "corners"
+              ],
+              "properties": {
+                "distance": {
+                  "type": "number"
+                },
+                "corners": {
+                  "enum": [
+                    "round",
+                    "sharp"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },
