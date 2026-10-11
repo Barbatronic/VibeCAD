@@ -4,6 +4,7 @@ import { TOLERANCES } from '../../domain/tolerances';
 import type { KernelShape } from '../../geometry/kernel';
 import { cross2, normalize2, sub2, type Vec2 } from '../../math/vec';
 import { findLine, pointPosition } from '../../sketch/model';
+import { sampleBeziers, sampleEllipse } from '../../sketch/curves';
 import type { ProfileRegion } from '../../sketch/profiles';
 import type { FeatureEvaluator } from '../evaluation';
 import { resolveProfile } from '../sketch/evaluate';
@@ -17,6 +18,8 @@ function regionPoints(region: ProfileRegion, axisDir: Vec2): Vec2[] {
     for (const s of loop.segments) {
       if (s.kind === 'line') pts.push(s.start, s.end);
       else if (s.kind === 'circle') pts.push({ x: s.center.x + n.x * s.radius, y: s.center.y + n.y * s.radius }, { x: s.center.x - n.x * s.radius, y: s.center.y - n.y * s.radius });
+      else if (s.kind === 'spline') pts.push(...sampleBeziers(s.beziers, 16));
+      else if (s.kind === 'ellipse') pts.push(...sampleEllipse({ center: s.center, a: s.a, b: s.b, angle: s.angle }, 64));
       else {
         // Arc : extrémités et quelques points intermédiaires.
         const a0 = Math.atan2(s.start.y - s.center.y, s.start.x - s.center.x);

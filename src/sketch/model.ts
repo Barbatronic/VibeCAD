@@ -9,6 +9,8 @@ import {
   type SketchArc,
   type SketchCircle,
   type SketchCurve,
+  type SketchEllipse,
+  type SketchSpline,
   type SketchConstraint,
   type SketchEntity,
   type SketchLine,
@@ -17,6 +19,7 @@ import {
   type SketchSupport,
 } from '../domain/model';
 import type { Vec2 } from '../math/vec';
+import { ellipseGeometry, splineBeziers, type Bezier, type EllipseGeometry } from './curves';
 
 export function emptySketch(support: SketchSupport): SketchParams {
   return { support, entities: [], constraints: [] };
@@ -104,7 +107,7 @@ export function linePoints(sketch: SketchParams, line: SketchLine): [Vec2, Vec2]
 }
 
 export function curves(sketch: SketchParams): SketchCurve[] {
-  return sketch.entities.filter((e): e is SketchCurve => e.type === 'line' || e.type === 'circle' || e.type === 'arc');
+  return sketch.entities.filter((e): e is SketchCurve => e.type !== 'point');
 }
 
 const entityIds = (sketch: SketchParams) => sketch.entities.map((e) => e.id);
@@ -147,6 +150,43 @@ export function addArc(sketch: SketchParams, center: Vec2, start: Vec2, end: Vec
   const arcId = nextLocalId('a', entityIds(r3.sketch));
   const arc: SketchArc = { id: arcId, type: 'arc', center: r1.id, start: r2.id, end: r3.id };
   return { sketch: { ...r3.sketch, entities: [...r3.sketch.entities, arc] }, arcId, center: r1.id, start: r2.id, end: r3.id };
+}
+
+/** Ellipse centrée sur `center`, grand axe jusqu'à `majorEnd`, petit rayon `minorRadius`. */
+export function addEllipse(sketch: SketchParams, center: Vec2, majorEnd: Vec2, minorRadius: number): { sketch: SketchParams; ellipseId: string; center: string; major: string } {
+  const r1 = addPoint(sketch, center);
+  const r2 = addPoint(r1.sketch, majorEnd);
+  const ellipseId = nextLocalId('e', entityIds(r2.sketch));
+  const ellipse: SketchEllipse = { id: ellipseId, type: 'ellipse', center: r1.id, major: r2.id, minorRadius };
+  return { sketch: { ...r2.sketch, entities: [...r2.sketch.entities, ellipse] }, ellipseId, center: r1.id, major: r2.id };
+}
+
+/** Spline passant par des points existants (identifiants) ou nouveaux (positions). */
+export function addSpline(sketch: SketchParams, through: (string | Vec2)[], closed: boolean): { sketch: SketchParams; splineId: string; points: string[] } {
+  let sk = sketch;
+  const ids = through.map((t) => {
+    if (typeof t === 'string') return t;
+    const r = addPoint(sk, t);
+    sk = r.sketch;
+    return r.id;
+  });
+  const splineId = nextLocalId('s', entityIds(sk));
+  const spline: SketchSpline = { id: splineId, type: 'spline', points: ids, closed };
+  return { sketch: { ...sk, entities: [...sk.entities, spline] }, splineId, points: ids };
+}
+
+/** Géométrie d'une ellipse de l'esquisse. */
+export function ellipseOf(sketch: SketchParams, e: SketchEllipse): EllipseGeometry | undefined {
+  const c = pointPosition(sketch, e.center);
+  const m = pointPosition(sketch, e.major);
+  return c && m ? ellipseGeometry(c, m, e.minorRadius) : undefined;
+}
+
+/** Morceaux de Bézier d'une spline de l'esquisse. */
+export function splineOf(sketch: SketchParams, e: SketchSpline): Bezier[] {
+  const pts = e.points.map((id) => pointPosition(sketch, id));
+  if (pts.some((p) => !p)) return [];
+  return splineBeziers(pts as Vec2[], e.closed);
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -210,6 +250,8 @@ export function ownedPoints(entity: SketchEntity): string[] {
   if (entity.type === 'line') return [entity.a, entity.b];
   if (entity.type === 'circle') return [entity.center];
   if (entity.type === 'arc') return [entity.center, entity.start, entity.end];
+  if (entity.type === 'ellipse') return [entity.center, entity.major];
+  if (entity.type === 'spline') return [...entity.points];
   return [];
 }
 

@@ -164,8 +164,16 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
   }
   const lines = new Map<string, LineRef>();
   const circles = new Map<string, CircleRef>();
+  /** Ellipses : centre et petit rayon (seul le petit rayon se cote par « rayon » ou « diamètre »). */
+  const ellipses = new Map<string, CircleRef>();
   for (const e of sketch.entities) {
-    if (e.type === 'circle') {
+    if (e.type === 'ellipse') {
+      const c = points.get(e.center);
+      const r: RadiusRef = { kind: 'var', i: values.length };
+      values.push(e.minorRadius);
+      variables.push({ entityId: e.id, component: 'r' });
+      if (c) ellipses.set(e.id, { c, r });
+    } else if (e.type === 'circle') {
       const c = points.get(e.center);
       let r: RadiusRef;
       if (e.reference) r = { kind: 'const', r: e.radius };
@@ -399,7 +407,7 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
       }
       case 'diameter':
       case 'radius': {
-        const circle = circles.get(c.circle);
+        const circle = circles.get(c.circle) ?? ellipses.get(c.circle);
         if (!circle) {
           fail();
           break;
@@ -789,6 +797,10 @@ function applyValues(sketch: SketchParams, sys: System, q: Float64Array): Sketch
       if (e.type === 'circle') {
         const r = radiusValues.get(e.id);
         return r !== undefined ? { ...e, radius: cleanValue(r) } : e;
+      }
+      if (e.type === 'ellipse') {
+        const r = radiusValues.get(e.id);
+        return r !== undefined ? { ...e, minorRadius: cleanValue(Math.abs(r)) } : e;
       }
       return e;
     }),

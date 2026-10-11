@@ -12,7 +12,8 @@ import { ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type Sketc
 import { formatAngle, formatLength } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
-import { arcGeometry, arcPointAt, findArc, findCircle, findLine, pointPosition } from '../sketch/model';
+import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, pointPosition, splineOf } from '../sketch/model';
+import { sampleBeziers, sampleEllipse } from '../sketch/curves';
 import type { ProjectableCurve, SessionPreview } from '../sketch/session';
 import type { SnapResult } from '../sketch/snapping';
 import type { ViewportPalette } from './colors';
@@ -260,10 +261,22 @@ export class SketchView {
 
     // Géométrie : traits pleins (volume), pointillés (construction), violet (repris de la pièce).
     for (const e of sketch.entities) {
-      if (e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') continue;
+      if (e.type === 'point') continue;
       let segs: Segment[];
       let style: { color: Color; strong: boolean };
-      if (e.type === 'arc') {
+      // Polyligne fine → segments à tracer.
+      const chain = (pts: Vec2[], closed: boolean): Segment[] => pts.slice(0, closed ? pts.length : -1).map((q, i) => [q, pts[(i + 1) % pts.length]!] as Segment);
+      if (e.type === 'ellipse') {
+        const g = ellipseOf(sketch, e);
+        if (!g) continue;
+        segs = chain(sampleEllipse(g, 96), true);
+        style = entityColor([e.id, e.center, e.major], e.id);
+      } else if (e.type === 'spline') {
+        const bz = splineOf(sketch, e);
+        if (bz.length === 0) continue;
+        segs = chain(sampleBeziers(bz, 20), false);
+        style = entityColor(e.points, e.id);
+      } else if (e.type === 'arc') {
         const g = arcGeometry(sketch, e);
         if (!g) continue;
         segs = arcSegments(g.center, g.radius, g.startAngle, g.sweep);
@@ -654,6 +667,19 @@ export function dimensionGeometry(sketch: SketchParams, c: SketchConstraint, cen
       text: formatAngle(c.value),
       description: 'Cote d’angle',
     };
+  }
+  if ((c.type === 'diameter' || c.type === 'radius') && sketch.entities.some((e) => e.id === c.circle && e.type === 'ellipse')) {
+    // Ellipse : la cote suit le petit axe (perpendiculaire au grand axe).
+    const e = sketch.entities.find((x) => x.id === c.circle);
+    const g = e?.type === 'ellipse' ? ellipseOf(sketch, e) : undefined;
+    if (!g) return null;
+    const u = { x: -Math.sin(g.angle), y: Math.cos(g.angle) };
+    const tipOut = add2(g.center, scale2(u, g.b));
+    const outside = add2(g.center, scale2(u, g.b + (c.offset !== undefined ? Math.max(c.offset, 0) : offset)));
+    const tipIn = sub2(g.center, scale2(u, g.b));
+    return c.type === 'diameter'
+      ? { segments: [[tipIn, outside], ...arrow(tipOut, u, arrowSize), ...arrow(tipIn, scale2(u, -1), arrowSize)], labelAt: add2(outside, scale2(u, 10 * px)), text: `↕ ${formatLength(c.value)}`, description: 'Cote du petit axe de l’ellipse' }
+      : { segments: [[g.center, outside], ...arrow(tipOut, u, arrowSize)], labelAt: add2(outside, scale2(u, 10 * px)), text: `r ${formatLength(c.value)}`, description: 'Cote du petit rayon de l’ellipse' };
   }
   if (c.type === 'diameter' || c.type === 'radius') {
     const circle = findCircle(sketch, c.circle);

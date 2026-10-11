@@ -11,7 +11,11 @@ import { nextLocalId } from '../domain/ids';
 import type { SketchArc, SketchCircle, SketchLine, SketchParams } from '../domain/model';
 import { add2, distance2, dot2, scale2, sub2, type Vec2 } from '../math/vec';
 import { addConstraint, addPoint, findEntity } from './model';
-import { extractProfiles, type ProfileLoop, type ProfileSegment } from './profiles';
+import { extractProfiles, type ProfileLoop, type ProfileSegment as AnySegment } from './profiles';
+
+/** Le décalage sait recopier segments, arcs et cercles (pas encore ellipses ni splines). */
+type ProfileSegment = Extract<AnySegment, { kind: 'line' | 'arc' | 'circle' }>;
+const simpleSegments = (loop: ProfileLoop) => loop.segments as ProfileSegment[];
 
 export type OffsetFailure = { error: string };
 
@@ -20,7 +24,11 @@ export function loopOfCurve(sketch: SketchParams, curveId: string): { loop: Prof
   const profiles = extractProfiles(sketch);
   if (!profiles.ok) return { error: 'Le dessin a un contour ouvert ou qui se croise : fermez-le d’abord, le décalage part d’un contour fermé.' };
   for (const region of profiles.regions) {
-    for (const loop of [region.outer, ...region.holes]) if (loop.segments.some((s) => s.entityId === curveId)) return { loop };
+    for (const loop of [region.outer, ...region.holes]) {
+      if (!loop.segments.some((s) => s.entityId === curveId)) continue;
+      if (loop.segments.some((s) => s.kind === 'spline' || s.kind === 'ellipse')) return { error: 'Le décalage ne sait pas encore recopier un contour qui contient une ellipse ou une spline.' };
+      return { loop };
+    }
   }
   return { error: 'Ce trait ne fait pas partie d’un contour fermé (les traits de construction sont ignorés).' };
 }
@@ -75,7 +83,7 @@ function intersect(a: Curve, b: Curve): Vec2[] {
 
 /** Contour décalé : mêmes segments (dans le même ordre), extrémités recalculées. */
 export function offsetSegments(loop: ProfileLoop, distance: number): ProfileSegment[] | OffsetFailure {
-  const segs = loop.segments;
+  const segs = simpleSegments(loop);
   const tooFar = { error: 'Distance trop grande pour ce contour : le contour décalé se retournerait. Essayez une distance plus petite.' };
   if (segs.length === 1 && segs[0]!.kind === 'circle') {
     const c = segs[0]!;
@@ -138,7 +146,7 @@ export function signedDistanceToLoop(loop: ProfileLoop, p: Vec2): number {
   let best = Infinity;
   let inside = false;
   const poly: Vec2[] = [];
-  for (const seg of loop.segments) {
+  for (const seg of simpleSegments(loop)) {
     if (seg.kind === 'line') {
       const d = sub2(seg.end, seg.start);
       const t = Math.max(0, Math.min(1, dot2(sub2(p, seg.start), d) / dot2(d, d)));

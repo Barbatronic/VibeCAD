@@ -260,8 +260,28 @@ export interface SketchArc extends CurveFlags {
   end: string;
 }
 
-export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc;
-export type SketchCurve = SketchLine | SketchCircle | SketchArc;
+/**
+ * Ellipse : `center` et `major` (bout du grand axe : rayon et orientation) sont des points de
+ * l'esquisse ; `minorRadius` est le demi-axe perpendiculaire.
+ */
+export interface SketchEllipse extends CurveFlags {
+  id: string;
+  type: 'ellipse';
+  center: string;
+  major: string;
+  minorRadius: number;
+}
+
+/** Spline : courbe lisse passant par les points `points` (au moins 2), ouverte ou fermée. */
+export interface SketchSpline extends CurveFlags {
+  id: string;
+  type: 'spline';
+  points: string[];
+  closed: boolean;
+}
+
+export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline;
+export type SketchCurve = SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline;
 
 interface ConstraintBase<T extends string> {
   id: string;

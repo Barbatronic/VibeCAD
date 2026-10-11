@@ -10,13 +10,18 @@ import { isConstructionCurve, type SketchParams } from '../domain/model';
 import type { FeatureIssueCode } from '../domain/status';
 import { TOLERANCES } from '../domain/tolerances';
 import { cross2, distance2, distanceToSegment2, sub2, type Vec2 } from '../math/vec';
-import { pointPosition } from './model';
+import { bezierPoint, ellipsePoint, reverseBeziers, sampleBeziers, sampleEllipse, type Bezier } from './curves';
+import { ellipseOf, pointPosition, splineOf } from './model';
 
 export type ProfileSegment =
   | { kind: 'line'; entityId: string; start: Vec2; end: Vec2 }
   | { kind: 'circle'; entityId: string; center: Vec2; radius: number; clockwise: boolean }
   /** Arc parcouru de `start` à `end`, dans le sens horaire si `clockwise`. */
-  | { kind: 'arc'; entityId: string; start: Vec2; end: Vec2; center: Vec2; radius: number; clockwise: boolean };
+  | { kind: 'arc'; entityId: string; start: Vec2; end: Vec2; center: Vec2; radius: number; clockwise: boolean }
+  /** Morceaux de Bézier cubiques d'une spline, dans le sens du parcours. */
+  | { kind: 'spline'; entityId: string; start: Vec2; end: Vec2; beziers: Bezier[] }
+  /** Ellipse complète (contour à elle seule), départ et arrivée au bout du grand axe. */
+  | { kind: 'ellipse'; entityId: string; start: Vec2; end: Vec2; center: Vec2; a: number; b: number; angle: number; clockwise: boolean };
 
 export interface ProfileLoop {
   segments: ProfileSegment[];
@@ -47,9 +52,11 @@ interface Edge {
   n2: number;
   /** Pour un arc : centre et rayon (parcouru de n1 à n2 dans le sens trigonométrique). */
   arc?: { center: Vec2; radius: number };
+  /** Pour une spline ouverte : ses morceaux de Bézier, de n1 vers n2. */
+  spline?: Bezier[];
 }
 
-type LoopEdge = Extract<ProfileSegment, { kind: 'line' | 'arc' }>;
+type LoopEdge = Extract<ProfileSegment, { kind: 'line' | 'arc' | 'spline' | 'ellipse' }>;
 
 type RawLoop =
   /** `vertices` : polyligne fine (arcs subdivisés) pour les tests géométriques ; `edges` : courbes exactes. */
@@ -84,10 +91,37 @@ function arcSamples(e: Extract<LoopEdge, { kind: 'arc' }>): Vec2[] {
   return out;
 }
 
-/** Aire signée exacte d'un contour de segments et d'arcs (corde + segment circulaire). */
+/** ½∫(x dy − y dx) le long d'un morceau de Bézier : Gauss à 3 points, exact pour ce polynôme de degré 5. */
+function bezierAreaTerm(b: Bezier): number {
+  const nodes = [
+    [0.5 - Math.sqrt(15) / 10, 5 / 18],
+    [0.5, 8 / 18],
+    [0.5 + Math.sqrt(15) / 10, 5 / 18],
+  ] as const;
+  let sum = 0;
+  for (const [t, w] of nodes) {
+    const u = 1 - t;
+    const p = bezierPoint(b, t);
+    // Dérivée : 3[(1−t)²(P1−P0) + 2t(1−t)(P2−P1) + t²(P3−P2)].
+    const dx = 3 * (u * u * (b[1].x - b[0].x) + 2 * u * t * (b[2].x - b[1].x) + t * t * (b[3].x - b[2].x));
+    const dy = 3 * (u * u * (b[1].y - b[0].y) + 2 * u * t * (b[2].y - b[1].y) + t * t * (b[3].y - b[2].y));
+    sum += w * (p.x * dy - p.y * dx);
+  }
+  return sum / 2;
+}
+
+/** Aire signée exacte d'un contour (segments, arcs, splines, ellipse). */
 function exactArea(edges: LoopEdge[]): number {
   let a = 0;
   for (const e of edges) {
+    if (e.kind === 'ellipse') {
+      a += Math.PI * e.a * e.b * (e.clockwise ? -1 : 1);
+      continue;
+    }
+    if (e.kind === 'spline') {
+      for (const b of e.beziers) a += bezierAreaTerm(b);
+      continue;
+    }
     a += (e.start.x * e.end.y - e.end.x * e.start.y) / 2;
     if (e.kind === 'arc') {
       const t = arcSweep(e);
@@ -115,7 +149,33 @@ export function extractProfiles(sketch: SketchParams): ProfileResult {
   const loops: RawLoop[] = [];
   for (const e of sketch.entities) {
     // Les traits de construction et la géométrie reprise de la pièce ne forment pas le volume.
-    if ((e.type === 'circle' || e.type === 'line' || e.type === 'arc') && isConstructionCurve(e)) continue;
+    if (e.type !== 'point' && isConstructionCurve(e)) continue;
+    if (e.type === 'ellipse') {
+      const g = ellipseOf(sketch, e);
+      if (!g || g.a <= tol || g.b <= tol) continue;
+      const start = ellipsePoint(g, 0);
+      loops.push({ kind: 'polygon', vertices: sampleEllipse(g), edges: [{ kind: 'ellipse', entityId: e.id, start, end: start, center: g.center, a: g.a, b: g.b, angle: g.angle, clockwise: false }] });
+      continue;
+    }
+    if (e.type === 'spline') {
+      const beziers = splineOf(sketch, e);
+      if (beziers.length === 0) continue;
+      const first = beziers[0]![0];
+      const last = beziers[beziers.length - 1]![3];
+      if (e.closed || distance2(first, last) <= tol) {
+        const vertices = sampleBeziers(beziers, 24);
+        vertices.pop();
+        loops.push({ kind: 'polygon', vertices, edges: [{ kind: 'spline', entityId: e.id, start: first, end: first, beziers }] });
+        continue;
+      }
+      const n1 = nodeFor(e.points[0]!, first);
+      const n2 = nodeFor(e.points[e.points.length - 1]!, last);
+      const index = edges.length;
+      edges.push({ entityId: e.id, n1, n2, spline: beziers });
+      nodes[n1]!.edges.push(index);
+      nodes[n2]!.edges.push(index);
+      continue;
+    }
     if (e.type === 'arc') {
       const c = pointPosition(sketch, e.center);
       const a = pointPosition(sketch, e.start);
@@ -187,7 +247,13 @@ export function extractProfiles(sketch: SketchParams): ProfileResult {
       const from = nodes[fromNode]!.position;
       const to = nodes[toNode]!.position;
       vertices.push(from);
-      if (edge.arc) {
+      if (edge.spline) {
+        const beziers = forward ? edge.spline : reverseBeziers(edge.spline);
+        loopEdges.push({ kind: 'spline', entityId: edge.entityId, start: from, end: to, beziers });
+        const samples = sampleBeziers(beziers, 24, false);
+        samples.pop();
+        vertices.push(...samples);
+      } else if (edge.arc) {
         const seg: LoopEdge = { kind: 'arc', entityId: edge.entityId, start: from, end: to, center: edge.arc.center, radius: edge.arc.radius, clockwise: !forward };
         loopEdges.push(seg);
         vertices.push(...arcSamples(seg));
@@ -258,7 +324,11 @@ function orientLoop(loop: RawLoop, counterClockwise: boolean): ProfileLoop {
   const isCcw = area > 0;
   let segs: LoopEdge[] = loop.edges;
   if (isCcw !== counterClockwise) {
-    segs = [...segs].reverse().map((s) => (s.kind === 'arc' ? { ...s, start: s.end, end: s.start, clockwise: !s.clockwise } : { ...s, start: s.end, end: s.start }));
+    segs = [...segs].reverse().map((s): LoopEdge => {
+      if (s.kind === 'arc' || s.kind === 'ellipse') return { ...s, start: s.end, end: s.start, clockwise: !s.clockwise };
+      if (s.kind === 'spline') return { ...s, start: s.end, end: s.start, beziers: reverseBeziers(s.beziers) };
+      return { ...s, start: s.end, end: s.start };
+    });
   }
   return { segments: segs, signedArea: counterClockwise ? Math.abs(area) : -Math.abs(area) };
 }

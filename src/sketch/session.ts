@@ -14,6 +14,7 @@ import { add2, cross2, distance2, distanceToSegment2, dot2, midpoint2, normalize
 import { trimAt, trimPiece } from './trim';
 import { addOffsetLoop, loopOfCurve, offsetSegments, signedDistanceToLoop } from './offset';
 import type { ProfileLoop } from './profiles';
+import { ellipseGeometry, ellipsePoint, sampleBeziers, sampleEllipse, splineBeziers } from './curves';
 import { hitTest, type SketchTarget } from './hit-test';
 import {
   addArc,
@@ -22,6 +23,8 @@ import {
   addLine,
   addPoint,
   addRectangle,
+  addEllipse,
+  addSpline,
   arcGeometry,
   arcPointAt,
   arePointsCoincident,
@@ -30,6 +33,9 @@ import {
   findRound,
   findLine,
   linePoints,
+  ownedPoints,
+  ellipseOf,
+  splineOf,
   movePoints,
   ownerOfPoint,
   pointPosition,
@@ -56,7 +62,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -81,6 +87,8 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   circle: 'Cercle',
   arc: 'Arc',
   slot: 'Oblong',
+  ellipse: 'Ellipse',
+  spline: 'Spline',
   trim: 'Couper',
   offset: 'Décalage',
   project: 'Projeter',
@@ -110,6 +118,9 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   slot: 'Oblong (rainure) : cliquez le centre du premier arrondi, puis celui du second, puis la largeur. Vous pouvez taper la longueur entre centres puis la largeur.',
   circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
   arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
+  ellipse: 'Ellipse : cliquez le centre, puis le bout du grand axe, puis éloignez la souris pour régler la largeur et cliquez. Vous pouvez taper les deux axes (Tab pour passer de l’un à l’autre).',
+  spline:
+    'Spline : cliquez les points par lesquels la courbe doit passer. Cliquez le premier point pour la fermer ; Entrée, Échap ou un clic sur le dernier point la terminent ouverte.',
   trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
   offset:
     'Décalage : cliquez un trait d’un contour fermé, puis éloignez la souris vers l’extérieur ou l’intérieur et cliquez, ou tapez la distance puis Entrée. Le contour recopié reste à cette distance.',
@@ -197,6 +208,10 @@ export interface SketchSession {
   arc: { start: SnapResult; sweep: number; lastAngle: number } | null;
   /** Oblong : second centre choisi (on règle ensuite la largeur). */
   slot: { end: SnapResult; length: number | null } | null;
+  /** Ellipse : bout du grand axe choisi (on règle ensuite le petit rayon). */
+  ellipse: { major: SnapResult } | null;
+  /** Spline : points de passage déjà cliqués. */
+  spline: SnapResult[] | null;
   chainFirstPointId: string | null;
   chainLastPointId: string | null;
   /** Éléments choisis l'un après l'autre par l'outil Cote ou une contrainte. */
@@ -266,6 +281,8 @@ export function createSession(args: {
     selection: [],
     drag: null,
     box: null,
+    ellipse: null,
+    spline: null,
     labelDrag: null,
     editor: null,
     message: res.converged ? null : { kind: 'error', text: 'Certaines contraintes de cette esquisse sont incompatibles : supprimez-en une.' },
@@ -284,7 +301,7 @@ const success = (text: string): SessionMessage => ({ kind: 'success', text });
 const failure = (text: string): SessionMessage => ({ kind: 'error', text });
 
 function resetDraw(s: SketchSession): SketchSession {
-  return { ...s, start: null, arc: null, slot: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
+  return { ...s, start: null, arc: null, slot: null, ellipse: null, spline: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
 }
 
 /** Applique une nouvelle esquisse après résolution ; refuse si les contraintes sont incompatibles. */
@@ -334,12 +351,12 @@ export function setTool(s: SketchSession, tool: SketchTool): SketchSession {
 export function toggleConstruction(s: SketchSession): SketchSession {
   const curves = s.selection.filter((id) => {
     const e = s.sketch.entities.find((x) => x.id === id);
-    return e && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && !e.reference;
+    return e && e.type !== 'point' && !e.reference;
   });
   if (curves.length > 0) {
     const allConstruction = curves.every((id) => {
       const e = s.sketch.entities.find((x) => x.id === id);
-      return e && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.construction;
+      return e && e.type !== 'point' && e.construction;
     });
     const next = setConstruction(s.sketch, curves, !allConstruction);
     const { session } = commit(s, next, {
@@ -368,7 +385,7 @@ function setConstruction(sketch: SketchParams, ids: readonly string[], on: boole
   return {
     ...sketch,
     entities: sketch.entities.map((e): SketchEntity => {
-      if (!set.has(e.id) || (e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') || e.reference) return e;
+      if (!set.has(e.id) || e.type === 'point' || e.reference) return e;
       const copy = { ...e };
       if (on) copy.construction = true;
       else delete copy.construction;
@@ -403,7 +420,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot';
+  const drawing = s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -442,6 +459,10 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return polygonClick(s, computeSnap(s, p, !!opts.alt));
     case 'slot':
       return slotClick(s, computeSnap(s, p, !!opts.alt));
+    case 'ellipse':
+      return ellipseClick(s, computeSnap(s, p, !!opts.alt));
+    case 'spline':
+      return splineClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
       return projectClick(s, p);
     case 'trim':
@@ -474,6 +495,91 @@ export function pointerUp(s: SketchSession): SketchSession {
 
 // ---------------------------------------------------------------------------
 // Outils de dessin
+
+// ---------------------------------------------------------------------------
+// Ellipse et spline
+
+/** Petit rayon d'une ellipse : distance du curseur à la droite du grand axe. */
+function ellipseMinor(center: Vec2, major: Vec2, p: Vec2): number {
+  const d = sub2(major, center);
+  const len = Math.hypot(d.x, d.y);
+  return len < 1e-12 ? 0 : Math.abs(cross2(d, sub2(p, center))) / len;
+}
+
+function ellipseClick(s: SketchSession, snap: SnapResult): SketchSession {
+  if (!s.start) {
+    return {
+      ...s,
+      start: snap,
+      input: { labels: ['Grand axe', 'Petit axe'], values: ['', ''], active: 0, error: null },
+      message: info('Cliquez le bout du grand axe, ou tapez la longueur des deux axes (Tab pour passer de l’un à l’autre) puis Entrée.'),
+    };
+  }
+  if (!s.ellipse) {
+    if (distance2(s.start.point, snap.point) < tolerance(s) / 2) return { ...s, message: failure('Le grand axe est trop court : éloignez davantage le point.') };
+    return { ...s, ellipse: { major: snap }, input: null, message: info('Éloignez la souris de l’axe pour régler la largeur de l’ellipse, puis cliquez.') };
+  }
+  const minor = ellipseMinor(s.start.point, s.ellipse.major.point, snap.point);
+  if (minor < tolerance(s) / 2) return { ...s, message: failure('L’ellipse est trop plate : éloignez davantage la souris de l’axe.') };
+  return createEllipse(s, s.start, s.ellipse.major, minor, null);
+}
+
+function createEllipse(s: SketchSession, center: SnapResult, major: SnapResult, minor: number, axes: { major: number; minor: number } | null): SketchSession {
+  const r = addEllipse(s.sketch, center.point, major.point, minor);
+  let sk = s.construction ? setConstruction(r.sketch, [r.ellipseId], true) : r.sketch;
+  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: r.center }).sketch;
+  if (major.pointId && !axes) sk = addConstraint(sk, { type: 'coincident', a: major.pointId, b: r.major }).sketch;
+  if (axes) {
+    sk = addConstraint(sk, { type: 'distance', a: r.center, b: r.major, value: axes.major / 2 }).sketch;
+    sk = addConstraint(sk, { type: 'diameter', circle: r.ellipseId, value: axes.minor }).sketch;
+  }
+  const { session } = commit(s, sk, {
+    message: success(
+      axes
+        ? `Ellipse de ${formatLength(axes.major, 2, false)} × ${formatLength(axes.minor)} ajoutée.`
+        : 'Ellipse ajoutée. Cotez la distance du centre au bout du grand axe, et la largeur avec l’outil Cote (cliquez l’ellipse).',
+    ),
+  });
+  return resetDraw(session);
+}
+
+function splineClick(s: SketchSession, snap: SnapResult): SketchSession {
+  const pts = s.spline ?? [];
+  const tol = tolerance(s);
+  if (pts.length >= 3 && distance2(snap.point, pts[0]!.point) <= tol) return createSpline(s, pts, true);
+  if (pts.length >= 2 && distance2(snap.point, pts[pts.length - 1]!.point) <= tol) return createSpline(s, pts, false);
+  if (pts.length > 0 && distance2(snap.point, pts[pts.length - 1]!.point) <= tol) return s;
+  const next = [...pts, snap];
+  return {
+    ...s,
+    start: next[0]!,
+    spline: next,
+    message: info(
+      next.length < 2
+        ? 'Cliquez le point suivant par lequel la courbe doit passer.'
+        : 'Continuez à cliquer des points. Cliquez le premier point pour fermer la courbe ; Entrée ou un clic sur le dernier point pour la terminer.',
+    ),
+  };
+}
+
+/** Termine la spline en cours (ouverte), si elle a au moins deux points. */
+export function finishSpline(s: SketchSession): SketchSession {
+  if (s.tool !== 'spline' || !s.spline) return s;
+  if (s.spline.length < 2) return { ...resetDraw(s), message: info(TOOL_HELP.spline) };
+  return createSpline(s, s.spline, false);
+}
+
+function createSpline(s: SketchSession, pts: SnapResult[], closed: boolean): SketchSession {
+  const r = addSpline(s.sketch, pts.map((p) => p.point), closed);
+  let sk = s.construction ? setConstruction(r.sketch, [r.splineId], true) : r.sketch;
+  pts.forEach((p, i) => {
+    if (p.pointId) sk = addConstraint(sk, { type: 'coincident', a: p.pointId, b: r.points[i]! }).sketch;
+  });
+  const { session } = commit(s, sk, {
+    message: success(`Spline ${closed ? 'fermée' : 'ouverte'} de ${pts.length} points ajoutée. Faites glisser ses points pour la modeler.`),
+  });
+  return resetDraw(session);
+}
 
 /** Distance de décalage sous le curseur : arrondie au demi-millimètre (valeurs rondes), positive dehors. */
 function offsetDistanceAt(s: SketchSession, at: Vec2): { loop: ProfileLoop; distance: number } | null {
@@ -999,6 +1105,14 @@ export function confirmInput(s: SketchSession): SketchSession {
     return createRectangle(s, s.start, end, { w: values[0]!, h: values[1]! });
   }
   if (s.tool === 'circle') return createCircle(s, s.start, values[0]! / 2, values[0]!);
+  if (s.tool === 'ellipse') {
+    // Grand axe dans la direction du curseur (horizontal par défaut).
+    const c = s.start.point;
+    let dir = cursor ? normalize2(sub2(cursor, c)) : { x: 1, y: 0 };
+    if (!Number.isFinite(dir.x) || (dir.x === 0 && dir.y === 0)) dir = { x: 1, y: 0 };
+    const major: SnapResult = { point: add2(c, scale2(dir, values[0]! / 2)), kind: 'free', label: '' };
+    return createEllipse(s, s.start, major, values[1]! / 2, { major: values[0]!, minor: values[1]! });
+  }
   if (s.tool === 'offset') {
     // Le côté (extérieur ou intérieur) suit la souris.
     const at = offsetDistanceAt(s, cursor ?? s.start.point);
@@ -1083,7 +1197,7 @@ function anchorWeights(c: NewConstraint | SketchConstraint, sketch: SketchParams
   return w;
 }
 
-type PickKind = 'point' | 'line' | 'circle' | 'arc';
+type PickKind = 'point' | 'line' | 'circle' | 'arc' | 'ellipse' | 'spline';
 
 /** Cercle ou arc : élément « rond » (centre et rayon). */
 const isRound = (k: PickKind) => k === 'circle' || k === 'arc';
@@ -1211,6 +1325,15 @@ function singleDimensionCandidates(s: SketchSession, t: PickTarget): { candidate
       candidates: t.kind === 'arc' ? [radius, diameter] : [diameter, radius],
       anchor: { x: r.center.x + r.radius * 0.7, y: r.center.y + r.radius * 0.7 },
     };
+  }
+  if (t.kind === 'ellipse') {
+    // Ellipse : sa largeur (petit axe) ; le grand axe se cote entre le centre et son bout.
+    const e = s.sketch.entities.find((x) => x.id === t.id);
+    const g = e?.type === 'ellipse' ? ellipseOf(s.sketch, e) : undefined;
+    if (!e || e.type !== 'ellipse' || !g) return null;
+    const width: DimensionCandidate = { label: 'Petit axe', constraint: { type: 'diameter', circle: t.id, value: 2 * g.b } };
+    const half: DimensionCandidate = { label: 'Petit rayon', constraint: { type: 'radius', circle: t.id, value: g.b } };
+    return { candidates: [width, half], anchor: ellipsePoint(g, Math.PI / 2) };
   }
   return null;
 }
@@ -1453,7 +1576,10 @@ export function dimensionAnchor(sketch: SketchParams, c: SketchConstraint): Vec2
     case 'diameter':
     case 'radius': {
       const r = roundInfo(sketch, c.circle);
-      return r ? { x: r.center.x + r.radius * 0.7, y: r.center.y + r.radius * 0.7 } : null;
+      if (r) return { x: r.center.x + r.radius * 0.7, y: r.center.y + r.radius * 0.7 };
+      const e = sketch.entities.find((x) => x.id === c.circle);
+      const g = e?.type === 'ellipse' ? ellipseOf(sketch, e) : undefined;
+      return g ? ellipsePoint(g, Math.PI / 2) : null;
     }
     case 'pointLineDistance': {
       const p = pointPosition(sketch, c.point);
@@ -1733,9 +1859,15 @@ export function entitiesInBox(sketch: SketchParams, lo: Vec2, hi: Vec2): string[
     } else if (e.type === 'circle') {
       const c = pointPosition(sketch, e.center);
       if (c && inside({ x: c.x - e.radius, y: c.y - e.radius }) && inside({ x: c.x + e.radius, y: c.y + e.radius })) out.push(e.id);
-    } else {
+    } else if (e.type === 'arc') {
       const g = arcGeometry(sketch, e);
       if (g && [0, 0.25, 0.5, 0.75, 1].every((t) => inside(arcPointAt(g, t)))) out.push(e.id);
+    } else if (e.type === 'ellipse') {
+      const g = ellipseOf(sketch, e);
+      if (g && sampleEllipse(g, 32).every(inside)) out.push(e.id);
+    } else {
+      const bz = splineOf(sketch, e);
+      if (bz.length > 0 && sampleBeziers(bz, 8).every(inside)) out.push(e.id);
     }
   }
   return out;
@@ -1780,6 +1912,20 @@ function dragTo(s: SketchSession, p: Vec2, alt: boolean): SketchSession {
     const moves = new Map<string, Vec2>();
     for (const id of [arc.center, arc.start, arc.end]) {
       moves.set(id, add2(pointPosition(base, id)!, delta));
+      weights.set(`${id}.x`, 1e4);
+      weights.set(`${id}.y`, 1e4);
+    }
+    moved = movePoints(base, moves);
+  } else if (t.kind === 'ellipse' || t.kind === 'spline') {
+    // Ellipse ou spline glissée : tous ses points suivent la souris.
+    const e = base.entities.find((x) => x.id === t.id);
+    if (!e || e.type === 'point') return s;
+    const delta = sub2(p, drag.origin);
+    const moves = new Map<string, Vec2>();
+    for (const id of ownedPoints(e)) {
+      const q = pointPosition(base, id);
+      if (!q) continue;
+      moves.set(id, add2(q, delta));
       weights.set(`${id}.x`, 1e4);
       weights.set(`${id}.y`, 1e4);
     }
@@ -1831,6 +1977,7 @@ export function deleteSelection(s: SketchSession): SketchSession {
 
 export function escape(s: SketchSession): SketchSession {
   if (s.editor) return cancelEditor(s);
+  if (s.tool === 'spline' && s.spline && s.spline.length >= 2) return finishSpline(s);
   if (s.start || s.picks.length > 0 || s.input) return { ...resetDraw(s), message: info(TOOL_HELP[s.tool]) };
   if (s.tool !== 'select') return { ...s, tool: 'select', message: info(TOOL_HELP.select) };
   if (s.selection.length > 0) return { ...s, selection: [] };
@@ -1968,6 +2115,26 @@ export function sessionPreview(s: SketchSession): SessionPreview {
       out.arcs.push({ center: c2, radius: r, startAngle: o.angle - Math.PI / 2, sweep: Math.PI, arrow: false }, { center: a, radius: r, startAngle: o.angle + Math.PI / 2, sweep: Math.PI, arrow: false });
       out.labels.push({ at: o.b1, text: `largeur ${formatLength(2 * r)}` });
     }
+  } else if (s.tool === 'ellipse') {
+    if (!s.ellipse) {
+      out.lines.push([a, end]);
+      out.labels.push({ at: midpoint2(a, end), text: `grand axe ${formatLength(2 * distance2(a, end))}` });
+    } else {
+      const m = s.ellipse.major.point;
+      const minor = ellipseMinor(a, m, end);
+      const g = ellipseGeometry(a, m, minor);
+      const pts = sampleEllipse(g, 96);
+      pts.forEach((q, i) => out.lines.push([q, pts[(i + 1) % pts.length]!]));
+      out.guides.push([sub2(scale2(a, 2), m), m]);
+      out.labels.push({ at: end, text: `${formatLength(2 * g.a, 2, false)} × ${formatLength(2 * minor)}` });
+    }
+  } else if (s.tool === 'spline' && s.spline) {
+    const pts = [...s.spline.map((q) => q.point), end];
+    const closing = s.spline.length >= 3 && distance2(end, s.spline[0]!.point) <= tolerance(s);
+    const bz = splineBeziers(closing ? pts.slice(0, -1) : pts, closing);
+    const samples = sampleBeziers(bz, 16);
+    for (let i = 0; i + 1 < samples.length; i++) out.lines.push([samples[i]!, samples[i + 1]!]);
+    if (closing) out.labels.push({ at: end, text: 'fermer la courbe' });
   } else if (s.tool === 'arc') {
     if (!s.arc) {
       const r = distance2(a, end);
@@ -2003,6 +2170,7 @@ export function drawInputCurrentValues(s: SketchSession): number[] {
   if (s.tool === 'centerRectangle') return [round(2 * Math.abs(end.x - a.x)), round(2 * Math.abs(end.y - a.y))];
   if (s.tool === 'polygon') return [round(2 * distance2(a, end)), currentSides(s)];
   if (s.tool === 'offset') return [Math.abs(offsetDistanceAt(s, end)?.distance ?? 0)];
+  if (s.tool === 'ellipse') return s.ellipse ? [round(2 * distance2(a, s.ellipse.major.point)), round(2 * ellipseMinor(a, s.ellipse.major.point, end))] : [round(2 * distance2(a, end)), 0];
   if (s.tool === 'slot') return s.slot ? [round(2 * slotHalfWidth(a, s.slot.end.point, end))] : [round(distance2(a, end))];
   if (s.tool === 'arc') return s.arc ? [round(Math.abs((s.arc.sweep * 180) / Math.PI))] : [round(distance2(a, end))];
   return [];

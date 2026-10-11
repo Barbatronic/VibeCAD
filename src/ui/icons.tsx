@@ -340,6 +340,15 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  ellipse: <ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-20 12 12)" />,
+  spline: (
+    <>
+      <path d="M3 17c3-9 6-9 9-4s6 4 9-5" />
+      <circle cx="3" cy="17" r="1.4" />
+      <circle cx="12" cy="13" r="1.4" />
+      <circle cx="21" cy="8" r="1.4" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />

@@ -1,12 +1,14 @@
 /**
  * Chemin d'un balayage : les segments et arcs d'une esquisse (hors construction) qui se suivent
- * bout à bout, en une seule chaîne ouverte ou fermée (ou un cercle seul). Chaque morceau est
+ * bout à bout (splines ouvertes comprises), en une seule chaîne ouverte ou fermée (ou un cercle,
+ * une ellipse ou une spline fermée seuls). Chaque morceau est
  * orienté dans le sens du parcours.
  */
 import { isConstructionCurve, type SketchParams } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import type { Vec2 } from '../math/vec';
-import { arcGeometry, pointPosition } from './model';
+import { ellipsePoint, reverseBeziers } from './curves';
+import { arcGeometry, ellipseOf, pointPosition, splineOf } from './model';
 import type { ProfileSegment } from './profiles';
 
 export type PathResult =
@@ -38,7 +40,7 @@ export function extractPath(sketch: SketchParams): PathResult {
   const edges: Edge[] = [];
   const circles: ProfileSegment[] = [];
   for (const e of sketch.entities) {
-    if ((e.type === 'line' || e.type === 'arc' || e.type === 'circle') && isConstructionCurve(e)) continue;
+    if (e.type !== 'point' && isConstructionCurve(e)) continue;
     if (e.type === 'line') {
       const a = pointPosition(sketch, e.a);
       const b = pointPosition(sketch, e.b);
@@ -49,6 +51,19 @@ export function extractPath(sketch: SketchParams): PathResult {
       if (!g) continue;
       const base = { kind: 'arc' as const, entityId: e.id, center: g.center, radius: g.radius };
       edges.push({ a: nodeOf(g.start), b: nodeOf(g.end), forward: { ...base, start: g.start, end: g.end, clockwise: false }, backward: { ...base, start: g.end, end: g.start, clockwise: true } });
+    } else if (e.type === 'spline') {
+      // Spline : ouverte, un morceau du chemin ; fermée, un chemin à elle seule (comme un cercle).
+      const bz = splineOf(sketch, e);
+      if (bz.length === 0) continue;
+      const start = bz[0]![0];
+      const end = bz[bz.length - 1]![3];
+      if (e.closed) circles.push({ kind: 'spline', entityId: e.id, start, end, beziers: bz });
+      else edges.push({ a: nodeOf(start), b: nodeOf(end), forward: { kind: 'spline', entityId: e.id, start, end, beziers: bz }, backward: { kind: 'spline', entityId: e.id, start: end, end: start, beziers: reverseBeziers(bz) } });
+    } else if (e.type === 'ellipse') {
+      const g = ellipseOf(sketch, e);
+      if (!g) continue;
+      const start = ellipsePoint(g, 0);
+      circles.push({ kind: 'ellipse', entityId: e.id, start, end: start, center: g.center, a: g.a, b: g.b, angle: g.angle, clockwise: false });
     } else if (e.type === 'circle') {
       const c = pointPosition(sketch, e.center);
       if (c) circles.push({ kind: 'circle', entityId: e.id, center: c, radius: e.radius, clockwise: false });

@@ -650,7 +650,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
     const ep = `${path}.entities[${i}]`;
     const o = obj(v, e, ep);
     if (!o) return;
-    const type = oneOf(v, o, 'type', ep, ['point', 'line', 'circle', 'arc'] as const);
+    const type = oneOf(v, o, 'type', ep, ['point', 'line', 'circle', 'arc', 'ellipse', 'spline'] as const);
     const id = str(v, o, 'id', ep);
     if (type === 'point') {
       entities.push({ id, type, x: num(v, o, 'x', ep), y: num(v, o, 'y', ep) });
@@ -666,6 +666,12 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
     }
     if (type === 'line') entities.push({ id, type, a: str(v, o, 'a', ep), b: str(v, o, 'b', ep), ...flags });
     else if (type === 'arc') entities.push({ id, type, center: str(v, o, 'center', ep), start: str(v, o, 'start', ep), end: str(v, o, 'end', ep), ...flags });
+    else if (type === 'ellipse') entities.push({ id, type, center: str(v, o, 'center', ep), major: str(v, o, 'major', ep), minorRadius: num(v, o, 'minorRadius', ep, { min: 0 }), ...flags });
+    else if (type === 'spline') {
+      const pts = arr(v, o, 'points', ep).map((x, k) => (typeof x === 'string' ? x : (v.error(`${ep}.points[${k}]`, 'identifiant de point attendu'), '')));
+      if (pts.length < 2) v.error(`${ep}.points`, 'au moins deux points');
+      entities.push({ id, type, points: pts, closed: o.closed === true, ...flags });
+    }
     else entities.push({ id, type, center: str(v, o, 'center', ep), radius: num(v, o, 'radius', ep, { min: 0 }), ...flags });
   });
   const constraints: SketchConstraint[] = [];
@@ -814,6 +820,8 @@ function checkSketch(v: Validator, sketch: SketchParams, name: string, path: str
     if (e.type === 'line' && (!points.has(e.a) || !points.has(e.b))) v.error(`${path}.params`, `le segment « ${e.id} » vise un point absent`);
     if (e.type === 'circle' && !points.has(e.center)) v.error(`${path}.params`, `le cercle « ${e.id} » vise un centre absent`);
     if (e.type === 'arc' && (!points.has(e.center) || !points.has(e.start) || !points.has(e.end))) v.error(`${path}.params`, `l’arc « ${e.id} » vise un point absent`);
+    if (e.type === 'ellipse' && (!points.has(e.center) || !points.has(e.major))) v.error(`${path}.params`, `l’ellipse « ${e.id} » vise un point absent`);
+    if (e.type === 'spline' && e.points.some((id) => !points.has(id))) v.error(`${path}.params`, `la spline « ${e.id} » vise un point absent`);
   }
   const constraintIds = new Set<string>();
   for (const c of sketch.constraints) {

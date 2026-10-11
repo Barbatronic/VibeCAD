@@ -1274,6 +1274,70 @@
                     }
                   }
                 }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "center",
+                  "major",
+                  "minorRadius"
+                ],
+                "description": "Ellipse : centre, bout du grand axe (points) et petit rayon.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "ellipse"
+                  },
+                  "center": {
+                    "type": "string"
+                  },
+                  "major": {
+                    "type": "string"
+                  },
+                  "minorRadius": {
+                    "$ref": "#/$defs/length"
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "points",
+                  "closed"
+                ],
+                "description": "Spline passant par les points (Catmull-Rom uniforme, morceaux de Bézier cubiques), ouverte ou fermée.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "spline"
+                  },
+                  "points": {
+                    "type": "array",
+                    "minItems": 2,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "closed": {
+                    "type": "boolean"
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  }
+                }
               }
             ]
           }

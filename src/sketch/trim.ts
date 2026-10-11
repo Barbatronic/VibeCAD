@@ -23,6 +23,8 @@ function primitive(sketch: SketchParams, curve: SketchCurve): Primitive | null {
     const c = pointPosition(sketch, curve.center);
     return c ? { kind: 'circle', c, r: curve.radius } : null;
   }
+  // Ellipses et splines : ni coupées, ni coupantes (pas encore gérées par l'outil Couper).
+  if (curve.type !== 'arc') return null;
   const g = arcGeometry(sketch, curve);
   return g ? { kind: 'arc', c: g.center, r: g.radius, g } : null;
 }
@@ -188,7 +190,8 @@ export function trimAt(sketch: SketchParams, curveId: string, at: Vec2): TrimOut
     if (!lo || !hi) return { sketch: removeEntities(sketch, [curveId]), deleted: true, droppedConstraints: 0 };
     return circleToArc(sketch, curve, lo, hi);
   }
-  return curve.type === 'line' ? trimLine(sketch, curve, lo, hi) : trimArc(sketch, curve, lo, hi);
+  if (curve.type === 'line') return trimLine(sketch, curve, lo, hi);
+  return curve.type === 'arc' ? trimArc(sketch, curve, lo, hi) : null;
 }
 
 /**

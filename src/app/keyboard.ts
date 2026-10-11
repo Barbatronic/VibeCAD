@@ -10,6 +10,7 @@ import {
   confirmInput,
   deleteSelection,
   escape,
+  finishSpline,
   redo,
   setTool,
   toggleConstruction,
@@ -117,6 +118,12 @@ export function installKeyboard(controller: AppController): () => void {
       }
     }
 
+    // Spline en cours : Entrée la termine (ouverte).
+    if (e.key === 'Enter' && s.mode.kind === 'sketch' && s.mode.session.tool === 'spline' && s.mode.session.spline) {
+      e.preventDefault();
+      controller.updateSession(finishSpline);
+      return;
+    }
     if (e.key === 'Escape') {
       if (s.helpOpen) return controller.toggleHelp(false);
       switch (s.mode.kind) {

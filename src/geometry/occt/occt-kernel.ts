@@ -277,6 +277,32 @@ export class OcctKernel implements GeometryKernel {
         );
         if (!me.IsDone()) throw new KernelError('Un arc du contour est dégénéré.');
         edge = scope.track(me.Edge());
+      } else if (seg.kind === 'spline') {
+        // Spline : un morceau de Bézier cubique par arête, exactement la courbe de l'esquisse.
+        const pieces = seg.beziers.map((bz) => {
+          const poles = scope.track(new oc.NCollection_Array1_gp_Pnt(1, 4));
+          bz.forEach((p, i) => poles.SetValue(i + 1, this.pnt(scope, frameToWorld(frame, p, level))));
+          const me = scope.track(new oc.BRepBuilderAPI_MakeEdge(scope.track(new oc.Geom_BezierCurve(poles))));
+          if (!me.IsDone()) throw new KernelError('Une spline du contour est dégénérée.');
+          return scope.track(me.Edge());
+        });
+        for (const piece of pieces.slice(0, -1)) {
+          mw.Add(piece);
+          if (!mw.IsDone()) throw new KernelError('Le contour ne forme pas une boucle continue.');
+          edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId });
+        }
+        edge = pieces[pieces.length - 1]!;
+      } else if (seg.kind === 'ellipse') {
+        // Le grand rayon d'OCCT doit être le plus long : sinon on tourne les axes d'un quart de tour.
+        const axis = seg.clockwise ? scale3(frame.normal, -1) : frame.normal;
+        const swap = seg.b > seg.a;
+        const ang = seg.angle + (swap ? Math.PI / 2 : 0);
+        const xdir = add3(scale3(frame.xAxis, Math.cos(ang)), scale3(frame.yAxis, Math.sin(ang)));
+        const ax2 = scope.track(new oc.gp_Ax2(this.pnt(scope, frameToWorld(frame, seg.center, level)), this.dir(scope, axis), this.dir(scope, xdir)));
+        const elips = scope.track(new oc.gp_Elips(ax2, Math.max(seg.a, seg.b), Math.min(seg.a, seg.b)));
+        const me = scope.track(new oc.BRepBuilderAPI_MakeEdge(elips));
+        if (!me.IsDone()) throw new KernelError('Une ellipse du contour est dégénérée.');
+        edge = scope.track(me.Edge());
       } else {
         const axis = seg.clockwise ? scale3(frame.normal, -1) : frame.normal;
         const ax2 = scope.track(
@@ -294,7 +320,7 @@ export class OcctKernel implements GeometryKernel {
     const wire: TopoDS_Wire = scope.track(mw.Wire());
     if (!wire.Closed() && !allowOpen) {
       // Les cercles sont fermés par construction ; un polygone doit l'être aussi.
-      const closed = loop.segments.length === 1 && loop.segments[0]!.kind === 'circle';
+      const closed = loop.segments.length === 1 && (loop.segments[0]!.kind === 'circle' || loop.segments[0]!.kind === 'ellipse');
       if (!closed) throw new KernelError("Le contour n’est pas fermé.");
     }
     return { wire, edges };

@@ -235,6 +235,8 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
   { tool: 'circle', icon: 'circle', key: 'C', label: 'Cercle (centre et bord)' },
   { tool: 'arc', icon: 'arc', key: 'A', label: 'Arc de cercle (centre, départ, arrivée)' },
   { tool: 'slot', icon: 'slot', key: '', label: 'Oblong (rainure arrondie aux deux bouts)' },
+  { tool: 'ellipse', icon: 'ellipse', key: '', label: 'Ellipse (centre, grand axe, largeur)' },
+  { tool: 'spline', icon: 'spline', key: '', label: 'Spline (courbe lisse passant par des points)' },
 ];
 
 const EDIT_VARIANTS: ToolVariant[] = [
@@ -551,7 +553,7 @@ function SketchTools() {
       <div class="toolbar-group" role="group" aria-label="Dessiner">
         {SKETCH_TOOLS.map(btn)}
         <ToolVariants variants={RECTANGLE_VARIANTS} tool={s.tool} name="rectangles" />
-        <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles et arcs" />
+        <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles, arcs et courbes" />
         <ToolVariants variants={EDIT_VARIANTS} tool={s.tool} name="couper et décaler" menuLabel="Autres outils" />
         {allows(level, 'sketch-construction') ? (
           <ToolButton

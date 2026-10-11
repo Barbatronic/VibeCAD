@@ -49,6 +49,8 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'sketch:slot': 'intermediaire',
   'sketch:trim': 'intermediaire',
   'sketch:offset': 'expert',
+  'sketch:ellipse': 'expert',
+  'sketch:spline': 'expert',
   'sketch:project': 'intermediaire',
   'sketch:parallel': 'intermediaire',
   'sketch:perpendicular': 'intermediaire',
