@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeSplitFeature, makeDraftFeature, makeThickenFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, addPart, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeSplitFeature, makeDraftFeature, makeThickenFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addArc, addCircle, addConstraint, addEllipse, addLine, addRectangle, addSpline } from '../../src/sketch/model';
@@ -40,6 +40,10 @@ function checkInFreeCad(file: string): FreeCadObject[] {
   if (!line) throw new Error(`Réponse FreeCAD inattendue :\n${out}`);
   return JSON.parse(line.slice('RESULT_JSON '.length));
 }
+
+import { GeometryService } from '../../src/workers/geometry-service';
+import { documentForWorker } from '../../src/geometry/protocol';
+import { translation4 } from '../../src/math/mat4';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -302,5 +306,26 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     const volumes = pieces.map((x) => x.volume).sort((a, b) => a - b);
     expect(volumes[0]).toBeCloseTo(Math.PI * 10 * 4 * 5, 2);
     expect(volumes[0]! + volumes[1]!).toBeCloseTo(res!.analysis!.volume, 2);
+  });
+  it('assemblage avec arborescence (plaque + deux goupilles partagées) : FreeCAD montre l’assemblage et ses pièces placées', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const r = addPart(base, 'Goupille');
+    let doc = { ...r.doc, name: 'Montage' };
+    const pin = makePrimitiveFeature(doc, findPart(doc, r.partId)!, 'cylinder');
+    doc = addFeature(doc, r.partId, { ...pin, params: { ...pin.params, diameter: 6, height: 10 } });
+    const { text } = new GeometryService(kernel).exportStep(documentForWorker(doc), [], [
+      { partId: ids.partId, name: 'Plaque', matrix: translation4({ x: 0, y: 0, z: 0 }) },
+      { partId: r.partId, name: 'Goupille (1)', matrix: translation4({ x: 15, y: 15, z: 5 }) },
+      { partId: r.partId, name: 'Goupille (2)', matrix: translation4({ x: 45, y: 15, z: 5 }) },
+    ]);
+    const file = join(outDir, 'assemblage-arbre.step');
+    writeFileSync(file, text);
+    const objects = checkInFreeCad(file);
+    const assembly = objects.find((o) => o.label === 'Montage')!;
+    expect(assembly.solids).toBe(3);
+    expect(assembly.valid).toBe(true);
+    expect(assembly.volume).toBeCloseTo(9000 - Math.PI * 9 * 5 + 2 * Math.PI * 9 * 10, 2);
+    const pins = objects.filter((o) => o.label.startsWith('Goupille'));
+    expect(pins.map((o) => Math.round(o.bbox[0]!)).sort((a, b) => a - b)).toEqual([12, 42]);
   });
 });

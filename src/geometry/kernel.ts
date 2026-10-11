@@ -292,6 +292,11 @@ export interface GeometryKernel {
   draft(base: KernelShape, request: DraftRequest): DraftResult;
   mesh(shape: KernelShape, options: MeshOptions): MeshData;
   exportStep(items: StepExportItem[]): string;
+  /**
+   * STEP d'un assemblage avec son arborescence : un nœud au nom du projet, une définition par
+   * pièce (nom, couleur), une instance placée (matrice 4 × 4 par colonnes) par pièce insérée.
+   */
+  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: { partKey: string; name: string; matrix: readonly number[] }[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */
   distance(a: { shape: KernelShape; kind: 'face' | 'edge'; index: number }, b: { shape: KernelShape; kind: 'face' | 'edge'; index: number }): DistanceResult;
   dispose(shape: KernelShape): void;

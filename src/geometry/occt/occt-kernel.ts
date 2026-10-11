@@ -14,6 +14,9 @@ import type {
   TopoDS_Face,
   TopoDS_Shape,
   TopoDS_Wire,
+  TDF_Label,
+  XCAFDoc_ColorTool,
+  XCAFDoc_ShapeTool,
 } from 'replicad-opencascadejs';
 import type { EdgeRef, FaceRef, Id } from '../../domain/model';
 import { frameToWorld, type Frame3D } from '../../math/frame';
@@ -1315,8 +1318,56 @@ export class OcctKernel implements GeometryKernel {
   }
 
   exportStep(items: StepExportItem[]): string {
-    const oc = this.oc;
     if (items.length === 0) throw new KernelError('Aucune pièce à exporter.');
+    return this.writeStep((scope, shapeTool, colorTool) => {
+      for (const item of items) {
+        const node = scope.track(shapeTool.NewShape());
+        shapeTool.SetShape(node, asOcct(item.shape).shape);
+        this.labelNameColor(scope, colorTool, node, item.name, item.color);
+      }
+    });
+  }
+
+  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: { partKey: string; name: string; matrix: readonly number[] }[]): string {
+    const oc = this.oc;
+    if (parts.length === 0 || instances.length === 0) throw new KernelError('Aucune pièce à exporter.');
+    return this.writeStep((scope, shapeTool, colorTool) => {
+      // Nœud d'assemblage : une forme vide déclarée comme assemblage, au nom du projet.
+      const empty = scope.track(new oc.TopoDS_Compound());
+      scope.track(new oc.TopoDS_Builder()).MakeCompound(empty);
+      const root = scope.track(shapeTool.AddShape(empty, true, false));
+      this.labelNameColor(scope, null, root, name, null);
+      // Une définition par pièce (partagée par toutes ses instances).
+      const defs = new Map<string, TDF_Label>();
+      for (const p of parts) {
+        const label = scope.track(shapeTool.AddShape(asOcct(p.shape).shape, false, false));
+        this.labelNameColor(scope, colorTool, label, p.name, p.color);
+        defs.set(p.key, label);
+      }
+      for (const inst of instances) {
+        const def = defs.get(inst.partKey);
+        if (!def) continue;
+        const m = inst.matrix;
+        const trsf = scope.track(new oc.gp_Trsf());
+        trsf.SetValues(m[0]!, m[4]!, m[8]!, m[12]!, m[1]!, m[5]!, m[9]!, m[13]!, m[2]!, m[6]!, m[10]!, m[14]!);
+        const comp = scope.track(shapeTool.AddComponent(root, def, scope.track(new oc.TopLoc_Location(trsf))));
+        this.labelNameColor(scope, null, comp, inst.name, null);
+      }
+    });
+  }
+
+  private labelNameColor(scope: Scope, colorTool: XCAFDoc_ColorTool | null, label: TDF_Label, name: string, color: string | null): void {
+    const oc = this.oc;
+    scope.track(oc.TDataStd_Name.Set(label, scope.track(new oc.TCollection_ExtendedString(name, true))));
+    if (colorTool && color) {
+      const [r, g, b] = hexToRgb(color);
+      colorTool.SetColor(label, scope.track(new oc.Quantity_ColorRGBA(r, g, b, 1)), oc.XCAFDoc_ColorType.XCAFDoc_ColorSurf);
+    }
+  }
+
+  /** Document XCAF rempli par `fill`, puis écrit en STEP AP214 (mm, noms et couleurs). */
+  private writeStep(fill: (scope: Scope, shapeTool: XCAFDoc_ShapeTool, colorTool: XCAFDoc_ColorTool) => void): string {
+    const oc = this.oc;
     return this.guard('export STEP', () =>
       withScope((scope) => {
         const doc = scope.track(new oc.TDocStd_Document(scope.track(new oc.TCollection_ExtendedString('XmlOcaf', true))));
@@ -1324,13 +1375,7 @@ export class OcctKernel implements GeometryKernel {
         const main = scope.track(doc.Main());
         const shapeTool = scope.track(oc.XCAFDoc_DocumentTool.ShapeTool(main));
         const colorTool = scope.track(oc.XCAFDoc_DocumentTool.ColorTool(main));
-        for (const item of items) {
-          const node = scope.track(shapeTool.NewShape());
-          shapeTool.SetShape(node, asOcct(item.shape).shape);
-          scope.track(oc.TDataStd_Name.Set(node, scope.track(new oc.TCollection_ExtendedString(item.name, true))));
-          const [r, g, b] = hexToRgb(item.color);
-          colorTool.SetColor(node, scope.track(new oc.Quantity_ColorRGBA(r, g, b, 1)), oc.XCAFDoc_ColorType.XCAFDoc_ColorSurf);
-        }
+        fill(scope, shapeTool, colorTool);
         shapeTool.UpdateAssemblies();
         const session = scope.track(new oc.XSControl_WorkSession());
         const writer = scope.track(new oc.STEPCAFControl_Writer(session, false));

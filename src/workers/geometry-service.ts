@@ -147,6 +147,17 @@ export class GeometryService {
   }
 
   exportStep(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[]): { text: string; warnings: string[] } {
+    if (placements) {
+      // Assemblage : arborescence STEP (une définition par pièce, une instance placée par insertion).
+      const { items, warnings } = this.partsToExport(doc, Array.from(new Set(placements.map((p) => p.partId))));
+      if (items.length === 0) throw new Error(warnings[0] ?? 'Aucune pièce à exporter.');
+      const text = this.kernel.exportStepAssembly(
+        this.asDocument(doc).name,
+        items.map((i) => ({ key: i.part.id, name: i.part.name, color: i.part.color, shape: i.shape })),
+        placements.filter((pl) => items.some((i) => i.part.id === pl.partId)).map((pl) => ({ partKey: pl.partId, name: pl.name, matrix: pl.matrix })),
+      );
+      return { text, warnings };
+    }
     const { shapes, warnings, placed } = this.exportShapes(doc, partIds, placements);
     try {
       const text = this.kernel.exportStep(shapes.map((i) => ({ name: i.name, color: i.color, shape: i.shape })));
