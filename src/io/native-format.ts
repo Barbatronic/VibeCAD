@@ -7,6 +7,7 @@
  */
 import type {
   Assembly,
+  AssemblyFastener,
   FabricationSettings,
   SimulationSettings,
   AssemblyInstance,
@@ -25,6 +26,7 @@ import type {
   SketchParams,
   SketchSupport,
 } from '../domain/model';
+import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
 import { constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
 import { featureDependencies } from '../features/registry';
 import { APP_NAME, APP_VERSION } from '../meta';
@@ -421,7 +423,31 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     }
     joints.push(joint);
   });
-  return { instances, joints };
+  const assembly: Assembly = { instances, joints };
+  if (o.fasteners !== undefined) {
+    const fasteners: AssemblyFastener[] = [];
+    arr(v, o, 'fasteners', path).forEach((raw, i) => {
+      const fp = `${path}.fasteners[${i}]`;
+      const fo = obj(v, raw, fp);
+      if (!fo) return;
+      const kind = oneOf(v, fo, 'kind', fp, FASTENER_TYPES.map((t) => t.kind));
+      const size = oneOf(v, fo, 'size', fp, METRIC_SIZES);
+      const at = obj(v, fo.at, `${fp}.at`) ?? {};
+      const fastener: AssemblyFastener = { id: str(v, fo, 'id', fp), kind, size, at: { instanceId: str(v, at, 'instanceId', `${fp}.at`), edge: readEdgeRef(v, at.edge, `${fp}.at.edge`) } };
+      if (fo.length !== undefined) fastener.length = num(v, fo, 'length', fp, { min: 0 });
+      if (fo.flip === true) fastener.flip = true;
+      // La norme fixe les tailles et les longueurs possibles.
+      if (!sizesOf(kind).includes(size)) v.error(`${fp}.size`, `taille ${size} absente de la norme ${fastenerType(kind).standard}`);
+      if (fastenerType(kind).screw && !lengthsOf(kind, size).includes(fastener.length ?? -1)) v.error(`${fp}.length`, `longueur non normalisée pour ${designation(kind, size)}`);
+      if (!ids.has(fastener.at.instanceId)) {
+        v.warnings.push(`Assemblage : « ${designation(kind, size, fastener.length)} » est posée sur une pièce retirée ; elle est supprimée.`);
+        return;
+      }
+      fasteners.push(fastener);
+    });
+    if (fasteners.length) assembly.fasteners = fasteners;
+  }
+  return assembly;
 }
 
 function readPart(v: Validator, x: unknown, path: string): Part | null {

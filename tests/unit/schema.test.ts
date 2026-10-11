@@ -45,6 +45,18 @@ describe('schéma JSON publié du format .vibecad', () => {
     expect(validate.errors ?? []).toEqual([]);
   });
 
+  it('valide la visserie de l’assemblage', () => {
+    const { doc, ids } = buildPlateDocument();
+    const edge = { faces: [{ featureId: ids.pocket, role: 'side' as const }, { featureId: ids.extrude, role: 'end' as const }] as [never, never] };
+    const assembly = {
+      instances: [{ id: 'i1', partId: ids.partId, name: 'Plaque', position: { x: 0, y: 0, z: 0 } }],
+      joints: [],
+      fasteners: [{ id: 'fs1', kind: 'iso7380' as const, size: 'M4' as const, length: 10, at: { instanceId: 'i1', edge } }],
+    };
+    validate(JSON.parse(serializeDocument({ ...doc, assembly })));
+    expect(validate.errors ?? []).toEqual([]);
+  });
+
   it('refuse un fichier incohérent', () => {
     const { doc } = buildPlateDocument();
     const file = JSON.parse(serializeDocument(doc));

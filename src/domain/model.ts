@@ -4,6 +4,7 @@
  * La géométrie (solides, maillages) est toujours reconstruite à partir de ce modèle.
  */
 import type { PlaneName } from '../math/frame';
+import type { FastenerKind, MetricSize } from './fasteners';
 
 export type { PlaneName } from '../math/frame';
 
@@ -154,10 +155,28 @@ export interface AssemblyJoint {
   tiltLimit?: number;
 }
 
+/**
+ * Élément de visserie normalisée (vis, écrou, rondelle) posé sur le bord circulaire d'un trou
+ * d'une pièce insérée : il suit la pièce. La tête (ou l'écrou, la rondelle) est du côté de la face
+ * où débouche le trou, la tige entre dans le trou. Plusieurs éléments sur le même bord s'empilent
+ * dans l'ordre de la liste (rondelle puis vis…). `flip` retourne l'élément.
+ */
+export interface AssemblyFastener {
+  id: Id;
+  kind: FastenerKind;
+  size: MetricSize;
+  /** Longueur normalisée (vis seulement). */
+  length?: number;
+  at: { instanceId: Id; edge: EdgeRef };
+  flip?: boolean;
+}
+
 export interface Assembly {
   /** La première pièce insérée est fixe. */
   instances: AssemblyInstance[];
   joints: AssemblyJoint[];
+  /** Visserie (facultatif). */
+  fasteners?: AssemblyFastener[];
 }
 
 export interface Part {

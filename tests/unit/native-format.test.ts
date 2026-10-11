@@ -56,6 +56,26 @@ describe('format natif .vibecad', () => {
     expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
   });
 
+  it('conserve la visserie de l’assemblage et refuse une longueur hors norme', () => {
+    const { doc, ids } = buildPlateDocument();
+    const edge = { faces: [{ featureId: ids.pocket, role: 'side' as const }, { featureId: ids.extrude, role: 'end' as const }] as [never, never] };
+    const assembly = {
+      instances: [{ id: 'i1', partId: ids.partId, name: 'Plaque', position: { x: 0, y: 0, z: 0 } }],
+      joints: [],
+      fasteners: [
+        { id: 'fs1', kind: 'iso4762' as const, size: 'M3' as const, length: 12, at: { instanceId: 'i1', edge } },
+        { id: 'fs2', kind: 'iso4032' as const, size: 'M3' as const, at: { instanceId: 'i1', edge }, flip: true },
+      ],
+    };
+    const text = serializeDocument({ ...doc, assembly });
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.assembly).toEqual(assembly);
+    const bad = JSON.parse(text);
+    bad.document.assembly.fasteners[0].length = 13;
+    const refused = parseNativeFile(JSON.stringify(bad));
+    expect(refused.ok).toBe(false);
+  });
+
   it('permet de modifier la première esquisse après réouverture', () => {
     const { doc, ids } = buildPlateDocument();
     const parsed = parseNativeFile(serializeDocument(doc));

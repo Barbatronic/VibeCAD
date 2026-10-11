@@ -1722,6 +1722,70 @@
               }
             }
           }
+        },
+        "fasteners": {
+          "type": "array",
+          "description": "Visserie normalisée posée sur le bord circulaire d'un trou d'une pièce insérée. Taille et longueur doivent exister dans la norme.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "iso4762",
+                  "iso7380",
+                  "iso10642",
+                  "iso4017",
+                  "iso4032",
+                  "iso7089"
+                ],
+                "description": "Vis CHC, BHC, FHC, H ; écrou H ; rondelle plate."
+              },
+              "size": {
+                "enum": [
+                  "M2",
+                  "M2.5",
+                  "M3",
+                  "M4",
+                  "M5",
+                  "M6",
+                  "M8",
+                  "M10",
+                  "M12"
+                ]
+              },
+              "length": {
+                "type": "number",
+                "description": "Longueur normalisée (vis seulement)."
+              },
+              "at": {
+                "type": "object",
+                "properties": {
+                  "instanceId": {
+                    "type": "string"
+                  },
+                  "edge": {
+                    "$ref": "#/$defs/edgeRef"
+                  }
+                },
+                "required": [
+                  "instanceId",
+                  "edge"
+                ]
+              },
+              "flip": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "size",
+              "at"
+            ]
+          }
         }
       }
     },

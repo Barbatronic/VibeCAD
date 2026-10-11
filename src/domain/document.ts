@@ -22,6 +22,7 @@ import type {
   RevolveAxis,
   RevolveFeature,
   Assembly,
+  AssemblyFastener,
   AssemblyInstance,
   AssemblyJoint,
   JointKind,
@@ -176,8 +177,10 @@ export function removeInstance(doc: CadDocument, instanceId: Id): CadDocument {
   return {
     ...doc,
     assembly: {
+      ...assembly,
       instances: assembly.instances.filter((i) => i.id !== instanceId),
       joints: assembly.joints.filter((j) => j.moving.instanceId !== instanceId && j.base.instanceId !== instanceId),
+      ...(assembly.fasteners ? { fasteners: assembly.fasteners.filter((f) => f.at.instanceId !== instanceId) } : {}),
     },
   };
 }
@@ -213,6 +216,28 @@ export function removeJoint(doc: CadDocument, jointId: Id): CadDocument {
   const assembly = doc.assembly;
   if (!assembly) return doc;
   return { ...doc, assembly: { ...assembly, joints: assembly.joints.filter((j) => j.id !== jointId) } };
+}
+
+/** Ajoute un élément de visserie (nommé par sa désignation, pas de nom propre). */
+export function addFastener(doc: CadDocument, fastener: Omit<AssemblyFastener, 'id'>): { doc: CadDocument; fastenerId: Id } {
+  const assembly = doc.assembly ?? emptyAssembly();
+  const list = assembly.fasteners ?? [];
+  const id = createId('fs', new Set(list.map((f) => f.id)));
+  return { doc: { ...doc, assembly: { ...assembly, fasteners: [...list, { ...fastener, id }] } }, fastenerId: id };
+}
+
+export function updateFastener(doc: CadDocument, fastenerId: Id, update: (f: AssemblyFastener) => AssemblyFastener): CadDocument {
+  const assembly = doc.assembly;
+  if (!assembly?.fasteners) return doc;
+  return { ...doc, assembly: { ...assembly, fasteners: assembly.fasteners.map((f) => (f.id === fastenerId ? update(f) : f)) } };
+}
+
+export function removeFasteners(doc: CadDocument, ids: readonly Id[]): CadDocument {
+  const assembly = doc.assembly;
+  if (!assembly?.fasteners) return doc;
+  const fasteners = assembly.fasteners.filter((f) => !ids.includes(f.id));
+  const { fasteners: _old, ...rest } = assembly;
+  return { ...doc, assembly: fasteners.length ? { ...rest, fasteners } : rest };
 }
 
 export function updateInstance(doc: CadDocument, instanceId: Id, update: (i: AssemblyInstance) => AssemblyInstance): CadDocument {
