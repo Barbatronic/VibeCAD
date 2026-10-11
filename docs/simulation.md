@@ -16,6 +16,9 @@ imprimée dépend aussi du remplissage et du sens des couches.
    du bleu (peu sollicitée) au rouge (très sollicitée), en contrainte ou en déplacement. Le
    **verdict** compare la contrainte maximale à la résistance du matériau :
    « La pièce tient » (marge ≥ 2), « C'est juste » (1 à 2), « Risque de casser » (< 1).
+   **Animer** fait aller et venir la pièce entre sa forme de départ et la déformée (aller-retour
+   de 1,6 s), pour voir dans quel sens elle plie ; l'animation est coupée si le système demande
+   moins d'animations (réglage d'accessibilité).
 
 Quand le plus grand déplacement dépasse 5 % de la taille de la pièce, un avertissement rappelle
 que le calcul suppose de petites déformations : la forme réelle sera différente (c'est le cas
@@ -86,7 +89,6 @@ d'itérations.
 
 ## Suite prévue
 
-- Animation de la déformation (aller-retour) ;
 - assemblages collés (pièces liées par des liaisons fixes) ;
 - animation des mécanismes ;
 - multigrille si le calcul est trop lent.
