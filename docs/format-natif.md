@@ -97,7 +97,7 @@ recalculé à l'ouverture.
 | `kind` | Champs | Sens |
 | --- | --- | --- |
 | `plane` | `plane` : `XY`, `XZ` ou `YZ` ; `offset` (mm) | plan d'origine (décalé le long de sa normale). XY : vu de dessus (normale +Z) ; XZ : vu de face (normale −Y) ; YZ : vu de droite (normale +X), comme FreeCAD |
-| `face` | `ref` : `{ featureId, role, entityId?, index? }` | face plane désignée par une **référence sémantique** : `end` / `start` (faces d'arrivée / de départ d'une extrusion ou d'une poche), `side` + `entityId` (face latérale engendrée par cet élément d'esquisse), `imported` + `index` (face d'un solide importé), `blend` + `index` (face créée par un congé ou un chanfrein) |
+| `face` | `ref` : `{ featureId, role, entityId?, index? }` | face plane désignée par une **référence sémantique** : `end` / `start` (faces d'arrivée / de départ d'une extrusion ou d'une poche), `side` + `entityId` (face latérale engendrée par cet élément d'esquisse ; des segments alignés ou des arcs d'un même cercle qui se suivent donnent une seule face, désignée par chacun d'eux), `imported` + `index` (face d'un solide importé), `blend` + `index` (face créée par un congé ou un chanfrein) |
 
 **Éléments** (`entities`), coordonnées en mm dans le repère de l'esquisse :
 
