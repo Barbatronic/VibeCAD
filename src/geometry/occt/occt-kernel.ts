@@ -84,6 +84,7 @@ export function sameFaceTag(a: FaceTag, b: FaceTag): boolean {
 
 /** Étiquette d'une face copiée (voir `CopyTag`). */
 function copyTag(t: FaceTag, retag: CopyTag): FaceTag {
+  if ('keep' in retag) return { ...t };
   if ('index' in retag) return { featureId: retag.featureId, role: t.role, ...(t.entityId !== undefined ? { entityId: t.entityId } : {}), index: retag.index };
   return { featureId: retag.featureId, role: t.role, entityId: `${t.featureId}/${t.entityId ?? ''}`, ...(t.index !== undefined ? { index: t.index } : {}) };
 }

@@ -832,6 +832,76 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "split"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "plane",
+                "offset",
+                "keep",
+                "gap"
+              ],
+              "properties": {
+                "plane": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "offset": {
+                  "type": "number"
+                },
+                "keep": {
+                  "enum": [
+                    "below",
+                    "above",
+                    "both"
+                  ]
+                },
+                "gap": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
         }
       ]
     },

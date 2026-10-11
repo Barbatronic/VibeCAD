@@ -30,6 +30,7 @@ export function describeFaceRef(ref: FaceRef, part: Part | undefined): string {
   const name = feature ? `« ${feature.name} »` : 'une étape supprimée';
   if (feature?.type === 'pattern') return `face de l’exemplaire n° ${(ref.index ?? 0) + 1} de ${name}`;
   if (feature?.type === 'mirror') return `face du reflet de ${name}`;
+  if (feature?.type === 'split') return `face de coupe de ${name}`;
   if (ref.role === 'imported') return `face n° ${(ref.index ?? 0) + 1} de ${name}`;
   if (ref.role === 'blend') return feature?.type === 'chamfer' ? `face de chanfrein de ${name}` : `face arrondie de ${name}`;
   if (feature?.type === 'pocket') return ref.role === 'side' ? `paroi de ${name}` : `fond de ${name}`;

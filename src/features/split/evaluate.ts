@@ -1,0 +1,102 @@
+import type { SplitFeature } from '../../domain/model';
+import { issue, okStatus } from '../../domain/status';
+import type { KernelShape } from '../../geometry/kernel';
+import { canonicalFrame } from '../../math/frame';
+import { add3, length3, scale3, vec3, type Vec3 } from '../../math/vec';
+import type { FeatureEvaluator } from '../evaluation';
+import { SPLIT_AXIS, splitDefinition } from './definition';
+
+/**
+ * Découpe : la pièce est coupée par deux demi-espaces (de grandes boîtes posées sur le plan).
+ * La face de coupe du morceau du dessous vient de la boîte du dessus (rôle `start`), celle du
+ * morceau du dessus de la boîte du dessous (rôle `end`), toutes deux au nom de la découpe.
+ */
+export const evaluateSplit: FeatureEvaluator<SplitFeature> = (feature, ctx) => {
+  const paramIssues = splitDefinition.validate(feature);
+  if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
+  if (!ctx.shape || !ctx.shapeAnalysis?.bbox) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
+  const p = feature.params;
+  const kernel = ctx.kernel;
+  let origin: Vec3;
+  let normal: Vec3;
+  if (p.plane.kind === 'plane') {
+    const axis = SPLIT_AXIS[p.plane.plane];
+    normal = vec3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0);
+    origin = scale3(normal, p.offset);
+  } else {
+    const found = kernel.findFacePlane(ctx.shape, p.plane.ref);
+    if (found.status !== 'found') return { status: issue(feature.id, 'error', 'SPLIT_PLANE_LOST', { relatedFeatureId: p.plane.ref.featureId }) };
+    normal = found.normal;
+    origin = add3(found.origin, scale3(found.normal, p.offset));
+  }
+  // Demi-espaces : boîtes assez grandes pour contenir toute la pièce, dans le repère du plan.
+  const f = canonicalFrame(origin, normal);
+  const { min, max } = ctx.shapeAnalysis.bbox;
+  const size = 10 + 2 * (length3(vec3(max.x - min.x, max.y - min.y, max.z - min.z)) + length3(add3(min, scale3(f.origin, -1))));
+  const matrix = [f.xAxis.x, f.xAxis.y, f.xAxis.z, 0, f.yAxis.x, f.yAxis.y, f.yAxis.z, 0, f.normal.x, f.normal.y, f.normal.z, 0, f.origin.x, f.origin.y, f.origin.z, 1];
+  const halfSpace = (above: boolean): KernelShape => {
+    const local = kernel.makePrimitive({
+      featureId: feature.id,
+      shape: 'box',
+      position: { x: -size, y: -size, z: above ? 0 : -size },
+      width: 2 * size,
+      depth: 2 * size,
+      height: size,
+      diameter: 1,
+      thickness: 1,
+    });
+    try {
+      return kernel.transformed(local, matrix, { keep: true });
+    } finally {
+      kernel.dispose(local);
+    }
+  };
+  const side = (keepAbove: boolean): KernelShape | null => {
+    const box = halfSpace(!keepAbove);
+    try {
+      const piece = kernel.cut(ctx.shape!, box);
+      if (kernel.analyze(piece).solidCount > 0) return piece;
+      kernel.dispose(piece);
+      return null;
+    } finally {
+      kernel.dispose(box);
+    }
+  };
+  const before = ctx.shapeAnalysis.volume;
+  const tiny = Math.max(1e-9, before * 1e-9);
+  let shape: KernelShape;
+  let outside = false;
+  if (p.keep !== 'both') {
+    const piece = side(p.keep === 'above');
+    if (!piece) return { status: issue(feature.id, 'error', 'SPLIT_NOTHING_LEFT') };
+    shape = piece;
+    outside = Math.abs(kernel.analyze(piece).volume - before) <= tiny;
+  } else {
+    const below = side(false);
+    const above = side(true);
+    if (!below || !above) {
+      const only = below ?? above;
+      if (!only) return { status: issue(feature.id, 'error', 'SPLIT_NOTHING_LEFT') };
+      shape = only;
+      outside = true;
+    } else {
+      // Le morceau du dessus est écarté le long de la normale (étiquettes conservées).
+      const d = scale3(normal, p.gap);
+      let moved: KernelShape | null = null;
+      try {
+        moved = kernel.transformed(above, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, d.x, d.y, d.z, 1], { keep: true });
+        shape = kernel.fuse(below, moved);
+      } finally {
+        kernel.dispose(below);
+        kernel.dispose(above);
+        if (moved) kernel.dispose(moved);
+      }
+    }
+  }
+  const analysis = kernel.analyze(shape);
+  if (!analysis.valid || analysis.solidCount === 0) {
+    kernel.dispose(shape);
+    return { status: issue(feature.id, 'error', 'INVALID_SOLID') };
+  }
+  return { status: outside ? issue(feature.id, 'warning', 'SPLIT_OUTSIDE') : okStatus(feature.id), shape, analysis };
+};

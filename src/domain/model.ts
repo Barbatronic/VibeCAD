@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -164,6 +164,7 @@ export type PrimitiveFeature = FeatureBase<'primitive', PrimitiveParams>;
 export type ShellFeature = FeatureBase<'shell', ShellParams>;
 export type LoftFeature = FeatureBase<'loft', LoftParams>;
 export type SweepFeature = FeatureBase<'sweep', SweepParams>;
+export type SplitFeature = FeatureBase<'split', SplitParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -460,6 +461,22 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
 export interface MirrorParams {
   source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
   plane: MirrorPlane;
+}
+
+/** Côté gardé par une découpe : sous le plan, au-dessus, ou les deux morceaux écartés. */
+export type SplitKeep = 'below' | 'above' | 'both';
+
+/**
+ * Découpe en deux par un plan. Le plan est un plan d'origine (normale +X, +Y ou +Z) placé à la
+ * coordonnée `offset`, ou une face plane décalée de `offset` le long de sa normale (négatif :
+ * dans la pièce). « Au-dessus » est le côté vers lequel pointe la normale. Avec `both`, le
+ * morceau du dessus est écarté de `gap` mm pour que les deux morceaux restent séparés.
+ */
+export interface SplitParams {
+  plane: MirrorPlane;
+  offset: number;
+  keep: SplitKeep;
+  gap: number;
 }
 
 export type PrimitiveShape = 'box' | 'cylinder' | 'sphere' | 'torus';

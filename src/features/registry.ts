@@ -5,6 +5,7 @@
 import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
 import { sweepDefinition } from './sweep/definition';
+import { splitDefinition } from './split/definition';
 import { loftDefinition } from './loft/definition';
 import { shellDefinition } from './shell/definition';
 import { primitiveDefinition } from './primitive/definition';
@@ -26,6 +27,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   revolve: revolveDefinition,
   loft: loftDefinition,
   sweep: sweepDefinition,
+  split: splitDefinition,
   pattern: patternDefinition,
   mirror: mirrorDefinition,
   shell: shellDefinition,

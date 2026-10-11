@@ -240,7 +240,7 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
   { name: 'arrondis, chanfreins et coques', types: ['fillet', 'chamfer', 'shell'] },
-  { name: 'répétitions et symétries', types: ['pattern', 'mirror'] },
+  { name: 'répétitions, symétries et découpes', types: ['pattern', 'mirror', 'split'] },
 ];
 
 /** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */

@@ -232,7 +232,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
 
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
-  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'shell');
+  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'shell');
   // Centre de gravité de la pièce active (pièce entière : pas pendant une coupe ni une esquisse).
   const points: { at: Vec3; label: string }[] = [];
   const active = s.display[s.activePartId]?.result.analysis;

@@ -2,6 +2,7 @@
 import type { Feature, FeatureType } from '../domain/model';
 import type { FeatureEvaluator } from './evaluation';
 import { evaluateSweep } from './sweep/evaluate';
+import { evaluateSplit } from './split/evaluate';
 import { evaluateLoft } from './loft/evaluate';
 import { evaluateShell } from './shell/evaluate';
 import { evaluatePrimitive } from './primitive/evaluate';
@@ -25,6 +26,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   revolve: evaluateRevolve,
   loft: evaluateLoft,
   sweep: evaluateSweep,
+  split: evaluateSplit,
   pattern: evaluatePattern,
   mirror: evaluateMirror,
   shell: evaluateShell,

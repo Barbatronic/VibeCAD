@@ -189,9 +189,11 @@ export interface DistanceResult {
  * Étiquetage des faces d'une copie :
  * - `index` : copie n° `index` d'une répétition (ou d'une symétrie d'étape) : rôle et élément gardés ;
  * - `whole` : symétrie de toute la pièce : l'élément devient « <étape d'origine>/<élément> » et
- *   l'index d'origine est conservé.
+ *   l'index d'origine est conservé ;
+ * - `keep` : simple déplacement (morceau écarté d'une découpe) : les étiquettes restent celles
+ *   d'origine.
  */
-export type CopyTag = { featureId: Id; index: number } | { featureId: Id; whole: true };
+export type CopyTag = { featureId: Id; index: number } | { featureId: Id; whole: true } | { keep: true };
 
 export class KernelError extends Error {
   constructor(

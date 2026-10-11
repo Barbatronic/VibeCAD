@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeSweepFeature, makeShellFeature, makeSplitFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addArc, addCircle, addConstraint, addLine, addRectangle } from '../../src/sketch/model';
@@ -240,5 +240,21 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(res!.analysis!.volume, 1);
+  });
+  it('découpe en deux (plan YZ, les deux morceaux écartés de 10 mm) : deux solides valides, même volume', () => {
+    const { doc, ids } = buildPlateDocument();
+    const base = makeSplitFeature(doc, findPart(doc, ids.partId)!);
+    const split = addFeature(doc, ids.partId, { ...base, params: { plane: { kind: 'plane', plane: 'YZ' }, offset: 30, keep: 'both', gap: 10 } });
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(split);
+    const file = join(outDir, 'decoupe-yz.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Plaque découpée', color: '#3d6fb6', shape: res!.shape! }]));
+    // FreeCAD montre les deux morceaux et l'ensemble qui les réunit.
+    const objects = checkInFreeCad(file);
+    const pieces = objects.filter((x) => x.solids === 1);
+    expect(pieces.length).toBe(2);
+    expect(pieces.every((x) => x.valid)).toBe(true);
+    expect(pieces[0]!.volume + pieces[1]!.volume).toBeCloseTo(9000 - Math.PI * 9 * 5, 3);
+    expect(Math.max(...pieces.map((x) => x.bbox[3]!))).toBeCloseTo(70, 3);
+    expect(Math.min(...pieces.map((x) => x.bbox[3]!))).toBeCloseTo(30, 3);
   });
 });

@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, SplitFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -853,6 +853,7 @@ export class AppController {
     const feature = draft.feature;
     if (feature.type === 'pattern') return this.pickPatternAxis(pick, feature);
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
+    if (feature.type === 'split') return this.pickSplitPlane(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
     if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
@@ -911,6 +912,32 @@ export class AppController {
     const ref = pickFaceReference(face.tags.filter((t) => t.featureId !== feature.id), part);
     if (!ref) return this.explain('Choisissez une face de la pièce, pas du reflet.');
     this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, plane: { kind: 'face', ref } } } });
+  }
+
+  /**
+   * Clic dans la vue pendant l'édition d'une découpe : la face plane cliquée donne le plan, placé
+   * d'abord à mi-épaisseur de la pièce (décalage négatif, vers l'intérieur).
+   */
+  private pickSplitPlane(pick: ModelPick, feature: SplitFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une face de la pièce en cours de modification.');
+    if (pick.kind !== 'face') return this.explain('Cliquez une face plane : le plan de découpe lui sera parallèle.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    const face = mesh?.faces[pick.index];
+    if (!mesh || !face || !part) return;
+    if (!face.plane) return this.explain('Cette face est courbe : choisissez une face plane.');
+    const ref = pickFaceReference(face.tags.filter((t) => t.featureId !== feature.id), part);
+    if (!ref) return this.explain('Choisissez une face de la pièce d’origine, pas une face de coupe.');
+    const { origin, normal } = face.plane;
+    let depth = 0;
+    const pos = mesh.positions;
+    for (let k = 0; k < pos.length; k += 3) depth = Math.max(depth, -((pos[k]! - origin.x) * normal.x + (pos[k + 1]! - origin.y) * normal.y + (pos[k + 2]! - origin.z) * normal.z));
+    const offset = -Math.round((depth / 2) * 10) / 10;
+    const next: SplitFeature = { ...feature, params: { ...feature.params, plane: { kind: 'face', ref }, offset } };
+    this.setDraftField('offset', String(offset).replace('.', ','), { feature: next });
+    this.setDraftField('pick', '', { feature: next });
   }
 
   /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */

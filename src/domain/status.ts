@@ -37,6 +37,9 @@ export type FeatureIssueCode =
   | 'PATTERN_AXIS_INVALID'
   | 'PATTERN_COPIES_OUTSIDE'
   | 'MIRROR_PLANE_LOST'
+  | 'SPLIT_PLANE_LOST'
+  | 'SPLIT_OUTSIDE'
+  | 'SPLIT_NOTHING_LEFT'
   | 'SHELL_FACE_LOST'
   | 'SHELL_FAILED'
   | 'LOFT_PROFILE'
@@ -103,6 +106,9 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   LOFT_PROFILE: 'Chaque esquisse d’un lissage doit avoir un seul contour fermé, sans trou, sur un plan différent des autres.',
   SHELL_FAILED: 'La coque n’a pas pu être calculée : essayez une épaisseur plus petite que les parties fines de la pièce, ou ouvrez d’autres faces.',
   MIRROR_PLANE_LOST: 'La face choisie comme plan de symétrie n’existe plus ou n’est pas plane : choisissez un autre plan.',
+  SPLIT_PLANE_LOST: 'La face choisie pour la découpe n’existe plus ou n’est pas plane : choisissez un autre plan.',
+  SPLIT_OUTSIDE: 'Le plan de découpe ne traverse pas la pièce : rien n’est coupé. Changez sa position.',
+  SPLIT_NOTHING_LEFT: 'Il ne reste rien de ce côté du plan : gardez l’autre côté ou déplacez le plan.',
   MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',
