@@ -68,6 +68,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Coque** : vider la pièce en gardant une paroi d'épaisseur choisie (vers l'intérieur ou
   l'extérieur), en cliquant les faces à laisser ouvertes (un pot, une boîte) ; sans face ouverte, la
   pièce est creuse et fermée.
+- **Épaissir** (niveau Expert) : grossir ou amincir toute la pièce d'une même épaisseur (coins
+  arrondis ou vifs), par exemple 0,2 mm de moins pour laisser du jeu entre deux pièces imprimées.
 - **Dépouille** (niveau Expert) : incliner de quelques degrés les côtés cliqués (plans ou
   cylindriques) autour d'un plan neutre (XY, XZ, YZ ou une face plane), comme une pièce qui doit
   sortir d'un moule.

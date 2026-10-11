@@ -229,6 +229,17 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Épaissir (`"type": "thicken"`)
+
+```json
+{ "id": "th-…", "type": "thicken", "name": "Épaisseur 1", "params": { "distance": -0.2, "corners": "round" } }
+```
+
+Toute la pièce est décalée de `distance` mm : positif, elle grossit (les trous rétrécissent) ;
+négatif, elle s'amincit. `corners` : `round` (distance exacte, coins sortants arrondis) ou `sharp`
+(faces prolongées). Chaque face garde les étiquettes de son originale ; les faces de raccord sont
+`side` + `join`. Erreur `THICKEN_FAILED` (par exemple amincir plus que la moitié d'une paroi).
+
 ### Dépouille (`"type": "draft"`)
 
 ```json
