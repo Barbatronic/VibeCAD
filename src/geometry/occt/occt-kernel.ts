@@ -1109,8 +1109,17 @@ export class OcctKernel implements GeometryKernel {
         const edgeGroups = new Int32Array(buffer2, egPtr >>> 0, egSize).slice();
         const uniqueEdges = this.uniqueEdges(src.shape);
         for (const e of uniqueEdges) scope.track(e);
+        // Empreinte de chaque arête calculée une seule fois (appel au moteur) ; plusieurs arêtes
+        // peuvent partager une empreinte, d'où des listes.
         const edgeByHash = new Map<number, TopoDS_Edge>();
-        for (const e of uniqueEdges) edgeByHash.set(this.hash(e), e);
+        const edgesByHash = new Map<number, TopoDS_Edge[]>();
+        for (const e of uniqueEdges) {
+          const h = this.hash(e);
+          edgeByHash.set(h, e);
+          const list = edgesByHash.get(h);
+          if (list) list.push(e);
+          else edgesByHash.set(h, [e]);
+        }
         const edges: EdgeMeshInfo[] = [];
         const meshIndexOfEdge = new Map<TopoDS_Edge, number>();
         for (let g = 0; g < edgeGroups.length; g += 3) {
@@ -1133,7 +1142,7 @@ export class OcctKernel implements GeometryKernel {
           for (const e of this.explore(tf.face, 'edge')) {
             scope.track(e);
             const h = this.hash(e);
-            const match = uniqueEdges.find((u) => this.hash(u) === h && u.IsSame(e));
+            const match = edgesByHash.get(h)?.find((u) => u.IsSame(e));
             const ei = match ? meshIndexOfEdge.get(match) : undefined;
             if (ei !== undefined && !edges[ei]!.faces.includes(fi)) edges[ei]!.faces.push(fi);
           }
