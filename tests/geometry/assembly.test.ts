@@ -93,7 +93,7 @@ describe('assemblage', () => {
     expect(moved.jointFrames.get('j1')!.base.origin).toEqual({ x: 15, y: 15, z: 5 });
   });
 
-  it('signale une pièce tenue deux fois et une pièce fixe utilisée comme mobile', () => {
+  it('liaison en double : compatible, elle est satisfaite ; incompatible, la boucle est signalée', () => {
     const { doc, plateId, pinId } = plateAndPin();
     const m = meshes(doc);
     const lcsPin = circleLcs(doc, m.get(pinId)!, pinId, 0);
@@ -118,9 +118,22 @@ describe('assemblage', () => {
       },
       (id) => m.get(id),
     );
-    expect(placed.issues.get('j2')).toBe('LOOP');
-    expect(placed.issues.get('j3')).toBe('FIXED_MOVING');
-    expect(placed.issues.has('j1')).toBe(false);
+    // Les liaisons j2 et j3 redisent j1 (la pièce fixe peut aussi être « mobile » d'une boucle).
+    expect(placed.issues.size).toBe(0);
+    expect(placed.closingJoints).toEqual(new Set(['j2', 'j3']));
+    // Liaisons fixes, aucun réglage libre : un décalage différent ne peut pas être satisfait.
+    const clash = solveAssembly(
+      {
+        instances: [
+          { id: 'i1', partId: plateId, name: 'Plaque', position: { x: 0, y: 0, z: 0 } },
+          { id: 'i2', partId: pinId, name: 'Goupille', position: { x: 80, y: 0, z: 0 } },
+        ],
+        joints: [joint('j1', 'i2', 'i1'), { ...joint('j2', 'i2', 'i1'), offset: 3 }],
+      },
+      (id) => m.get(id),
+    );
+    expect(clash.issues.get('j2')).toBe('LOOP_UNSOLVED');
+    expect(clash.issues.has('j1')).toBe(false);
   });
 
   it('repère sur un sommet d’une face : il reste au coin quand la pièce change', () => {

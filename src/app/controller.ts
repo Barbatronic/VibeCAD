@@ -54,7 +54,7 @@ import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
-import { clampToLimits, isSphereLcs, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { clampToLimits, isSphereLcs, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
@@ -2002,10 +2002,13 @@ export class AppController {
     if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
     // La pièce fixe ne bouge jamais : si elle a été choisie en premier, les rôles sont échangés.
     const fixedId = s.doc.assembly!.instances[0]!.id;
-    const [moving, base] = mode.moving.instanceId === fixedId ? [end, mode.moving] : [mode.moving, end];
-    if (s.doc.assembly!.joints.some((j) => j.moving.instanceId === moving.instanceId)) {
-      return this.explain('Cette pièce est déjà tenue par une liaison : supprimez-la d’abord pour en créer une autre.');
-    }
+    // Pièces déjà tenues (la fixe, et celles placées par une liaison). Si la pièce choisie en
+    // premier l'est déjà et pas l'autre, les rôles sont échangés ; si les deux le sont, la
+    // nouvelle liaison referme une boucle (quadrilatère articulé…) : le solveur la satisfait.
+    const held = new Set([fixedId, ...s.doc.assembly!.joints.map((j) => j.moving.instanceId)]);
+    const swap = mode.moving.instanceId === fixedId || (held.has(mode.moving.instanceId) && !held.has(end.instanceId));
+    const [moving, base] = swap ? [end, mode.moving] : [mode.moving, end];
+    const closesLoop = held.has(moving.instanceId);
     const meshOf = (end: JointEnd) => {
       const i = s.doc.assembly!.instances.find((x) => x.id === end.instanceId);
       return i ? s.display[i.partId]?.mesh : undefined;
@@ -2017,7 +2020,11 @@ export class AppController {
     // Une sphère donne une rotule ; deux bords circulaires, un pivot ; sinon une liaison fixe.
     const kind: JointKind = sphere ? 'spherical' : moving.lcs.kind === 'circle' && base.lcs.kind === 'circle' ? 'revolute' : 'fixed';
     const added = addJoint(s.doc, { kind, moving, base, flip: false, angle: 0, offset: 0 });
-    this.commit(added.doc, 'Créer une liaison', { mode: model, assemblySelection: { kind: 'joint', id: added.jointId } });
+    this.commit(this.settleLoops(added.doc), 'Créer une liaison', { mode: model, assemblySelection: { kind: 'joint', id: added.jointId } });
+    if (closesLoop) {
+      const issue = this.assemblyPlacement()?.issues.get(added.jointId);
+      this.toast(issue ? 'error' : 'success', issue ? JOINT_ISSUE_MESSAGES[issue] : 'Boucle refermée : faites tourner une pièce de la boucle, les autres suivent.');
+    }
   }
 
   /**
@@ -2046,15 +2053,30 @@ export class AppController {
     this.set({ assemblyHand: hand });
   }
 
+  /**
+   * Boucles fermées : reporte dans le document les réglages que le solveur a dû changer pour que
+   * chaque boucle se referme (la liaison `driver`, celle que l'on manipule, garde sa valeur).
+   * Sans ce report, la position affichée et les réglages enregistrés divergeraient.
+   */
+  private settleLoops(doc: CadDocument, driver?: Id): CadDocument {
+    if (!doc.assembly?.joints.length) return doc;
+    const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, driver ? { driver } : {});
+    let out = doc;
+    for (const [id, v] of placement.solvedValues) {
+      out = updateJoint(out, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
+    }
+    return out;
+  }
+
   /** Change une liaison (type, retournement, limites…) : une action annulable. */
   setJoint(jointId: Id, patch: Partial<AssemblyJoint>, label = 'Modifier une liaison'): void {
-    this.commit(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), label);
+    this.commit(this.settleLoops(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), jointId), label);
   }
 
   /** Réglage en continu (curseur, glisser) : le modèle suit sans remplir l'historique. */
   setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset' | 'tilt' | 'tiltDirection'>>): void {
     if (!this.liveStart) this.liveStart = this.state.doc;
-    this.set({ doc: updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })) });
+    this.set({ doc: this.settleLoops(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), jointId) });
   }
 
   /** Fin d'un réglage en continu : une seule action dans l'historique. */

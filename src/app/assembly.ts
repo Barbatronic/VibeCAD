@@ -148,13 +148,21 @@ export function jointMatrix(
   return multiply4(m, invertRigid4(frameMatrix4(movingFrame)));
 }
 
-export type JointIssue = 'LCS_LOST' | 'LOOP' | 'FIXED_MOVING';
+export type JointIssue = 'LCS_LOST' | 'LOOP_UNSOLVED';
 
 export const JOINT_ISSUE_MESSAGES: Record<JointIssue, string> = {
   LCS_LOST: 'Un repère de cette liaison n’existe plus (la pièce a changé) : choisissez un nouveau repère.',
-  LOOP: 'Cette pièce est déjà tenue par une autre liaison : une pièce ne peut être tenue que par une seule liaison.',
-  FIXED_MOVING: 'La première pièce de l’assemblage est fixe : elle ne peut pas être la pièce mobile d’une liaison.',
+  LOOP_UNSOLVED:
+    'Cette liaison referme une boucle que les pièces ne peuvent pas atteindre (trop courtes, trop longues, ou bloquées) : changez les longueurs, le type de liaison ou les réglages.',
 };
+
+/** Réglages libres d'une liaison (ceux que le solveur de boucles peut ajuster). */
+export interface JointValues {
+  angle: number;
+  offset: number;
+  tilt: number;
+  tiltDirection: number;
+}
 
 export interface AssemblyPlacement {
   /** Placement de chaque pièce insérée (coordonnées du monde). */
@@ -162,6 +170,13 @@ export interface AssemblyPlacement {
   /** Repères des liaisons dans le monde (origine et axe), pour l'affichage et le glisser. */
   jointFrames: Map<Id, { base: Frame3D; moving: Frame3D }>;
   issues: Map<Id, JointIssue>;
+  /**
+   * Boucles fermées : réglages recalculés des liaisons qui ont dû bouger pour que la boucle se
+   * referme (à reporter dans le document pour que l'assemblage reste continu).
+   */
+  solvedValues: Map<Id, JointValues>;
+  /** Liaisons qui referment une boucle (une pièce tenue par deux chemins). */
+  closingJoints: Set<Id>;
 }
 
 function worldFrame(m: Mat4, f: Frame3D): Frame3D {
@@ -170,66 +185,216 @@ function worldFrame(m: Mat4, f: Frame3D): Frame3D {
   return { origin: t(f.origin), xAxis: d(f.xAxis), yAxis: d(f.yAxis), normal: d(f.normal) };
 }
 
-/** Place toutes les pièces insérées ; `meshOf` donne le maillage d'une pièce du projet. */
-export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshData | null | undefined): AssemblyPlacement {
-  const matrices = new Map<Id, Mat4>();
+const valuesOf = (j: AssemblyJoint): JointValues => ({ angle: j.angle, offset: j.offset, tilt: j.tilt ?? 0, tiltDirection: j.tiltDirection ?? 0 });
+
+/** Réglages qu'un type de liaison laisse libres. */
+function freeKeys(kind: JointKind): (keyof JointValues)[] {
+  const f = jointFreedoms(kind);
+  return [...(f.angle ? (['angle'] as const) : []), ...(f.offset ? (['offset'] as const) : []), ...(f.tilt ? (['tilt', 'tiltDirection'] as const) : [])];
+}
+
+/** Échelle (mm) donnée à un écart d'orientation dans les équations de fermeture. */
+const AXIS_SCALE = 20;
+/** Fermeture acceptée : écart de position (mm) et d'orientation résiduels. */
+const CLOSURE_TOL = 1e-3;
+
+/**
+ * Place toutes les pièces insérées ; `meshOf` donne le maillage d'une pièce du projet.
+ *
+ * Les liaisons forment un arbre depuis la pièce fixe : chaque pièce est placée par la première
+ * liaison qui la tient. Une liaison de plus vers une pièce déjà tenue referme une boucle
+ * (quadrilatère articulé, bielle-manivelle…) : elle devient une contrainte, satisfaite en ajustant
+ * les réglages libres (angles, décalages) des liaisons de l'arbre, au plus près de leurs valeurs
+ * enregistrées (Levenberg-Marquardt). La liaison `driver` (celle que l'on manipule) n'est pas
+ * ajustée : ce sont les autres qui suivent.
+ */
+export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshData | null | undefined, options: { driver?: Id } = {}): AssemblyPlacement {
   const jointFrames = new Map<Id, { base: Frame3D; moving: Frame3D }>();
   const issues = new Map<Id, JointIssue>();
+  const solvedValues = new Map<Id, JointValues>();
   const instance = new Map(assembly.instances.map((i) => [i.id, i]));
   const fixed = assembly.instances[0];
-  if (fixed) matrices.set(fixed.id, translation4(fixed.position));
-  const held = new Set<Id>();
-  const pending: AssemblyJoint[] = [];
+
+  // Repères locaux de chaque liaison (calculés une fois).
+  const frames = new Map<Id, { bf: Frame3D; mf: Frame3D }>();
   for (const j of assembly.joints) {
-    if (fixed && j.moving.instanceId === fixed.id) issues.set(j.id, 'FIXED_MOVING');
-    else if (held.has(j.moving.instanceId)) issues.set(j.id, 'LOOP');
+    const b = instance.get(j.base.instanceId);
+    const m = instance.get(j.moving.instanceId);
+    const bm = b && meshOf(b.partId);
+    const mm = m && meshOf(m.partId);
+    const bf = bm ? lcsFrame(bm, j.base.lcs) : null;
+    const mf = mm ? lcsFrame(mm, j.moving.lcs) : null;
+    if (bf && mf) frames.set(j.id, { bf, mf });
+    else issues.set(j.id, 'LCS_LOST');
+  }
+
+  // Arbre : la première liaison qui tient une pièce la place ; les autres referment une boucle.
+  const held = new Set<Id>(fixed ? [fixed.id] : []);
+  const tree: AssemblyJoint[] = [];
+  const closing: AssemblyJoint[] = [];
+  for (const j of assembly.joints) {
+    if (!frames.has(j.id)) continue;
+    if (held.has(j.moving.instanceId)) closing.push(j);
     else {
       held.add(j.moving.instanceId);
-      pending.push(j);
+      tree.push(j);
     }
   }
-  // Placement de proche en proche, depuis la pièce fixe.
-  let progress = true;
-  while (progress && pending.length > 0) {
-    progress = false;
-    for (let k = 0; k < pending.length; k++) {
-      const j = pending[k]!;
-      const baseMatrix = matrices.get(j.base.instanceId);
-      if (!baseMatrix) continue;
-      pending.splice(k--, 1);
-      progress = true;
-      const baseInst = instance.get(j.base.instanceId);
-      const movingInst = instance.get(j.moving.instanceId);
-      const baseMesh = baseInst && meshOf(baseInst.partId);
-      const movingMesh = movingInst && meshOf(movingInst.partId);
-      const bf = baseMesh ? lcsFrame(baseMesh, j.base.lcs) : null;
-      const mf = movingMesh ? lcsFrame(movingMesh, j.moving.lcs) : null;
-      if (!bf || !mf || !movingInst) {
-        issues.set(j.id, 'LCS_LOST');
-        continue;
+  // Ordre de placement : de proche en proche depuis la pièce fixe ; les chaînes qui ne
+  // rejoignent rien de fixe partent de la position enregistrée de leur pièce de référence.
+  const placed = new Set<Id>(fixed ? [fixed.id] : []);
+  const order: AssemblyJoint[] = [];
+  const rest = [...tree];
+  while (rest.length > 0) {
+    let k = rest.findIndex((j) => placed.has(j.base.instanceId));
+    if (k < 0) {
+      k = 0;
+      placed.add(rest[0]!.base.instanceId);
+    }
+    const j = rest.splice(k, 1)[0]!;
+    placed.add(j.moving.instanceId);
+    order.push(j);
+  }
+
+  const place = (values: Map<Id, JointValues>): Map<Id, Mat4> => {
+    const matrices = new Map<Id, Mat4>();
+    for (const i of assembly.instances) matrices.set(i.id, translation4(i.position));
+    for (const j of order) {
+      const f = frames.get(j.id)!;
+      const v = values.get(j.id) ?? valuesOf(j);
+      matrices.set(j.moving.instanceId, jointMatrix({ ...j, ...v }, matrices.get(j.base.instanceId)!, f.bf, f.mf));
+    }
+    return matrices;
+  };
+
+  // Écarts de fermeture d'une liaison de boucle, selon ce que son type impose.
+  const closure = (j: AssemblyJoint, matrices: Map<Id, Mat4>): number[] => {
+    const f = frames.get(j.id)!;
+    const mb = matrices.get(j.base.instanceId)!;
+    const B = worldFrame(mb, f.bf);
+    const M = worldFrame(matrices.get(j.moving.instanceId)!, f.mf);
+    const ideal = worldFrame(jointMatrix(j, mb, f.bf, f.mf), f.mf);
+    const zt = ideal.normal;
+    const dO = sub3(M.origin, B.origin);
+    const along = dot3(dO, B.normal);
+    const perp = sub3(dO, scale3(B.normal, along));
+    const axis = scale3(sub3(M.normal, zt), AXIS_SCALE);
+    const xs = scale3(sub3(M.xAxis, ideal.xAxis), AXIS_SCALE);
+    const v3 = (v: Vec3) => [v.x, v.y, v.z];
+    switch (j.kind) {
+      case 'spherical':
+        return v3(dO);
+      case 'revolute':
+        return [...v3(dO), ...v3(axis)];
+      case 'cylindrical':
+        return [...v3(perp), ...v3(axis)];
+      case 'slider':
+        return [...v3(perp), ...v3(axis), ...v3(xs)];
+      default:
+        return [...v3(sub3(M.origin, ideal.origin)), ...v3(axis), ...v3(xs)];
+    }
+  };
+
+  const stored = new Map(tree.map((j) => [j.id, valuesOf(j)]));
+  let values = stored;
+  if (closing.length > 0) {
+    // Inconnues : réglages libres des liaisons de l'arbre (sauf celle que l'on manipule).
+    const slots = tree.filter((j) => j.id !== options.driver).flatMap((j) => freeKeys(j.kind).map((key) => ({ id: j.id, key })));
+    const p0 = slots.map((s) => stored.get(s.id)![s.key]);
+    const toValues = (p: number[]) => {
+      const v = new Map([...stored].map(([id, x]) => [id, { ...x }]));
+      slots.forEach((s, i) => (v.get(s.id)![s.key] = p[i]!));
+      return v;
+    };
+    const closureOf = (p: number[]) => {
+      const m = place(toValues(p));
+      return closing.flatMap((j) => closure(j, m));
+    };
+    // Rappel léger vers les valeurs enregistrées : la boucle bouge le moins possible.
+    const REG = 1e-3;
+    const residual = (p: number[]) => [...closureOf(p), ...p.map((x, i) => REG * (x - p0[i]!))];
+    const cost = (r: number[]) => r.reduce((s, x) => s + x * x, 0);
+    let p = [...p0];
+    let r = residual(p);
+    let lambda = 1e-3;
+    const n = p.length;
+    for (let it = 0; it < 200 && n > 0; it++) {
+      if (Math.max(0, ...closureOf(p).map(Math.abs)) < CLOSURE_TOL * 1e-3) break;
+      // Jacobienne par différences finies.
+      const J: number[][] = r.map(() => new Array<number>(n).fill(0));
+      for (let c = 0; c < n; c++) {
+        const h = 1e-6 * Math.max(1, Math.abs(p[c]!));
+        const q = [...p];
+        q[c] = q[c]! + h;
+        const rq = residual(q);
+        for (let i = 0; i < r.length; i++) J[i]![c] = (rq[i]! - r[i]!) / h;
       }
-      const m = jointMatrix(j, baseMatrix, bf, mf);
-      matrices.set(movingInst.id, m);
-      jointFrames.set(j.id, { base: worldFrame(baseMatrix, bf), moving: worldFrame(m, mf) });
+      const JtJ = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => J.reduce((s, row) => s + row[a]! * row[b]!, 0)));
+      const Jtr = Array.from({ length: n }, (_, a) => J.reduce((s, row, i) => s + row[a]! * r[i]!, 0));
+      let improved = false;
+      for (let tries = 0; tries < 12; tries++) {
+        const A = JtJ.map((row, a) => row.map((x, b) => (a === b ? x + lambda * (x + 1e-9) : x)));
+        const step = solveLinear(A, Jtr.map((x) => -x));
+        if (!step) break;
+        const q = p.map((x, i) => x + step[i]!);
+        const rq = residual(q);
+        if (cost(rq) < cost(r)) {
+          p = q;
+          r = rq;
+          lambda = Math.max(lambda / 3, 1e-12);
+          improved = true;
+          break;
+        }
+        lambda *= 4;
+      }
+      if (!improved) break;
+    }
+    values = toValues(p);
+    const ok = Math.max(0, ...closureOf(p).map(Math.abs)) < CLOSURE_TOL;
+    if (ok) {
+      for (const [id, v] of values) {
+        const s = stored.get(id)!;
+        if (Math.abs(v.angle - s.angle) + Math.abs(v.offset - s.offset) + Math.abs(v.tilt - s.tilt) + Math.abs(v.tiltDirection - s.tiltDirection) > 1e-9) solvedValues.set(id, v);
+      }
+    } else {
+      // Boucle impossible : les pièces restent à leurs réglages enregistrés.
+      values = stored;
+      for (const j of closing) issues.set(j.id, 'LOOP_UNSOLVED');
     }
   }
-  // Liaisons dont la pièce de référence n'est reliée à rien de fixe : elles attendent.
-  for (const i of assembly.instances) if (!matrices.has(i.id)) matrices.set(i.id, translation4(i.position));
-  for (const j of pending) {
-    const baseMatrix = matrices.get(j.base.instanceId)!;
-    const baseInst = instance.get(j.base.instanceId);
-    const movingInst = instance.get(j.moving.instanceId);
-    const bf = baseInst && meshOf(baseInst.partId) ? lcsFrame(meshOf(baseInst.partId)!, j.base.lcs) : null;
-    const mf = movingInst && meshOf(movingInst.partId) ? lcsFrame(meshOf(movingInst.partId)!, j.moving.lcs) : null;
-    if (!bf || !mf || !movingInst) {
-      issues.set(j.id, 'LCS_LOST');
-      continue;
-    }
-    const m = jointMatrix(j, baseMatrix, bf, mf);
-    matrices.set(movingInst.id, m);
-    jointFrames.set(j.id, { base: worldFrame(baseMatrix, bf), moving: worldFrame(m, mf) });
+
+  const matrices = place(values);
+  for (const j of [...tree, ...closing]) {
+    const f = frames.get(j.id)!;
+    jointFrames.set(j.id, { base: worldFrame(matrices.get(j.base.instanceId)!, f.bf), moving: worldFrame(matrices.get(j.moving.instanceId)!, f.mf) });
   }
-  return { matrices, jointFrames, issues };
+  return { matrices, jointFrames, issues, solvedValues, closingJoints: new Set(closing.map((j) => j.id)) };
+}
+
+/** Résout A x = b (petit système, pivot partiel) ; null si singulier. */
+function solveLinear(Ain: number[][], bIn: number[]): number[] | null {
+  const n = bIn.length;
+  const A = Ain.map((row) => [...row]);
+  const b = [...bIn];
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r]![c]!) > Math.abs(A[piv]![c]!)) piv = r;
+    if (Math.abs(A[piv]![c]!) < 1e-14) return null;
+    [A[c], A[piv]] = [A[piv]!, A[c]!];
+    [b[c], b[piv]] = [b[piv]!, b[c]!];
+    for (let r = c + 1; r < n; r++) {
+      const f = A[r]![c]! / A[c]![c]!;
+      for (let k = c; k < n; k++) A[r]![k] = A[r]![k]! - f * A[c]![k]!;
+      b[r] = b[r]! - f * b[c]!;
+    }
+  }
+  const x = new Array<number>(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) {
+    let s = b[r]!;
+    for (let k = r + 1; k < n; k++) s -= A[r]![k]! * x[k]!;
+    x[r] = s / A[r]![r]!;
+  }
+  return x;
 }
 
 /** Mouvements libres d'un type de liaison. */
