@@ -48,6 +48,8 @@ test('dépouille : deux côtés d’une boîte inclinés d’un clic, puis plan 
   await expect.poll(() => appState(page, (s) => s.mode.draft?.feature.params.neutral.kind)).toBe('face');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  // Attendre le recalcul de la pièce après validation.
+  await expect.poll(() => appState(page, (s) => s.display[s.doc.parts[0].id].result.analysis.volume)).toBeLessThan(7500);
   const result = await appState(page, (s) => {
     const r = s.display[s.doc.parts[0].id].result;
     return { volume: r.analysis.volume, maxZ: r.analysis.bbox.max.z, minX: r.analysis.bbox.min.x, maxX: r.analysis.bbox.max.x, faces: s.doc.parts[0].features.at(-1).params.faces.length };
