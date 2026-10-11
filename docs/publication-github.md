@@ -48,6 +48,12 @@ main sur ce qui est mis en ligne.
 2. Onglet **Actions** du dépôt → **Publier sur GitHub Pages** → **Run workflow** (branche
    `main`) → bouton vert **Run workflow**. Compter 2 à 4 minutes ; la coche verte indique que
    c'est en ligne.
+
+   **Attention : ne pas utiliser « Re-run jobs » sur une ancienne publication.** Une relance
+   republie la version de son lancement d'origine (son commit), pas la dernière : le site
+   resterait sur l'ancienne version malgré la coche verte. Toujours lancer un **nouveau** « Run
+   workflow ». Pour vérifier : dans la liste des lancements, le commit affiché doit être le
+   dernier (`git log -1 --oneline`). En ligne de commande : `gh workflow run pages.yml --ref main`.
 3. Ouvrir (ou recharger) le site : la nouvelle version se télécharge en arrière-plan, puis Java
    et la barre d'état proposent **« Mettre à jour »**. Un clic, et la page repart sur la nouvelle
    version (le travail en cours est sauvegardé automatiquement). Un site déjà ouvert vérifie
@@ -65,5 +71,5 @@ Si vous préférez une mise à jour automatique à chaque `git push`, il suffit 
   ni ailleurs pendant l'utilisation.
 - Chemins relatifs (`base: './'`) : l'application fonctionne sous n'importe quel sous-dossier.
   Vérifié localement sous `/VibeCAD/`, y compris le rechargement hors ligne.
-- Les publications suivantes : pousser les modifications (`git push`), puis relancer le
-  workflow dans l'onglet Actions.
+- Les publications suivantes : pousser les modifications (`git push`), puis lancer un nouveau
+  « Run workflow » dans l'onglet Actions (pas « Re-run jobs », qui republie l'ancienne version).
