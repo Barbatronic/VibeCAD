@@ -242,6 +242,12 @@ export interface GeometryKernel {
   makeRevolution(request: RevolveRequest): KernelShape;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;
   cut(base: KernelShape, tool: KernelShape): KernelShape;
+  /**
+   * Ajout ou retrait de plusieurs volumes en une seule opération (exemplaires d'une répétition) :
+   * bien plus rapide qu'une suite d'opérations, chacune contre une pièce de plus en plus chargée.
+   */
+  fuseMany(base: KernelShape, tools: readonly KernelShape[]): KernelShape;
+  cutMany(base: KernelShape, tools: readonly KernelShape[]): KernelShape;
   /** Partie commune de deux solides (vide si ils ne font que se toucher). */
   common(a: KernelShape, b: KernelShape): KernelShape;
   /**

@@ -564,9 +564,17 @@ export class OcctKernel implements GeometryKernel {
     return this.boolean('cut', base, tool);
   }
 
-  private boolean(kind: 'fuse' | 'cut' | 'common', baseIn: KernelShape, toolIn: KernelShape): KernelShape {
+  fuseMany(base: KernelShape, tools: readonly KernelShape[]): KernelShape {
+    return this.boolean('fuse', base, tools);
+  }
+
+  cutMany(base: KernelShape, tools: readonly KernelShape[]): KernelShape {
+    return this.boolean('cut', base, tools);
+  }
+
+  private boolean(kind: 'fuse' | 'cut' | 'common', baseIn: KernelShape, toolIn: KernelShape | readonly KernelShape[]): KernelShape {
     const a = asOcct(baseIn);
-    const b = asOcct(toolIn);
+    const bs = (Array.isArray(toolIn) ? toolIn : [toolIn]).map(asOcct);
     const oc = this.oc;
     return this.guard(kind === 'fuse' ? 'ajout de matière' : kind === 'cut' ? 'enlèvement de matière' : 'partie commune', () =>
       withScope((scope) => {
@@ -576,14 +584,14 @@ export class OcctKernel implements GeometryKernel {
         const args = scope.track(new oc.NCollection_List_TopoDS_Shape());
         args.Append(a.shape);
         const tools = scope.track(new oc.NCollection_List_TopoDS_Shape());
-        tools.Append(b.shape);
+        for (const b of bs) tools.Append(b.shape);
         op.SetArguments(args);
         op.SetTools(tools);
         // Les solides d'entrée peuvent être réutilisés (cache, aperçus) : ils ne doivent pas être modifiés.
         op.SetNonDestructive(true);
         op.Build(scope.track(new oc.Message_ProgressRange()));
         try {
-          return this.booleanResult(scope, op, [a, b]);
+          return this.booleanResult(scope, op, [a, ...bs]);
         } finally {
           // Le destructeur de cette build ne libère pas toutes les données internes : Clear() le fait
           // (sans cet appel, la mémoire WASM croît à chaque opération, voir docs/performance.md).

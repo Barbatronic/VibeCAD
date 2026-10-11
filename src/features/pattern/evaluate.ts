@@ -84,30 +84,23 @@ export const evaluatePattern: FeatureEvaluator<PatternFeature> = (feature, ctx) 
   }
   const placements = patternMatrices(p, first, second);
   const kernel = ctx.kernel;
-  let shape: KernelShape = ctx.shape;
-  let volume = ctx.shapeAnalysis.volume;
-  let outside = 0;
-  const tiny = Math.max(1e-9, volume * 1e-9);
+  // Tous les exemplaires en une seule opération booléenne (une suite d'opérations, chacune contre
+  // une pièce de plus en plus chargée, coûtait plusieurs centaines de ms pour une grille).
+  const copies = placements.map(({ index, matrix }) => kernel.transformed(source.shape, matrix, { featureId: feature.id, index }));
+  // Exemplaire hors de la pièce : sa boîte englobante ne touche pas celle de la pièce.
+  const box = ctx.shapeAnalysis.bbox;
+  const outside =
+    source.mode === 'cut' && box
+      ? copies.filter((c) => {
+          const b = kernel.analyze(c).bbox;
+          return !b || b.max.x < box.min.x || b.min.x > box.max.x || b.max.y < box.min.y || b.min.y > box.max.y || b.max.z < box.min.z || b.min.z > box.max.z;
+        }).length
+      : 0;
+  let shape: KernelShape;
   try {
-    for (const { index, matrix } of placements) {
-      const copy = kernel.transformed(source.shape, matrix, { featureId: feature.id, index });
-      let next: KernelShape;
-      try {
-        next = source.mode === 'add' ? kernel.fuse(shape, copy) : kernel.cut(shape, copy);
-      } finally {
-        kernel.dispose(copy);
-      }
-      if (shape !== ctx.shape) kernel.dispose(shape);
-      shape = next;
-      if (source.mode === 'cut') {
-        const after = kernel.analyze(shape).volume;
-        if (volume - after <= tiny) outside++;
-        volume = after;
-      }
-    }
-  } catch (err) {
-    if (shape !== ctx.shape) kernel.dispose(shape);
-    throw err;
+    shape = source.mode === 'add' ? kernel.fuseMany(ctx.shape, copies) : kernel.cutMany(ctx.shape, copies);
+  } finally {
+    copies.forEach((c) => kernel.dispose(c));
   }
   const analysis = kernel.analyze(shape);
   if (!analysis.valid || analysis.solidCount === 0) {
