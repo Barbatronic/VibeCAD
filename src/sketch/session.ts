@@ -7,10 +7,13 @@
 import { sameEdgeRef } from '../domain/document';
 import type { EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
 import { ORIGIN_POINT_ID } from '../domain/model';
+import { TOLERANCES } from '../domain/tolerances';
 import { formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, distanceToSegment2, dot2, midpoint2, normalize2, scale2, sub2, type Vec2 } from '../math/vec';
 import { trimAt, trimPiece } from './trim';
+import { addOffsetLoop, loopOfCurve, offsetSegments, signedDistanceToLoop } from './offset';
+import type { ProfileLoop } from './profiles';
 import { hitTest, type SketchTarget } from './hit-test';
 import {
   addArc,
@@ -50,7 +53,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'trim' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -76,6 +79,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   arc: 'Arc',
   slot: 'Oblong',
   trim: 'Couper',
+  offset: 'Décalage',
   project: 'Projeter',
   dimension: 'Cote',
   coincident: 'Coïncidence',
@@ -103,6 +107,8 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
   arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
   trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
+  offset:
+    'Décalage : cliquez un trait d’un contour fermé, puis éloignez la souris vers l’extérieur ou l’intérieur et cliquez, ou tapez la distance puis Entrée. Le contour recopié reste à cette distance.',
   project:
     'Projeter : cliquez une arête de la pièce (en violet) pour la reprendre dans l’esquisse. Elle suit la pièce et sert de repère pour coter (centre d’un trou, bord…).',
   dimension:
@@ -430,6 +436,8 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return projectClick(s, p);
     case 'trim':
       return trimClick(s, p);
+    case 'offset':
+      return offsetClick(s, p);
     case 'dimension':
       return dimensionClick(s, p);
     case 'select':
@@ -455,6 +463,44 @@ export function pointerUp(s: SketchSession): SketchSession {
 
 // ---------------------------------------------------------------------------
 // Outils de dessin
+
+/** Distance de décalage sous le curseur : arrondie au demi-millimètre (valeurs rondes), positive dehors. */
+function offsetDistanceAt(s: SketchSession, at: Vec2): { loop: ProfileLoop; distance: number } | null {
+  const curveId = s.picks[0];
+  if (!curveId) return null;
+  const found = loopOfCurve(s.sketch, curveId);
+  if ('error' in found) return null;
+  return { loop: found.loop, distance: Math.round(signedDistanceToLoop(found.loop, at) * 2) / 2 };
+}
+
+/** Outil Décalage : premier clic sur un trait du contour, second clic à la distance voulue. */
+function offsetClick(s: SketchSession, p: Vec2): SketchSession {
+  if (s.picks.length === 0) {
+    const target = hitTest(s.sketch, p, tolerance(s), true, true);
+    if (!target || target.kind === 'point') return { ...s, message: info('Cliquez un trait d’un contour fermé (segment, cercle ou arc).') };
+    const found = loopOfCurve(s.sketch, target.id);
+    if ('error' in found) return { ...s, message: failure(found.error) };
+    return {
+      ...s,
+      picks: [target.id],
+      start: { point: p, kind: 'free', label: '' },
+      input: { labels: ['Distance'], values: [''], active: 0, error: null },
+      message: info('Éloignez la souris vers l’extérieur ou l’intérieur du contour et cliquez, ou tapez la distance puis Entrée.'),
+    };
+  }
+  const at = offsetDistanceAt(s, p);
+  if (!at) return resetDraw(s);
+  return createOffset(s, at.loop, at.distance);
+}
+
+function createOffset(s: SketchSession, loop: ProfileLoop, distance: number): SketchSession {
+  if (Math.abs(distance) < TOLERANCES.minLength) return { ...s, message: failure('La distance est trop petite : éloignez davantage la souris du contour.') };
+  const out = addOffsetLoop(s.sketch, loop, distance, s.construction);
+  if ('error' in out) return { ...s, message: failure(out.error) };
+  const side = distance > 0 ? 'à l’extérieur' : 'à l’intérieur';
+  const { session } = commit(s, out.sketch, { message: success(`Contour recopié ${side}, à ${formatLength(Math.abs(distance))}. Double-cliquez une cote de distance pour la changer.`) });
+  return { ...resetDraw(session), hover: null };
+}
 
 /** Outil Couper : retire le morceau de courbe sous le clic (voir `trim.ts`). */
 function trimClick(s: SketchSession, p: Vec2): SketchSession {
@@ -942,6 +988,12 @@ export function confirmInput(s: SketchSession): SketchSession {
     return createRectangle(s, s.start, end, { w: values[0]!, h: values[1]! });
   }
   if (s.tool === 'circle') return createCircle(s, s.start, values[0]! / 2, values[0]!);
+  if (s.tool === 'offset') {
+    // Le côté (extérieur ou intérieur) suit la souris.
+    const at = offsetDistanceAt(s, cursor ?? s.start.point);
+    if (!at) return resetDraw(s);
+    return createOffset(s, at.loop, at.distance < 0 ? -values[0]! : values[0]!);
+  }
   if (s.tool === 'centerRectangle') return createCenterRectangle(s, s.start, values[0]! / 2, values[1]! / 2, { w: values[0]!, h: values[1]! });
   if (s.tool === 'polygon') {
     const c = s.start.point;
@@ -1782,6 +1834,25 @@ export function sessionPreview(s: SketchSession): SessionPreview {
     if (piece) out.removed.push(piece.path);
     return out;
   }
+  if (s.tool === 'offset' && s.cursor) {
+    const at = offsetDistanceAt(s, s.cursor);
+    const segs = at && Math.abs(at.distance) >= TOLERANCES.minLength ? offsetSegments(at.loop, at.distance) : null;
+    if (at && segs && !('error' in segs)) {
+      for (const seg of segs) {
+        if (seg.kind === 'line') out.lines.push([seg.start, seg.end]);
+        else if (seg.kind === 'circle') out.circles.push({ center: seg.center, radius: seg.radius });
+        else {
+          const a0 = Math.atan2(seg.start.y - seg.center.y, seg.start.x - seg.center.x);
+          let sweep = Math.atan2(seg.end.y - seg.center.y, seg.end.x - seg.center.x) - a0;
+          if (seg.clockwise) while (sweep >= 0) sweep -= Math.PI * 2;
+          else while (sweep <= 0) sweep += Math.PI * 2;
+          out.arcs.push({ center: seg.center, radius: seg.radius, startAngle: a0, sweep, arrow: false });
+        }
+      }
+      out.labels.push({ at: s.cursor, text: `${at.distance > 0 ? 'extérieur' : 'intérieur'} ${formatLength(Math.abs(at.distance))}` });
+    }
+    return out;
+  }
   const end = s.snap?.point ?? s.cursor;
   if (!s.start || !end) return out;
   const a = s.start.point;
@@ -1864,6 +1935,7 @@ export function drawInputCurrentValues(s: SketchSession): number[] {
   if (s.tool === 'circle') return [round(2 * distance2(a, end))];
   if (s.tool === 'centerRectangle') return [round(2 * Math.abs(end.x - a.x)), round(2 * Math.abs(end.y - a.y))];
   if (s.tool === 'polygon') return [round(2 * distance2(a, end)), currentSides(s)];
+  if (s.tool === 'offset') return [Math.abs(offsetDistanceAt(s, end)?.distance ?? 0)];
   if (s.tool === 'slot') return s.slot ? [round(2 * slotHalfWidth(a, s.slot.end.point, end))] : [round(distance2(a, end))];
   if (s.tool === 'arc') return s.arc ? [round(Math.abs((s.arc.sweep * 180) / Math.PI))] : [round(distance2(a, end))];
   return [];

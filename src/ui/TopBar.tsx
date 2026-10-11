@@ -236,6 +236,11 @@ const CIRCLE_VARIANTS: ToolVariant[] = [
   { tool: 'slot', icon: 'slot', key: '', label: 'Oblong (rainure arrondie aux deux bouts)' },
 ];
 
+const EDIT_VARIANTS: ToolVariant[] = [
+  { tool: 'trim', icon: 'trim', key: 'T', label: 'Couper (retirer un morceau de trait)' },
+  { tool: 'offset', icon: 'offset', key: '', label: 'Décalage (recopier un contour à distance)' },
+];
+
 /** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
 const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
@@ -312,12 +317,12 @@ function FeatureSplit({ name, members }: { name: string; members: { type: Featur
   );
 }
 
-function ToolVariants({ variants: all, tool, name }: { variants: ToolVariant[]; tool: SketchTool; name: string }) {
+function ToolVariants({ variants: all, tool, name, menuLabel = 'Autres façons de tracer' }: { variants: ToolVariant[]; tool: SketchTool; name: string; menuLabel?: string }) {
   const c = useController();
   const level = useAppState((s) => s.level);
   const variants = all.filter((v) => allows(level, `sketch:${v.tool}`));
   const [open, setOpen] = useState(false);
-  const [last, setLast] = useState(variants[0]!.tool);
+  const [last, setLast] = useState(variants[0]?.tool ?? all[0]!.tool);
   const root = useRef<HTMLDivElement>(null);
   const activeVariant = variants.find((v) => v.tool === tool);
   useEffect(() => {
@@ -342,6 +347,7 @@ function ToolVariants({ variants: all, tool, name }: { variants: ToolVariant[]; 
       document.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
+  if (variants.length === 0) return null;
   if (variants.length === 1) {
     const v = variants[0]!;
     return (
@@ -364,8 +370,8 @@ function ToolVariants({ variants: all, tool, name }: { variants: ToolVariant[]; 
         class="split-toggle"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Autres façons de tracer : ${name}`}
-        title={`Autres façons de tracer : ${name}`}
+        aria-label={`${menuLabel} : ${name}`}
+        title={`${menuLabel} : ${name}`}
         onClick={() => setOpen(!open)}
       >
         <Icon name="chevron-down" />
@@ -545,17 +551,7 @@ function SketchTools() {
         {SKETCH_TOOLS.map(btn)}
         <ToolVariants variants={RECTANGLE_VARIANTS} tool={s.tool} name="rectangles" />
         <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles et arcs" />
-        {allows(level, 'sketch:trim') ? (
-          <ToolButton
-            id="sk-trim"
-            icon="trim"
-            label="Couper"
-            shortcut="T"
-            hint="Couper : retirer le morceau d’un trait jusqu’aux croisements les plus proches"
-            pressed={s.tool === 'trim'}
-            onClick={() => c.updateSession((x) => setTool(x, 'trim'))}
-          />
-        ) : null}
+        <ToolVariants variants={EDIT_VARIANTS} tool={s.tool} name="couper et décaler" menuLabel="Autres outils" />
         {allows(level, 'sketch-construction') ? (
           <ToolButton
             id="sk-construction"

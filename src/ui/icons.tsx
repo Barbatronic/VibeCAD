@@ -48,6 +48,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M15 6l6 12h-6z" opacity="0.55" />
     </>
   ),
+  offset: (
+    <>
+      <rect x="7" y="7" width="10" height="10" rx="1" />
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="2.5 2" />
+    </>
+  ),
   draft: (
     <>
       <path d="M3 20h18" />
