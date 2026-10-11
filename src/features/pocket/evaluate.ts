@@ -43,7 +43,14 @@ export const evaluatePocket: FeatureEvaluator<PocketFeature> = (feature, ctx) =>
   if ('status' in resolved) return resolved;
   const { extent, direction } = feature.params;
   let range: [number, number];
-  if (extent.kind === 'distance') range = pocketRange(direction, extent.distance);
+  if (direction === 'twoSides') {
+    // Deux côtés : chaque côté coté ou traversant (dans la matière : contre la normale).
+    const bbox = ctx.shapeAnalysis.bbox;
+    const through = bbox ? throughAllRange('symmetric', resolved.frame, bbox) : null;
+    const e2 = feature.params.extent2 ?? extent;
+    if ((extent.kind === 'throughAll' || e2.kind === 'throughAll') && !through) return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
+    range = [extent.kind === 'distance' ? -extent.distance : through![0], e2.kind === 'distance' ? e2.distance : through![1]];
+  } else if (extent.kind === 'distance') range = pocketRange(direction, extent.distance);
   else if (ctx.shapeAnalysis.bbox) range = throughAllRange(direction, resolved.frame, ctx.shapeAnalysis.bbox);
   else return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
   const tool = ctx.kernel.makePrism({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, from: range[0], to: range[1] });

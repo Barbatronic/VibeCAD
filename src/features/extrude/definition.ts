@@ -8,6 +8,7 @@ export const EXTRUDE_DIRECTION_LABELS: Record<ExtentDirection, string> = {
   default: 'Côté normale',
   reversed: 'Côté opposé',
   symmetric: 'Symétrique',
+  twoSides: 'Deux côtés',
 };
 
 export function validateDistance(value: number, label: string): string | null {
@@ -29,11 +30,16 @@ export const extrudeDefinition: FeatureDefinition<ExtrudeFeature> = {
     const issues: ParamIssue[] = [];
     const d = validateDistance(feature.params.distance, 'La longueur');
     if (d) issues.push({ field: 'distance', message: d });
+    if (feature.params.direction === 'twoSides' && !feature.params.upTo) {
+      const d2 = validateDistance(feature.params.distance2 ?? NaN, 'La longueur du côté opposé');
+      if (d2) issues.push({ field: 'distance2', message: d2 });
+    }
     if (!feature.params.sketchId) issues.push({ field: 'sketchId', message: 'Choisissez une esquisse.' });
     return issues;
   },
   summary(feature) {
     if (feature.params.upTo) return 'jusqu’à une face';
+    if (feature.params.direction === 'twoSides') return `${formatLength(feature.params.distance)} + ${formatLength(feature.params.distance2 ?? 0)} (deux côtés)`;
     const dir = feature.params.direction === 'default' ? '' : `, ${EXTRUDE_DIRECTION_LABELS[feature.params.direction].toLowerCase()}`;
     return `${formatLength(feature.params.distance)}${dir}`;
   },

@@ -11,8 +11,9 @@ import { resolveProfile } from '../sketch/evaluate';
 import { extrudeDefinition } from './definition';
 
 /** Intervalle le long de la normale de l'esquisse pour une extrusion de longueur `d`. */
-export function extrudeRange(direction: ExtentDirection, d: number): [number, number] {
+export function extrudeRange(direction: ExtentDirection, d: number, d2 = 0): [number, number] {
   if (direction === 'reversed') return [-d, 0];
+  if (direction === 'twoSides') return [-d2, d];
   if (direction === 'symmetric') return [-d / 2, d / 2];
   return [0, d];
 }
@@ -67,7 +68,7 @@ export const evaluateExtrude: FeatureEvaluator<ExtrudeFeature> = (feature, ctx) 
     if ('status' in up) return up;
     tool = up.tool;
   } else {
-    const [from, to] = extrudeRange(feature.params.direction, feature.params.distance);
+    const [from, to] = extrudeRange(feature.params.direction, feature.params.distance, feature.params.distance2 ?? 0);
     tool = ctx.kernel.makePrism({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, from, to });
   }
   let shape: KernelShape = tool;

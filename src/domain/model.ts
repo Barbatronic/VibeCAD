@@ -408,7 +408,8 @@ export interface SketchParams {
  * - poche : `default` = contre la normale (dans la matière sous une face) ;
  * - `reversed` inverse ce sens, `symmetric` répartit de part et d'autre du plan.
  */
-export type ExtentDirection = 'default' | 'reversed' | 'symmetric';
+/** Sens d'une extrusion ou d'une poche ; `twoSides` : deux longueurs différentes de part et d'autre du plan. */
+export type ExtentDirection = 'default' | 'reversed' | 'symmetric' | 'twoSides';
 
 /** Axe de révolution : un axe du repère de l'esquisse, ou l'un de ses segments (souvent de construction). */
 export type RevolveAxis = { kind: 'sketch-x' } | { kind: 'sketch-y' } | { kind: 'line'; lineId: string };
@@ -574,14 +575,19 @@ export interface ExtrudeParams {
    * ignorées. Absent : extrusion d'une longueur.
    */
   upTo?: FaceRef;
+  /** Sens « deux côtés » : longueur du côté opposé à la normale (`distance` : côté normale). */
+  distance2?: number;
 }
 
 export type PocketExtent = { kind: 'distance'; distance: number } | { kind: 'throughAll' };
 
 export interface PocketParams {
   sketchId: Id;
+  /** Profondeur dans le sens par défaut (dans la matière, contre la normale). */
   extent: PocketExtent;
   direction: ExtentDirection;
+  /** Sens « deux côtés » : profondeur de l'autre côté du plan de l'esquisse (le long de la normale). */
+  extent2?: PocketExtent;
 }
 
 export interface ImportedSolidParams {

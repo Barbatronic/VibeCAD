@@ -9,6 +9,7 @@ export const POCKET_DIRECTION_LABELS: Record<ExtentDirection, string> = {
   default: 'Dans la matière',
   reversed: 'Côté opposé',
   symmetric: 'Symétrique',
+  twoSides: 'Deux côtés',
 };
 
 /**
@@ -47,11 +48,21 @@ export const pocketDefinition: FeatureDefinition<PocketFeature> = {
       const d = validateDistance(feature.params.extent.distance, 'La profondeur');
       if (d) issues.push({ field: 'distance', message: d });
     }
+    const e2 = feature.params.extent2;
+    if (feature.params.direction === 'twoSides') {
+      if (!e2) issues.push({ field: 'distance2', message: 'Donnez la profondeur du second côté.' });
+      else if (e2.kind === 'distance') {
+        const d2 = validateDistance(e2.distance, 'La profondeur du second côté');
+        if (d2) issues.push({ field: 'distance2', message: d2 });
+      }
+    }
     if (!feature.params.sketchId) issues.push({ field: 'sketchId', message: 'Choisissez une esquisse.' });
     return issues;
   },
   summary(feature) {
-    const extent = feature.params.extent.kind === 'throughAll' ? 'traversante' : formatLength(feature.params.extent.distance);
+    const depth = (e: PocketFeature['params']['extent']) => (e.kind === 'throughAll' ? 'traversante' : formatLength(e.distance));
+    if (feature.params.direction === 'twoSides' && feature.params.extent2) return `${depth(feature.params.extent)} + ${depth(feature.params.extent2)} (deux côtés)`;
+    const extent = depth(feature.params.extent);
     const dir = feature.params.direction === 'default' ? '' : `, ${POCKET_DIRECTION_LABELS[feature.params.direction].toLowerCase()}`;
     return `${extent}${dir}`;
   },

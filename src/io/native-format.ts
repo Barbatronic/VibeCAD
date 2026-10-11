@@ -403,7 +403,7 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
   };
 }
 
-const DIRECTIONS = ['default', 'reversed', 'symmetric'] as const;
+const DIRECTIONS = ['default', 'reversed', 'symmetric', 'twoSides'] as const;
 
 function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   const o = obj(v, x, path);
@@ -427,6 +427,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           distance: num(v, p, 'distance', pp),
           direction: oneOf(v, p, 'direction', pp, DIRECTIONS),
           ...(p.upTo !== undefined ? { upTo: readFaceRef(v, p.upTo, `${pp}.upTo`) } : {}),
+          ...(p.distance2 !== undefined ? { distance2: num(v, p, 'distance2', pp) } : {}),
         },
       };
     case 'revolve': {
@@ -575,11 +576,14 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
       const e = obj(v, p.extent, `${pp}.extent`);
       const kind = e ? oneOf(v, e, 'kind', `${pp}.extent`, ['distance', 'throughAll'] as const) : 'throughAll';
       const extent = kind === 'distance' && e ? { kind, distance: num(v, e, 'distance', `${pp}.extent`) } : ({ kind: 'throughAll' } as const);
+      const e2 = p.extent2 !== undefined ? obj(v, p.extent2, `${pp}.extent2`) : null;
+      const kind2 = e2 ? oneOf(v, e2, 'kind', `${pp}.extent2`, ['distance', 'throughAll'] as const) : null;
+      const extent2 = !e2 ? null : kind2 === 'distance' ? { kind: kind2, distance: num(v, e2, 'distance', `${pp}.extent2`) } : ({ kind: 'throughAll' } as const);
       return {
         id,
         name,
         type,
-        params: { sketchId: str(v, p, 'sketchId', pp), extent, direction: oneOf(v, p, 'direction', pp, DIRECTIONS) },
+        params: { sketchId: str(v, p, 'sketchId', pp), extent, direction: oneOf(v, p, 'direction', pp, DIRECTIONS), ...(extent2 ? { extent2 } : {}) },
       };
     }
     case 'imported-solid':

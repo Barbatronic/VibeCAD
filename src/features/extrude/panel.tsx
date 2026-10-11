@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'une extrusion. */
 import type { ExtrudeFeature } from '../../domain/model';
-import { parseLength } from '../../domain/units';
+import { formatLength, parseLength } from '../../domain/units';
 import { Callout, LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
@@ -44,7 +44,7 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
         <>
           <LengthField
             id="draft-distance"
-            label="Longueur d’extrusion (épaisseur)"
+            label={f.params.direction === 'twoSides' ? 'Longueur côté normale' : 'Longueur d’extrusion (épaisseur)'}
             value={draft.fields.distance ?? ''}
             error={draft.errors.distance ?? null}
             help="Épaisseur donnée au dessin, par exemple 5."
@@ -57,7 +57,32 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
             onEnter={props.confirm}
             onEscape={props.cancel}
           />
-          <DirectionField value={f.params.direction} labels={EXTRUDE_DIRECTION_LABELS} onChange={(direction) => update((x) => withParams(x, { direction }))} />
+          <DirectionField
+            value={f.params.direction}
+            labels={EXTRUDE_DIRECTION_LABELS}
+            onChange={(direction) => {
+              // Deux côtés : le côté opposé part de la même longueur, à modifier ensuite.
+              if (direction === 'twoSides' && f.params.distance2 === undefined) {
+                setField('distance2', formatLength(f.params.distance, 3, false), { feature: withParams(f, { direction, distance2: f.params.distance }) });
+              } else update((x) => withParams(x, { direction }));
+            }}
+          />
+          {f.params.direction === 'twoSides' ? (
+            <LengthField
+              id="draft-distance2"
+              label="Longueur du côté opposé"
+              value={draft.fields.distance2 ?? ''}
+              error={draft.errors.distance2 ?? null}
+              help="Matière ajoutée de l’autre côté du plan de l’esquisse."
+              selectOnFocus
+              onInput={(text) => {
+                const parsed = parseLength(text, { label: 'La longueur' });
+                setField('distance2', text, parsed.ok ? { feature: withParams(f, { distance2: parsed.value }) } : { error: parsed.error });
+              }}
+              onEnter={props.confirm}
+              onEscape={props.cancel}
+            />
+          ) : null}
         </>
       )}
       <PreviewStatus status={props.status} kind="add" />

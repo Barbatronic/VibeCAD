@@ -28,7 +28,7 @@ export function DirectionField(props: { value: ExtentDirection; labels: Record<E
     <Segmented
       label="Sens"
       value={props.value}
-      options={(['default', 'reversed', 'symmetric'] as const).map((d) => ({ value: d, label: props.labels[d] }))}
+      options={(['default', 'reversed', 'symmetric', 'twoSides'] as const).map((d) => ({ value: d, label: props.labels[d] }))}
       onChange={props.onChange}
     />
   );

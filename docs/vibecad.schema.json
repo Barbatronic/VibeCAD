@@ -329,6 +329,9 @@
                 },
                 "upTo": {
                   "$ref": "#/$defs/faceRef"
+                },
+                "distance2": {
+                  "$ref": "#/$defs/length"
                 }
               }
             }
@@ -382,6 +385,36 @@
                 },
                 "direction": {
                   "$ref": "#/$defs/direction"
+                },
+                "extent2": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "throughAll"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "distance"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "distance"
+                        },
+                        "distance": {
+                          "$ref": "#/$defs/length"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1014,7 +1047,8 @@
       "enum": [
         "default",
         "reversed",
-        "symmetric"
+        "symmetric",
+        "twoSides"
       ]
     },
     "faceRef": {
