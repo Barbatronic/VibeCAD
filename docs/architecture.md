@@ -47,7 +47,8 @@ annuler/rétablir, persistance et mode hors ligne.
 | `sketch/` | contenu d'esquisse, solveur, profils fermés, accrochages, session d'édition | DOM, Three.js, noyau |
 | `features/` | une fonction par dossier : `definition.ts` (domaine), `evaluate.ts` (via l'interface du noyau), `panel.tsx` (interface) ; moteur de recalcul `engine.ts` | adaptateur OCCT, viewport, app |
 | `geometry/` | `kernel.ts` (interface documentée du noyau), `protocol.ts` (messages du worker), `client.ts` (côté interface) ; `occt/` (seul code qui connaît Open CASCADE) | ui, viewport |
-| `workers/` | worker de calcul (`geometry.worker.ts`), service géométrique, modèle du service worker | ui, viewport |
+| `sim/` | simulation : découpe en cubes, éléments finis, étude d'une pièce, matériaux, lancement dans le worker | tout le reste (fonctions pures sur des tableaux) |
+| `workers/` | worker de calcul (`geometry.worker.ts`), service géométrique, worker de simulation (`sim.worker.ts`), modèle du service worker | ui, viewport |
 | `io/` | format natif, ressources embarquées, STL | noyau concret, ui |
 | `persistence/` | IndexedDB, sauvegarde automatique, fichiers (téléchargement, File System Access) | noyau, ui |
 | `viewport/` | rendu Three.js : caméra, grille, pièces, esquisses, sélection | app, ui, noyau |
