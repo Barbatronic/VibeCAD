@@ -13,6 +13,8 @@ import { FabricationRightPanel } from './FabricationUi';
 import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
+import { SketchLists } from './SketchLists';
+import { allows } from '../app/levels';
 
 function supportText(support: SketchSupport, part: Part | undefined): string {
   if (support.kind === 'plane') return `sur le ${describeSupportPlane(support.plane)}`;
@@ -32,6 +34,7 @@ function SketchPanel({ session }: { session: SketchSession }) {
   const selectedLines = session.selection.filter((id) => findLine(session.sketch, id));
   const selectedPoints = session.selection.filter((id) => id === 'origin' || findPoint(session.sketch, id));
   const message = session.message;
+  const expert = useAppState((s) => allows(s.level, 'sketch-lists'));
   return (
     <>
       <div class="panel-title">
@@ -129,6 +132,8 @@ function SketchPanel({ session }: { session: SketchSession }) {
             </Button>
           </div>
         ) : null}
+
+        {expert ? <SketchLists session={session} /> : null}
 
         <details class="advanced">
           <summary>Légende des couleurs</summary>

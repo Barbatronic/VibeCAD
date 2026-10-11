@@ -22,6 +22,7 @@ export type Capability =
   | `feature:${FeatureType}`
   | `sketch:${SketchTool}`
   | 'sketch-construction'
+  | 'sketch-lists'
   | 'workspace:assembly'
   | 'fabrication:laser'
   | 'fabrication:docs'
@@ -68,6 +69,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:loft': 'expert',
   'feature:sweep': 'expert',
   'feature:split': 'expert',
+  'sketch-lists': 'expert',
   'feature:draft': 'expert',
   'import-step': 'expert',
 };

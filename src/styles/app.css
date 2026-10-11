@@ -1039,6 +1039,50 @@ details.advanced {
   padding: 0 12px;
 }
 
+details.sketch-list ul {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.sketch-row {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sketch-row span {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.sketch-row.is-free strong {
+  color: var(--vp-sketch);
+}
+
+.sketch-row:hover {
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+}
+
+.sketch-row[aria-pressed='true'] {
+  border-color: var(--vp-sketch-selected);
+  background: color-mix(in srgb, var(--vp-sketch-selected) 12%, transparent);
+}
+
 details.advanced summary {
   cursor: pointer;
   padding: 10px 0;
