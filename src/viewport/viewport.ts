@@ -1037,7 +1037,8 @@ export class Viewport {
   private pickModel(e: PointerEvent): (ModelPick & { distance: number }) | null {
     const ndc = this.ndc(e);
     this.raycaster.setFromCamera(ndc, this.rig.camera);
-    const objects = Array.from(this.parts.values()).filter((p) => p.group.visible);
+    // Les pièces « fantômes » (autres pièces pendant une opération) laissent passer les clics.
+    const objects = Array.from(this.parts.values()).filter((p) => p.group.visible && p.appearance !== 'ghost');
     const hits = this.raycaster.intersectObjects(objects.map((p) => p.faces), false);
     const hit = hits[0];
     let facePick: (ModelPick & { distance: number }) | null = null;

@@ -178,6 +178,9 @@ export function buildViewportInput(s: AppState): ViewportInput {
   // Vue en coupe : les pièces coupées remplacent les pièces (hors esquisse et opération en cours).
   const cut = s.section && s.sectionParts && (mode === 'model' || mode === 'measure') ? s.sectionParts : null;
   const sectionFaces: ViewSelection[] = [];
+  // Pendant une opération ou une esquisse, les autres pièces deviennent transparentes : on voit
+  // ce que l'on fait sur la pièce en cours.
+  const workingPartId = s.mode.kind === 'feature' ? s.mode.draft.partId : s.mode.kind === 'sketch' ? s.mode.session.partId : null;
   const parts: ViewPartInput[] = s.doc.parts.map((p) => {
     const d = s.display[p.id];
     const sec = cut?.parts[p.id];
@@ -195,7 +198,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
       visible: p.visible,
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
-      appearance: mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
+      appearance: workingPartId && p.id !== workingPartId ? 'ghost' : mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
     };
   });
 

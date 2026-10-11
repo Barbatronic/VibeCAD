@@ -22,7 +22,8 @@ import type { Id } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import type { ViewportPalette } from './colors';
 
-export type PartAppearance = 'normal' | 'stale' | 'preview' | 'tool-add' | 'tool-cut' | 'dimmed';
+/** `ghost` : autre pièce pendant une opération ou une esquisse, très transparente et ignorée par les clics. */
+export type PartAppearance = 'normal' | 'stale' | 'preview' | 'tool-add' | 'tool-cut' | 'dimmed' | 'ghost';
 
 /** Matériau hachuré en espace écran : la sélection se voit sans dépendre de la couleur. */
 export function hatchMaterial(color: string, opacity = 0.85): ShaderMaterial {
@@ -76,7 +77,7 @@ export class PartObject {
     readonly meshKey: string,
     readonly data: MeshData,
     color: string,
-    appearance: PartAppearance,
+    readonly appearance: PartAppearance,
     palette: ViewportPalette,
   ) {
     const geometry = new BufferGeometry();
@@ -110,6 +111,8 @@ export class PartObject {
         return new MeshStandardMaterial({ ...base, color: palette.previewAdd, transparent: true, opacity: 0.38, depthWrite: false });
       case 'tool-cut':
         return new MeshStandardMaterial({ ...base, color: palette.previewCut, transparent: true, opacity: 0.38, depthWrite: false });
+      case 'ghost':
+        return new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.12, depthWrite: false });
       case 'dimmed':
         return new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.3, depthWrite: false });
       default:
@@ -120,7 +123,7 @@ export class PartObject {
   private edgeMaterial(appearance: PartAppearance, palette: ViewportPalette): LineBasicMaterial {
     const color =
       appearance === 'tool-add' ? palette.previewAdd : appearance === 'tool-cut' ? palette.previewCut : appearance === 'stale' ? palette.stale : palette.edge;
-    return new LineBasicMaterial({ color, transparent: appearance !== 'normal', opacity: appearance === 'dimmed' ? 0.35 : 1 });
+    return new LineBasicMaterial({ color, transparent: appearance !== 'normal', opacity: appearance === 'dimmed' ? 0.35 : appearance === 'ghost' ? 0.2 : 1 });
   }
 
   /** Face (rang dans `data.faces`) qui contient le triangle donné. */
