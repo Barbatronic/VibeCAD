@@ -27,6 +27,7 @@ import {
   Sprite,
   SpriteMaterial,
   TOUCH,
+  Sphere,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -171,6 +172,8 @@ export class Viewport {
   private sessionEntityCount = 0;
   private input: ViewportInput = emptyInput();
   private hoverOverlay: Object3D | null = null;
+  /** Élément actuellement surligné au survol (« pièce:type:rang ») : inutile de le recréer. */
+  private hoverOverlayKey: string | null = null;
   private selectionOverlays: Object3D[] = [];
   private measureObjects: Object3D[] = [];
   private markerObjects: Object3D[] = [];
@@ -465,6 +468,8 @@ export class Viewport {
           existing.dispose();
         }
         const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette);
+        // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
+        if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;
         obj.group.userData.signature = signature;
         this.parts.set(p.partId, obj);
         this.partsGroup.add(obj.group);
@@ -1060,7 +1065,19 @@ export class Viewport {
     const onRay = new Vector3();
     const onSegment = new Vector3();
     const ray = this.raycaster.ray;
+    // Tri rapide : une pièce dont la sphère englobante passe loin du rayon de la souris (au-delà
+    // de la tolérance de sélection) n'a aucune arête à portée ; ses arêtes ne sont pas projetées.
+    const sphere = new Sphere();
+    const pxAtTarget = this.rig.pixelSize();
+    const targetDistance = Math.max(1e-6, camera.position.distanceTo(this.rig.target));
     for (const part of objects) {
+      const bs = part.faces.geometry.boundingSphere;
+      if (bs) {
+        sphere.copy(bs).applyMatrix4(part.group.matrixWorld);
+        const depth = camera.position.distanceTo(sphere.center);
+        const margin = EDGE_PICK_PX * 2 * pxAtTarget * Math.max(1, depth / targetDistance);
+        if (ray.distanceToPoint(sphere.center) > sphere.radius + margin) continue;
+      }
       const pos = part.data.edgePositions;
       part.data.edges.forEach((edge, edgeIndex) => {
         for (let k = edge.start; k < edge.start + edge.count; k += 2) {
@@ -1101,6 +1118,7 @@ export class Viewport {
     if (this.hoverOverlay) {
       this.disposeOverlay(this.hoverOverlay);
       this.hoverOverlay = null;
+      this.hoverOverlayKey = null;
       this.requestRender();
     }
     if (this.hoverPlane) {
@@ -1156,6 +1174,13 @@ export class Viewport {
         return;
       }
     }
+    // Même élément que la dernière fois : la surbrillance reste (la recréer à chaque mouvement de
+    // souris jetait un matériau neuf et forçait la recompilation de son shader).
+    const key = pick ? `${pick.partId}:${pick.kind}:${pick.index}` : null;
+    if (key && key === this.hoverOverlayKey && this.hoverOverlay) {
+      this.events.onHover(pick);
+      return;
+    }
     if (this.hoverOverlay) this.clearHoverOverlayOnly();
     if (pick) {
       const part = this.parts.get(pick.partId);
@@ -1167,6 +1192,7 @@ export class Viewport {
         this.placeOverlay(overlay, part);
         this.overlayGroup.add(overlay);
         this.hoverOverlay = overlay;
+        this.hoverOverlayKey = key;
       }
     }
     // Outil Main : une pièce qu'on peut attraper montre la main.
@@ -1186,6 +1212,7 @@ export class Viewport {
   private clearHoverOverlayOnly(): void {
     if (this.hoverOverlay) this.disposeOverlay(this.hoverOverlay);
     this.hoverOverlay = null;
+    this.hoverOverlayKey = null;
   }
 
   setPalette(): void {
