@@ -167,19 +167,28 @@ export class SketchView {
 
   private label(key: string, text: string, at: Vec2, className: string, attrs: Record<string, string> = {}, button = false): void {
     const tag = button ? 'BUTTON' : 'SPAN';
+    // « À côté » : l'étiquette part du point vers le bas à droite, sans jamais le recouvrir
+    // (ancre de taille nulle centrée sur le point, étiquette décalée dedans).
+    const beside = className.includes('vp-tag-beside');
     let obj = this.labels.get(key);
-    if (obj && obj.element.tagName !== tag) {
+    if (obj && (obj.element.tagName !== tag || obj.element.classList.contains('vp-anchor') !== beside)) {
       this.group.remove(obj);
       obj = undefined;
     }
     if (!obj) {
-      const el = document.createElement(tag.toLowerCase());
+      let el = document.createElement(tag.toLowerCase());
       if (button) (el as HTMLButtonElement).type = 'button';
+      if (beside) {
+        const anchor = document.createElement('span');
+        anchor.className = 'vp-anchor';
+        anchor.appendChild(el);
+        el = anchor;
+      }
       obj = new CSS2DObject(el);
       this.labels.set(key, obj);
       this.group.add(obj);
     }
-    const el = obj.element;
+    const el = beside ? (obj.element.firstElementChild as HTMLElement) : obj.element;
     if (el.className !== className) el.className = className;
     if (el.textContent !== text) el.textContent = text;
     for (const [k, v] of Object.entries(attrs)) if (el.getAttribute(k) !== v) el.setAttribute(k, v);
@@ -381,7 +390,7 @@ export class SketchView {
     // Points à relier (contour ouvert) : cercles rouges + libellé
     for (const [i, h] of (input.highlightPoints ?? []).entries()) {
       for (const seg of circleSegments(h, 10 * px, 24)) strong.add(seg, cErr);
-      this.label(`open:${i}`, 'À relier', add2(h, { x: 14 * px, y: 14 * px }), 'vp-tag vp-tag-error');
+      this.label(`open:${i}`, 'À relier', h, 'vp-tag vp-tag-error vp-tag-beside');
     }
 
     // Aperçu du tracé en cours
@@ -426,7 +435,7 @@ export class SketchView {
         ];
         for (let i = 0; i < 4; i++) strong.add([sq[i]!, sq[(i + 1) % 4]!], cSnap);
       }
-      if (snap.label) this.label('snap', snap.label, add2(s, { x: 12 * px, y: -14 * px }), 'vp-tag vp-tag-snap');
+      if (snap.label) this.label('snap', snap.label, s, 'vp-tag vp-tag-snap vp-tag-beside');
     }
 
     const objects = [

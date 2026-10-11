@@ -1251,6 +1251,20 @@ details.advanced summary {
   border: 1px solid var(--border);
 }
 
+/* Ancre de taille nulle sur le point : l'étiquette part en bas à droite, hors du point (cercle de 10 px). */
+.vp-anchor {
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.vp-tag-beside {
+  position: absolute;
+  left: 14px;
+  top: 10px;
+}
+
 .vp-tag-snap {
   border-color: var(--vp-sketch-selected);
   color: var(--vp-sketch-selected);
