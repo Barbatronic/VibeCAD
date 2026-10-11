@@ -77,8 +77,18 @@ repères sont des cercles, Fixe sinon).
 
 ## Calcul et données
 
-- Le placement est un calcul simple de matrices (pas de solveur itératif) : chaque pièce est
-  placée par sa liaison à partir de la pièce de référence, depuis la pièce fixe.
+- Placement en arbre : chaque pièce est placée par la première liaison qui la tient, à partir de
+  sa pièce de référence, depuis la pièce fixe (calcul direct de matrices).
+- **Boucles fermées** (quadrilatère articulé, parallélogramme, bielle-manivelle) : une liaison de
+  plus vers une pièce déjà tenue — ou vers la pièce fixe — referme une boucle. Elle devient une
+  contrainte de fermeture (pivot : même point et même axe ; rotule : même point ; glissière,
+  pivot glissant, fixe : selon ce qu'ils imposent). Un solveur de Levenberg-Marquardt ajuste les
+  réglages libres (angles, décalages, inclinaisons) des liaisons de l'arbre, au plus près de leurs
+  valeurs enregistrées ; la liaison que l'on manipule (curseur, outil Main) garde sa valeur et les
+  autres suivent. Les réglages recalculés sont reportés dans le projet, pour que le mouvement reste
+  continu. Une boucle impossible (pièces trop courtes ou bloquées) est signalée sur sa liaison
+  (`LOOP_UNSOLVED`) et les pièces restent à leurs réglages enregistrés. Lors de la création d'une
+  liaison, si la première pièce choisie est déjà tenue et pas la seconde, les rôles sont échangés.
 - Les repères sont calculés à partir du maillage des pièces (centre de face, cercle, arête), déjà
   présent dans l'interface ; l'export STEP / 3MF de l'assemblage applique les mêmes placements aux
   solides exacts dans le worker.
@@ -87,5 +97,6 @@ repères sont des cercles, Fixe sinon).
 
 ## Hors périmètre (pour l'instant)
 
-Boucles de liaisons (une pièce tenue par deux liaisons), collisions, engrenages, cinématique
-automatique, liaisons sphériques. Ces cas sont signalés clairement au lieu d'être calculés à moitié.
+Engrenages, ressorts, efforts et vitesses (cinématique automatique), limites de course prises en
+compte par le solveur de boucles. Les boucles impossibles sont signalées clairement au lieu d'être
+calculées à moitié.

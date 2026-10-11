@@ -87,8 +87,10 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Assemblage** (onglet à part) : insérer les pièces du projet (la première est fixe), les relier
   par des **liaisons** posées sur des repères (centre d'une face, bord d'un trou, arête) : fixe,
   pivot, glissière, pivot glissant. Curseurs par mouvement, limites, et glisser à la souris (la
-  pièce ne suit que le mouvement permis). Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en commun en rouge). Voir
-  [docs/assemblage.md](docs/assemblage.md).
+  pièce ne suit que le mouvement permis). **Boucles fermées** (quadrilatère articulé,
+  bielle-manivelle) : une liaison de plus referme la boucle, et quand on tourne une pièce les
+  autres suivent. Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en
+  commun en rouge). Voir [docs/assemblage.md](docs/assemblage.md).
 - **Fabrication** (onglet à part) : préparer le plateau d'impression 3D (face posée, exemplaires,
   échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière) et l'exporter
   en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
