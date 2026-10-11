@@ -52,7 +52,10 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
 - **Mise en plan cotée** : pour la pièce choisie (dans la liste ou d'un clic dans la vue 3D), vue
   de face, vue de dessus (en dessous) et vue de gauche (à droite), en projection européenne, sur
   une page A4 paysage. Arêtes vues en traits continus, arêtes cachées en traits interrompus,
-  contours apparents des faces courbes (cylindres, révolutions). Cotes d'encombrement (largeur et
+  contours apparents des faces courbes (cylindres, révolutions). Les traits vus et cachés sont
+  calculés exactement sur la forme (algorithme HLR d'Open CASCADE, dans le worker) : un trou vu
+  de dessus est un vrai cercle. Pendant ce calcul, l'aperçu montre aussitôt des traits déduits du
+  maillage, puis se met à jour ; les fichiers exportés attendent toujours la version exacte. Cotes d'encombrement (largeur et
   hauteur sur la vue de face, profondeur sur la vue de dessus), liste des diamètres (Ø) et rayons
   (R), cartouche (nom de la pièce, du projet, échelle normalisée : 10:1 … 1:100). Aperçu dans le
   panneau de droite ; export PDF (une page par pièce) ou SVG (la pièce affichée).

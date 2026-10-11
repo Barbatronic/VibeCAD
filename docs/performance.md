@@ -67,7 +67,8 @@ Autres mesures (médianes, machine de référence) :
 | Mesure | Durée |
 | --- | --- |
 | Maillage d'affichage de la grille de trous | 31 ms |
-| Mise en plan de la grille (trois vues, traits cachés) | 35 ms |
+| Mise en plan de la grille (trois vues, traits cachés déduits du maillage) | 35 ms |
+| Traits vus et cachés exacts (HLR) de la grille / d'un STL de 4 000 triangles | 51 ms / 0,57 s (dans le worker) |
 | Vue en coupe de la grille | 28 ms |
 | Collisions entre deux pièces qui se chevauchent | 160 ms |
 | Import STL de 4 000 / 10 000 triangles (lecture, couture, faces planes fusionnées) | 0,7 s / 1,7 s |
