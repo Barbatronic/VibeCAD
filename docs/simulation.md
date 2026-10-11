@@ -28,10 +28,13 @@ signalé comme périmé.
 | PETG imprimé | 2 000 | 0,38 | 30 |
 | ABS imprimé | 1 900 | 0,35 | 25 |
 | Contreplaqué | 6 000 | 0,3 | 25 |
+| Acrylique (PMMA) | 3 000 | 0,37 | 35 |
 | Aluminium | 69 000 | 0,33 | 150 |
 | Acier | 200 000 | 0,3 | 250 |
 
-Les résistances des plastiques imprimés sont prudentes (couches, remplissage).
+Les résistances des plastiques imprimés sont prudentes (couches, remplissage). L'acrylique est
+cassant (il casse sans plier) et les bords découpés au laser ont des micro-fissures : sa
+résistance retenue est bien inférieure aux 60 à 70 MPa des fiches techniques.
 
 ## Méthode
 
