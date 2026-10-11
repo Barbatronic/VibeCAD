@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 import { addFeature, findPart, makeFilletFeature, makePatternFeature } from '../../src/domain/document';
 import type { CadDocument } from '../../src/domain/model';
 import { DISPLAY_MESH } from '../../src/domain/tolerances';
-import { technicalDrawing } from '../../src/app/drawings';
+import { technicalDrawing, VIEW_ORDER, VIEWS } from '../../src/app/drawings';
 import { RecomputeEngine } from '../../src/features/engine';
 import { loadOpenCascade } from '../../src/geometry/occt/loader';
 import { OcctKernel } from '../../src/geometry/occt/occt-kernel';
@@ -54,6 +54,8 @@ it('scénarios des fonctions récentes', async () => {
   const gridMesh = engine.meshOf(gridPart!, meshOptionsFor(gridPart!.analysis!.bbox, DISPLAY_MESH))!;
   r.gridDisplayMeshMs = median(() => kernel.mesh(gridPart!.shape!, meshOptionsFor(gridPart!.analysis!.bbox, DISPLAY_MESH)), 5);
   r.gridDrawingMs = median(() => technicalDrawing(gridMesh, { partName: 'Grille', projectName: 'Banc' }), 5);
+  const hlrViews = VIEW_ORDER.map((v) => ({ u: VIEWS[v].u, toViewer: VIEWS[v].toViewer }));
+  r.gridExactViewsMs = median(() => kernel.hiddenLineViews(gridPart!.shape!, hlrViews), 3);
 
   // Vue en coupe et collisions (service du worker).
   const service = new GeometryService(kernel);
@@ -81,6 +83,7 @@ it('scénarios des fonctions récentes', async () => {
     let mesh = null as ReturnType<typeof kernel.mesh> | null;
     r[`stl${label}MeshMs`] = median(() => (mesh = kernel.mesh(solid!, { linearDeflection: 0.1, angularDeflection: 0.3 })), 3);
     r[`stl${label}DrawingMs`] = median(() => technicalDrawing(mesh!, { partName: 'Boule', projectName: 'Banc' }), 3);
+    if (label === '4k') r.stl4kExactViewsMs = median(() => kernel.hiddenLineViews(solid!, hlrViews), 1);
     kernel.dispose(solid!);
   }
 
