@@ -260,6 +260,8 @@ export interface GeometryKernel {
   /** Copie étiquetée d'un solide importé : chaque face reçoit `{featureId, role:'imported', index}`. */
   tagImported(solid: KernelShape, featureId: Id): KernelShape;
   analyze(shape: KernelShape): ShapeAnalysis;
+  /** Volume et nombre de solides seulement : bien plus rapide qu'`analyze` (pas de contrôle de validité). */
+  volumeOf(shape: KernelShape): { volume: number; solidCount: number };
   findFacePlane(shape: KernelShape, ref: FaceRef): FacePlaneLookup;
   /**
    * Copie déplacée d'un solide (matrice 4 × 4 de placement, par colonnes) : export d'assemblage,

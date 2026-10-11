@@ -7,7 +7,7 @@ import type { CadDocument, Id } from '../domain/model';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
-import type { BoundingBox, GeometryKernel, KernelShape, MeshOptions } from '../geometry/kernel';
+import type { BoundingBox, GeometryKernel, KernelShape, MeshData, MeshOptions } from '../geometry/kernel';
 import { stepProductNames } from '../io/resources';
 import { meshesToBinaryStl, STL_MAX_TRIANGLES, stlTriangleCount } from '../io/stl';
 import { meshesTo3mf } from '../io/threemf';
@@ -281,39 +281,72 @@ export class GeometryService {
    * chevauchent, la partie commune ; au-delà d'un volume négligeable (un simple contact donne un
    * volume nul), la paire est signalée avec le maillage de la partie commune.
    */
+  /**
+   * Résultats des paires déjà comparées : clé = formes des deux pièces et leurs placements. Quand
+   * une seule pièce bouge, seules ses paires sont recalculées (les autres viennent d'ici).
+   */
+  private readonly collisionCache = new Map<string, { volume: number; mesh: MeshData } | null>();
+
   collisions(docIn: DocumentForWorker, placements: CollisionPlacement[]): { collisions: Collision[] } {
     const evaluations = this.engine.evaluateDocument(this.asDocument(docIn));
-    const placed: { instanceId: Id; shape: KernelShape; bbox: BoundingBox | null }[] = [];
+    const placed: { pl: CollisionPlacement; ev: PartEvaluation; bbox: BoundingBox | null; key: string; shape: KernelShape | null }[] = [];
+    for (const pl of placements) {
+      const ev = evaluations.find((e) => e.partId === pl.partId);
+      if (!ev?.shape) continue;
+      // Boîte de la pièce placée : celle de la pièce, transformée (sans recalcul).
+      const bbox = ev.analysis?.bbox ? transformBox(ev.analysis.bbox, pl.matrix) : null;
+      const key = `${ev.shapeKey ?? ev.partId}@${pl.matrix.map((v) => Math.round(v * 1e6) / 1e6).join(',')}`;
+      placed.push({ pl, ev, bbox, key, shape: null });
+    }
+    const shapeOf = (p: (typeof placed)[number]) => (p.shape ??= this.kernel.transformed(p.ev.shape!, p.pl.matrix));
+    const overlap = (a: BoundingBox | null, b: BoundingBox | null) =>
+      !!a && !!b && a.min.x < b.max.x && b.min.x < a.max.x && a.min.y < b.max.y && b.min.y < a.max.y && a.min.z < b.max.z && b.min.z < a.max.z;
     const collisions: Collision[] = [];
+    const used = new Set<string>();
     try {
-      for (const pl of placements) {
-        const ev = evaluations.find((e) => e.partId === pl.partId);
-        if (!ev?.shape) continue;
-        const shape = this.kernel.transformed(ev.shape, pl.matrix);
-        placed.push({ instanceId: pl.instanceId, shape, bbox: this.kernel.analyze(shape).bbox });
-      }
-      const overlap = (a: BoundingBox | null, b: BoundingBox | null) =>
-        !!a && !!b && a.min.x < b.max.x && b.min.x < a.max.x && a.min.y < b.max.y && b.min.y < a.max.y && a.min.z < b.max.z && b.min.z < a.max.z;
       for (let i = 0; i < placed.length; i++) {
         for (let j = i + 1; j < placed.length; j++) {
           const p = placed[i]!;
           const q = placed[j]!;
           if (!overlap(p.bbox, q.bbox)) continue;
-          const common = this.kernel.common(p.shape, q.shape);
-          try {
-            const analysis = this.kernel.analyze(common);
-            // Tolérance : un contact (goupille ajustée dans son trou) donne un volume quasi nul.
-            if (analysis.solidCount > 0 && analysis.volume > 1e-3) {
-              collisions.push({ a: p.instanceId, b: q.instanceId, volume: analysis.volume, mesh: this.kernel.mesh(common, meshOptionsFor(analysis.bbox, DISPLAY_MESH)) });
+          const pairKey = `${p.key}|${q.key}`;
+          used.add(pairKey);
+          let hit = this.collisionCache.get(pairKey);
+          if (hit === undefined) {
+            const common = this.kernel.common(shapeOf(p), shapeOf(q));
+            try {
+              const v = this.kernel.volumeOf(common);
+              // Tolérance : un contact (goupille ajustée dans son trou) donne un volume quasi nul.
+              hit = v.solidCount > 0 && v.volume > 1e-3 ? { volume: v.volume, mesh: this.kernel.mesh(common, meshOptionsFor(p.bbox, DISPLAY_MESH)) } : null;
+            } finally {
+              this.kernel.dispose(common);
             }
-          } finally {
-            this.kernel.dispose(common);
+            this.collisionCache.set(pairKey, hit);
           }
+          if (hit) collisions.push({ a: p.pl.instanceId, b: q.pl.instanceId, volume: hit.volume, mesh: hit.mesh });
         }
       }
     } finally {
-      for (const p of placed) this.kernel.dispose(p.shape);
+      for (const p of placed) if (p.shape) this.kernel.dispose(p.shape);
     }
+    // Paires qui n'existent plus (pièce modifiée ou déplacée) : oubliées.
+    for (const k of this.collisionCache.keys()) if (!used.has(k)) this.collisionCache.delete(k);
     return { collisions };
   }
+}
+
+/** Boîte englobante d'une boîte transformée (ses huit coins). */
+function transformBox(b: BoundingBox, m: readonly number[]): BoundingBox {
+  const min = { x: Infinity, y: Infinity, z: Infinity };
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const x of [b.min.x, b.max.x])
+    for (const y of [b.min.y, b.max.y])
+      for (const z of [b.min.z, b.max.z]) {
+        const p = { x: m[0]! * x + m[4]! * y + m[8]! * z + m[12]!, y: m[1]! * x + m[5]! * y + m[9]! * z + m[13]!, z: m[2]! * x + m[6]! * y + m[10]! * z + m[14]! };
+        for (const k of ['x', 'y', 'z'] as const) {
+          min[k] = Math.min(min[k], p[k]);
+          max[k] = Math.max(max[k], p[k]);
+        }
+      }
+  return { min, max };
 }

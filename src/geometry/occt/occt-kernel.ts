@@ -747,6 +747,20 @@ export class OcctKernel implements GeometryKernel {
     );
   }
 
+  volumeOf(shapeIn: KernelShape): { volume: number; solidCount: number } {
+    const { shape } = asOcct(shapeIn);
+    const oc = this.oc;
+    return this.guard('analyse', () =>
+      withScope((scope) => {
+        const vp = scope.track(new oc.GProp_GProps());
+        oc.BRepGProp.VolumeProperties(shape, vp, false, false, false);
+        const solids = this.explore(shape, 'solid');
+        for (const s of solids) s.delete();
+        return { volume: vp.Mass(), solidCount: solids.length };
+      }),
+    );
+  }
+
   findFacePlane(shapeIn: KernelShape, ref: FaceRef): FacePlaneLookup {
     const src = asOcct(shapeIn);
     const matches = src.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref)));
