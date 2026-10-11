@@ -1302,9 +1302,9 @@ export class AppController {
   async openFile(force = false): Promise<void> {
     if (!force && this.guardUnsaved('open-file')) return;
     this.set({ dialog: null });
-    const file = await pickFile(`${NATIVE_EXTENSION},.json,application/json,.step,.stp`);
+    const file = await pickFile(`${NATIVE_EXTENSION},.json,application/json,.step,.stp,.stl`);
     if (!file) return;
-    if (/\.(step|stp)$/i.test(file.name)) {
+    if (/\.(step|stp|stl)$/i.test(file.name)) {
       await this.beginImport(file);
       return;
     }
@@ -1389,18 +1389,19 @@ export class AppController {
   // Import et export
 
   async importStep(): Promise<void> {
-    if (!this.can('import-step')) return this.explain('L’import de fichiers STEP est disponible au niveau Expert (en bas à droite : « Niveau »).');
+    if (!this.can('import-step')) return this.explain('L’import de fichiers STEP et STL est disponible au niveau Expert (en bas à droite : « Niveau »).');
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
-    const file = await pickFile('.step,.stp,model/step,application/step');
+    const file = await pickFile('.step,.stp,.stl,model/step,application/step,model/stl');
     if (file) await this.beginImport(file);
   }
 
   async beginImport(file: File): Promise<void> {
     const bytes = await readFileBytes(file);
-    this.set({ dialog: { kind: 'import-step', fileName: file.name, bytes, inspection: null, error: null, target: 'new-part', busy: true } });
+    const format = /\.stl$/i.test(file.name) ? 'stl' : 'step';
+    this.set({ dialog: { kind: 'import-step', fileName: file.name, format, bytes, inspection: null, error: null, target: 'new-part', busy: true } });
     try {
       await this.deps.client.ready;
-      const inspection = await this.deps.client.inspectStep(bytes);
+      const inspection = await this.deps.client.inspectStep(bytes, format);
       const d = this.state.dialog;
       if (d?.kind === 'import-step') this.set({ dialog: { ...d, inspection, busy: false } });
     } catch (err) {
@@ -1418,9 +1419,9 @@ export class AppController {
     const d = this.state.dialog;
     if (d?.kind !== 'import-step' || !d.inspection) return;
     let doc = this.state.doc;
-    const resource = await createStepResource(newResourceId(doc), d.fileName, d.bytes);
+    const resource = await createStepResource(newResourceId(doc), d.fileName, d.bytes, undefined, d.format);
     doc = addResource(doc, resource);
-    const baseName = d.fileName.replace(/\.(step|stp)$/i, '');
+    const baseName = d.fileName.replace(/\.(step|stp|stl)$/i, '');
     let partId = this.state.activePartId;
     if (d.target === 'new-part') {
       const r = addPart(doc, d.inspection.productNames.length === 1 ? d.inspection.productNames[0]! : baseName);
@@ -1445,7 +1446,9 @@ export class AppController {
     });
     this.toast(
       'success',
-      `« ${d.fileName} » importé : ${d.inspection.solids.length} solide(s). Le fichier est conservé dans le projet ; ses étapes de construction d’origine ne sont pas récupérables.`,
+      d.format === 'stl'
+        ? `« ${d.fileName} » importé : ${d.inspection.solids.length} solide(s). Le fichier est conservé dans le projet ; les surfaces courbes restent en facettes.`
+        : `« ${d.fileName} » importé : ${d.inspection.solids.length} solide(s). Le fichier est conservé dans le projet ; ses étapes de construction d’origine ne sont pas récupérables.`,
     );
   }
 

@@ -631,9 +631,10 @@ export interface ChamferParams {
 // ---------------------------------------------------------------------------
 // Ressources embarquées
 
+/** Fichier importé conservé dans le projet : STEP (formes exactes) ou STL (triangles). */
 export interface StepResource {
   id: Id;
-  kind: 'step';
+  kind: 'step' | 'stl';
   fileName: string;
   /** `utf8` : texte STEP tel quel ; `base64` : octets bruts encodés. */
   encoding: 'utf8' | 'base64';

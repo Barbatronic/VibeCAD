@@ -13,10 +13,10 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   await expect(page.locator('#tool-revolve')).toHaveCount(0);
   await expect(page.locator('#tool-pattern')).toHaveCount(0);
   await expect(page.locator('#tab-assembly')).toHaveCount(0);
-  // L'import STEP (menu Fichier) est un outil Expert ; les formes toutes faites sont pour tous.
+  // L'import STEP / STL (menu Fichier) est un outil Expert ; les formes toutes faites sont pour tous.
   await expect(page.locator('#tool-primitive')).toBeVisible();
   await openFileMenu(page);
-  await expect(page.getByRole('menuitem', { name: /Importer un fichier STEP/ })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: /Importer un fichier/ })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.click('#tool-sketch');
   await page.getByRole('button', { name: /Plan XY/ }).click();
@@ -46,5 +46,5 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   await expect(page.getByLabel('Niveau de l’interface')).toHaveValue('intermediaire');
   await page.getByLabel('Niveau de l’interface').selectOption('expert');
   await openFileMenu(page);
-  await expect(page.getByRole('menuitem', { name: /Importer un fichier STEP/ })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: /Importer un fichier/ })).toBeVisible();
 });

@@ -618,6 +618,56 @@ export class OcctKernel implements GeometryKernel {
     return new OcctShape(result, faces);
   }
 
+  readStl(data: Uint8Array): StepReadResult {
+    const oc = this.oc;
+    return this.guard('lecture STL', () =>
+      withScope((scope) => {
+        const fileName = `/import-${++this.fileCounter}.stl`;
+        oc.FS.writeFile(fileName, data);
+        try {
+          const raw = scope.track(new oc.TopoDS_Shape());
+          const okRead = scope.track(new oc.StlAPI_Reader()).Read(raw, fileName);
+          if (!okRead || raw.IsNull()) throw new KernelError('Ce fichier n’est pas un fichier STL lisible.');
+          // Triangles → coque cousue → solides fermés.
+          const sewing = scope.track(new oc.BRepBuilderAPI_Sewing(1e-4, true, true, true, false));
+          sewing.Load(raw);
+          sewing.Perform(scope.track(new oc.Message_ProgressRange()));
+          // Arêtes libres (bordées d'un seul triangle) : le maillage a des trous, pas de volume fermé.
+          const free = sewing.NbFreeEdges();
+          if (free > 0) throw new KernelError(`Le maillage STL est troué (${free} bord${free > 1 ? 's' : ''} ouvert${free > 1 ? 's' : ''}) : il ne forme pas un volume fermé. Réparez-le dans un autre logiciel avant de l’importer.`);
+          const sewed = scope.track(sewing.SewedShape());
+          const fix = scope.track(new oc.ShapeFix_Solid());
+          const solids: OcctShape[] = [];
+          for (const shell of this.explore(sewed, 'shell')) {
+            scope.track(shell);
+            const solid = scope.track(fix.SolidFromShell(oc.TopoDS.Shell(shell)));
+            // Fusion des triangles coplanaires : une face plane redevient une seule face.
+            const unify = scope.track(new oc.ShapeUpgrade_UnifySameDomain(solid, true, true, false));
+            unify.Build();
+            const merged = unify.Shape();
+            solids.push(new OcctShape(merged, this.taggedFaces(merged)));
+          }
+          const closed = solids.filter((s) => {
+            const a = this.analyze(s);
+            return a.solidCount > 0 && a.volume > 0;
+          });
+          if (closed.length === 0) {
+            solids.forEach((s) => this.dispose(s));
+            throw new KernelError('Le fichier STL ne forme pas de volume fermé (maillage troué ou seulement des surfaces).');
+          }
+          solids.filter((s) => !closed.includes(s)).forEach((s) => this.dispose(s));
+          return { solids: closed, productNames: [] };
+        } finally {
+          try {
+            oc.FS.unlink(fileName);
+          } catch {
+            // ignoré
+          }
+        }
+      }),
+    );
+  }
+
   readStep(data: Uint8Array): StepReadResult {
     const oc = this.oc;
     return this.guard('lecture STEP', () =>

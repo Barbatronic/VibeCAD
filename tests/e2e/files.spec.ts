@@ -68,7 +68,7 @@ test('exporter en STEP, importer le fichier dans un nouveau projet et le retrouv
 
   // Import du fichier STEP exporté.
   await openFileMenu(page);
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: /Importer un fichier STEP/ }).click()]);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: /Importer un fichier/ }).click()]);
   await chooser.setFiles('tests/output/e2e-export.step');
   const dialog = page.getByRole('dialog', { name: /Importer/ });
   await expect(dialog.getByText(/1 solide trouvé/)).toBeVisible();

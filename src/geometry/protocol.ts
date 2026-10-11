@@ -47,6 +47,8 @@ export interface EvaluationResult {
 export interface StepInspection {
   solids: { volume: number; bbox: { min: Vec3; max: Vec3 } | null; valid: boolean }[];
   productNames: string[];
+  /** STL : nombre de triangles du fichier. */
+  triangles?: number;
 }
 
 export interface PickRef {
@@ -69,6 +71,8 @@ export interface WorkerResourcePayload {
   sha256: string;
   fileName: string;
   bytes: Uint8Array;
+  /** Format du fichier (STEP si absent). */
+  kind?: 'step' | 'stl';
 }
 
 /** Pièce d'assemblage à exporter à sa place (matrice 4 × 4 par colonnes). */
@@ -85,7 +89,7 @@ export type WorkerRequest =
   | { id: number; type: 'exportStep'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
   | { id: number; type: 'exportStl'; doc: DocumentForWorker; partIds: Id[] }
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
-  | { id: number; type: 'inspectStep'; bytes: Uint8Array }
+  | { id: number; type: 'inspectStep'; bytes: Uint8Array; format?: 'step' | 'stl' }
   | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
   | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] };

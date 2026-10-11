@@ -25,7 +25,7 @@ export function base64ToBytes(text: string): Uint8Array {
 }
 
 /** Crée la ressource d'un fichier STEP : texte UTF-8 tel quel si possible, sinon base64. */
-export async function createStepResource(id: Id, fileName: string, bytes: Uint8Array, importedAt = new Date().toISOString()): Promise<StepResource> {
+export async function createStepResource(id: Id, fileName: string, bytes: Uint8Array, importedAt = new Date().toISOString(), kind: StepResource['kind'] = 'step'): Promise<StepResource> {
   let encoding: StepResource['encoding'] = 'utf8';
   let data: string;
   try {
@@ -37,7 +37,7 @@ export async function createStepResource(id: Id, fileName: string, bytes: Uint8A
     encoding = 'base64';
     data = bytesToBase64(bytes);
   }
-  return { id, kind: 'step', fileName, encoding, data, byteLength: bytes.length, sha256: await sha256Hex(bytes), importedAt };
+  return { id, kind, fileName, encoding, data, byteLength: bytes.length, sha256: await sha256Hex(bytes), importedAt };
 }
 
 export function resourceBytes(resource: StepResource): Uint8Array {
@@ -97,7 +97,7 @@ export function createResourceProvider(resources: Record<Id, StepResource>): Res
       if (hit) return hit;
       const r = resources[id];
       if (!r) return undefined;
-      const data = { sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r) };
+      const data = { sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r), kind: r.kind };
       cache.set(id, data);
       return data;
     },

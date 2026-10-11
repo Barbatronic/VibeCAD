@@ -90,7 +90,7 @@ export class GeometryClient {
     const missing = Object.values(doc.resources).filter((r) => !this.sentResources.has(`${r.id}:${r.sha256}`));
     if (missing.length === 0) return;
     await this.request('resources', {
-      resources: missing.map((r) => ({ id: r.id, sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r) })),
+      resources: missing.map((r) => ({ id: r.id, sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r), kind: r.kind })),
     });
     for (const r of missing) this.sentResources.add(`${r.id}:${r.sha256}`);
   }
@@ -171,8 +171,8 @@ export class GeometryClient {
     return this.request('export3mf', { doc: documentForWorker(doc), partIds, ...(placements ? { placements } : {}) });
   }
 
-  inspectStep(bytes: Uint8Array): Promise<WorkerResultMap['inspectStep']> {
-    return this.request('inspectStep', { bytes });
+  inspectStep(bytes: Uint8Array, format: 'step' | 'stl' = 'step'): Promise<WorkerResultMap['inspectStep']> {
+    return this.request('inspectStep', { bytes, format });
   }
 
   async measure(doc: CadDocument, a: PickRef, b: PickRef): Promise<WorkerResultMap['measure']> {

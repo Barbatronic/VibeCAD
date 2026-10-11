@@ -1434,7 +1434,10 @@
           "$ref": "#/$defs/id"
         },
         "kind": {
-          "const": "step"
+          "enum": [
+            "step",
+            "stl"
+          ]
         },
         "fileName": {
           "type": "string"

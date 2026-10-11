@@ -58,3 +58,19 @@ export function readBinaryStl(bytes: Uint8Array): { triangles: number; volume: n
   }
   return { triangles, volume };
 }
+
+/**
+ * Nombre de triangles au plus pour un import STL : au-delà, la pièce (une face par triangle non
+ * coplanaire) deviendrait trop lente à afficher et à modifier sur un ordinateur d'école.
+ */
+export const STL_MAX_TRIANGLES = 30_000;
+
+/** Nombre de triangles d'un fichier STL, binaire ou texte (avant toute lecture géométrique). */
+export function stlTriangleCount(bytes: Uint8Array): number {
+  if (bytes.length >= 84) {
+    const n = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(80, true);
+    if (84 + 50 * n === bytes.length) return n;
+  }
+  const text = new TextDecoder('latin1').decode(bytes);
+  return (text.match(/\bfacet\s+normal\b/gi) ?? []).length;
+}

@@ -84,6 +84,8 @@ export type Dialog =
   | {
       kind: 'import-step';
       fileName: string;
+      /** Format du fichier : STEP (formes exactes) ou STL (triangles). */
+      format: 'step' | 'stl';
       bytes: Uint8Array;
       inspection: StepInspection | null;
       error: string | null;

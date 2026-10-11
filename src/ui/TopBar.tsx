@@ -84,7 +84,7 @@ function FileMenu() {
           {item('save', 'Enregistrer', () => void c.save(), 'Ctrl+S')}
           {item('export', 'Enregistrer sous… (fichier)', () => void c.saveAs(), 'Ctrl+Maj+S')}
           <div class="menu-sep" role="separator" />
-          {canImport ? item('import', 'Importer un fichier STEP…', () => void c.importStep()) : null}
+          {canImport ? item('import', 'Importer un fichier (STEP, STL)…', () => void c.importStep()) : null}
           {item('export', 'Exporter en STEP (FreeCAD)…', () => c.showExportDialog('step'), undefined, !exportOk)}
           {item('print3d', 'Exporter en 3MF (impression 3D)…', () => c.showExportDialog('3mf'), undefined, !exportOk)}
           {item('stl', 'Exporter en STL (impression 3D)…', () => c.showExportDialog('stl'), undefined, !exportOk)}

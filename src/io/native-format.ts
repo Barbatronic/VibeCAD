@@ -764,7 +764,7 @@ function readResource(v: Validator, x: unknown, path: string): Resource | null {
   const data = str(v, o, 'data', path);
   return {
     id: str(v, o, 'id', path),
-    kind: oneOf(v, o, 'kind', path, ['step'] as const),
+    kind: oneOf(v, o, 'kind', path, ['step', 'stl'] as const),
     fileName: str(v, o, 'fileName', path),
     encoding: oneOf(v, o, 'encoding', path, ['utf8', 'base64'] as const),
     data,

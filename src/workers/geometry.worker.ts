@@ -45,7 +45,7 @@ async function handle(req: WorkerRequest): Promise<unknown> {
     case 'export3mf':
       return svc.export3mf(req.doc, req.partIds, req.placements);
     case 'inspectStep':
-      return svc.inspectStep(req.bytes);
+      return svc.inspectStep(req.bytes, req.format ?? 'step');
     case 'measure':
       return svc.measure(req.doc, req.a, req.b);
     case 'section':

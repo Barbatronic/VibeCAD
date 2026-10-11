@@ -9,7 +9,7 @@ import { RecomputeEngine, type PartEvaluation } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
 import type { BoundingBox, GeometryKernel, KernelShape, MeshOptions } from '../geometry/kernel';
 import { stepProductNames } from '../io/resources';
-import { meshesToBinaryStl } from '../io/stl';
+import { meshesToBinaryStl, STL_MAX_TRIANGLES, stlTriangleCount } from '../io/stl';
 import { meshesTo3mf } from '../io/threemf';
 import { APP_NAME, APP_VERSION } from '../meta';
 import type {
@@ -41,7 +41,7 @@ export class GeometryService {
   }
 
   addResources(payload: WorkerResourcePayload[]): number {
-    for (const r of payload) this.resources.set(r.id, { sha256: r.sha256, fileName: r.fileName, bytes: r.bytes });
+    for (const r of payload) this.resources.set(r.id, { sha256: r.sha256, fileName: r.fileName, bytes: r.bytes, ...(r.kind ? { kind: r.kind } : {}) });
     return this.resources.size;
   }
 
@@ -178,7 +178,26 @@ export class GeometryService {
     }
   }
 
-  inspectStep(bytes: Uint8Array): StepInspection {
+  inspectStep(bytes: Uint8Array, format: 'step' | 'stl' = 'step'): StepInspection {
+    if (format === 'stl') {
+      const triangles = stlTriangleCount(bytes);
+      if (triangles > STL_MAX_TRIANGLES) {
+        throw new Error(`Ce fichier STL est trop détaillé (${triangles.toLocaleString('fr-FR')} triangles, ${STL_MAX_TRIANGLES.toLocaleString('fr-FR')} au plus) : simplifiez-le dans un autre logiciel avant de l’importer.`);
+      }
+      const read = this.kernel.readStl(bytes);
+      try {
+        return {
+          solids: read.solids.map((s) => {
+            const a = this.kernel.analyze(s);
+            return { volume: a.volume, bbox: a.bbox, valid: a.valid };
+          }),
+          productNames: [],
+          triangles,
+        };
+      } finally {
+        read.solids.forEach((s) => this.kernel.dispose(s));
+      }
+    }
     const read = this.kernel.readStep(bytes);
     try {
       return {

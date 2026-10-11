@@ -205,7 +205,7 @@ export class RecomputeEngine {
     let entry = this.stepFiles.get(res.sha256);
     if (!entry) {
       try {
-        entry = { solids: this.kernel.readStep(res.bytes).solids, lastUsed: this.generation };
+        entry = { solids: (res.kind === 'stl' ? this.kernel.readStl(res.bytes) : this.kernel.readStep(res.bytes)).solids, lastUsed: this.generation };
       } catch (err) {
         const detail = err instanceof KernelError ? [err.message, err.detail].filter(Boolean).join(' — ') : String(err);
         entry = { error: 'IMPORT_FAILED', detail, lastUsed: this.generation };

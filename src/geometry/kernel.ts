@@ -244,6 +244,11 @@ export interface GeometryKernel {
   cut(base: KernelShape, tool: KernelShape): KernelShape;
   /** Partie commune de deux solides (vide si ils ne font que se toucher). */
   common(a: KernelShape, b: KernelShape): KernelShape;
+  /**
+   * Lit un fichier STL (binaire ou texte) : les triangles sont cousus en solides, puis les
+   * triangles d'une même face plane sont fusionnés. Solides sans étiquettes, dans l'ordre de lecture.
+   */
+  readStl(data: Uint8Array): StepReadResult;
   /** Lit un fichier STEP ; renvoie les solides dans l'ordre de lecture (sans étiquettes). */
   readStep(data: Uint8Array): StepReadResult;
   /** Copie étiquetée d'un solide importé : chaque face reçoit `{featureId, role:'imported', index}`. */

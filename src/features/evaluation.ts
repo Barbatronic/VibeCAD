@@ -25,6 +25,8 @@ export interface ResourceData {
   sha256: string;
   fileName: string;
   bytes: Uint8Array;
+  /** Format du fichier (STEP par défaut). */
+  kind?: 'step' | 'stl';
 }
 
 export interface ResourceProvider {

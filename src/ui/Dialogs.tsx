@@ -260,7 +260,7 @@ function ImportDialog() {
       {d.busy ? (
         <p>
           <span class="spinner" style={{ display: 'inline-block', width: '18px', height: '18px', verticalAlign: 'middle', marginRight: '8px' }} />
-          Lecture du fichier STEP…
+          Lecture du fichier {d.format === 'stl' ? 'STL' : 'STEP'}…
         </p>
       ) : null}
       {d.error ? (
@@ -272,7 +272,8 @@ function ImportDialog() {
         <>
           <p>
             {d.inspection.solids.length} solide{d.inspection.solids.length > 1 ? 's' : ''} trouvé{d.inspection.solids.length > 1 ? 's' : ''}
-            {d.inspection.productNames.length ? ` (${d.inspection.productNames.slice(0, 4).join(', ')})` : ''} :
+            {d.inspection.productNames.length ? ` (${d.inspection.productNames.slice(0, 4).join(', ')})` : ''}
+            {d.inspection.triangles !== undefined ? ` à partir de ${d.inspection.triangles.toLocaleString('fr-FR')} triangles` : ''} :
           </p>
           <ul>
             {d.inspection.solids.map((s, i) => (
@@ -298,8 +299,10 @@ function ImportDialog() {
           </fieldset>
           <Callout kind="info">
             <p>
-              Le contenu du fichier est copié dans le projet : il restera disponible sans le fichier d’origine. Un STEP contient la forme finale,
-              pas les esquisses ni les étapes qui ont servi à le construire.
+              Le contenu du fichier est copié dans le projet : il restera disponible sans le fichier d’origine.{' '}
+              {d.format === 'stl'
+                ? 'Un STL ne contient que des triangles : les faces planes sont reconstituées, mais les surfaces courbes restent en facettes (on ne peut pas y faire un congé propre).'
+                : 'Un STEP contient la forme finale, pas les esquisses ni les étapes qui ont servi à le construire.'}
             </p>
           </Callout>
         </>
