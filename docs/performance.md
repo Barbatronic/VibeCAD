@@ -79,6 +79,31 @@ le vide), sans mise en page ni recalcul de styles notables ; la rotation de la v
 presque pas de script. Le reste du temps observé dans les tests vient du rendu WebGL logiciel du
 navigateur sans écran, pas de l'application.
 
+### Projet chargé : 30 pièces et un assemblage de 30 instances
+
+`tests/perf/many-parts.test.ts` : 30 pièces (bloc 40 × 30 × 10 percé d'une grille de 4 × 3 trous)
+et 30 instances serrées en grille qui se chevauchent (89 paires en collision).
+
+| Mesure | Avant | Après |
+| --- | --- | --- |
+| Ouverture : recalcul et maillage des 30 pièces | 2,0 s | 2,0 s |
+| Une pièce modifiée (les 29 autres viennent du cache) | 55 ms | 55 ms |
+| Maillage des 30 pièces (export, plateau) | 0,6 s | 0,6 s |
+| Collisions, premier calcul complet | 2,35 s | 2,0 s |
+| Collisions après le déplacement d'une instance | 2,35 s (tout recalculé) | 0,14 s |
+| Croissance de la mémoire WASM | 0 Mo | 0 Mo |
+| Navigateur : chargement et affichage des 30 pièces | | 1,8 s |
+| Navigateur : 100 mouvements de souris sur les pièces (temps total du test) | ≈ 36 s | 4,0 s |
+
+Corrections : les collisions gardent le résultat de chaque paire tant que ses deux pièces n'ont
+ni changé ni bougé, mesurent le volume commun sans contrôle de validité et prennent la boîte
+englobante d'une pièce placée à partir de sa boîte connue ; la surbrillance de survol n'est plus
+détruite et recréée (matériau neuf, shader recompilé, image redessinée) à chaque mouvement de
+souris tant que l'élément survolé ne change pas ; la recherche d'arêtes ignore les pièces dont
+la sphère englobante passe loin du curseur. Le script d'un mouvement de souris sur 30 pièces
+superposées coûte environ 6 ms (lancer de rayon sur tous leurs triangles) ; une structure
+d'accélération (BVH) le réduirait si des projets plus gros l'exigent.
+
 Pistes restantes, par ordre d'intérêt pour une salle de classe :
 
 1. Premier chargement : le WASM fait 7 Mo compressés ; il est ensuite gardé hors ligne par le
@@ -93,8 +118,8 @@ Pistes restantes, par ordre d'intérêt pour une salle de classe :
 ## Reproduire
 
 ```bash
-npm run bench                 # durées, mémoire et scénarios récents (≈ 1 min)
-cat tests/output/bench.json tests/output/scenarios.json
+npm run bench                 # durées, mémoire, scénarios récents, projet de 30 pièces (≈ 2 min)
+cat tests/output/bench.json tests/output/scenarios.json tests/output/many-parts.json
 ```
 
 Les temps varient selon la charge de la machine ; comparer des médianes.
