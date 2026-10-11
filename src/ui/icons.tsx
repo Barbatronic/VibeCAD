@@ -93,6 +93,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
     </>
   ),
+  collision: (
+    <>
+      <rect x="3" y="7" width="10" height="10" rx="1" />
+      <rect x="10" y="4" width="10" height="10" rx="1" opacity="0.7" />
+      <path d="M10 7h3v7h-3z" fill="currentColor" opacity="0.5" />
+    </>
+  ),
   section: (
     <>
       <path d="M4 8l8-4 8 4v8l-8 4-8-4z" opacity="0.5" />

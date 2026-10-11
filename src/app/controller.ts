@@ -143,6 +143,46 @@ export class AppController {
     if (tips === false) this.set({ tips: false });
   }
 
+  // ----- Collisions de l'assemblage
+
+  private collisionBusy = false;
+  private collisionAgain = false;
+
+  /** Active ou coupe la recherche de collisions de l'assemblage (refaite après chaque changement). */
+  toggleCollisions(on?: boolean): void {
+    const check = on ?? !this.state.collisionCheck;
+    this.set({ collisionCheck: check, collisions: check ? this.state.collisions : null });
+    if (check) void this.refreshCollisions();
+  }
+
+  private async refreshCollisions(): Promise<void> {
+    if (this.collisionBusy) {
+      this.collisionAgain = true;
+      return;
+    }
+    const placement = this.assemblyPlacement();
+    const instances = this.state.doc.assembly?.instances ?? [];
+    if (!this.state.collisionCheck || !placement || this.state.kernel.status !== 'ready') return;
+    this.collisionBusy = true;
+    const revision = this.state.revision;
+    try {
+      const placements = instances.flatMap((i) => {
+        const matrix = placement.matrices.get(i.id);
+        return matrix ? [{ instanceId: i.id, partId: i.partId, matrix: [...matrix] }] : [];
+      });
+      const { collisions } = await this.deps.client.collisions(this.state.doc, placements);
+      if (this.state.collisionCheck) this.set({ collisions: { key: `${revision}`, items: collisions } });
+    } catch (err) {
+      this.toast('error', 'La recherche de collisions a échoué.', { detail: (err as Error).message });
+    } finally {
+      this.collisionBusy = false;
+      if (this.collisionAgain || revision !== this.state.revision) {
+        this.collisionAgain = false;
+        if (this.state.collisionCheck) void this.refreshCollisions();
+      }
+    }
+  }
+
   /** Montre ou cache le centre de gravité de la pièce active. */
   toggleCentroid(on?: boolean): void {
     this.set({ showCentroid: on ?? !this.state.showCentroid });
@@ -451,6 +491,7 @@ export class AppController {
       this.fitPending = false;
       this.set({ display, fitRequest, evaluating: this.deps.client.busy, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
       if (this.state.section) void this.refreshSection();
+      if (this.state.collisionCheck) void this.refreshCollisions();
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
       const mode = this.state.mode;
       if (mode.kind === 'sketch') {
@@ -1872,6 +1913,7 @@ export class AppController {
     const s = this.state;
     this.set({ history: recordAction(s.history, start, label), revision: s.revision + 1 });
     this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
+    if (this.state.collisionCheck) void this.refreshCollisions();
   }
 
   removeJoint(jointId: Id): void {

@@ -200,6 +200,8 @@ export interface GeometryKernel {
   makeRevolution(request: RevolveRequest): KernelShape;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;
   cut(base: KernelShape, tool: KernelShape): KernelShape;
+  /** Partie commune de deux solides (vide si ils ne font que se toucher). */
+  common(a: KernelShape, b: KernelShape): KernelShape;
   /** Lit un fichier STEP ; renvoie les solides dans l'ordre de lecture (sans étiquettes). */
   readStep(data: Uint8Array): StepReadResult;
   /** Copie étiquetée d'un solide importé : chaque face reçoit `{featureId, role:'imported', index}`. */

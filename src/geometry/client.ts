@@ -16,6 +16,7 @@ import {
   type ExportPlacement,
   type WorkerResultMap,
   type SectionPlane,
+  type CollisionPlacement,
 } from './protocol';
 
 type RequestType = WorkerRequest['type'];
@@ -182,6 +183,11 @@ export class GeometryClient {
   async section(doc: CadDocument, section: SectionPlane): Promise<WorkerResultMap['section']> {
     await this.syncResources(doc);
     return this.request('section', { doc: documentForWorker(doc), section });
+  }
+
+  async collisions(doc: CadDocument, placements: CollisionPlacement[]): Promise<WorkerResultMap['collisions']> {
+    await this.syncResources(doc);
+    return this.request('collisions', { doc: documentForWorker(doc), placements });
   }
 
   dispose(): void {

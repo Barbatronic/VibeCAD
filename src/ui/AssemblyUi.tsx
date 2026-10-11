@@ -88,12 +88,50 @@ function InsertMenu() {
   );
 }
 
+/** Résultat de la recherche de collisions (quand elle est activée). */
+function CollisionReport() {
+  const data = useAppState(
+    (s) =>
+      s.collisionCheck
+        ? {
+            ready: !!s.collisions,
+            items: (s.collisions?.items ?? []).map((c) => {
+              const name = (id: string) => s.doc.assembly?.instances.find((i) => i.id === id)?.name ?? '?';
+              return { a: name(c.a), b: name(c.b), volume: c.volume };
+            }),
+          }
+        : null,
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  if (!data) return null;
+  if (!data.ready) return <p class="field-help">Recherche des collisions…</p>;
+  if (data.items.length === 0) return <Callout kind="success">Aucune collision : les pièces ne se rentrent pas dedans.</Callout>;
+  return (
+    <Callout kind="error">
+      <p>
+        <strong>
+          {data.items.length} collision{data.items.length > 1 ? 's' : ''}
+        </strong>{' '}
+        (en rouge dans la vue) :
+      </p>
+      <ul class="collision-list">
+        {data.items.map((c, i) => (
+          <li key={i}>
+            « {c.a} » et « {c.b} » : {formatNumber(c.volume, 1)} mm³ en commun
+          </li>
+        ))}
+      </ul>
+    </Callout>
+  );
+}
+
 export function AssemblyTools() {
   const c = useController();
   const s = useAppState(
     (st) => ({
       joint: st.mode.kind === 'joint',
       hand: st.assemblyHand,
+      collisions: st.collisionCheck,
       count: st.doc.assembly?.instances.length ?? 0,
       sel: st.assemblySelection,
     }),
@@ -110,6 +148,15 @@ export function AssemblyTools() {
           hint="Main : attraper une pièce et la faire bouger à la souris, selon sa liaison (tourner, glisser, pencher)"
           pressed={s.hand}
           onClick={() => c.toggleAssemblyHand()}
+        />
+        <ToolButton
+          id="as-collisions"
+          icon="collision"
+          label="Collisions"
+          hint="Collisions : signaler en rouge les pièces qui se rentrent dedans (un simple contact n’est pas une collision)"
+          pressed={s.collisions}
+          availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
+          onClick={() => c.toggleCollisions()}
         />
         <ToolButton
           id="as-joint"
@@ -193,6 +240,7 @@ export function AssemblySection() {
             </li>
           ))}
         </ul>
+        <CollisionReport />
         {data.joints.length > 0 ? <h3 class="list-title">Liaisons</h3> : null}
         <ul class="feature-list" aria-label="Liaisons de l’assemblage">
           {data.joints.map((j) => (

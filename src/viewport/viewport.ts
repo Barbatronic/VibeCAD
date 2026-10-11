@@ -98,6 +98,8 @@ export interface ViewportInput {
   fitRequest?: number;
   /** Repères des liaisons à montrer (assemblage). */
   markers?: ViewMarker[];
+  /** Volumes à signaler (collisions d'un assemblage), en rouge, visibles à travers les pièces. */
+  highlightMeshes?: { key: string; mesh: MeshData }[];
   /** Points remarquables (centre de gravité), avec une étiquette. */
   points?: { at: Vec3; label: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
@@ -413,6 +415,7 @@ export class Viewport {
     this.syncSelection(input.selection);
     this.syncSectionFaces(input.sectionFaces ?? []);
     this.syncPoints(input.points ?? []);
+    this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
     this.syncBed(input.bed ?? null);
@@ -619,6 +622,34 @@ export class Viewport {
         this.selectionOverlays.push(overlay);
       }
     }
+  }
+
+  private highlightObjects: Object3D[] = [];
+  private highlightKey = '';
+
+  private syncHighlightMeshes(items: { key: string; mesh: MeshData }[]): void {
+    const key = items.map((i) => i.key).join('|');
+    if (key === this.highlightKey) return;
+    this.highlightKey = key;
+    for (const o of this.highlightObjects) {
+      o.parent?.remove(o);
+      if (o instanceof Mesh) {
+        o.geometry.dispose();
+        (o.material as Material).dispose();
+      }
+    }
+    this.highlightObjects = [];
+    for (const item of items) {
+      const geometry = new BufferGeometry();
+      geometry.setAttribute('position', new Float32BufferAttribute(item.mesh.positions, 3));
+      geometry.setIndex(Array.from(item.mesh.indices));
+      const material = new MeshBasicMaterial({ color: this.palette.previewCut, transparent: true, opacity: 0.6, depthTest: false, side: DoubleSide });
+      const mesh = new Mesh(geometry, material);
+      mesh.renderOrder = 45;
+      this.overlayGroup.add(mesh);
+      this.highlightObjects.push(mesh);
+    }
+    this.requestRender();
   }
 
   private pointObjects: Object3D[] = [];

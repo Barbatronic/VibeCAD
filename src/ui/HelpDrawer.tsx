@@ -26,6 +26,7 @@ const GLOSSARY: [string, string][] = [
   ['Frise', 'La bande d’icônes en bas de la vue : faites glisser le repère pour revoir la pièce à une étape plus ancienne.'],
   ['Assemblage', 'L’onglet où l’on réunit les pièces du projet et où on les fait bouger les unes par rapport aux autres.'],
   ['Repère', 'Un point et une direction posés sur une pièce : le centre d’une face plane, le centre d’un trou, le milieu d’une arête.'],
+  ['Collision', 'Deux pièces qui se rentrent dedans : impossible en vrai. Le volume en trop est montré en rouge.'],
   ['Liaison', 'Ce qui relie deux pièces : fixe, pivot (rotation, comme une roue), glissière (translation, comme un tiroir) ou pivot glissant.'],
   ['3MF', 'Format pour l’impression 3D qui garde l’unité (mm), le nom et la couleur des pièces.'],
   ['Révolution', 'Faire tourner le dessin autour d’un axe pour obtenir une pièce ronde, comme au tour.'],

@@ -2,7 +2,7 @@
  * Service géométrique : exécute les requêtes du protocole avec un noyau et un moteur.
  * Utilisé dans le worker (navigateur) et directement dans les tests (Node).
  */
-import type { SectionPart, SectionPlane } from '../geometry/protocol';
+import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '../geometry/protocol';
 import type { CadDocument, Id } from '../domain/model';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
@@ -255,5 +255,46 @@ export class GeometryService {
       }
     }
     return { parts };
+  }
+
+  /**
+   * Collisions d'un assemblage : pour chaque paire de pièces placées dont les boîtes se
+   * chevauchent, la partie commune ; au-delà d'un volume négligeable (un simple contact donne un
+   * volume nul), la paire est signalée avec le maillage de la partie commune.
+   */
+  collisions(docIn: DocumentForWorker, placements: CollisionPlacement[]): { collisions: Collision[] } {
+    const evaluations = this.engine.evaluateDocument(this.asDocument(docIn));
+    const placed: { instanceId: Id; shape: KernelShape; bbox: BoundingBox | null }[] = [];
+    const collisions: Collision[] = [];
+    try {
+      for (const pl of placements) {
+        const ev = evaluations.find((e) => e.partId === pl.partId);
+        if (!ev?.shape) continue;
+        const shape = this.kernel.transformed(ev.shape, pl.matrix);
+        placed.push({ instanceId: pl.instanceId, shape, bbox: this.kernel.analyze(shape).bbox });
+      }
+      const overlap = (a: BoundingBox | null, b: BoundingBox | null) =>
+        !!a && !!b && a.min.x < b.max.x && b.min.x < a.max.x && a.min.y < b.max.y && b.min.y < a.max.y && a.min.z < b.max.z && b.min.z < a.max.z;
+      for (let i = 0; i < placed.length; i++) {
+        for (let j = i + 1; j < placed.length; j++) {
+          const p = placed[i]!;
+          const q = placed[j]!;
+          if (!overlap(p.bbox, q.bbox)) continue;
+          const common = this.kernel.common(p.shape, q.shape);
+          try {
+            const analysis = this.kernel.analyze(common);
+            // Tolérance : un contact (goupille ajustée dans son trou) donne un volume quasi nul.
+            if (analysis.solidCount > 0 && analysis.volume > 1e-3) {
+              collisions.push({ a: p.instanceId, b: q.instanceId, volume: analysis.volume, mesh: this.kernel.mesh(common, meshOptionsFor(analysis.bbox, DISPLAY_MESH)) });
+            }
+          } finally {
+            this.kernel.dispose(common);
+          }
+        }
+      }
+    } finally {
+      for (const p of placed) this.kernel.dispose(p.shape);
+    }
+    return { collisions };
   }
 }

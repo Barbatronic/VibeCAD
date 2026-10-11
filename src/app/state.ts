@@ -136,6 +136,9 @@ export interface AppState {
   tips: boolean;
   /** Vue en coupe (affichage seulement) et pièces coupées reçues du moteur. */
   section: SectionPlane | null;
+  /** Assemblage : recherche des collisions activée, et dernier résultat. */
+  collisionCheck: boolean;
+  collisions: { key: string; items: { a: Id; b: Id; volume: number; mesh: MeshData }[] } | null;
   /** Repère du centre de gravité de la pièce active dans la vue. */
   showCentroid: boolean;
   sectionParts: { key: string; parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> } | null;
@@ -187,6 +190,8 @@ export function initialState(): AppState {
     tips: true,
     section: null,
     showCentroid: false,
+    collisionCheck: false,
+    collisions: null,
     sectionParts: null,
     workspace: 'parts',
     fabricationTab: 'print',

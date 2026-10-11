@@ -10,6 +10,9 @@ import { solveSketch } from '../../src/sketch/solver';
 import { ORIGIN_POINT_ID } from '../../src/domain/model';
 import { getKernel } from '../helpers/kernel';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
+import { documentForWorker } from '../../src/geometry/protocol';
+import { GeometryService } from '../../src/workers/geometry-service';
+import { translation4 } from '../../src/math/mat4';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -159,5 +162,26 @@ describe('assemblage', () => {
     expect(isSphereLcs(mesh, r.ref)).toBe(true);
     const frame = lcsFrame(mesh, r.ref)!;
     expect(Math.hypot(frame.origin.x, frame.origin.y, frame.origin.z)).toBeCloseTo(0, 6);
+  });
+
+  it('collisions : goupille ajustée dans le trou = simple contact ; goupille dans la matière = collision', () => {
+    const { doc, plateId, pinId } = plateAndPin();
+    const svc = new GeometryService(kernel);
+    const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    // Goupille Ø 6 posée dans le trou Ø 6 (centre 15, 15).
+    const inHole = svc.collisions(documentForWorker(doc), [
+      { instanceId: 'plaque', partId: plateId, matrix: identity },
+      { instanceId: 'goupille', partId: pinId, matrix: translation4({ x: 15, y: 15, z: -2 }) },
+    ]);
+    expect(inHole.collisions).toEqual([]);
+    // Goupille plantée dans la matière (x = 40) : partie commune = cylindre Ø 6 sur 5 mm.
+    const inside = svc.collisions(documentForWorker(doc), [
+      { instanceId: 'plaque', partId: plateId, matrix: identity },
+      { instanceId: 'goupille', partId: pinId, matrix: translation4({ x: 40, y: 15, z: -2 }) },
+    ]);
+    expect(inside.collisions).toHaveLength(1);
+    expect(inside.collisions[0]).toMatchObject({ a: 'plaque', b: 'goupille' });
+    expect(inside.collisions[0]!.volume).toBeCloseTo(Math.PI * 9 * 5, 3);
+    expect(inside.collisions[0]!.mesh.positions.length).toBeGreaterThan(0);
   });
 });

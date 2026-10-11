@@ -87,7 +87,23 @@ export type WorkerRequest =
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
   | { id: number; type: 'inspectStep'; bytes: Uint8Array }
   | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
-  | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane };
+  | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
+  | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] };
+
+/** Pièce insérée placée dans l'assemblage, pour la recherche de collisions. */
+export interface CollisionPlacement {
+  instanceId: Id;
+  partId: Id;
+  matrix: number[];
+}
+
+/** Deux pièces qui se rentrent dedans : volume en commun (mm³) et maillage de cette partie commune. */
+export interface Collision {
+  a: Id;
+  b: Id;
+  volume: number;
+  mesh: MeshData;
+}
 
 /** Vue en coupe : plan parallèle à un plan d'origine, à la cote `offset` ; `flip` garde l'autre moitié. */
 export interface SectionPlane {
@@ -118,6 +134,7 @@ export interface WorkerResultMap {
   inspectStep: StepInspection;
   measure: MeasureResult;
   section: { parts: SectionPart[] };
+  collisions: { collisions: Collision[] };
 }
 
 /** Prépare un document pour le worker : les données des ressources sont retirées. */

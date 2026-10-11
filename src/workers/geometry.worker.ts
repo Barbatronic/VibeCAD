@@ -50,6 +50,8 @@ async function handle(req: WorkerRequest): Promise<unknown> {
       return svc.measure(req.doc, req.a, req.b);
     case 'section':
       return svc.section(req.doc, req.section);
+    case 'collisions':
+      return svc.collisions(req.doc, req.placements);
   }
 }
 

@@ -451,19 +451,23 @@ export class OcctKernel implements GeometryKernel {
     return this.boolean('fuse', base, tool);
   }
 
+  common(a: KernelShape, b: KernelShape): KernelShape {
+    return this.boolean('common', a, b);
+  }
+
   cut(base: KernelShape, tool: KernelShape): KernelShape {
     return this.boolean('cut', base, tool);
   }
 
-  private boolean(kind: 'fuse' | 'cut', baseIn: KernelShape, toolIn: KernelShape): KernelShape {
+  private boolean(kind: 'fuse' | 'cut' | 'common', baseIn: KernelShape, toolIn: KernelShape): KernelShape {
     const a = asOcct(baseIn);
     const b = asOcct(toolIn);
     const oc = this.oc;
-    return this.guard(kind === 'fuse' ? 'ajout de matière' : 'enlèvement de matière', () =>
+    return this.guard(kind === 'fuse' ? 'ajout de matière' : kind === 'cut' ? 'enlèvement de matière' : 'partie commune', () =>
       withScope((scope) => {
         // Constructeur vide + arguments + Build() : le constructeur « raccourci » (S1, S2, progression)
         // de cette build WASM ne libère pas toute sa mémoire (fuite mesurée, voir docs/performance.md).
-        const op = scope.track(kind === 'fuse' ? new oc.BRepAlgoAPI_Fuse() : new oc.BRepAlgoAPI_Cut());
+        const op = scope.track(kind === 'fuse' ? new oc.BRepAlgoAPI_Fuse() : kind === 'cut' ? new oc.BRepAlgoAPI_Cut() : new oc.BRepAlgoAPI_Common());
         const args = scope.track(new oc.NCollection_List_TopoDS_Shape());
         args.Append(a.shape);
         const tools = scope.track(new oc.NCollection_List_TopoDS_Shape());
