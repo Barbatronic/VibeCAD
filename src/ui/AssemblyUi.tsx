@@ -13,11 +13,12 @@ import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
-/** Onglets « Pièces / Assemblage » (visibles hors des opérations en cours). */
+/** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
 export function WorkspaceTabs() {
   const c = useController();
   const workspace = useAppState((s) => s.workspace);
   const assembly = useAppState((s) => allows(s.level, 'workspace:assembly'));
+  const simulation = useAppState((s) => allows(s.level, 'workspace:simulation'));
   return (
     <div class="workspace-tabs" role="tablist" aria-label="Espace de travail">
       {(
@@ -25,9 +26,10 @@ export function WorkspaceTabs() {
           ['parts', 'Pièces', 'Modéliser les pièces'],
           ['assembly', 'Assemblage', 'Assembler les pièces et les faire bouger'],
           ['fabrication', 'Fabrication', 'Préparer l’impression 3D et la découpe laser'],
+          ['simulation', 'Simulation', 'Voir comment une pièce se déforme sous une charge'],
         ] as const
       )
-        .filter(([id]) => id !== 'assembly' || assembly)
+        .filter(([id]) => (id !== 'assembly' || assembly) && (id !== 'simulation' || simulation))
         .map(([id, label, title]) => (
         <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={workspace === id} title={title} onClick={() => c.setWorkspace(id)}>
           {label}

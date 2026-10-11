@@ -8,6 +8,7 @@ import { initialState, type AppState } from './app/state';
 import { Store } from './app/store';
 import { GeometryClient } from './geometry/client';
 import { ProjectStore } from './persistence/db';
+import { WorkerSimRunner } from './sim/runner';
 import { App } from './ui/App';
 import { ControllerContext } from './ui/context';
 
@@ -15,7 +16,8 @@ async function boot(): Promise<void> {
   const store = new Store<AppState>(initialState());
   const client = new GeometryClient(() => new Worker(new URL('./workers/geometry.worker.ts', import.meta.url), { type: 'module', name: 'calcul-geometrique' }));
   const projects = await ProjectStore.open().catch(() => null);
-  const controller = new AppController(store, { client, projects });
+  const simulation = new WorkerSimRunner(() => new Worker(new URL('./workers/sim.worker.ts', import.meta.url), { type: 'module', name: 'simulation' }));
+  const controller = new AppController(store, { client, projects, simulation });
   setupOffline((offline) => store.patch({ offline }));
   installKeyboard(controller);
   window.addEventListener('beforeunload', (e) => {

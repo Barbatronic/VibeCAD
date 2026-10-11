@@ -19,6 +19,7 @@ import {
   MOUSE,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   OrthographicCamera,
   PlaneGeometry,
   Plane,
@@ -111,6 +112,10 @@ export interface ViewportInput {
   dragTargets?: string[];
   /** Plateau d'impression (mm) dessiné à z = 0 à partir de l'origine. */
   bed?: { x: number; y: number } | null;
+  /** Simulation : faces fixées (bleu) et chargées (orange), hachurées. */
+  markedFaces?: { partId: Id; index: number; role: 'fixed' | 'load' }[];
+  /** Simulation : pièce déformée, une couleur par sommet (rouge, vert, bleu entre 0 et 1). */
+  resultMesh?: { key: string; positions: Float32Array; colors: Float32Array; indices: Uint32Array } | null;
 }
 
 export interface AssemblyDragEvent {
@@ -417,6 +422,8 @@ export class Viewport {
     this.syncSession(input.session);
     this.syncSelection(input.selection);
     this.syncSectionFaces(input.sectionFaces ?? []);
+    this.syncMarkedFaces(input.markedFaces ?? []);
+    this.syncResultMesh(input.resultMesh ?? null);
     this.syncPoints(input.points ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
@@ -703,6 +710,52 @@ export class Viewport {
         this.sectionOverlays.push(overlay);
       }
     }
+  }
+
+  private markedOverlays: Object3D[] = [];
+  private markedKey = '';
+
+  private syncMarkedFaces(faces: NonNullable<ViewportInput['markedFaces']>): void {
+    const key = faces.map((f) => `${f.partId}:${f.index}:${f.role}`).join('|') + `|${Array.from(this.parts.values()).map((p) => p.meshKey).join(',')}`;
+    if (key === this.markedKey) return;
+    this.markedKey = key;
+    for (const o of this.markedOverlays) this.disposeOverlay(o);
+    this.markedOverlays = [];
+    for (const f of faces) {
+      const part = this.parts.get(f.partId);
+      const overlay = part?.faceOverlay(f.index, hatchMaterial(f.role === 'fixed' ? this.palette.axisZ : this.palette.selection, 0.8));
+      if (overlay && part) {
+        this.placeOverlay(overlay, part);
+        this.overlayGroup.add(overlay);
+        this.markedOverlays.push(overlay);
+      }
+    }
+  }
+
+  private resultObject: Mesh | null = null;
+  private resultKey = '';
+
+  /** Résultat de simulation : maillage coloré par sommet (non cliquable). */
+  private syncResultMesh(result: ViewportInput['resultMesh'] | null): void {
+    const key = result?.key ?? '';
+    if (key === this.resultKey) return;
+    this.resultKey = key;
+    if (this.resultObject) {
+      this.resultObject.parent?.remove(this.resultObject);
+      this.resultObject.geometry.dispose();
+      (this.resultObject.material as Material).dispose();
+      this.resultObject = null;
+    }
+    if (!result) return;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(result.positions, 3));
+    geometry.setAttribute('color', new Float32BufferAttribute(result.colors, 3));
+    geometry.setIndex(Array.from(result.indices));
+    geometry.computeVertexNormals();
+    const mesh = new Mesh(geometry, new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0, side: DoubleSide }));
+    mesh.renderOrder = 2;
+    this.overlayGroup.add(mesh);
+    this.resultObject = mesh;
   }
 
   /** Contour du plateau d'impression (et un quadrillage tous les 10 mm). */

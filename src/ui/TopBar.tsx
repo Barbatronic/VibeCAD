@@ -22,6 +22,7 @@ import { Icon } from './icons';
 import { CatFigure } from './Mascot';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
 import { FabricationTools } from './FabricationUi';
+import { SimulationTools } from './SimulationUi';
 
 function FileMenu() {
   const c = useController();
@@ -133,7 +134,7 @@ function UndoRedo() {
   );
   const blocked = s.mode !== 'model' && s.mode !== 'sketch';
   return (
-    <div class="toolbar-group">
+    <div class="toolbar-group history-group">
       <ToolButton
         icon="undo"
         label="Annuler"
@@ -616,10 +617,10 @@ export function TopBar() {
       </div>
       <FileMenu />
       <ProjectName />
-      {mode === 'model' || mode === 'joint' || mode === 'pick-fab-face' ? <WorkspaceTabs /> : null}
+      {mode === 'model' || mode === 'joint' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? <WorkspaceTabs /> : null}
       <nav class="toolbar" aria-label="Outils">
         <UndoRedo />
-        {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : <ModelTools />}
+        {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
       </nav>
       <div class="spacer" />
       <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />

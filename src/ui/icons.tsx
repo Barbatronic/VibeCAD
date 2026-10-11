@@ -586,6 +586,28 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M14 19.5l1-3.5 5-5 2.5 2.5-5 5z" />
     </>
   ),
+  /** Simulation : poutre qui fléchit sous une flèche. */
+  simulate: (
+    <>
+      <path d="M3 9v8M3 13c6 0 11 1 18 4" />
+      <path d="M17 3v7M14.5 7.5L17 10l2.5-2.5" />
+    </>
+  ),
+  /** Face fixée : encastrement hachuré. */
+  anchor: (
+    <>
+      <path d="M8 3v18" />
+      <path d="M8 6L4 10M8 11l-4 4M8 16l-4 4" />
+      <path d="M8 12h12" />
+    </>
+  ),
+  /** Charge : flèche qui appuie sur une surface. */
+  load: (
+    <>
+      <path d="M12 3v12M8 11l4 4 4-4" />
+      <path d="M4 19h16" />
+    </>
+  ),
   target: (
     <>
       <circle cx="12" cy="12" r="7.5" />

@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -68,14 +68,25 @@ import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewpor
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
+import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay } from './simulation';
+import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
+import { StudyError, type StudyErrorCode } from '../sim/study';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
   projects: ProjectStore | null;
+  /** Calcul de simulation (worker dédié) ; absent : calcul sur le fil principal. */
+  simulation?: SimRunner;
 }
 
 const model: Mode = { kind: 'model' };
+
+const STUDY_ERRORS: Record<StudyErrorCode, string> = {
+  NO_FIXED: 'Les faces fixées sont trop petites pour la précision choisie : choisissez une précision plus fine.',
+  NO_LOAD: 'Les faces chargées sont trop petites pour la précision choisie : choisissez une précision plus fine.',
+  EMPTY: 'La pièce est trop fine pour être découpée en cubes : choisissez une précision plus fine.',
+};
 
 function displayFor(prev: PartDisplay | undefined, result: PartResult): PartDisplay {
   const failed = result.failedFeatureId !== null;
@@ -557,6 +568,7 @@ export class AppController {
     }
     if (this.state.workspace === 'assembly') return this.assemblyPick(pick);
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
+    if (this.state.workspace === 'simulation') return this.simulationPick(pick);
     const mode = this.state.mode;
     if (mode.kind === 'pick-support') {
       if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId);
@@ -1634,8 +1646,116 @@ export class AppController {
   setWorkspace(workspace: Workspace): void {
     if (this.state.workspace === workspace) return;
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
-    if (this.state.mode.kind !== 'model' && this.state.mode.kind !== 'joint') return this.explain('Terminez d’abord l’opération en cours.');
+    if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
+    if (!['model', 'joint', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  // ----- Simulation
+
+  /** Pièce étudiée : celle choisie, sinon la pièce active, sinon la première qui a un volume. */
+  simulationPartId(): Id | null {
+    const s = this.state;
+    const ok = (id: Id | null): id is Id => !!id && !!s.display[id]?.mesh && s.doc.parts.some((p) => p.id === id);
+    if (ok(s.simulationPart)) return s.simulationPart;
+    if (ok(s.activePartId)) return s.activePartId;
+    return s.doc.parts.find((p) => ok(p.id))?.id ?? null;
+  }
+
+  setSimulationPart(partId: Id): void {
+    if (this.simulationPartId() === partId) return;
+    this.cancelSimulation();
+    this.set({ simulationPart: partId, mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  updateStudy(partId: Id, change: (s: SimulationStudy) => SimulationStudy, label: string): void {
+    this.commit(withStudy(this.state.doc, change(studyOf(this.state.doc, partId))), label);
+  }
+
+  /** Choisir à la souris les faces fixées ou chargées (un second appel termine). */
+  pickSimulationFaces(role: 'fixed' | 'load'): void {
+    const partId = this.simulationPartId();
+    if (!partId) return;
+    const m = this.state.mode;
+    this.set({ mode: m.kind === 'pick-sim-face' && m.role === role ? model : { kind: 'pick-sim-face', role, partId } });
+  }
+
+  cancelSimulationPick(): void {
+    if (this.state.mode.kind === 'pick-sim-face') this.set({ mode: model });
+  }
+
+  clearSimulationFaces(role: 'fixed' | 'load'): void {
+    const partId = this.simulationPartId();
+    if (!partId) return;
+    this.updateStudy(partId, (st) => (role === 'fixed' ? { ...st, fixed: [] } : { ...st, load: { ...st.load, faces: [] } }), role === 'fixed' ? 'Retirer les faces fixées' : 'Retirer les faces chargées');
+  }
+
+  /** Clic en mode « faces » : ajoute la face à la liste, ou la retire si elle y est déjà. */
+  private simulationPick(pick: ModelPick | null): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'pick-sim-face' || !pick || pick.kind !== 'face') return;
+    if (pick.partId !== mode.partId) return this.explain('Cliquez une face de la pièce étudiée.');
+    const part = findPart(this.state.doc, pick.partId);
+    const face = this.state.display[pick.partId]?.mesh?.faces[pick.index];
+    const ref = part && face ? pickFaceReference(face.tags, part) : null;
+    if (!ref) return;
+    const role = mode.role;
+    this.updateStudy(
+      pick.partId,
+      (st) => {
+        const list = role === 'fixed' ? st.fixed : st.load.faces;
+        const other = role === 'fixed' ? st.load.faces : st.fixed;
+        const has = list.some((r) => sameFaceRef(r, ref));
+        // Une face est fixée ou chargée, pas les deux.
+        const mine = has ? list.filter((r) => !sameFaceRef(r, ref)) : [...list, ref];
+        const theirs = has ? other : other.filter((r) => !sameFaceRef(r, ref));
+        return role === 'fixed' ? { ...st, fixed: mine, load: { ...st.load, faces: theirs } } : { ...st, fixed: theirs, load: { ...st.load, faces: mine } };
+      },
+      role === 'fixed' ? 'Choisir les faces fixées' : 'Choisir les faces chargées',
+    );
+  }
+
+  /** Lance le calcul de la pièce étudiée (dans le worker de simulation). */
+  async runSimulation(): Promise<void> {
+    const partId = this.simulationPartId();
+    const d = partId ? this.state.display[partId] : undefined;
+    if (!partId || !d?.mesh || !d.meshKey) return this.explain('Choisissez une pièce qui a un volume.');
+    if (d.stale) return this.explain('La pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
+    const study = studyOf(this.state.doc, partId);
+    const problem = studyInput(study, d.mesh);
+    if (!problem.ok) return this.explain(problem.message);
+    const key = studyKey(study, d.meshKey);
+    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, mesh: d.mesh, size: meshSize(d.mesh.positions) } });
+    const runner = this.deps.simulation ?? inlineSimRunner;
+    const current = () => {
+      const r = this.state.simulationRun;
+      return r?.key === key ? r : null;
+    };
+    try {
+      const result = await runner.run(problem.input, (progress) => {
+        const r = current();
+        if (r?.status === 'running') this.set({ simulationRun: { ...r, progress } });
+      });
+      const r = current();
+      if (r) this.set({ simulationRun: { ...r, status: 'done', progress: 1, result } });
+    } catch (err) {
+      if (err instanceof AbortedStudy) return;
+      const r = current();
+      if (r) this.set({ simulationRun: { ...r, status: 'error', error: err instanceof StudyError ? STUDY_ERRORS[err.code] : 'Le calcul a échoué.' } });
+    }
+  }
+
+  cancelSimulation(): void {
+    if (this.state.simulationRun?.status === 'running') this.deps.simulation?.cancel();
+    if (this.state.simulationRun) this.set({ simulationRun: null });
+  }
+
+  setSimulationDisplay(display: ResultDisplay): void {
+    this.set({ simulationDisplay: display });
+  }
+
+  setSimulationDeformed(on: boolean): void {
+    this.set({ simulationDeformed: on });
   }
 
   // ----- Fabrication

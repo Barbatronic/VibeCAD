@@ -42,6 +42,10 @@ function helpText(s: AppState): string {
       return s.mode.purpose === 'print'
         ? 'Cliquez la face de la pièce qui doit être posée sur le plateau (une grande face plate est idéale). Échap pour annuler.'
         : 'Cliquez la face plate qui donne le contour à découper. Échap pour annuler.';
+    case 'pick-sim-face':
+      return s.mode.role === 'fixed'
+        ? 'Cliquez les faces où la pièce est tenue (vissée, collée, posée). Un second clic retire une face. Échap pour terminer.'
+        : 'Cliquez les faces où appuie la charge. Un second clic retire une face. Échap pour terminer.';
     case 'joint':
       if (s.mode.lockedFace) return 'Face verrouillée : visez un de ses coins, puis cliquez. Relâchez Maj pour revenir.';
       return s.mode.moving

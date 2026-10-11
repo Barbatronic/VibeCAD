@@ -44,6 +44,8 @@ import { Icon } from './icons';
 import { allows } from '../app/levels';
 import type { Vec3 } from '../math/vec';
 import { formatLength } from '../domain/units';
+import { faceIndices, resultGeometry, studyInput, studyKey, studyOf } from '../app/simulation';
+import { exaggerationFor } from '../sim/study';
 
 function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderInput {
   return {
@@ -170,10 +172,58 @@ function buildFabricationInput(s: AppState): ViewportInput {
   };
 }
 
+/** Dernier résultat mis en forme (pièce déformée, couleurs) : recalculé seulement s'il change. */
+let resultCache: { key: string; value: NonNullable<ViewportInput['resultMesh']> } | null = null;
+
+/** Vue de l'onglet Simulation : la pièce étudiée, ses faces fixées et chargées, le résultat. */
+function buildSimulationInput(s: AppState, partId: string | null): ViewportInput {
+  const base: ViewportInput = { mode: 'model', parts: [], tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-sim-face', fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
+  const part = partId ? s.doc.parts.find((p) => p.id === partId) : undefined;
+  const d = partId ? s.display[partId] : undefined;
+  if (!part || !d?.mesh || !d.meshKey) return base;
+  const study = studyOf(s.doc, part.id);
+  const run = s.simulationRun;
+  const done = run?.status === 'done' && run.result && run.partId === part.id && run.key === studyKey(study, d.meshKey) && s.mode.kind !== 'pick-sim-face' ? run : null;
+  let resultMesh: ViewportInput['resultMesh'] = null;
+  if (done?.result) {
+    const scale = s.simulationDeformed ? exaggerationFor(done.result.maxDisplacement, done.size) : 0;
+    const key = `${done.key}|${s.simulationDisplay}|${scale}`;
+    if (resultCache?.key !== key) resultCache = { key, value: { key, ...resultGeometry(done.result, s.simulationDisplay, scale), indices: done.result.indices } };
+    resultMesh = resultCache.value;
+  }
+  const parts: ViewPartInput[] = [{ partId: part.id, color: part.color, visible: true, meshKey: d.meshKey, mesh: d.mesh, appearance: resultMesh ? 'ghost' : 'normal' }];
+  const markedFaces: NonNullable<ViewportInput['markedFaces']> = resultMesh
+    ? []
+    : [
+        ...faceIndices(d.mesh, study.fixed).map((index) => ({ partId: part.id, index, role: 'fixed' as const })),
+        ...faceIndices(d.mesh, study.load.faces).map((index) => ({ partId: part.id, index, role: 'load' as const })),
+      ];
+  // Flèche de la charge : elle arrive sur le centre des faces chargées.
+  const markers: ViewMarker[] = [];
+  const problem = studyInput(study, d.mesh);
+  if (problem.ok) {
+    const t = problem.input.loaded;
+    let cx = 0, cy = 0, cz = 0;
+    for (let i = 0; i < t.length; i += 3) {
+      cx += t[i]!;
+      cy += t[i + 1]!;
+      cz += t[i + 2]!;
+    }
+    const n = t.length / 3;
+    const f = problem.input.force;
+    const len = Math.hypot(f.x, f.y, f.z) || 1;
+    const axis = { x: f.x / len, y: f.y / len, z: f.z / len };
+    const label = study.load.kind === 'mass' ? `${formatNumber(study.load.value)} kg` : `${formatNumber(study.load.value)} N`;
+    markers.push({ origin: { x: cx / n - 18 * axis.x, y: cy / n - 18 * axis.y, z: cz / n - 18 * axis.z }, axis, role: 'base', label });
+  }
+  return { ...base, parts, markedFaces, resultMesh, markers };
+}
+
 /** Construit la représentation d'affichage à partir de l'état de l'application. */
-export function buildViewportInput(s: AppState): ViewportInput {
+export function buildViewportInput(s: AppState, simulationPart: string | null = null): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
+  if (s.workspace === 'simulation') return buildSimulationInput(s, simulationPart);
   const mode = s.mode.kind;
   // Vue en coupe : les pièces coupées remplacent les pièces (hors esquisse et opération en cours).
   const cut = s.section && s.sectionParts && (mode === 'model' || mode === 'measure') ? s.sectionParts : null;
@@ -240,7 +290,7 @@ export function buildViewportInput(s: AppState): ViewportInput {
   const points: { at: Vec3; label: string }[] = [];
   const active = s.display[s.activePartId]?.result.analysis;
   if (s.showCentroid && allows(s.level, 'view-centroid') && !cut && mode !== 'sketch' && active?.centroid) points.push({ at: active.centroid, label: 'G' });
-  return { mode: mode === 'joint' || mode === 'pick-fab-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
+  return { mode: mode === 'joint' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -499,8 +549,8 @@ export function ViewportHost() {
   const tickPending = useRef(false);
   const state = useAppState((s) => s);
   const input = useMemo(
-    () => buildViewportInput(state),
-    [state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
+    () => buildViewportInput(state, state.workspace === 'simulation' ? c.simulationPartId() : null),
+    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

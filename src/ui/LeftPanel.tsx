@@ -9,6 +9,7 @@ import { activeCount } from '../app/rollback';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
 import { FabricationSection } from './FabricationUi';
+import { SimulationSection } from './SimulationUi';
 import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
 
@@ -345,11 +346,13 @@ function HistorySection() {
 export function LeftPanel() {
   const workspace = useAppState((s) => s.workspace);
   return (
-    <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : 'Pièces et historique'}>
+    <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : 'Pièces et historique'}>
       {workspace === 'assembly' ? (
         <AssemblySection />
       ) : workspace === 'fabrication' ? (
         <FabricationSection />
+      ) : workspace === 'simulation' ? (
+        <SimulationSection />
       ) : (
         <>
           <PartsSection />

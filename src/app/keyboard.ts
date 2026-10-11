@@ -145,6 +145,9 @@ export function installKeyboard(controller: AppController): () => void {
         case 'pick-fab-face':
           controller.cancelFabricationPick();
           return;
+        case 'pick-sim-face':
+          controller.cancelSimulationPick();
+          return;
         default:
           if (s.workspace === 'assembly') controller.selectInAssembly(null);
           else controller.select(null);

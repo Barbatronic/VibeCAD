@@ -11,7 +11,7 @@ export type Level = 'debutant' | 'intermediaire' | 'expert';
 
 export const LEVELS: { id: Level; label: string; description: string }[] = [
   { id: 'debutant', label: 'Débutant', description: 'Les outils de base : dessiner, coter, extruder, percer, imprimer.' },
-  { id: 'intermediaire', label: 'Intermédiaire', description: 'En plus : arcs et formes, révolution, congés, répétitions, assemblage, découpe laser, plans.' },
+  { id: 'intermediaire', label: 'Intermédiaire', description: 'En plus : arcs et formes, révolution, congés, répétitions, assemblage, découpe laser, plans, simulation.' },
   { id: 'expert', label: 'Expert', description: 'Tous les outils, dont l’import de fichiers d’autres logiciels.' },
 ];
 
@@ -24,6 +24,7 @@ export type Capability =
   | 'sketch-construction'
   | 'sketch-lists'
   | 'workspace:assembly'
+  | 'workspace:simulation'
   | 'fabrication:laser'
   | 'fabrication:docs'
   | 'import-step'
@@ -62,6 +63,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'sketch:concentric': 'intermediaire',
   'sketch-construction': 'intermediaire',
   'workspace:assembly': 'intermediaire',
+  'workspace:simulation': 'intermediaire',
   'fabrication:laser': 'intermediaire',
   'fabrication:docs': 'intermediaire',
   'tutorial:assembly': 'intermediaire',

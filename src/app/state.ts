@@ -16,6 +16,8 @@ import type { SaveTarget } from '../persistence/files';
 import type { SketchSession } from '../sketch/session';
 import type { Projection } from '../viewport/camera-rig';
 import type { ModelPick } from '../viewport/viewport';
+import type { StudyOutput } from '../sim/study';
+import type { ResultDisplay } from './simulation';
 
 export interface MeasureInfo {
   title: string;
@@ -39,10 +41,25 @@ export type Mode =
       lockedFace?: { instanceId: Id; index: number } | null;
     }
   /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
-  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id };
+  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id }
+  /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */
+  | { kind: 'pick-sim-face'; role: 'fixed' | 'load'; partId: Id };
 
 /** Onglet de travail : modélisation des pièces, ou assemblage. */
-export type Workspace = 'parts' | 'assembly' | 'fabrication';
+export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation';
+
+/** Calcul de simulation : en cours, terminé ou en échec, pour une signature (`studyKey`). */
+export interface SimulationRun {
+  partId: Id;
+  key: string;
+  status: 'running' | 'done' | 'error';
+  progress: number;
+  /** Maillage sur lequel les résultats ont été reportés, et sa taille (diagonale, mm). */
+  mesh: MeshData;
+  size: number;
+  result?: StudyOutput;
+  error?: string;
+}
 
 /** Sous-onglet de Fabrication. */
 export type FabricationTab = 'print' | 'laser' | 'docs';
@@ -164,6 +181,12 @@ export interface AppState {
   fabricationPart: Id | null;
   /** Plateau d'impression affiché (0, 1, 2…). */
   printPlate: number;
+  /** Pièce étudiée dans l'onglet Simulation. */
+  simulationPart: Id | null;
+  simulationRun: SimulationRun | null;
+  /** Couleurs du résultat : contrainte ou déplacement ; pièce montrée déformée (exagérée). */
+  simulationDisplay: ResultDisplay;
+  simulationDeformed: boolean;
   assemblySelection: AssemblySelection;
   /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
   assemblyHand: boolean;
@@ -218,6 +241,10 @@ export function initialState(): AppState {
     assemblyHand: false,
     fabricationPart: null,
     printPlate: 0,
+    simulationPart: null,
+    simulationRun: null,
+    simulationDisplay: 'stress',
+    simulationDeformed: true,
     assemblySelection: null,
     mascot: { hidden: false, collapsed: false, dismissed: null },
     preview: null,

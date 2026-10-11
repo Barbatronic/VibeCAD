@@ -1936,7 +1936,23 @@ kbd {
     padding: 0 3px;
   }
   .project-name {
-    width: 120px;
+    width: 104px;
+  }
+  .workspace-tabs button {
+    padding: 5px 6px;
+    font-size: 12.5px;
+  }
+  /* Annuler et Rétablir : icônes seules (flèches universelles), le nom reste dans l'infobulle. */
+  .topbar .history-group .tool-btn {
+    min-width: 34px;
+  }
+  .topbar .history-group .tool-btn > span:not(.visually-hidden) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   /* Parcours, Aide et Préférences (fin de la barre) : icônes seules, le nom reste dans l'infobulle. */
   .topbar > .tool-btn {
@@ -1963,7 +1979,7 @@ kbd {
     font-size: 12.5px;
   }
   .project-name {
-    width: 110px;
+    width: 100px;
   }
   .topbar .toolbar .tool-btn > span:not(.visually-hidden) {
     position: absolute;
@@ -2753,4 +2769,160 @@ kbd {
 .prefs-group legend {
   padding: 0 6px;
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+   Onglet Simulation */
+
+.sim-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.sim-part {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-part:hover {
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+}
+
+.sim-part.is-current {
+  border-color: var(--accent);
+  background: var(--accent-soft, rgba(61, 139, 255, 0.12));
+  font-weight: 600;
+}
+
+.sim-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.sim-faces .field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-face-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(45deg, var(--dot), var(--dot) 3px, color-mix(in srgb, var(--dot) 45%, white) 3px, color-mix(in srgb, var(--dot) 45%, white) 6px);
+}
+
+.sim-dot.fixed {
+  --dot: var(--vp-axis-z);
+}
+
+.sim-dot.load {
+  --dot: var(--vp-selection);
+}
+
+.sim-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-progress progress {
+  flex: 1;
+  height: 10px;
+}
+
+.sim-result {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sim-result.is-stale .sim-verdict,
+.sim-result.is-stale .sim-figures {
+  opacity: 0.55;
+}
+
+.sim-verdict {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+
+.sim-verdict.ok {
+  background: var(--success-soft);
+  border-left-color: var(--success);
+  color: var(--success);
+}
+
+.sim-verdict.tight {
+  background: var(--warning-soft);
+  border-left-color: var(--warning);
+  color: var(--warning);
+}
+
+.sim-verdict.fail {
+  background: var(--danger-soft);
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+
+.sim-figures {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.sim-figures dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.sim-legend {
+  display: grid;
+  gap: 2px;
+}
+
+.sim-ramp {
+  height: 12px;
+  border-radius: 6px;
+  /* Même dégradé que la pièce (heatColor, src/sim/study.ts). */
+  background: linear-gradient(90deg, rgb(38, 77, 217), rgb(26, 191, 217), rgb(51, 204, 77), rgb(242, 217, 38), rgb(230, 51, 38));
+}
+
+.sim-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
 }
