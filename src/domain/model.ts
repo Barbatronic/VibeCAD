@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -162,6 +162,7 @@ export type PatternFeature = FeatureBase<'pattern', PatternParams>;
 export type MirrorFeature = FeatureBase<'mirror', MirrorParams>;
 export type PrimitiveFeature = FeatureBase<'primitive', PrimitiveParams>;
 export type ShellFeature = FeatureBase<'shell', ShellParams>;
+export type LoftFeature = FeatureBase<'loft', LoftParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -489,6 +490,16 @@ export interface ShellParams {
   open: FaceRef[];
   thickness: number;
   outward: boolean;
+}
+
+/**
+ * Lissage : un volume qui passe d'un contour à l'autre. Chaque esquisse donne un contour fermé
+ * (sans trou) ; ils sont reliés dans l'ordre de l'historique. `ruled` : raccords droits.
+ */
+export interface LoftParams {
+  sketchIds: Id[];
+  ruled: boolean;
+  operation: 'add' | 'cut';
 }
 
 export interface ExtrudeParams {

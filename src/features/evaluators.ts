@@ -1,6 +1,7 @@
 /** Registre des évaluateurs géométriques (exécutés dans le worker de calcul ou dans les tests). */
 import type { Feature, FeatureType } from '../domain/model';
 import type { FeatureEvaluator } from './evaluation';
+import { evaluateLoft } from './loft/evaluate';
 import { evaluateShell } from './shell/evaluate';
 import { evaluatePrimitive } from './primitive/evaluate';
 import { evaluateMirror } from './mirror/evaluate';
@@ -21,6 +22,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   primitive: evaluatePrimitive,
   pocket: evaluatePocket,
   revolve: evaluateRevolve,
+  loft: evaluateLoft,
   pattern: evaluatePattern,
   mirror: evaluateMirror,
   shell: evaluateShell,

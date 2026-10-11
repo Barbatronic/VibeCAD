@@ -9,6 +9,7 @@ import { ExtrudePanel } from '../features/extrude/panel';
 import { FilletPanel } from '../features/fillet/panel';
 import type { FeaturePanelProps } from '../features/panel-types';
 import { PocketPanel } from '../features/pocket/panel';
+import { LoftPanel } from '../features/loft/panel';
 import { MirrorPanel } from '../features/mirror/panel';
 import { PatternPanel } from '../features/pattern/panel';
 import { PrimitivePanel } from '../features/primitive/panel';
@@ -19,6 +20,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   extrude: ExtrudePanel as FunctionComponent<FeaturePanelProps<never>>,
   pocket: PocketPanel as FunctionComponent<FeaturePanelProps<never>>,
   revolve: RevolvePanel as FunctionComponent<FeaturePanelProps<never>>,
+  loft: LoftPanel as FunctionComponent<FeaturePanelProps<never>>,
   pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
   primitive: PrimitivePanel as FunctionComponent<FeaturePanelProps<never>>,
   shell: ShellPanel as FunctionComponent<FeaturePanelProps<never>>,

@@ -32,6 +32,7 @@ const GLOSSARY: [string, string][] = [
   ['Révolution', 'Faire tourner le dessin autour d’un axe pour obtenir une pièce ronde, comme au tour.'],
   ['Centre de gravité', 'Le point d’équilibre de la pièce : posée sur une pointe juste dessous, elle tiendrait en équilibre.'],
   ['Coupe', 'Voir l’intérieur d’une pièce en la coupant par un plan, comme on coupe un fruit en deux. La pièce n’est pas modifiée.'],
+  ['Lissage', 'Un volume qui passe en douceur d’un contour à un autre, comme le goulot d’une bouteille qui passe du rond au carré.'],
   ['Coque', 'Vider une pièce en gardant une paroi, comme un pot : on clique les faces à laisser ouvertes.'],
   ['Forme', 'Une forme toute faite (boîte, cylindre, boule, anneau) qu’on ajoute à la pièce ou qu’on creuse dedans, sans dessiner d’esquisse.'],
   ['Symétrie', 'Ajouter le reflet de la pièce (ou d’un trou, d’un plot) comme dans un miroir, de l’autre côté d’un plan.'],

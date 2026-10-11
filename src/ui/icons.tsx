@@ -100,6 +100,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M10 7h3v7h-3z" fill="currentColor" opacity="0.5" />
     </>
   ),
+  loft: (
+    <>
+      <path d="M5 19h10l4-3H9z" />
+      <ellipse cx="13" cy="6" rx="5" ry="2" />
+      <path d="M5 19L8 6M15 19l3-13M19 16l-1-10" opacity="0.6" />
+    </>
+  ),
   section: (
     <>
       <path d="M4 8l8-4 8 4v8l-8 4-8-4z" opacity="0.5" />

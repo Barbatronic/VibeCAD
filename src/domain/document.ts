@@ -5,6 +5,7 @@
  */
 import { createId } from './ids';
 import type {
+  LoftFeature,
   ShellFeature,
   PrimitiveFeature,
   PrimitiveShape,
@@ -54,6 +55,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   mirror: 'Symétrie',
   primitive: 'Forme',
   shell: 'Coque',
+  loft: 'Lissage',
 };
 
 export function nowIso(): string {
@@ -219,7 +221,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -253,7 +255,7 @@ export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, a
 }
 
 /** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */
-export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive'];
+export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive', 'loft'];
 
 export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, kind: PatternParams['kind'] = 'linear'): PatternFeature {
   return {
@@ -279,6 +281,10 @@ export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: Primit
 
 export function makeShellFeature(doc: CadDocument, part: Part, open: FaceRef[] = [], thickness = 2): ShellFeature {
   return { id: newFeatureId(doc, 'shell'), type: 'shell', name: nextFeatureName(part, 'shell'), params: { open, thickness, outward: false } };
+}
+
+export function makeLoftFeature(doc: CadDocument, part: Part, sketchIds: Id[]): LoftFeature {
+  return { id: newFeatureId(doc, 'loft'), type: 'loft', name: nextFeatureName(part, 'loft'), params: { sketchIds, ruled: false, operation: 'add' } };
 }
 
 export function makePocketFeature(

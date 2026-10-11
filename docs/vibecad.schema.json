@@ -767,6 +767,39 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "loft"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sketchIds",
+                "ruled",
+                "operation"
+              ],
+              "properties": {
+                "sketchIds": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  }
+                },
+                "ruled": {
+                  "type": "boolean"
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },

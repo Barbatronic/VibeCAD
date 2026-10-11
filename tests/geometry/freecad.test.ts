@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makePrimitiveFeature, makeShellFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, insertFeatureAfter, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeMirrorFeature, makePatternFeature, makeLoftFeature, makePrimitiveFeature, makeShellFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { SketchParams } from '../../src/domain/model';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
@@ -203,5 +203,22 @@ describe.runIf(enabled)('ouverture des exports STEP dans FreeCAD', () => {
     expect(o!.solids).toBe(1);
     expect(o!.valid).toBe(true);
     expect(o!.volume).toBeCloseTo(24000 - 36 * 26 * 18, 2);
+  });
+
+  it('lissage d’un carré à un rond : solide valide dans FreeCAD, même volume', () => {
+    let doc = createDocument('Transition');
+    const partId = doc.parts[0]!.id;
+    const sk1 = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 0 });
+    doc = addFeature(doc, partId, { ...sk1, params: solveSketch(addRectangle(sk1.params, { x: -10, y: -10 }, { x: 10, y: 10 }).sketch).sketch });
+    const sk2 = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 30 });
+    doc = addFeature(doc, partId, { ...sk2, params: solveSketch(addCircle(sk2.params, { x: 0, y: 0 }, 10).sketch).sketch });
+    doc = addFeature(doc, partId, makeLoftFeature(doc, findPart(doc, partId)!, [sk1.id, sk2.id]));
+    const [res] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
+    const file = join(outDir, 'lissage-carre-rond.step');
+    writeFileSync(file, kernel.exportStep([{ name: 'Transition', color: '#3d6fb6', shape: res!.shape! }]));
+    const [o] = checkInFreeCad(file);
+    expect(o!.solids).toBe(1);
+    expect(o!.valid).toBe(true);
+    expect(o!.volume).toBeCloseTo(res!.analysis!.volume, 1);
   });
 });

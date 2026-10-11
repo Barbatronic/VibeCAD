@@ -6,7 +6,7 @@
 import type { EdgeRef, FaceRef, Id } from '../domain/model';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
-import type { ProfileRegion } from '../sketch/profiles';
+import type { ProfileLoop, ProfileRegion } from '../sketch/profiles';
 
 /**
  * Étiquette sémantique portée par une face d'un solide (même structure qu'une référence de
@@ -38,6 +38,14 @@ export interface RevolveRequest {
   axisDirection: Vec2;
   /** Angle en radians (signe : sens de rotation autour de l'axe). */
   angle: number;
+}
+
+/** Lissage : un volume qui passe d'un contour à l'autre (au moins deux, dans l'ordre). */
+export interface LoftRequest {
+  featureId: Id;
+  sections: { frame: Frame3D; loop: ProfileLoop }[];
+  /** Vrai : raccords droits (faces réglées) ; sinon surface lisse. */
+  ruled: boolean;
 }
 
 /**
@@ -196,6 +204,8 @@ export interface GeometryKernel {
    * (`x-`, `x+`, `y-`, `y+` pour la boîte, `wall` pour le cylindre, `surface` pour la sphère et le tore).
    */
   makePrimitive(request: PrimitiveRequest): KernelShape;
+  /** Lissage ; faces `start` (premier contour), `end` (dernier) et `side` + élément du premier contour. */
+  makeLoft(request: LoftRequest): KernelShape;
   /** Solide de révolution ; faces étiquetées `start`, `end` (révolution partielle) et `side`. */
   makeRevolution(request: RevolveRequest): KernelShape;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;

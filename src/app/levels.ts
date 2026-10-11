@@ -64,6 +64,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'tutorial:fabrication': 'intermediaire',
   'view-section': 'intermediaire',
   'view-centroid': 'intermediaire',
+  'feature:loft': 'expert',
   'import-step': 'expert',
 };
 

@@ -35,6 +35,7 @@ import {
   type KernelShape,
   type MeshData,
   type MeshOptions,
+  type LoftRequest,
   type PrimitiveRequest,
   type PrismRequest,
   type RevolveRequest,
@@ -368,6 +369,43 @@ export class OcctKernel implements GeometryKernel {
           } else tag = { featureId: r.featureId, role: 'side', entityId: r.shape === 'cylinder' ? 'wall' : 'surface' };
           addTags(f.tags, [tag]);
         }
+        return new OcctShape(shape, faces);
+      }),
+    );
+  }
+
+  makeLoft(request: LoftRequest): KernelShape {
+    if (request.sections.length < 2) throw new KernelError('Un lissage demande au moins deux contours.');
+    const oc = this.oc;
+    return this.guard('lissage', () =>
+      withScope((scope) => {
+        const ts = scope.track(new oc.BRepOffsetAPI_ThruSections(true, request.ruled, 1e-6));
+        let firstEdges: { edge: TopoDS_Edge; entityId: string }[] = [];
+        request.sections.forEach((section, i) => {
+          const { wire, edges } = this.buildWire(scope, section.loop, section.frame, 0);
+          if (i === 0) firstEdges = edges;
+          ts.AddWire(wire);
+        });
+        ts.Build(scope.track(new oc.Message_ProgressRange()));
+        if (!ts.IsDone()) throw new KernelError('Le lissage n’a pas pu être construit avec ces contours.');
+        const shape = ts.Shape();
+        const faces = this.taggedFaces(shape);
+        const tagShape = (s: TopoDS_Shape, tag: FaceTag) => {
+          for (const f of this.explore(s, 'face')) {
+            const i = this.indexOfFace(faces, f);
+            if (i >= 0) addTags(faces[i]!.tags, [tag]);
+            f.delete();
+          }
+        };
+        tagShape(scope.track(ts.FirstShape()), { featureId: request.featureId, role: 'start' });
+        tagShape(scope.track(ts.LastShape()), { featureId: request.featureId, role: 'end' });
+        for (const { edge, entityId } of firstEdges) {
+          const g = scope.track(ts.GeneratedFace(edge));
+          if (!g.IsNull()) tagShape(g, { featureId: request.featureId, role: 'side', entityId });
+        }
+        faces.forEach((f, k) => {
+          if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', index: k }]);
+        });
         return new OcctShape(shape, faces);
       }),
     );

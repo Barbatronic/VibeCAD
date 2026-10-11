@@ -4,6 +4,7 @@
  */
 import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
+import { loftDefinition } from './loft/definition';
 import { shellDefinition } from './shell/definition';
 import { primitiveDefinition } from './primitive/definition';
 import { mirrorDefinition } from './mirror/definition';
@@ -22,6 +23,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   primitive: primitiveDefinition,
   pocket: pocketDefinition,
   revolve: revolveDefinition,
+  loft: loftDefinition,
   pattern: patternDefinition,
   mirror: mirrorDefinition,
   shell: shellDefinition,
