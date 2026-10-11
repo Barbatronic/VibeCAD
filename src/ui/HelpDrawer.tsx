@@ -76,6 +76,11 @@ export function HelpDrawer() {
             Choisir un parcours guidé
           </Button>
         </p>
+        <p>
+          <Button icon="settings" onClick={() => c.setDialog({ kind: 'preferences' })}>
+            Toutes les préférences…
+          </Button>
+        </p>
         <label class="checkbox-row">
           <input type="checkbox" checked={tips} onChange={() => c.setTips(!tips)} />
           <span>Bulles d’explication de Java au survol des outils (sinon : info-bulles simples)</span>

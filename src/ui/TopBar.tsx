@@ -89,6 +89,7 @@ function FileMenu() {
           {item('print3d', 'Exporter en 3MF (impression 3D)…', () => c.showExportDialog('3mf'), undefined, !exportOk)}
           {item('stl', 'Exporter en STL (impression 3D)…', () => c.showExportDialog('stl'), undefined, !exportOk)}
           <div class="menu-sep" role="separator" />
+          {item('settings', 'Préférences…', () => c.setDialog({ kind: 'preferences' }))}
           {item('info', 'À propos et licences', () => c.setDialog({ kind: 'about' }))}
         </div>
       ) : null}
@@ -621,6 +622,7 @@ export function TopBar() {
       <div class="spacer" />
       <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
       <ToolButton icon="help" label="Aide" shortcut="F1" hint="Aide : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} />
+      <ToolButton id="tool-preferences" icon="settings" label="Préférences" hint="Préférences : niveau, aide, thème, esquisse" onClick={() => c.setDialog({ kind: 'preferences' })} />
     </header>
   );
 }

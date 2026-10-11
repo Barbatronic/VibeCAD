@@ -68,7 +68,7 @@ import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewpor
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
-import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type Toast } from './state';
+import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -141,6 +141,10 @@ export class AppController {
     else if (saved) this.setLevel(saved, false);
     const tips = await this.deps.projects?.getSetting<boolean>('tips').catch(() => undefined);
     if (tips === false) this.set({ tips: false });
+    const theme = await this.deps.projects?.getSetting<string>('theme').catch(() => undefined);
+    if (theme === 'light' || theme === 'dark') this.set({ theme });
+    const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
+    if (grid === false) this.set({ sketchGrid: false });
   }
 
   // ----- Collisions de l'assemblage
@@ -257,6 +261,29 @@ export class AppController {
   setTips(on: boolean): void {
     this.set({ tips: on });
     void this.deps.projects?.setSetting('tips', on).catch(() => undefined);
+  }
+
+  /** Thème de l'interface (automatique : celui du système). */
+  setTheme(theme: ThemeChoice): void {
+    this.set({ theme });
+    void this.deps.projects?.setSetting('theme', theme).catch(() => undefined);
+  }
+
+  /** Aimantation à la grille au début des esquisses ; s'applique aussi à l'esquisse ouverte. */
+  setSketchGrid(on: boolean): void {
+    this.set({ sketchGrid: on });
+    void this.deps.projects?.setSetting('sketchGrid', on).catch(() => undefined);
+    const mode = this.state.mode;
+    if (mode.kind === 'sketch' && mode.session.snapToGrid !== on) this.updateSession((x) => ({ ...x, snapToGrid: on }));
+  }
+
+  /** Préférences de l'appareil remises à leur valeur de départ. */
+  resetPreferences(): void {
+    this.setLevel('debutant');
+    this.setTips(true);
+    this.setTheme('auto');
+    this.setSketchGrid(true);
+    this.setMascot({ hidden: false, collapsed: false, dismissed: null });
   }
 
   /** Change le niveau de l'interface ; ce qui n'est plus montré est refermé. */
@@ -744,6 +771,7 @@ export class AppController {
     const part = findPart(this.state.doc, partId);
     const projectable = part ? projectableCurves(this.state.display[partId]?.mesh, frame, part, featureId) : [];
     let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable });
+    if (!this.state.sketchGrid) session = { ...session, snapToGrid: false };
     if (supportChanged) session = { ...session, dirty: true };
     const px = this.viewport?.pixelSize();
     if (px) session = setPixelSize(session, px);

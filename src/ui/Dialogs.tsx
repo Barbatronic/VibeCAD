@@ -6,7 +6,9 @@ import { STL_UNIT_NOTE } from '../io/stl';
 import { THREEMF_NOTE } from '../io/threemf';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../meta';
 import { useAppState, useController } from './context';
-import { Button, Callout, IconButton } from './components/controls';
+import { Button, Callout, IconButton, Segmented } from './components/controls';
+import { LEVELS } from '../app/levels';
+import type { ThemeChoice } from '../app/state';
 import { Icon } from './icons';
 
 function Modal(props: { title: string; onClose: () => void; children: ComponentChildren; footer?: ComponentChildren; wide?: boolean }) {
@@ -459,6 +461,80 @@ function AboutDialog() {
   );
 }
 
+/**
+ * Préférences de cet appareil : niveau, aide, apparence, esquisse. Elles ne sont pas enregistrées
+ * dans le projet (un même fichier s'ouvre de la même façon partout).
+ */
+function PreferencesDialog() {
+  const c = useController();
+  const prefs = useAppState(
+    (s) => ({ level: s.level, tips: s.tips, cat: !s.mascot.hidden, theme: s.theme, grid: s.sketchGrid }),
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  return (
+    <Modal
+      title="Préférences"
+      onClose={() => c.setDialog(null)}
+      wide
+      footer={
+        <>
+          <Button icon="undo" onClick={() => c.resetPreferences()}>
+            Rétablir les réglages par défaut
+          </Button>
+          <Button variant="primary" onClick={() => c.setDialog(null)}>
+            Fermer
+          </Button>
+        </>
+      }
+    >
+      <p class="field-help">Ces réglages sont retenus sur cet ordinateur, pas dans le projet.</p>
+      <fieldset class="prefs-group">
+        <legend>Niveau de l’interface</legend>
+        {LEVELS.map((l) => (
+          <label class="checkbox-row" key={l.id}>
+            <input type="radio" name="pref-level" checked={prefs.level === l.id} onChange={() => c.setLevel(l.id)} />
+            <span>
+              <strong>{l.label}</strong> — {l.description}
+            </span>
+          </label>
+        ))}
+        <p class="field-help">Un lien avec « ?niveau=expert » (ou débutant, intermédiaire) impose le niveau, par exemple pour une classe.</p>
+      </fieldset>
+      <fieldset class="prefs-group">
+        <legend>Aide</legend>
+        <label class="checkbox-row">
+          <input type="checkbox" checked={prefs.tips} onChange={() => c.setTips(!prefs.tips)} />
+          <span>Bulles d’explication de Java au survol des outils (sinon : info-bulles simples)</span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" checked={prefs.cat} onChange={() => c.setMascot({ hidden: prefs.cat, dismissed: null })} />
+          <span>Afficher Java, le chat qui guide et prévient des problèmes</span>
+        </label>
+      </fieldset>
+      <fieldset class="prefs-group">
+        <legend>Apparence</legend>
+        <Segmented<ThemeChoice>
+          label="Thème"
+          value={prefs.theme}
+          options={[
+            { value: 'auto', label: 'Automatique', title: 'Comme le système (clair le jour, sombre si l’ordinateur est réglé ainsi)' },
+            { value: 'light', label: 'Clair' },
+            { value: 'dark', label: 'Sombre' },
+          ]}
+          onChange={(t) => c.setTheme(t)}
+        />
+      </fieldset>
+      <fieldset class="prefs-group">
+        <legend>Esquisse</legend>
+        <label class="checkbox-row">
+          <input type="checkbox" checked={prefs.grid} onChange={() => c.setSketchGrid(!prefs.grid)} />
+          <span>Aimanter les points à la grille (on peut aussi l’activer ou le couper dans chaque esquisse)</span>
+        </label>
+      </fieldset>
+    </Modal>
+  );
+}
+
 export function Dialogs() {
   const kind = useAppState((s) => s.dialog?.kind ?? null);
   switch (kind) {
@@ -478,6 +554,8 @@ export function Dialogs() {
       return <ProblemDialog />;
     case 'about':
       return <AboutDialog />;
+    case 'preferences':
+      return <PreferencesDialog />;
     default:
       return null;
   }

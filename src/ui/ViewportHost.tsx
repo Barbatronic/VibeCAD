@@ -565,6 +565,15 @@ export function ViewportHost() {
     viewport?.setInput(input);
   }, [viewport, input]);
 
+  // Thème choisi dans les préférences : appliqué à la page, puis aux couleurs de la vue 3D.
+  const theme = state.theme;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'auto') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', theme);
+    viewport?.setPalette();
+  }, [viewport, theme]);
+
   return (
     <div class={`viewport-host mode-${state.mode.kind}`} ref={container}>
       <Banner />

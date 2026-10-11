@@ -103,6 +103,45 @@
   }
 }
 
+/* Thème sombre choisi dans les préférences (même jeu de couleurs que le thème sombre du système). */
 :root[data-theme='dark'] {
+  --bg-app: #12161c;
+  --surface: #1b2129;
+  --surface-2: #222a33;
+  --surface-3: #2a333e;
+  --border: #36414e;
+  --border-strong: #4c5969;
+  --text: #e8edf3;
+  --text-muted: #b2bdca;
+  --text-faint: #8d99a8;
+  --accent: #5b9bff;
+  --accent-hover: #7aaeff;
+  --accent-soft: #1d2f4b;
+  --accent-text: #0b1220;
+  --success: #5fd08e;
+  --success-soft: #16301f;
+  --warning: #f0b45a;
+  --warning-soft: #3a2a12;
+  --danger: #ff8a84;
+  --danger-soft: #3d1b1a;
+  --focus: #8ab8ff;
+  --focus-gap: #1b2129;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.5);
+
+  --vp-bg: #2a313b;
+  --vp-bg-bottom: #1d232b;
+  --vp-grid-minor: #3a4451;
+  --vp-grid-major: #4f5c6c;
+  --vp-edge: #0f1419;
+  --vp-sketch: #6aa5ff;
+  --vp-sketch-constrained: #63d18f;
+  --vp-sketch-selected: #ffa04d;
+  --vp-sketch-hover: #9cc4ff;
+  --vp-sketch-reference: #d68cf2;
+  --vp-dimension: #c5ced9;
+  --vp-preview: #a7b2c0;
+  --vp-plane: #6f9fe6;
+  --vp-stale: #6d7682;
   color-scheme: dark;
 }

@@ -1936,11 +1936,11 @@ kbd {
     padding: 0 3px;
   }
   .project-name {
-    width: 128px;
+    width: 120px;
   }
-  /* Parcours et Aide (fin de la barre) : icônes seules, le nom reste dans l'infobulle. */
+  /* Parcours, Aide et Préférences (fin de la barre) : icônes seules, le nom reste dans l'infobulle. */
   .topbar > .tool-btn {
-    min-width: 38px;
+    min-width: 34px;
   }
   .topbar > .tool-btn > span:not(.visually-hidden) {
     position: absolute;
@@ -2740,4 +2740,17 @@ kbd {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   font-size: 13px;
+}
+
+/* Préférences : un groupe par thème de réglages. */
+.prefs-group {
+  margin: 0 0 14px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.prefs-group legend {
+  padding: 0 6px;
+  font-weight: 700;
 }

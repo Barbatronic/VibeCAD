@@ -75,7 +75,10 @@ export interface Toast {
   action?: () => void;
 }
 
+export type ThemeChoice = 'auto' | 'light' | 'dark';
+
 export type Dialog =
+  | { kind: 'preferences' }
   | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
   | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; /** Export d'un plateau d'impression (son rang) ou de tous. */ plate?: number | 'all' }
   | {
@@ -134,6 +137,10 @@ export interface AppState {
   level: Level;
   /** Bulles d'explication présentées par le chat au survol (sinon info-bulles simples). */
   tips: boolean;
+  /** Thème de l'interface : celui du système, ou clair / sombre imposé (retenu sur l'appareil). */
+  theme: ThemeChoice;
+  /** Aimantation à la grille au début de chaque esquisse (retenu sur l'appareil). */
+  sketchGrid: boolean;
   /** Vue en coupe (affichage seulement) et pièces coupées reçues du moteur. */
   section: SectionPlane | null;
   /** Assemblage : recherche des collisions activée, et dernier résultat. */
@@ -193,6 +200,8 @@ export function initialState(): AppState {
     rollback: {},
     level: 'debutant',
     tips: true,
+    theme: 'auto',
+    sketchGrid: true,
     section: null,
     showCentroid: false,
     isolatedPartId: null,
