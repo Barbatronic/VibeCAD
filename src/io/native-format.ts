@@ -10,6 +10,7 @@ import type {
   AssemblyFastener,
   FabricationSettings,
   SimulationSettings,
+  StudyFace,
   AssemblyInstance,
   AssemblyJoint,
   CadDocument,
@@ -27,7 +28,7 @@ import type {
   SketchSupport,
 } from '../domain/model';
 import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
-import { constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
+import { ASSEMBLY_STUDY, constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
 import { featureDependencies } from '../features/registry';
 import { APP_NAME, APP_VERSION } from '../meta';
 
@@ -274,7 +275,14 @@ const LOAD_DIRECTIONS = ['push', '-z', '+z', '-x', '+x', '-y', '+y'] as const;
 function readSimulation(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>): SimulationSettings | null {
   const o = obj(v, x, path);
   if (!o) return null;
-  const faces = (io: Record<string, unknown>, key: string, p: string) => arr(v, io, key, p).map((f, i) => readFaceRef(v, f, `${p}.${key}[${i}]`));
+  const faces = (io: Record<string, unknown>, key: string, p: string) =>
+    arr(v, io, key, p).map((f, i) => {
+      const fp = `${p}.${key}[${i}]`;
+      const ref: StudyFace = readFaceRef(v, f, fp);
+      const fo = obj(v, f, fp);
+      if (fo?.instanceId !== undefined) ref.instanceId = str(v, fo, 'instanceId', fp);
+      return ref;
+    });
   return {
     studies: arr(v, o, 'studies', path)
       .map((raw, i) => {
@@ -295,7 +303,7 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
           },
         };
       })
-      .filter((st) => partIds.has(st.partId)),
+      .filter((st) => st.partId === ASSEMBLY_STUDY || partIds.has(st.partId)),
   };
 }
 

@@ -56,6 +56,14 @@ describe('format natif .vibecad', () => {
     expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
   });
 
+  it('conserve l’étude de l’assemblage (faces repérées par pièce insérée)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const face = (role: 'start' | 'end', instanceId: string) => ({ featureId: ids.extrude, role, instanceId });
+    const study = { partId: '@assembly', materialId: 'pla', quality: 'coarse' as const, fixed: [face('start', 'i1')], load: { faces: [face('end', 'i2')], kind: 'force' as const, value: 20, direction: 'push' as const } };
+    const parsed = parseNativeFile(serializeDocument({ ...doc, simulation: { studies: [study] } }));
+    expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
+  });
+
   it('conserve la visserie de l’assemblage et refuse une longueur hors norme', () => {
     const { doc, ids } = buildPlateDocument();
     const edge = { faces: [{ featureId: ids.pocket, role: 'side' as const }, { featureId: ids.extrude, role: 'end' as const }] as [never, never] };

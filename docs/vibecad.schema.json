@@ -246,7 +246,8 @@
                 "type": "object",
                 "properties": {
                   "partId": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Pièce étudiée, ou « @assembly » pour l'assemblage (pièces qui se touchent collées)."
                   },
                   "materialId": {
                     "type": "string",
@@ -262,7 +263,7 @@
                   "fixed": {
                     "type": "array",
                     "items": {
-                      "$ref": "#/$defs/faceRef"
+                      "$ref": "#/$defs/studyFace"
                     }
                   },
                   "load": {
@@ -271,7 +272,7 @@
                       "faces": {
                         "type": "array",
                         "items": {
-                          "$ref": "#/$defs/faceRef"
+                          "$ref": "#/$defs/studyFace"
                         }
                       },
                       "kind": {
@@ -1842,6 +1843,19 @@
           }
         }
       ]
+    },
+    "studyFace": {
+      "description": "Face d'une étude de simulation ; dans l'étude de l'assemblage, instanceId désigne la pièce insérée.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/faceRef"
+        }
+      ],
+      "properties": {
+        "instanceId": {
+          "type": "string"
+        }
+      }
     }
   }
 }

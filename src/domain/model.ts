@@ -77,20 +77,26 @@ export interface FabricationSettings {
  */
 export type LoadDirection = 'push' | '-z' | '+z' | '-x' | '+x' | '-y' | '+y';
 
+/** Étude de l'assemblage (au lieu d'une pièce) : ses pièces qui se touchent sont collées. */
+export const ASSEMBLY_STUDY = '@assembly';
+
+/** Face d'une étude ; dans l'étude de l'assemblage, `instanceId` dit sur quelle pièce insérée. */
+export type StudyFace = FaceRef & { instanceId?: Id };
+
 /** Charge : une masse posée (kg, son poids tire vers le bas) ou une force (N). */
 export interface SimulationLoad {
-  faces: FaceRef[];
+  faces: StudyFace[];
   kind: 'mass' | 'force';
   value: number;
   direction: LoadDirection;
 }
 
-/** Étude d'une pièce : matériau, faces fixées, charge et précision du calcul. */
+/** Étude d'une pièce (ou de l'assemblage, `ASSEMBLY_STUDY`) : matériau, faces fixées, charge, précision. */
 export interface SimulationStudy {
   partId: Id;
   materialId: string;
   quality: 'coarse' | 'normal' | 'fine';
-  fixed: FaceRef[];
+  fixed: StudyFace[];
   load: SimulationLoad;
 }
 
