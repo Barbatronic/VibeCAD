@@ -800,6 +800,35 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "sweep"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "profileId",
+                "pathId",
+                "operation"
+              ],
+              "properties": {
+                "profileId": {
+                  "$ref": "#/$defs/id"
+                },
+                "pathId": {
+                  "$ref": "#/$defs/id"
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },

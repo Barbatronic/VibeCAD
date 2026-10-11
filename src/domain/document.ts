@@ -5,6 +5,7 @@
  */
 import { createId } from './ids';
 import type {
+  SweepFeature,
   LoftFeature,
   ShellFeature,
   PrimitiveFeature,
@@ -56,6 +57,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   primitive: 'Forme',
   shell: 'Coque',
   loft: 'Lissage',
+  sweep: 'Balayage',
 };
 
 export function nowIso(): string {
@@ -221,7 +223,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -255,7 +257,7 @@ export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, a
 }
 
 /** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */
-export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive', 'loft'];
+export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive', 'loft', 'sweep'];
 
 export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, kind: PatternParams['kind'] = 'linear'): PatternFeature {
   return {
@@ -285,6 +287,10 @@ export function makeShellFeature(doc: CadDocument, part: Part, open: FaceRef[] =
 
 export function makeLoftFeature(doc: CadDocument, part: Part, sketchIds: Id[]): LoftFeature {
   return { id: newFeatureId(doc, 'loft'), type: 'loft', name: nextFeatureName(part, 'loft'), params: { sketchIds, ruled: false, operation: 'add' } };
+}
+
+export function makeSweepFeature(doc: CadDocument, part: Part, profileId: Id, pathId: Id): SweepFeature {
+  return { id: newFeatureId(doc, 'sweep'), type: 'sweep', name: nextFeatureName(part, 'sweep'), params: { profileId, pathId, operation: 'add' } };
 }
 
 export function makePocketFeature(

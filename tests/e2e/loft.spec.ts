@@ -22,7 +22,7 @@ test('lissage : deux carrés reliés en tronc de pyramide, choisis dans le panne
     }
     c.commit(doc, 'Deux esquisses');
   });
-  await page.getByRole('button', { name: 'Autres outils : révolutions et lissages' }).click();
+  await page.getByRole('button', { name: 'Autres outils : révolutions, lissages et balayages' }).click();
   await page.click('#tool-menu-loft');
   await expect(page.getByRole('checkbox', { name: /Esquisse 1/ })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: /Esquisse 2/ })).toBeChecked();

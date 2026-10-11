@@ -410,7 +410,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -439,6 +439,13 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         params: { sketchId: str(v, p, 'sketchId', pp), axis, angle: num(v, p, 'angle', pp, { min: 0, max: 360 }), reversed: p.reversed === true },
       };
     }
+    case 'sweep':
+      return {
+        id,
+        name,
+        type,
+        params: { profileId: str(v, p, 'profileId', pp), pathId: str(v, p, 'pathId', pp), operation: oneOf(v, p, 'operation', pp, ['add', 'cut'] as const) },
+      };
     case 'loft':
       return {
         id,

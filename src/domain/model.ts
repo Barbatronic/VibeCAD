@@ -138,7 +138,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -163,6 +163,7 @@ export type MirrorFeature = FeatureBase<'mirror', MirrorParams>;
 export type PrimitiveFeature = FeatureBase<'primitive', PrimitiveParams>;
 export type ShellFeature = FeatureBase<'shell', ShellParams>;
 export type LoftFeature = FeatureBase<'loft', LoftParams>;
+export type SweepFeature = FeatureBase<'sweep', SweepParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -499,6 +500,17 @@ export interface ShellParams {
 export interface LoftParams {
   sketchIds: Id[];
   ruled: boolean;
+  operation: 'add' | 'cut';
+}
+
+/**
+ * Balayage : le contour fermé de l'esquisse `profileId` suit le chemin dessiné dans l'esquisse
+ * `pathId` (segments et arcs bout à bout, ouverts ou fermés). Le profil se dessine au début du
+ * chemin, de préférence perpendiculaire à lui.
+ */
+export interface SweepParams {
+  profileId: Id;
+  pathId: Id;
   operation: 'add' | 'cut';
 }
 

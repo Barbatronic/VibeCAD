@@ -36,6 +36,7 @@ import {
   type MeshData,
   type MeshOptions,
   type LoftRequest,
+  type SweepRequest,
   type PrimitiveRequest,
   type PrismRequest,
   type RevolveRequest,
@@ -245,7 +246,7 @@ export class OcctKernel implements GeometryKernel {
     return out;
   }
 
-  private buildWire(scope: Scope, loop: ProfileLoop, frame: Frame3D, level: number) {
+  private buildWire(scope: Scope, loop: ProfileLoop, frame: Frame3D, level: number, allowOpen = false) {
     const oc = this.oc;
     const mw = scope.track(new oc.BRepBuilderAPI_MakeWire());
     const edges: { edge: TopoDS_Edge; entityId: string }[] = [];
@@ -287,7 +288,7 @@ export class OcctKernel implements GeometryKernel {
       edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId });
     }
     const wire: TopoDS_Wire = scope.track(mw.Wire());
-    if (!wire.Closed()) {
+    if (!wire.Closed() && !allowOpen) {
       // Les cercles sont fermés par construction ; un polygone doit l'être aussi.
       const closed = loop.segments.length === 1 && loop.segments[0]!.kind === 'circle';
       if (!closed) throw new KernelError("Le contour n’est pas fermé.");
@@ -369,6 +370,42 @@ export class OcctKernel implements GeometryKernel {
           } else tag = { featureId: r.featureId, role: 'side', entityId: r.shape === 'cylinder' ? 'wall' : 'surface' };
           addTags(f.tags, [tag]);
         }
+        return new OcctShape(shape, faces);
+      }),
+    );
+  }
+
+  makeSweep(request: SweepRequest): KernelShape {
+    const oc = this.oc;
+    if (request.path.segments.length === 0) throw new KernelError('Le chemin du balayage est vide.');
+    return this.guard('balayage', () =>
+      withScope((scope) => {
+        const spine = this.buildWire(scope, { segments: request.path.segments, signedArea: 0 }, request.path.frame, 0, true).wire;
+        const { face, edges } = this.buildFace(scope, request.profile.region, request.profile.frame, 0);
+        const pipe = scope.track(new oc.BRepOffsetAPI_MakePipe(spine, face));
+        pipe.Build(scope.track(new oc.Message_ProgressRange()));
+        if (!pipe.IsDone()) throw new KernelError('Le balayage n’a pas pu être construit : le profil est peut-être trop grand pour les virages du chemin.');
+        const shape = pipe.Shape();
+        const faces = this.taggedFaces(shape);
+        const tagShape = (sh: TopoDS_Shape, tag: FaceTag) => {
+          for (const f of this.explore(sh, 'face')) {
+            const i = this.indexOfFace(faces, f);
+            if (i >= 0) addTags(faces[i]!.tags, [tag]);
+            f.delete();
+          }
+        };
+        tagShape(scope.track(pipe.FirstShape()), { featureId: request.featureId, role: 'start' });
+        tagShape(scope.track(pipe.LastShape()), { featureId: request.featureId, role: 'end' });
+        // Faces latérales : engendrées par les arêtes du profil (élément d'esquisse du profil).
+        for (const { edge, entityId } of edges) {
+          for (const g of this.listToArray(scope.track(pipe.Generated(edge)))) {
+            scope.track(g);
+            tagShape(g, { featureId: request.featureId, role: 'side', entityId });
+          }
+        }
+        faces.forEach((f, k) => {
+          if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', index: k }]);
+        });
         return new OcctShape(shape, faces);
       }),
     );
