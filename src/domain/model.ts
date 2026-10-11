@@ -23,6 +23,8 @@ export interface CadDocument {
   assembly?: Assembly;
   /** Préparation de la fabrication (facultatif : réglages de l'onglet Fabrication). */
   fabrication?: FabricationSettings;
+  /** Études de déformation (facultatif : réglages de l'onglet Simulation). */
+  simulation?: SimulationSettings;
   createdAt: string;
   modifiedAt: string;
 }
@@ -63,6 +65,36 @@ export interface FabricationSettings {
   /** Les pièces qui ne tiennent pas sur un plateau passent sur le suivant. */
   print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
   laser: { materials: LaserMaterial[]; spacing: number; engraveNames?: boolean; items: LaserItem[] };
+}
+
+// ---------------------------------------------------------------------------
+// Simulation (déformation d'une pièce)
+
+/**
+ * Sens de la charge : `push` pousse la face vers l'intérieur de la pièce ; les autres suivent un
+ * axe du repère (`-z` : vers le bas, comme un poids).
+ */
+export type LoadDirection = 'push' | '-z' | '+z' | '-x' | '+x' | '-y' | '+y';
+
+/** Charge : une masse posée (kg, son poids tire vers le bas) ou une force (N). */
+export interface SimulationLoad {
+  faces: FaceRef[];
+  kind: 'mass' | 'force';
+  value: number;
+  direction: LoadDirection;
+}
+
+/** Étude d'une pièce : matériau, faces fixées, charge et précision du calcul. */
+export interface SimulationStudy {
+  partId: Id;
+  materialId: string;
+  quality: 'coarse' | 'normal' | 'fine';
+  fixed: FaceRef[];
+  load: SimulationLoad;
+}
+
+export interface SimulationSettings {
+  studies: SimulationStudy[];
 }
 
 // ---------------------------------------------------------------------------

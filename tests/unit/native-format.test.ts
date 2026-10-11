@@ -47,6 +47,15 @@ describe('format natif .vibecad', () => {
     });
   });
 
+  it('conserve les études de simulation et ignore celles d’une pièce disparue', () => {
+    const { doc, ids } = buildPlateDocument();
+    const face = (role: 'start' | 'end') => ({ featureId: ids.extrude, role });
+    const study = { partId: ids.partId, materialId: 'pla', quality: 'normal' as const, fixed: [face('start')], load: { faces: [face('end')], kind: 'mass' as const, value: 2, direction: '-z' as const } };
+    const simulation = { studies: [study, { ...study, partId: 'disparue' }] };
+    const parsed = parseNativeFile(serializeDocument({ ...doc, simulation }));
+    expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
+  });
+
   it('permet de modifier la première esquisse après réouverture', () => {
     const { doc, ids } = buildPlateDocument();
     const parsed = parseNativeFile(serializeDocument(doc));

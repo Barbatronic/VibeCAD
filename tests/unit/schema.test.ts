@@ -37,6 +37,14 @@ describe('schéma JSON publié du format .vibecad', () => {
     expect(validate.errors ?? []).toEqual([]);
   });
 
+  it('valide les études de simulation', () => {
+    const { doc, ids } = buildPlateDocument();
+    const face = { featureId: ids.extrude, role: 'start' as const };
+    const simulation = { studies: [{ partId: ids.partId, materialId: 'pla', quality: 'fine' as const, fixed: [face], load: { faces: [face], kind: 'force' as const, value: 50, direction: 'push' as const } }] };
+    validate(JSON.parse(serializeDocument({ ...doc, simulation })));
+    expect(validate.errors ?? []).toEqual([]);
+  });
+
   it('refuse un fichier incohérent', () => {
     const { doc } = buildPlateDocument();
     const file = JSON.parse(serializeDocument(doc));

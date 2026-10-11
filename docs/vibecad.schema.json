@@ -235,6 +235,89 @@
               "description": "Découpe laser : une « page » par matériau. Les champs sheet, thickness et kerf (une seule plaque) viennent des premières versions et sont convertis en un matériau à la lecture."
             }
           }
+        },
+        "simulation": {
+          "type": "object",
+          "description": "Réglages de l'onglet Simulation : une étude de déformation par pièce.",
+          "properties": {
+            "studies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "partId": {
+                    "type": "string"
+                  },
+                  "materialId": {
+                    "type": "string",
+                    "description": "pla, petg, abs, plywood, aluminium ou steel."
+                  },
+                  "quality": {
+                    "enum": [
+                      "coarse",
+                      "normal",
+                      "fine"
+                    ]
+                  },
+                  "fixed": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/faceRef"
+                    }
+                  },
+                  "load": {
+                    "type": "object",
+                    "properties": {
+                      "faces": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      },
+                      "kind": {
+                        "enum": [
+                          "mass",
+                          "force"
+                        ],
+                        "description": "Masse posée (kg) ou force (N)."
+                      },
+                      "value": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "direction": {
+                        "enum": [
+                          "push",
+                          "-z",
+                          "+z",
+                          "-x",
+                          "+x",
+                          "-y",
+                          "+y"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "faces",
+                      "kind",
+                      "value",
+                      "direction"
+                    ]
+                  }
+                },
+                "required": [
+                  "partId",
+                  "materialId",
+                  "quality",
+                  "fixed",
+                  "load"
+                ]
+              }
+            }
+          },
+          "required": [
+            "studies"
+          ]
         }
       }
     },

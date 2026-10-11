@@ -8,6 +8,7 @@
 import type {
   Assembly,
   FabricationSettings,
+  SimulationSettings,
   AssemblyInstance,
   AssemblyJoint,
   CadDocument,
@@ -67,6 +68,7 @@ export function serializeDocument(doc: CadDocument, savedAt = new Date().toISOSt
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
       ...(doc.fabrication ? { fabrication: doc.fabrication } : {}),
+      ...(doc.simulation ? { simulation: doc.simulation } : {}),
     },
   };
   return JSON.stringify(file, null, 2);
@@ -231,6 +233,10 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     const fabrication = readFabrication(v, o.fabrication, `${path}.fabrication`, new Set(doc.parts.map((p) => p.id)));
     if (fabrication) doc.fabrication = fabrication;
   }
+  if (o.simulation !== undefined) {
+    const simulation = readSimulation(v, o.simulation, `${path}.simulation`, new Set(doc.parts.map((p) => p.id)));
+    if (simulation) doc.simulation = simulation;
+  }
   if (o.assembly !== undefined) {
     const assembly = readAssembly(v, o.assembly, `${path}.assembly`, new Set(doc.parts.map((p) => p.id)));
     if (assembly) doc.assembly = assembly;
@@ -258,6 +264,36 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
         .filter((i) => partIds.has(i.partId)),
     },
     laser: readLaser(v, la, `${path}.laser`, partIds),
+  };
+}
+
+const LOAD_DIRECTIONS = ['push', '-z', '+z', '-x', '+x', '-y', '+y'] as const;
+
+function readSimulation(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>): SimulationSettings | null {
+  const o = obj(v, x, path);
+  if (!o) return null;
+  const faces = (io: Record<string, unknown>, key: string, p: string) => arr(v, io, key, p).map((f, i) => readFaceRef(v, f, `${p}.${key}[${i}]`));
+  return {
+    studies: arr(v, o, 'studies', path)
+      .map((raw, i) => {
+        const sp = `${path}.studies[${i}]`;
+        const so = obj(v, raw, sp) ?? {};
+        const lp = `${sp}.load`;
+        const lo = obj(v, so.load, lp) ?? {};
+        return {
+          partId: str(v, so, 'partId', sp),
+          materialId: str(v, so, 'materialId', sp),
+          quality: oneOf(v, so, 'quality', sp, ['coarse', 'normal', 'fine'] as const),
+          fixed: faces(so, 'fixed', sp),
+          load: {
+            faces: faces(lo, 'faces', lp),
+            kind: oneOf(v, lo, 'kind', lp, ['mass', 'force'] as const),
+            value: num(v, lo, 'value', lp, { min: 0 }),
+            direction: oneOf(v, lo, 'direction', lp, LOAD_DIRECTIONS),
+          },
+        };
+      })
+      .filter((st) => partIds.has(st.partId)),
   };
 }
 
