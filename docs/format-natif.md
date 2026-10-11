@@ -156,7 +156,8 @@ direction du libellé d'un diamètre ou d'un rayon. Sans ces champs, le placemen
   "params": { "sketchId": "sk-…", "distance": 5, "direction": "default" } }
 ```
 
-`direction` : `default` (du côté de la normale de l'esquisse), `reversed`, `symmetric`.
+`direction` : `default` (du côté de la normale de l'esquisse), `reversed`, `symmetric` ou
+`twoSides` (`distance` du côté de la normale, `distance2` de l'autre côté).
 `upTo` (facultatif, faceRef) : l'extrusion part de l'esquisse et s'arrête sur le plan de cette face
 plane de la pièce (même inclinée), du côté où elle se trouve ; `distance` et `direction` sont alors
 ignorées. La face d'arrivée garde le rôle `end`. Erreurs : `EXTRUDE_FACE_LOST` (face disparue ou
@@ -172,7 +173,8 @@ courbe), `EXTRUDE_FACE_PARALLEL` (plan parallèle à la direction d'extrusion), 
 
 `extent` : `{ "kind": "distance", "distance": 3 }` ou `{ "kind": "throughAll" }` (traversante).
 `direction` : `default` (contre la normale, c'est-à-dire dans la matière sous une face),
-`reversed`, `symmetric`.
+`reversed`, `symmetric` ou `twoSides` : `extent` vaut alors pour le côté « dans la matière » (contre
+la normale) et `extent2` (même forme, facultatif ailleurs) pour l'autre côté.
 
 ### Congé (`"type": "fillet"`) et chanfrein (`"type": "chamfer"`)
 

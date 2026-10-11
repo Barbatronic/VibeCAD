@@ -45,7 +45,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   arêtes de la pièce **projetées** dans l'esquisse (bord, trou…) comme repères fixes qui suivent
   la pièce quand elle change.
 - **Volumes** : extrusion et poche (profondeur cotée ou traversante, sens normal / opposé /
-  symétrique) avec **aperçu** avant validation. Un perçage est une poche circulaire traversante.
+  symétrique, ou **deux côtés** avec une longueur différente de chaque côté) avec **aperçu** avant
+  validation. Un perçage est une poche circulaire traversante.
   Au niveau Expert, une extrusion peut aller **jusqu'à une face** plane cliquée (même inclinée).
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
   souvent de construction), tour complet ou partiel, avec aperçu ; elle ajoute de la matière ou la
