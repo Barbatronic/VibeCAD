@@ -133,7 +133,7 @@ export interface ViewportEvents {
   onPick(pick: ModelPick | null, info: { shift: boolean; double: boolean }): void;
   onHover(pick: ModelPick | null): void;
   onPlanePick(plane: PlaneName): void;
-  onSketchPointer(type: 'move' | 'down' | 'up' | 'leave', p: Vec2, mods: { shift: boolean; alt: boolean }): void;
+  onSketchPointer(type: 'move' | 'down' | 'up' | 'leave', p: Vec2, mods: { shift: boolean; alt: boolean; double?: boolean }): void;
   onSketchLabel(constraintId: string, action: 'select' | 'edit', additive: boolean): void;
   /** Glisser du libellé d'une cote (position en coordonnées d'esquisse). */
   onSketchLabelDrag?(constraintId: string, phase: 'move' | 'end', p: Vec2 | null): void;
@@ -966,11 +966,18 @@ export class Viewport {
     return hit ? worldToFrame(frame, { x: hit.x, y: hit.y, z: hit.z }) : null;
   }
 
+  /** Dernier appui dans l'esquisse, pour reconnaître un double-clic (deux appuis proches). */
+  private lastSketchDown: { x: number; y: number; time: number } | null = null;
+
   private onPointerDown = (e: PointerEvent): void => {
-    this.down = { x: e.clientX, y: e.clientY, button: e.button, time: performance.now() };
+    const now = performance.now();
+    this.down = { x: e.clientX, y: e.clientY, button: e.button, time: now };
     if (this.input.mode === 'sketch' && e.button === 0) {
+      const last = this.lastSketchDown;
+      const double = !!last && now - last.time < 400 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 6;
+      this.lastSketchDown = double ? null : { x: e.clientX, y: e.clientY, time: now };
       const p = this.sketchPoint(e);
-      if (p) this.events.onSketchPointer('down', p, { shift: e.shiftKey, alt: e.altKey });
+      if (p) this.events.onSketchPointer('down', p, { shift: e.shiftKey, alt: e.altKey, double });
     }
   };
 

@@ -518,9 +518,9 @@ export function ViewportHost() {
           else c.updateSession((s) => pointerLeave(s));
         },
         onSketchLabelDrag: (id, phase, p) => c.updateSession((s) => moveDimensionLabel(s, id, p, phase)),
-        onSketchLabel: (id, action, additive) => {
+        onSketchLabel: (id, action) => {
           if (action === 'edit') c.updateSession((s) => editDimension(s, id));
-          else c.updateSession((s) => selectConstraint(s, id, additive));
+          else c.updateSession((s) => selectConstraint(s, id, true));
         },
         onSketchScale: (px) => c.updateSession((s) => setPixelSize(s, px)),
         onViewChange: () => {

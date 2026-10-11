@@ -5,6 +5,7 @@
 import { allows } from './levels';
 import {
   cancelEditor,
+  clearSelection,
   confirmEditor,
   confirmInput,
   deleteSelection,
@@ -142,6 +143,12 @@ export function installKeyboard(controller: AppController): () => void {
           else controller.select(null);
           return;
       }
+    }
+    // Espace dans l'esquisse : tout désélectionner (sauf sur un bouton, qu'Espace actionne).
+    if (e.key === ' ' && s.mode.kind === 'sketch' && !(e.target as HTMLElement | null)?.closest?.('button, [role="button"], a, [data-constraint]')) {
+      e.preventDefault();
+      controller.updateSession(clearSelection);
+      return;
     }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();

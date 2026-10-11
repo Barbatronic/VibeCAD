@@ -22,11 +22,14 @@ import {
   addLine,
   addPoint,
   addRectangle,
+  arcGeometry,
+  arcPointAt,
   arePointsCoincident,
   findArc,
   findCircle,
   findRound,
   findLine,
+  linePoints,
   movePoints,
   ownerOfPoint,
   pointPosition,
@@ -96,7 +99,8 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
 };
 
 export const TOOL_HELP: Record<SketchTool, string> = {
-  select: 'Sélection : cliquez un élément pour le choisir, faites-le glisser pour le déplacer. Double-cliquez une cote pour changer sa valeur.',
+  select:
+    'Sélection : chaque clic ajoute un élément (un nouveau clic le retire), glisser dans le vide trace un cadre, double-clic dans le vide ou Espace vide la sélection. Faites glisser un élément pour le déplacer ; double-cliquez une cote pour changer sa valeur.',
   line: 'Segment : cliquez le point de départ puis les points suivants. Cliquez le premier point pour fermer le contour. Vous pouvez taper la longueur.',
   rectangle: 'Rectangle : cliquez un premier coin puis le coin opposé. Vous pouvez aussi taper la largeur et la hauteur au clavier.',
   centerRectangle:
@@ -171,6 +175,8 @@ interface DragState {
   origin: Vec2;
   base: SketchParams;
   moved: boolean;
+  /** L'élément était déjà choisi : un clic sans glisser le retire de la sélection. */
+  toggleOff?: boolean;
 }
 
 export interface SketchSession {
@@ -206,6 +212,8 @@ export interface SketchSession {
   hover: SketchTarget | null;
   selection: string[];
   drag: DragState | null;
+  /** Sélection par cadre en cours (glisser dans le vide avec l'outil Sélection). */
+  box: { origin: Vec2; current: Vec2 } | null;
   /** Cote en cours de déplacement à la souris (esquisse avant le geste, pour Annuler). */
   labelDrag: { constraintId: string; base: SketchParams } | null;
   editor: DimensionEditor | null;
@@ -257,6 +265,7 @@ export function createSession(args: {
     hover: null,
     selection: [],
     drag: null,
+    box: null,
     labelDrag: null,
     editor: null,
     message: res.converged ? null : { kind: 'error', text: 'Certaines contraintes de cette esquisse sont incompatibles : supprimez-en une.' },
@@ -310,7 +319,7 @@ export function isConstraintTool(tool: SketchTool): tool is ConstraintTool {
 }
 
 export function setTool(s: SketchSession, tool: SketchTool): SketchSession {
-  let next = resetDraw({ ...s, tool, editor: null, drag: null, projectHover: null, message: info(TOOL_HELP[tool]) });
+  let next = resetDraw({ ...s, tool, editor: null, drag: null, box: null, projectHover: null, message: info(TOOL_HELP[tool]) });
   if (isConstraintTool(tool)) {
     const applied = applyConstraintToSelection(next, tool);
     if (applied) next = { ...applied, tool: 'select' };
@@ -389,6 +398,7 @@ function computeSnap(s: SketchSession, p: Vec2, alt: boolean): SnapResult {
 
 export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } = {}): SketchSession {
   if (s.drag) return dragTo(s, p, !!opts.alt);
+  if (s.box) return { ...s, cursor: p, box: { ...s.box, current: p } };
   if (s.tool === 'project') {
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
@@ -415,7 +425,7 @@ export function pointerLeave(s: SketchSession): SketchSession {
   return { ...s, cursor: null, snap: null, hover: null };
 }
 
-export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; alt?: boolean } = {}): SketchSession {
+export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; alt?: boolean; double?: boolean } = {}): SketchSession {
   if (s.editor) s = { ...s, editor: null };
   switch (s.tool) {
     case 'line':
@@ -441,16 +451,17 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
     case 'dimension':
       return dimensionClick(s, p);
     case 'select':
-      return selectClick(s, p, !!opts.shift);
+      return selectClick(s, p, !!opts.double);
     default:
       return constraintToolClick(s, p, s.tool);
   }
 }
 
 export function pointerUp(s: SketchSession): SketchSession {
+  if (s.box) return finishBox(s);
   if (!s.drag) return s;
   const { drag } = s;
-  if (!drag.moved) return { ...s, drag: null };
+  if (!drag.moved) return { ...s, drag: null, selection: drag.toggleOff ? s.selection.filter((x) => x !== drag.target.id) : s.selection };
   const changed = drag.base !== s.sketch;
   return {
     ...s,
@@ -1671,14 +1682,63 @@ function isFixedTarget(sketch: SketchParams, target: SketchTarget): boolean {
   return !!e && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && !!e.reference;
 }
 
-function selectClick(s: SketchSession, p: Vec2, additive: boolean): SketchSession {
+/**
+ * Outil Sélection : chaque clic ajoute l'élément à la sélection (sans touche à maintenir) ; un
+ * clic sur un élément déjà choisi le retire (s'il n'est pas glissé). Glisser dans le vide trace
+ * un cadre ; double-clic dans le vide (ou Espace) : tout désélectionner.
+ */
+function selectClick(s: SketchSession, p: Vec2, double: boolean): SketchSession {
   const target = hitTest(s.sketch, p, tolerance(s));
-  if (!target) return { ...s, selection: additive ? s.selection : [], drag: null };
+  if (!target) {
+    if (double) return { ...s, selection: [], drag: null, box: null, message: s.selection.length ? info('Sélection vidée.') : s.message };
+    return { ...s, drag: null, box: { origin: p, current: p } };
+  }
   const id = target.id;
-  const selection = additive ? (s.selection.includes(id) ? s.selection.filter((x) => x !== id) : [...s.selection, id]) : [id];
+  const already = s.selection.includes(id);
+  const selection = already ? s.selection : [...s.selection, id];
   const fixed = isFixedTarget(s.sketch, target);
   const message = fixed && target.id !== ORIGIN_POINT_ID ? info('Élément repris de la pièce : il est fixe et suit la pièce. Cotez ou contraignez votre dessin par rapport à lui.') : s.message;
-  return { ...s, selection, message, drag: fixed ? null : { target, origin: p, base: s.sketch, moved: false } };
+  if (fixed) return { ...s, selection: already ? s.selection.filter((x) => x !== id) : selection, message, drag: null };
+  return { ...s, selection, message, drag: { target, origin: p, base: s.sketch, moved: false, toggleOff: already } };
+}
+
+/** Vide la sélection (double-clic dans le vide, touche Espace). */
+export function clearSelection(s: SketchSession): SketchSession {
+  return s.selection.length ? { ...s, selection: [], message: info('Sélection vidée.') } : s;
+}
+
+/** Fin du cadre : les éléments entièrement dedans s'ajoutent à la sélection. */
+function finishBox(s: SketchSession): SketchSession {
+  const { origin, current } = s.box!;
+  const lo = { x: Math.min(origin.x, current.x), y: Math.min(origin.y, current.y) };
+  const hi = { x: Math.max(origin.x, current.x), y: Math.max(origin.y, current.y) };
+  // Un simple clic dans le vide (sans cadre) ne change rien.
+  if ((hi.x - lo.x) / s.pixelSize < DRAG_PIXELS && (hi.y - lo.y) / s.pixelSize < DRAG_PIXELS) return { ...s, box: null };
+  const ids = entitiesInBox(s.sketch, lo, hi).filter((id) => !s.selection.includes(id));
+  const selection = [...s.selection, ...ids];
+  const message = ids.length ? info(`${ids.length} élément${ids.length > 1 ? 's' : ''} ajouté${ids.length > 1 ? 's' : ''} à la sélection.`) : s.message;
+  return { ...s, box: null, selection, message };
+}
+
+/** Points et courbes entièrement contenus dans le rectangle [lo, hi]. */
+export function entitiesInBox(sketch: SketchParams, lo: Vec2, hi: Vec2): string[] {
+  const inside = (q: Vec2 | undefined) => !!q && q.x >= lo.x && q.x <= hi.x && q.y >= lo.y && q.y <= hi.y;
+  const out: string[] = [];
+  for (const e of sketch.entities) {
+    if (e.type === 'point') {
+      if (inside(e)) out.push(e.id);
+    } else if (e.type === 'line') {
+      const pts = linePoints(sketch, e);
+      if (pts && inside(pts[0]) && inside(pts[1])) out.push(e.id);
+    } else if (e.type === 'circle') {
+      const c = pointPosition(sketch, e.center);
+      if (c && inside({ x: c.x - e.radius, y: c.y - e.radius }) && inside({ x: c.x + e.radius, y: c.y + e.radius })) out.push(e.id);
+    } else {
+      const g = arcGeometry(sketch, e);
+      if (g && [0, 0.25, 0.5, 0.75, 1].every((t) => inside(arcPointAt(g, t)))) out.push(e.id);
+    }
+  }
+  return out;
 }
 
 export function selectConstraint(s: SketchSession, id: string, additive = false): SketchSession {
@@ -1829,6 +1889,13 @@ export interface SessionPreview {
 
 export function sessionPreview(s: SketchSession): SessionPreview {
   const out: SessionPreview = { lines: [], circles: [], arcs: [], labels: [], guides: [], removed: [] };
+  if (s.box) {
+    const { origin: a, current: c } = s.box;
+    const b = { x: c.x, y: a.y };
+    const d = { x: a.x, y: c.y };
+    out.lines.push([a, b], [b, c], [c, d], [d, a]);
+    return out;
+  }
   if (s.tool === 'trim' && s.cursor && s.hover && s.hover.kind !== 'point') {
     const piece = trimPiece(s.sketch, s.hover.id, s.cursor);
     if (piece) out.removed.push(piece.path);

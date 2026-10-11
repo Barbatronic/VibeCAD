@@ -148,6 +148,10 @@ export function HelpDrawer() {
           <li>Pendant le tracé, taper directement les dimensions au clavier (Tab pour passer au champ suivant, Entrée pour valider). La virgule est acceptée : 12,5.</li>
           <li>Ajouter des cotes avec l’outil Cote : un segment (longueur), un cercle (diamètre), deux points (distance horizontale, verticale ou alignée).</li>
           <li>Double-cliquer une cote pour changer sa valeur. Échap annule l’outil en cours.</li>
+          <li>
+            Outil Sélection : chaque clic ajoute un élément à la sélection (un nouveau clic le retire) ; glisser dans le vide trace un cadre qui choisit
+            tout ce qu’il contient. Double-clic dans le vide ou Espace : tout désélectionner.
+          </li>
           <li>« Terminer l’esquisse » pour revenir au volume.</li>
         </ol>
         <p>
