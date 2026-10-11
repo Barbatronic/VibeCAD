@@ -97,5 +97,4 @@ d'itérations.
 
 ## Suite prévue
 
-- animation des mécanismes ;
 - multigrille si le calcul est trop lent.

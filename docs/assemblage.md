@@ -74,6 +74,13 @@ repères sont des cercles, Fixe sinon).
 - **À la souris** : on attrape la pièce mobile et on la fait glisser ; elle ne suit que le
   mouvement permis par sa liaison (rotation autour de l'axe, ou translation le long de l'axe),
   dans les limites. On ne peut donc pas « casser » l'assemblage.
+- **Animer le mécanisme** (panneau de la liaison) : la liaison choisie tourne (90 °/s) ou glisse
+  (15 mm/s) toute seule, et les pièces qui en dépendent suivent, y compris dans une boucle fermée.
+  Sans limites, un pivot fait des tours complets ; entre des limites, une glissière sans limites
+  (± 20 mm) ou quand la boucle ne peut pas aller plus loin (position extrême d'un balancier), le
+  mouvement repart dans l'autre sens. « Arrêter » remet les pièces exactement à leur place de
+  départ, sans rien ajouter à l'historique ; une modification pendant l'animation l'arrête à la
+  position atteinte.
 
 ## Calcul et données
 
