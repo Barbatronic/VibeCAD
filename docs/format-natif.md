@@ -415,7 +415,8 @@ fichier d'origine, sur un autre ordinateur, dans dix ans. Jamais de chemin vers 
 }
 ```
 
-`encoding` vaut `utf8` (texte STEP tel quel) ou `base64` (octets bruts) si le fichier n'est pas
+`kind` : `step` ou `stl` (le STL est relu à chaque ouverture : triangles cousus en volume, faces
+planes reconstituées). `encoding` vaut `utf8` (texte STEP ou STL texte tel quel) ou `base64` (octets bruts) si le fichier n'est pas
 du texte UTF-8 valide. `sha256` permet de vérifier l'intégrité à l'ouverture. Une ressource qui
 n'est plus utilisée par aucune fonction est retirée du projet.
 
