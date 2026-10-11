@@ -48,7 +48,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   symétrique) avec **aperçu** avant validation. Un perçage est une poche circulaire traversante.
   Au niveau Expert, une extrusion peut aller **jusqu'à une face** plane cliquée (même inclinée).
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
-  souvent de construction), tour complet ou partiel, avec aperçu.
+  souvent de construction), tour complet ou partiel, avec aperçu ; elle ajoute de la matière ou la
+  **creuse** (gorge, perçage conique), et au niveau Expert peut garder la partie commune.
 - **Lissage** (niveau Expert) : un volume qui passe d'un contour fermé à un autre, dessinés sur
   des plans différents (d'un carré à un rond…), surface lisse ou raccords droits, ajouté ou creusé.
 - **Balayage** (niveau Expert) : un contour fermé qui suit un chemin dessiné dans une autre esquisse

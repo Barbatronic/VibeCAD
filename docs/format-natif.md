@@ -197,12 +197,14 @@ arêtes. `dependsOn` contient les étapes qui ont créé ces faces.
 
 ```json
 { "id": "re-…", "type": "revolve", "name": "Révolution 1", "dependsOn": ["sk-…"],
-  "params": { "sketchId": "sk-…", "axis": { "kind": "sketch-y" }, "angle": 360, "reversed": false } }
+  "params": { "sketchId": "sk-…", "axis": { "kind": "sketch-y" }, "angle": 360, "reversed": false, "operation": "add" } }
 ```
 
 `axis` : `{ "kind": "sketch-x" }`, `{ "kind": "sketch-y" }` (axes du repère de l'esquisse) ou
 `{ "kind": "line", "lineId": "l5" }` (segment de l'esquisse). `angle` en degrés (0 < angle ≤ 360 ;
-360 = tour complet). `reversed` tourne dans l'autre sens. Le profil doit rester d'un seul côté de
+360 = tour complet). `reversed` tourne dans l'autre sens. `operation` : `add` (ajouter), `cut`
+(creuser : gorge, perçage conique…) ou `common` (garder la partie commune) ; absent dans les
+fichiers antérieurs, il vaut `add`. Creuser sans volume : `POCKET_WITHOUT_SOLID`. Le profil doit rester d'un seul côté de
 l'axe (`REVOLVE_CROSSES_AXIS` sinon). Faces : `start` / `end` (révolution partielle), `side` +
 élément d'esquisse.
 
