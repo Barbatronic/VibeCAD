@@ -222,6 +222,18 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Lissage (`"type": "loft"`)
+
+```json
+{ "id": "lo-…", "type": "loft", "name": "Lissage 1", "dependsOn": ["sk-…", "sk-…"],
+  "params": { "sketchIds": ["sk-…", "sk-…"], "ruled": false, "operation": "add" } }
+```
+
+`sketchIds` : au moins deux esquisses, chacune avec un seul contour fermé sans trou, reliées dans
+cet ordre (celui de l'historique). `ruled` : raccords droits. `operation` : `add` ou `cut`.
+Faces : `start` (premier contour), `end` (dernier), `side` + élément du premier contour.
+Erreur `LOFT_PROFILE` si une esquisse n'a pas exactement un contour fermé sans trou.
+
 ### Coque (`"type": "shell"`)
 
 ```json
