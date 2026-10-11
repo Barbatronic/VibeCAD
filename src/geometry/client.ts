@@ -7,6 +7,7 @@
 import type { CadDocument, Id } from '../domain/model';
 import { resourceBytes } from '../io/resources';
 import type { MeshData } from './kernel';
+import type { Vec3 } from '../math/vec';
 import {
   documentForWorker,
   type EvaluationResult,
@@ -183,6 +184,12 @@ export class GeometryClient {
   async section(doc: CadDocument, section: SectionPlane): Promise<WorkerResultMap['section']> {
     await this.syncResources(doc);
     return this.request('section', { doc: documentForWorker(doc), section });
+  }
+
+  /** Traits vus et cachés exacts des vues d'une pièce (mise en plan). */
+  async hiddenLines(doc: CadDocument, partId: Id, views: { u: Vec3; toViewer: Vec3 }[]): Promise<WorkerResultMap['hiddenLines']> {
+    await this.syncResources(doc);
+    return this.request('hiddenLines', { doc: documentForWorker(doc), partId, views });
   }
 
   async collisions(doc: CadDocument, placements: CollisionPlacement[]): Promise<WorkerResultMap['collisions']> {

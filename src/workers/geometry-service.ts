@@ -4,6 +4,7 @@
  */
 import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '../geometry/protocol';
 import type { CadDocument, Id } from '../domain/model';
+import type { Vec3 } from '../math/vec';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
@@ -281,6 +282,13 @@ export class GeometryService {
    * chevauchent, la partie commune ; au-delà d'un volume négligeable (un simple contact donne un
    * volume nul), la paire est signalée avec le maillage de la partie commune.
    */
+  /** Mise en plan exacte : traits vus et cachés de chaque vue d'une pièce (algorithme HLR). */
+  hiddenLines(docIn: DocumentForWorker, partId: Id, views: { u: Vec3; toViewer: Vec3 }[]): { views: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] } {
+    const ev = this.engine.evaluateDocument(this.asDocument(docIn)).find((e) => e.partId === partId);
+    if (!ev?.shape) return { views: [] };
+    return { views: this.kernel.hiddenLineViews(ev.shape, views) };
+  }
+
   /**
    * Résultats des paires déjà comparées : clé = formes des deux pièces et leurs placements. Quand
    * une seule pièce bouge, seules ses paires sont recalculées (les autres viennent d'ici).

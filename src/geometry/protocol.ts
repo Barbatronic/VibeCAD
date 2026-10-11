@@ -92,6 +92,7 @@ export type WorkerRequest =
   | { id: number; type: 'inspectStep'; bytes: Uint8Array; format?: 'step' | 'stl' }
   | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
+  | { id: number; type: 'hiddenLines'; doc: DocumentForWorker; partId: Id; views: { u: Vec3; toViewer: Vec3 }[] }
   | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] };
 
 /** Pièce insérée placée dans l'assemblage, pour la recherche de collisions. */
@@ -138,6 +139,8 @@ export interface WorkerResultMap {
   inspectStep: StepInspection;
   measure: MeasureResult;
   section: { parts: SectionPart[] };
+  /** Traits vus et cachés exacts de chaque vue demandée (vide si la pièce n'a pas de volume). */
+  hiddenLines: { views: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] };
   collisions: { collisions: Collision[] };
 }
 

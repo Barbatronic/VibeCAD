@@ -155,6 +155,8 @@ export interface AppState {
    * des pièces, qui reste intacte ; un second clic revient exactement à l'affichage d'avant.
    */
   isolatedPartId: Id | null;
+  /** Incrémenté à l'arrivée des traits cachés exacts d'une mise en plan (l'affichage se refait). */
+  drawingRevision: number;
   sectionParts: { key: string; parts: Record<Id, { mesh: MeshData | null; cutFaces: number[] }> } | null;
   workspace: Workspace;
   fabricationTab: FabricationTab;
@@ -207,6 +209,7 @@ export function initialState(): AppState {
     section: null,
     showCentroid: false,
     isolatedPartId: null,
+    drawingRevision: 0,
     collisionCheck: false,
     collisions: null,
     sectionParts: null,

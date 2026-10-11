@@ -60,7 +60,7 @@ import { projectableCurves } from './projection';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
-import { billOfMaterials, bomCsv, technicalDrawing, templatePages, type Bom } from './drawings';
+import { billOfMaterials, bomCsv, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type ProjectedView, type ViewName } from './drawings';
 import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
@@ -1769,16 +1769,56 @@ export class AppController {
     return s.doc.parts.find((p) => this.hasSolid(p.id))?.id ?? null;
   }
 
-  /** Mise en plan d'une pièce (mise en cache par maillage : le calcul des traits cachés coûte). */
+  /** Vues exactes (traits cachés calculés par le noyau) par version de maillage de pièce. */
+  private exactViews = new Map<string, Record<ViewName, ProjectedView> | 'pending' | 'failed'>();
+
+  /**
+   * Demande au worker les vues exactes d'une pièce (une fois par version) ; à leur arrivée, la
+   * mise en plan affichée est refaite avec elles.
+   */
+  private ensureExactViews(partId: Id): Promise<void> {
+    const s = this.state;
+    const d = s.display[partId];
+    if (!d?.meshKey) return Promise.resolve();
+    const key = d.meshKey;
+    const known = this.exactViews.get(key);
+    if (known && known !== 'pending') return Promise.resolve();
+    const pending = this.exactRequests.get(key);
+    if (pending) return pending;
+    this.exactViews.set(key, 'pending');
+    const request = this.deps.client
+      .hiddenLines(s.doc, partId, VIEW_ORDER.map((v) => ({ u: VIEWS[v].u, toViewer: VIEWS[v].toViewer })))
+      .then((r) => {
+        if (r.views.length !== VIEW_ORDER.length) return void this.exactViews.set(key, 'failed');
+        const views = Object.fromEntries(VIEW_ORDER.map((v, i) => [v, viewFromLines(r.views[i]!)])) as Record<ViewName, ProjectedView>;
+        if (this.exactViews.size > 40) this.exactViews.clear();
+        this.exactViews.set(key, views);
+        this.set({ drawingRevision: this.state.drawingRevision + 1 });
+      })
+      .catch(() => void this.exactViews.set(key, 'failed'))
+      .finally(() => this.exactRequests.delete(key));
+    this.exactRequests.set(key, request);
+    return request;
+  }
+
+  private exactRequests = new Map<string, Promise<void>>();
+
+  /**
+   * Mise en plan d'une pièce (mise en cache par maillage). Les traits cachés exacts arrivent du
+   * worker ; en attendant, ceux déduits du maillage s'affichent.
+   */
   drawingOf(partId: Id): { page: DrawingPage; scale: number } | null {
     const s = this.state;
     const part = findPart(s.doc, partId);
     const d = s.display[partId];
     if (!part || !d?.mesh || !this.hasSolid(partId)) return null;
-    const key = `${d.meshKey}|${part.name}|${s.doc.name}`;
+    const exact = d.meshKey ? this.exactViews.get(d.meshKey) : undefined;
+    const views = exact && exact !== 'pending' && exact !== 'failed' ? exact : undefined;
+    if (!exact) void this.ensureExactViews(partId);
+    const key = `${d.meshKey}|${part.name}|${s.doc.name}|${views ? 'exact' : 'mesh'}`;
     let drawing = this.drawingCache.get(key);
     if (!drawing) {
-      drawing = technicalDrawing(d.mesh, { partName: part.name, projectName: s.doc.name });
+      drawing = technicalDrawing(d.mesh, { partName: part.name, projectName: s.doc.name }, views);
       if (this.drawingCache.size > 20) this.drawingCache.clear();
       this.drawingCache.set(key, drawing);
     }
@@ -1789,6 +1829,8 @@ export class AppController {
   async exportDrawing(format: 'pdf' | 'svg'): Promise<void> {
     const s = this.state;
     const ids = format === 'pdf' ? s.doc.parts.filter((p) => this.hasSolid(p.id)).map((p) => p.id) : [this.docsPart()].filter((id): id is Id => !!id);
+    // Les fichiers exportés portent les traits cachés exacts.
+    await Promise.all(ids.map((id) => this.ensureExactViews(id)));
     const pages = ids.map((id) => this.drawingOf(id)?.page).filter((p): p is DrawingPage => !!p);
     if (pages.length === 0) return this.explain('Aucune pièce avec un volume à mettre en plan.');
     const name = format === 'svg' ? `${findPart(s.doc, ids[0]!)?.name ?? s.doc.name} - mise en plan` : `${s.doc.name} - mise en plan`;

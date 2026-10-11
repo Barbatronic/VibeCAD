@@ -260,6 +260,12 @@ export interface GeometryKernel {
   /** Copie étiquetée d'un solide importé : chaque face reçoit `{featureId, role:'imported', index}`. */
   tagImported(solid: KernelShape, featureId: Id): KernelShape;
   analyze(shape: KernelShape): ShapeAnalysis;
+  /**
+   * Traits vus et cachés exacts (algorithme HLR d'OCCT) de chaque vue : `u` et `v` sont les axes
+   * de la feuille, `toViewer` la direction vers l'observateur. Arêtes vives, contours apparents et
+   * arêtes de raccord tangentes (vues seulement), en coordonnées de la vue (mm).
+   */
+  hiddenLineViews(shape: KernelShape, views: readonly { u: Vec3; toViewer: Vec3 }[]): { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][];
   /** Volume et nombre de solides seulement : bien plus rapide qu'`analyze` (pas de contrôle de validité). */
   volumeOf(shape: KernelShape): { volume: number; solidCount: number };
   findFacePlane(shape: KernelShape, ref: FaceRef): FacePlaneLookup;

@@ -117,6 +117,8 @@ test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomencl
   await expect(preview).toBeVisible();
   await expect(preview.locator('text', { hasText: 'Vue de dessus' })).toHaveCount(1);
   await expect(preview.locator('line[stroke-dasharray]').first()).toBeAttached();
+  // Les traits cachés exacts (calculés par le noyau) remplacent ceux déduits du maillage.
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.store.get().drawingRevision)).toBeGreaterThan(0);
   await expect(page.getByRole('table', { name: 'Nomenclature' }).locator('tbody tr')).toHaveCount(1);
   await page.screenshot({ path: 'tests/output/e2e-documents.png' });
 

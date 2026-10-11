@@ -747,6 +747,56 @@ export class OcctKernel implements GeometryKernel {
     );
   }
 
+  hiddenLineViews(shapeIn: KernelShape, views: readonly { u: Vec3; toViewer: Vec3 }[]): { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] {
+    const { shape } = asOcct(shapeIn);
+    const oc = this.oc;
+    return this.guard('mise en plan', () =>
+      withScope((scope) =>
+        views.map((view) => {
+          const algo = scope.track(new oc.HLRBRep_Algo());
+          algo.Add(shape, 0);
+          const ax2 = scope.track(new oc.gp_Ax2(this.pnt(scope, { x: 0, y: 0, z: 0 }), this.dir(scope, view.toViewer), this.dir(scope, view.u)));
+          algo.Projector(scope.track(new oc.HLRAlgo_Projector(ax2)));
+          algo.Update();
+          algo.Hide();
+          const hlr = scope.track(new oc.HLRBRep_HLRToShape(algo));
+          const lines: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[] = [];
+          const add = (compound: TopoDS_Shape, hidden: boolean) => {
+            scope.track(compound);
+            if (compound.IsNull()) return;
+            for (const e of this.explore(compound, 'edge')) {
+              scope.track(e);
+              const edge = oc.TopoDS.Edge(e);
+              const curve = scope.track(new oc.BRepAdaptor_Curve(edge));
+              const t0 = curve.FirstParameter();
+              const t1 = curve.LastParameter();
+              // Segments : leurs extrémités ; courbes : découpées en petits segments.
+              let n = 1;
+              if (curve.GetType() !== oc.GeomAbs_CurveType.GeomAbs_Line) {
+                const props = scope.track(new oc.GProp_GProps());
+                oc.BRepGProp.LinearProperties(edge, props, false, false);
+                n = Math.min(200, Math.max(8, Math.ceil(props.Mass() / 0.5)));
+              }
+              let prev: { x: number; y: number } | null = null;
+              for (let i = 0; i <= n; i++) {
+                const p = scope.track(curve.Value(t0 + ((t1 - t0) * i) / n));
+                const q = { x: p.X(), y: p.Y() };
+                if (prev) lines.push({ a: prev, b: q, hidden });
+                prev = q;
+              }
+            }
+          };
+          add(hlr.VCompound(), false);
+          add(hlr.OutLineVCompound(), false);
+          add(hlr.RgNLineVCompound(), false);
+          add(hlr.HCompound(), true);
+          add(hlr.OutLineHCompound(), true);
+          return lines;
+        }),
+      ),
+    );
+  }
+
   volumeOf(shapeIn: KernelShape): { volume: number; solidCount: number } {
     const { shape } = asOcct(shapeIn);
     const oc = this.oc;

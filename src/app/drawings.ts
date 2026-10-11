@@ -262,8 +262,30 @@ export interface DrawingInfo {
  * dessus en dessous, vue de gauche à droite (projection européenne), cotes d'encombrement,
  * liste des diamètres et rayons, cartouche.
  */
-export function technicalDrawing(mesh: MeshData, info: DrawingInfo): { page: DrawingPage; scale: number } {
-  const views = {
+/** Ordre des vues demandées au calcul exact des traits cachés. */
+export const VIEW_ORDER: readonly ViewName[] = ['face', 'dessus', 'gauche'];
+
+/** Vue projetée à partir de traits déjà classés vus / cachés (calcul exact du noyau). */
+export function viewFromLines(lines: ProjectedView['lines']): ProjectedView {
+  const min = { x: Infinity, y: Infinity };
+  const max = { x: -Infinity, y: -Infinity };
+  for (const l of lines) {
+    for (const p of [l.a, l.b]) {
+      min.x = Math.min(min.x, p.x);
+      min.y = Math.min(min.y, p.y);
+      max.x = Math.max(max.x, p.x);
+      max.y = Math.max(max.y, p.y);
+    }
+  }
+  return lines.length ? { lines, min, max } : { lines, min: { x: 0, y: 0 }, max: { x: 0, y: 0 } };
+}
+
+/**
+ * Mise en plan ; `exact` : vues calculées par le noyau (traits cachés exacts). Sans elles, les
+ * vues sont déduites du maillage (approché, mais immédiat).
+ */
+export function technicalDrawing(mesh: MeshData, info: DrawingInfo, exact?: Record<ViewName, ProjectedView>): { page: DrawingPage; scale: number } {
+  const views = exact ?? {
     face: projectView(mesh, VIEWS.face),
     dessus: projectView(mesh, VIEWS.dessus),
     gauche: projectView(mesh, VIEWS.gauche),
