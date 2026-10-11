@@ -81,4 +81,18 @@ describe('formes toutes faites', () => {
     validate(JSON.parse(text));
     expect(validate.errors ?? []).toEqual([]);
   });
+
+  it('garder (intersection) : une boîte arrondie par une boule, et rien en commun refusé', () => {
+    let { doc } = withPrimitive(createDocument('Dé'), { shape: 'box', width: 20, depth: 20, height: 20, position: { x: -10, y: -10, z: -10 } });
+    doc = withPrimitive(doc, { shape: 'sphere', diameter: 26, operation: 'common' }).doc;
+    const res = evaluate(doc).res;
+    expect(res.statuses.at(-1)!.state).toBe('ok');
+    expect(res.analysis!.valid).toBe(true);
+    // Plus petit que la boîte et que la boule, et toujours limité par la boîte.
+    expect(res.analysis!.volume).toBeLessThan(8000);
+    expect(res.analysis!.volume).toBeLessThan((4 / 3) * Math.PI * 13 ** 3);
+    expect(res.analysis!.bbox!.max.x).toBeCloseTo(10, 6);
+    const far = withPrimitive(withPrimitive(createDocument('Loin'), { shape: 'box' }).doc, { shape: 'sphere', position: { x: 100, y: 0, z: 0 }, operation: 'common' }).doc;
+    expect(evaluate(far).res.statuses.at(-1)).toMatchObject({ state: 'error', code: 'COMMON_EMPTY' });
+  });
 });

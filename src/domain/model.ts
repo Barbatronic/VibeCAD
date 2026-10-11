@@ -465,6 +465,12 @@ export interface MirrorParams {
 export type PrimitiveShape = 'box' | 'cylinder' | 'sphere' | 'torus';
 
 /**
+ * Ce que fait un volume dessiné avec la pièce : l'ajouter, le creuser, ou ne garder que la
+ * matière commune aux deux (intersection, outil du niveau Expert).
+ */
+export type VolumeOperation = 'add' | 'cut' | 'common';
+
+/**
  * Forme toute faite, ajoutée à la pièce ou creusée dedans (`cut`, comme un trou). Boîte : coin
  * en `position`, `width` (X) × `depth` (Y) × `height` (Z) ; cylindre : centre de la base,
  * `diameter` × `height` ; sphère : centre, `diameter` ; tore (anneau) : centre, `diameter` de la
@@ -479,7 +485,7 @@ export interface PrimitiveParams {
   height: number;
   diameter: number;
   thickness: number;
-  operation: 'add' | 'cut';
+  operation: VolumeOperation;
 }
 
 /**
@@ -500,7 +506,7 @@ export interface ShellParams {
 export interface LoftParams {
   sketchIds: Id[];
   ruled: boolean;
-  operation: 'add' | 'cut';
+  operation: VolumeOperation;
 }
 
 /**
@@ -511,7 +517,7 @@ export interface LoftParams {
 export interface SweepParams {
   profileId: Id;
   pathId: Id;
-  operation: 'add' | 'cut';
+  operation: VolumeOperation;
 }
 
 export interface ExtrudeParams {

@@ -1,7 +1,8 @@
 /** Champs communs aux panneaux des fonctions volumiques (esquisse utilisée, sens, aperçu). */
-import type { ExtentDirection, Feature } from '../../domain/model';
+import type { ExtentDirection, Feature, VolumeOperation } from '../../domain/model';
 import type { FeatureStatus } from '../../domain/status';
 import type { SketchOption } from '../../features/panel-types';
+import { useAppState } from '../context';
 import { Callout, Segmented } from './controls';
 
 export function SketchSelect(props: { value: string; options: SketchOption[]; onChange: (sketchId: string) => void }) {
@@ -62,4 +63,17 @@ export function PreviewStatus(props: { status: FeatureStatus | null; kind: 'add'
 
 export function withParams<F extends Feature>(feature: F, params: Partial<F['params']>): F {
   return { ...feature, params: { ...feature.params, ...params } } as F;
+}
+
+/** Ce que fait le volume avec la pièce : Ajouter, Creuser, ou (niveau Expert) Garder la partie commune. */
+export function OperationField(props: { value: VolumeOperation; onChange: (op: VolumeOperation) => void; what: string }) {
+  const expert = useAppState((s) => s.level === 'expert');
+  const options: { value: VolumeOperation; label: string; title: string }[] = [
+    { value: 'add', label: 'Ajouter', title: `${props.what} ajoute de la matière à la pièce` },
+    { value: 'cut', label: 'Creuser', title: `${props.what} retire de la matière, comme un trou` },
+  ];
+  if (expert || props.value === 'common') {
+    options.push({ value: 'common', label: 'Garder', title: `Garder seulement la matière commune à la pièce et à ${props.what.toLowerCase()} (intersection)` });
+  }
+  return <Segmented<VolumeOperation> label="Matière" value={props.value} options={options} onChange={props.onChange} />;
 }

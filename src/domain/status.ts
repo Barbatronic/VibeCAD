@@ -40,6 +40,7 @@ export type FeatureIssueCode =
   | 'SHELL_FACE_LOST'
   | 'SHELL_FAILED'
   | 'LOFT_PROFILE'
+  | 'COMMON_EMPTY'
   | 'MIRROR_NOTHING_ADDED'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
@@ -98,6 +99,7 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   PATTERN_AXIS_INVALID: 'Cette arête ne donne pas de direction : choisissez une arête droite ou le bord d’un trou, ou un axe X, Y ou Z.',
   PATTERN_COPIES_OUTSIDE: 'Certains exemplaires tombent en dehors de la pièce et ne retirent rien : réduisez l’espacement ou le nombre.',
   SHELL_FACE_LOST: 'Une des faces à ouvrir n’existe plus (une étape précédente a changé la pièce) : retirez-la ou cliquez-en une autre.',
+  COMMON_EMPTY: 'La pièce et ce volume n’ont aucune matière en commun : avec « Garder », rien ne resterait. Déplacez le volume ou choisissez « Ajouter ».',
   LOFT_PROFILE: 'Chaque esquisse d’un lissage doit avoir un seul contour fermé, sans trou, sur un plan différent des autres.',
   SHELL_FAILED: 'La coque n’a pas pu être calculée : essayez une épaisseur plus petite que les parties fines de la pièce, ou ouvrez d’autres faces.',
   MIRROR_PLANE_LOST: 'La face choisie comme plan de symétrie n’existe plus ou n’est pas plane : choisissez un autre plan.',

@@ -1,7 +1,6 @@
 /** Panneau d'un balayage : esquisse du profil, esquisse du chemin, matière. */
 import type { SweepFeature } from '../../domain/model';
-import { Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
 export function SweepPanel(props: FeaturePanelProps<SweepFeature>) {
@@ -30,15 +29,7 @@ export function SweepPanel(props: FeaturePanelProps<SweepFeature>) {
     <>
       {select('draft-profile', 'Profil (contour fermé)', p.profileId, (profileId) => update((x) => withParams(x, { profileId })), 'La forme de la section, dessinée au début du chemin et de préférence perpendiculaire à lui.')}
       {select('draft-path', 'Chemin', p.pathId, (pathId) => update((x) => withParams(x, { pathId })), 'Des segments et des arcs qui se suivent bout à bout (ou un cercle).')}
-      <Segmented<'add' | 'cut'>
-        label="Matière"
-        value={p.operation}
-        options={[
-          { value: 'add', label: 'Ajouter', title: 'Le balayage ajoute de la matière' },
-          { value: 'cut', label: 'Creuser', title: 'Le balayage retire de la matière (une rainure, un canal)' },
-        ]}
-        onChange={(operation) => update((x) => withParams(x, { operation }))}
-      />
+      <OperationField what="Le balayage" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
       <PreviewStatus status={props.status} kind="modify" />
     </>
   );

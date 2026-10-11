@@ -444,7 +444,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         id,
         name,
         type,
-        params: { profileId: str(v, p, 'profileId', pp), pathId: str(v, p, 'pathId', pp), operation: oneOf(v, p, 'operation', pp, ['add', 'cut'] as const) },
+        params: { profileId: str(v, p, 'profileId', pp), pathId: str(v, p, 'pathId', pp), operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const) },
       };
     case 'loft':
       return {
@@ -457,7 +457,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
             return String(x);
           }),
           ruled: p.ruled === true,
-          operation: oneOf(v, p, 'operation', pp, ['add', 'cut'] as const),
+          operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },
       };
     case 'shell':
@@ -485,7 +485,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           height: num(v, p, 'height', pp, { min: 0 }),
           diameter: num(v, p, 'diameter', pp, { min: 0 }),
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
-          operation: oneOf(v, p, 'operation', pp, ['add', 'cut'] as const),
+          operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },
       };
     }

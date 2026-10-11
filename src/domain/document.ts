@@ -5,6 +5,7 @@
  */
 import { createId } from './ids';
 import type {
+  VolumeOperation,
   SweepFeature,
   LoftFeature,
   ShellFeature,
@@ -272,7 +273,7 @@ export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorPa
   return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
 }
 
-export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: PrimitiveShape = 'box', operation: 'add' | 'cut' = 'add'): PrimitiveFeature {
+export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: PrimitiveShape = 'box', operation: VolumeOperation = 'add'): PrimitiveFeature {
   return {
     id: newFeatureId(doc, 'primitive'),
     type: 'primitive',

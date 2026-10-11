@@ -1,7 +1,6 @@
 /** Panneau d'un lissage : esquisses reliées (dans l'ordre de l'historique), raccords, matière. */
 import type { LoftFeature } from '../../domain/model';
-import { Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
 export function LoftPanel(props: FeaturePanelProps<LoftFeature>) {
@@ -38,15 +37,7 @@ export function LoftPanel(props: FeaturePanelProps<LoftFeature>) {
         <input type="checkbox" checked={p.ruled} onChange={() => update((x) => withParams(x, { ruled: !x.params.ruled }))} />
         <span>Raccords droits (faces planes entre les contours)</span>
       </label>
-      <Segmented<'add' | 'cut'>
-        label="Matière"
-        value={p.operation}
-        options={[
-          { value: 'add', label: 'Ajouter', title: 'Le lissage ajoute de la matière' },
-          { value: 'cut', label: 'Creuser', title: 'Le lissage retire de la matière' },
-        ]}
-        onChange={(operation) => update((x) => withParams(x, { operation }))}
-      />
+      <OperationField what="Le lissage" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
       <PreviewStatus status={props.status} kind="modify" />
     </>
   );

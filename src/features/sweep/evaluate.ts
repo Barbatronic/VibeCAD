@@ -10,7 +10,7 @@ export const evaluateSweep: FeatureEvaluator<SweepFeature> = (feature, ctx) => {
   const paramIssues = sweepDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
   const p = feature.params;
-  if (p.operation === 'cut' && !ctx.shape) return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
+  if (p.operation !== 'add' && !ctx.shape) return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
   const profile = resolveProfile(feature.id, p.profileId, ctx);
   if ('status' in profile) return profile;
   if (profile.regions.length !== 1) {
@@ -31,16 +31,20 @@ export const evaluateSweep: FeatureEvaluator<SweepFeature> = (feature, ctx) => {
   let shape: KernelShape = tool;
   if (ctx.shape) {
     try {
-      shape = p.operation === 'cut' ? ctx.kernel.cut(ctx.shape, tool) : ctx.kernel.fuse(ctx.shape, tool);
+      shape = p.operation === 'cut' ? ctx.kernel.cut(ctx.shape, tool) : p.operation === 'common' ? ctx.kernel.common(ctx.shape, tool) : ctx.kernel.fuse(ctx.shape, tool);
     } catch (err) {
       ctx.kernel.dispose(tool);
       throw err;
     }
   }
   const analysis = ctx.kernel.analyze(shape);
+  if (p.operation === 'common' && analysis.solidCount === 0) {
+    if (shape !== tool) ctx.kernel.dispose(shape);
+    return { status: issue(feature.id, 'error', 'COMMON_EMPTY'), tool };
+  }
   if (!analysis.valid || analysis.solidCount === 0) {
     if (shape !== tool) ctx.kernel.dispose(shape);
     return { status: issue(feature.id, 'error', 'INVALID_SOLID'), tool };
   }
-  return { status: okStatus(feature.id), shape, analysis, tool, toolMode: p.operation === 'cut' ? 'cut' : 'add' };
+  return { status: okStatus(feature.id), shape, analysis, tool, ...(p.operation === 'common' ? {} : { toolMode: p.operation === 'cut' ? ('cut' as const) : ('add' as const) }) };
 };

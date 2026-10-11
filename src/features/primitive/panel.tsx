@@ -1,8 +1,8 @@
 /** Panneau d'une forme toute faite (boîte, cylindre, boule, anneau). */
 import type { PrimitiveFeature, PrimitiveShape } from '../../domain/model';
 import { parseLength, readNumber } from '../../domain/units';
-import { LengthField, Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { LengthField } from '../../ui/components/controls';
+import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
 import { Icon } from '../../ui/icons';
 import type { FeaturePanelProps } from '../panel-types';
@@ -73,15 +73,7 @@ export function PrimitivePanel(props: FeaturePanelProps<PrimitiveFeature>) {
         </div>
         <p class="field-help">{PRIMITIVE_EXPLANATIONS[p.shape]}</p>
       </div>
-      <Segmented<'add' | 'cut'>
-        label="Matière"
-        value={p.operation}
-        options={[
-          { value: 'add', label: 'Ajouter', title: 'La forme ajoute de la matière à la pièce' },
-          { value: 'cut', label: 'Creuser', title: 'La forme retire de la matière, comme un trou' },
-        ]}
-        onChange={(operation) => update((x) => withParams(x, { operation }))}
-      />
+      <OperationField what="La forme" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
       {p.operation === 'cut' && !hasSolid ? <p class="field-help">Pour creuser, il faut d’abord un volume dans la pièce.</p> : null}
       {PRIMITIVE_FIELDS[p.shape].map((field, i) => dimension(field, i === 0))}
       <div class="field">

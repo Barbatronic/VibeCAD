@@ -731,7 +731,8 @@
                 "operation": {
                   "enum": [
                     "add",
-                    "cut"
+                    "cut",
+                    "common"
                   ]
                 }
               }
@@ -794,7 +795,8 @@
                 "operation": {
                   "enum": [
                     "add",
-                    "cut"
+                    "cut",
+                    "common"
                   ]
                 }
               }
@@ -823,7 +825,8 @@
                 "operation": {
                   "enum": [
                     "add",
-                    "cut"
+                    "cut",
+                    "common"
                   ]
                 }
               }
