@@ -18,6 +18,7 @@ import type {
 import type { EdgeRef, FaceRef, Id } from '../../domain/model';
 import { frameToWorld, type Frame3D } from '../../math/frame';
 import { add3, dot3, length3, scale3, sub3, type Vec3 } from '../../math/vec';
+import { mergeAlignedSegments } from '../../sketch/merge-segments';
 import type { ProfileLoop, ProfileRegion } from '../../sketch/profiles';
 import {
   KernelError,
@@ -253,8 +254,9 @@ export class OcctKernel implements GeometryKernel {
   private buildWire(scope: Scope, loop: ProfileLoop, frame: Frame3D, level: number, allowOpen = false) {
     const oc = this.oc;
     const mw = scope.track(new oc.BRepBuilderAPI_MakeWire());
-    const edges: { edge: TopoDS_Edge; entityId: string }[] = [];
-    for (const seg of loop.segments) {
+    const edges: { edge: TopoDS_Edge; entityId: string; entityIds: string[] }[] = [];
+    // Segments alignés et arcs d'un même cercle qui se suivent : un seul morceau, une seule face.
+    for (const { segment: seg, entityIds } of mergeAlignedSegments(loop.segments, !allowOpen)) {
       let edge: TopoDS_Edge;
       if (seg.kind === 'line') {
         const me = scope.track(
@@ -289,7 +291,7 @@ export class OcctKernel implements GeometryKernel {
         for (const piece of pieces.slice(0, -1)) {
           mw.Add(piece);
           if (!mw.IsDone()) throw new KernelError('Le contour ne forme pas une boucle continue.');
-          edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId });
+          edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId, entityIds });
         }
         edge = pieces[pieces.length - 1]!;
       } else if (seg.kind === 'ellipse') {
@@ -315,7 +317,7 @@ export class OcctKernel implements GeometryKernel {
       }
       mw.Add(edge);
       if (!mw.IsDone()) throw new KernelError('Le contour ne forme pas une boucle continue.');
-      edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId });
+      edges.push({ edge: scope.track(mw.Edge()), entityId: seg.entityId, entityIds });
     }
     const wire: TopoDS_Wire = scope.track(mw.Wire());
     if (!wire.Closed() && !allowOpen) {
@@ -427,10 +429,10 @@ export class OcctKernel implements GeometryKernel {
         tagShape(scope.track(pipe.FirstShape()), { featureId: request.featureId, role: 'start' });
         tagShape(scope.track(pipe.LastShape()), { featureId: request.featureId, role: 'end' });
         // Faces latérales : engendrées par les arêtes du profil (élément d'esquisse du profil).
-        for (const { edge, entityId } of edges) {
+        for (const { edge, entityIds } of edges) {
           for (const g of this.listToArray(scope.track(pipe.Generated(edge)))) {
             scope.track(g);
-            tagShape(g, { featureId: request.featureId, role: 'side', entityId });
+            for (const id of entityIds) tagShape(g, { featureId: request.featureId, role: 'side', entityId: id });
           }
         }
         faces.forEach((f, k) => {
@@ -447,7 +449,7 @@ export class OcctKernel implements GeometryKernel {
     return this.guard('lissage', () =>
       withScope((scope) => {
         const ts = scope.track(new oc.BRepOffsetAPI_ThruSections(true, request.ruled, 1e-6));
-        let firstEdges: { edge: TopoDS_Edge; entityId: string }[] = [];
+        let firstEdges: { edge: TopoDS_Edge; entityId: string; entityIds: string[] }[] = [];
         request.sections.forEach((section, i) => {
           const { wire, edges } = this.buildWire(scope, section.loop, section.frame, 0);
           if (i === 0) firstEdges = edges;
@@ -466,9 +468,9 @@ export class OcctKernel implements GeometryKernel {
         };
         tagShape(scope.track(ts.FirstShape()), { featureId: request.featureId, role: 'start' });
         tagShape(scope.track(ts.LastShape()), { featureId: request.featureId, role: 'end' });
-        for (const { edge, entityId } of firstEdges) {
+        for (const { edge, entityIds } of firstEdges) {
           const g = scope.track(ts.GeneratedFace(edge));
-          if (!g.IsNull()) tagShape(g, { featureId: request.featureId, role: 'side', entityId });
+          if (!g.IsNull()) for (const id of entityIds) tagShape(g, { featureId: request.featureId, role: 'side', entityId: id });
         }
         faces.forEach((f, k) => {
           if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', index: k }]);
@@ -519,10 +521,10 @@ export class OcctKernel implements GeometryKernel {
       tagFace(scope.track(revol.FirstShape()), { featureId: request.featureId, role: 'start' });
       tagFace(scope.track(revol.LastShape()), { featureId: request.featureId, role: 'end' });
     }
-    for (const { edge, entityId } of edges) {
+    for (const { edge, entityIds } of edges) {
       for (const g of this.listToArray(scope.track(revol.Generated(edge)))) {
         scope.track(g);
-        tagFace(g, { featureId: request.featureId, role: 'side', entityId });
+        for (const id of entityIds) tagFace(g, { featureId: request.featureId, role: 'side', entityId: id });
       }
     }
     return new OcctShape(solid, faces);
@@ -542,11 +544,11 @@ export class OcctKernel implements GeometryKernel {
     };
     tagFace(scope.track(prism.FirstShape()), { featureId: request.featureId, role: 'start' });
     tagFace(scope.track(prism.LastShape()), { featureId: request.featureId, role: 'end' });
-    for (const { edge, entityId } of edges) {
+    for (const { edge, entityIds } of edges) {
       const generated = this.listToArray(scope.track(prism.Generated(edge)));
       for (const g of generated) {
         scope.track(g);
-        tagFace(g, { featureId: request.featureId, role: 'side', entityId });
+        for (const id of entityIds) tagFace(g, { featureId: request.featureId, role: 'side', entityId: id });
       }
     }
     return new OcctShape(solid, faces);
