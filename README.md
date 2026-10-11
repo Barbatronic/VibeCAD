@@ -106,7 +106,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Vue 3D** : rotation, déplacement, zoom vers le curseur, vues standard, cadrage, projection
   orthographique, repère d'orientation, sélection de faces et d'arêtes, **mesure**.
 - **Échanges** : export STEP (une ou plusieurs pièces), import STEP et **STL** (niveau Expert)
-  comme « Solide importé » (contenu conservé dans le projet ; un STL est cousu en volume, ses faces
+  comme « Solide importé » (contenu conservé dans le projet ; les petits défauts de précision d'un
+  STEP sont réparés à la lecture, et un STEP surfacique fait de coques fermées est reconstitué en
+  volume ; un STL est cousu en volume, ses faces
   planes sont reconstituées, 30 000 triangles au plus, maillage fermé exigé), export **3MF**
   (impression 3D : unité, noms et couleurs des pièces) et STL (en mm).
 - **Bulles d'explication** présentées par Java au survol de chaque outil (désactivables dans l'Aide).
