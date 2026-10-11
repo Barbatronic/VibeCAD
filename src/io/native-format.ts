@@ -437,7 +437,14 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
         id,
         name,
         type,
-        params: { sketchId: str(v, p, 'sketchId', pp), axis, angle: num(v, p, 'angle', pp, { min: 0, max: 360 }), reversed: p.reversed === true },
+        params: {
+          sketchId: str(v, p, 'sketchId', pp),
+          axis,
+          angle: num(v, p, 'angle', pp, { min: 0, max: 360 }),
+          reversed: p.reversed === true,
+          // Fichiers antérieurs : une révolution ajoutait toujours de la matière.
+          operation: p.operation === undefined ? 'add' : oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
+        },
       };
     }
     case 'sweep':

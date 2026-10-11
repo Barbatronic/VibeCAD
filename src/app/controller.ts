@@ -1045,7 +1045,10 @@ export class AppController {
       const parts: Record<Id, PartResult> = {};
       for (const p of result.parts) parts[p.partId] = p;
       const toolPart = result.parts.find((p) => p.previewTool);
-      const previewKind = (FEATURE_DEFINITIONS[draft.feature.type] as unknown as FeatureDefinition).tool?.previewKind ?? 'add';
+      const baseKind = (FEATURE_DEFINITIONS[draft.feature.type] as unknown as FeatureDefinition).tool?.previewKind ?? 'add';
+      // Une étape qui peut ajouter ou creuser : volume vert (ajouté) ou rouge (retiré).
+      const op = (draft.feature.params as { operation?: string }).operation;
+      const previewKind = baseKind === 'add' && op === 'cut' ? 'cut' : baseKind === 'add' && op === 'common' ? 'modify' : baseKind;
       const tool = toolPart?.previewTool && previewKind !== 'modify'
         ? {
             partId: toolPart.partId,

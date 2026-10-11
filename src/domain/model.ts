@@ -419,6 +419,8 @@ export interface RevolveParams {
   angle: number;
   /** Tourne dans l'autre sens (utile pour une révolution partielle). */
   reversed: boolean;
+  /** Ajouter le volume tourné, le creuser (gorge, cône de perçage…) ou garder la partie commune. */
+  operation: VolumeOperation;
 }
 
 /** Direction ou axe d'une répétition : un axe du repère (passant par l'origine) ou une arête de la pièce. */

@@ -258,7 +258,7 @@ export function makeExtrudeFeature(
 }
 
 export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, axis: RevolveAxis, angle = 360, reversed = false): RevolveFeature {
-  return { id: newFeatureId(doc, 'revolve'), type: 'revolve', name: nextFeatureName(part, 'revolve'), params: { sketchId, axis, angle, reversed } };
+  return { id: newFeatureId(doc, 'revolve'), type: 'revolve', name: nextFeatureName(part, 'revolve'), params: { sketchId, axis, angle, reversed, operation: 'add' } };
 }
 
 /** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */

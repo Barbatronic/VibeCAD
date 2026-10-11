@@ -60,21 +60,34 @@ export const evaluateRevolve: FeatureEvaluator<RevolveFeature> = (feature, ctx) 
   }
   const angle = ((Math.min(feature.params.angle, 360) * Math.PI) / 180) * (feature.params.reversed ? -1 : 1);
   const tool = ctx.kernel.makeRevolution({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, axisOrigin: origin, axisDirection: dir, angle });
+  const op = feature.params.operation;
+  // Creuser ou garder la partie commune demande une pièce déjà en volume.
+  if (op !== 'add' && (!ctx.shape || !ctx.shapeAnalysis)) {
+    ctx.kernel.dispose(tool);
+    return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
+  }
   let shape: KernelShape = tool;
   if (ctx.shape) {
     try {
-      shape = ctx.kernel.fuse(ctx.shape, tool);
+      shape = op === 'cut' ? ctx.kernel.cut(ctx.shape, tool) : op === 'common' ? ctx.kernel.common(ctx.shape, tool) : ctx.kernel.fuse(ctx.shape, tool);
     } catch (err) {
       ctx.kernel.dispose(tool);
       throw err;
     }
   }
   const analysis = ctx.kernel.analyze(shape);
+  if (op !== 'add' && analysis.solidCount === 0) {
+    if (shape !== tool) ctx.kernel.dispose(shape);
+    return { status: issue(feature.id, 'error', op === 'cut' ? 'POCKET_REMOVES_EVERYTHING' : 'COMMON_EMPTY'), tool };
+  }
   if (!analysis.valid || analysis.solidCount === 0) {
     if (shape !== tool) ctx.kernel.dispose(shape);
     return { status: issue(feature.id, 'error', 'INVALID_SOLID'), tool };
   }
-  const status =
-    ctx.shapeAnalysis && analysis.solidCount > ctx.shapeAnalysis.solidCount ? issue(feature.id, 'warning', 'DISJOINT_SOLID') : okStatus(feature.id);
-  return { status, shape, analysis, tool, toolMode: 'add' };
+  const before = ctx.shapeAnalysis?.volume ?? 0;
+  const tiny = Math.max(1e-9, before * 1e-9);
+  let status = okStatus(feature.id);
+  if (op === 'cut' && before - analysis.volume <= tiny) status = issue(feature.id, 'warning', 'POCKET_REMOVES_NOTHING');
+  else if (op === 'add' && ctx.shapeAnalysis && analysis.solidCount > ctx.shapeAnalysis.solidCount) status = issue(feature.id, 'warning', 'DISJOINT_SOLID');
+  return { status, shape, analysis, tool, ...(op === 'common' ? {} : { toolMode: op === 'cut' ? ('cut' as const) : ('add' as const) }) };
 };

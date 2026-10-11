@@ -503,6 +503,13 @@
                 },
                 "reversed": {
                   "type": "boolean"
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut",
+                    "common"
+                  ]
                 }
               }
             }

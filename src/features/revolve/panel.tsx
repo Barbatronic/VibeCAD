@@ -2,7 +2,7 @@
 import type { RevolveAxis, RevolveFeature, SketchFeature } from '../../domain/model';
 import { readNumber } from '../../domain/units';
 import { LengthField } from '../../ui/components/controls';
-import { PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
+import { OperationField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 import { validateRevolveAngle } from './definition';
 
@@ -69,7 +69,8 @@ export function RevolvePanel(props: FeaturePanelProps<RevolveFeature>) {
         <input type="checkbox" checked={f.params.reversed} onChange={() => update((x) => withParams(x, { reversed: !x.params.reversed }))} />
         <span>Tourner dans l’autre sens</span>
       </label>
-      <PreviewStatus status={props.status} kind="add" />
+      <OperationField value={f.params.operation} what="La révolution" onChange={(operation) => update((x) => withParams(x, { operation }))} />
+      <PreviewStatus status={props.status} kind={f.params.operation === 'cut' ? 'cut' : f.params.operation === 'common' ? 'modify' : 'add'} />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, makeRevolveFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
-import type { CadDocument, Id, RevolveFeature, SketchParams } from '../../src/domain/model';
+import { addFeature, createDocument, findPart, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
+import type { CadDocument, Id, RevolveFeature, SketchParams, VolumeOperation } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
@@ -80,5 +80,37 @@ describe('révolution', () => {
     );
     const [res] = engine.evaluateDocument(moved);
     expect(res!.statuses[1]).toMatchObject({ state: 'error', code: 'REVOLVE_CROSSES_AXIS' });
+  });
+
+  it('creuser : la bague est retirée d’un bloc (gorge), garder : seule la partie commune reste', () => {
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    /** Bloc 50 × 20 × 50 centré sur l'axe Y, puis la bague tournée autour de Y. */
+    const withBlock = (operation: VolumeOperation) => {
+      let doc = createDocument('Gorge');
+      const partId = doc.parts[0]!.id;
+      const pr = makePrimitiveFeature(doc, findPart(doc, partId)!);
+      doc = addFeature(doc, partId, { ...pr, params: { ...pr.params, position: { x: -25, y: 0, z: -25 }, width: 50, depth: 20, height: 50 } });
+      const sk = makeSketchFeature(doc, findPart(doc, partId)!, XY);
+      doc = addFeature(doc, partId, { ...sk, params: { ...ringProfile().sketch, support: XY } });
+      const rev = makeRevolveFeature(doc, findPart(doc, partId)!, sk.id, { kind: 'sketch-y' }, 360);
+      return addFeature(doc, partId, { ...rev, params: { ...rev.params, operation } });
+    };
+    const cut = engine.evaluateDocument(withBlock('cut'))[0]!;
+    expect(cut.statuses.at(-1)!.state).toBe('ok');
+    expect(cut.analysis!.volume).toBeCloseTo(50 * 20 * 50 - ringVolume(360), 2);
+    const common = engine.evaluateDocument(withBlock('common'))[0]!;
+    expect(common.statuses.at(-1)!.state).toBe('ok');
+    expect(common.analysis!.volume).toBeCloseTo(ringVolume(360), 2);
+  });
+
+  it('creuser sans volume : erreur expliquée ; ancien fichier sans « operation » : ajouter', () => {
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const { doc, revolveId } = revolveDoc(360);
+    const alone = updateFeature<RevolveFeature>(doc, revolveId, (f) => ({ ...f, params: { ...f.params, operation: 'cut' } }));
+    expect(engine.evaluateDocument(alone)[0]!.statuses.at(-1)).toMatchObject({ state: 'error', code: 'POCKET_WITHOUT_SOLID' });
+    const json = JSON.parse(serializeDocument(doc));
+    delete json.document.parts[0].features[1].params.operation;
+    const parsed = parseNativeFile(JSON.stringify(json));
+    expect(parsed.ok && (parsed.doc.parts[0]!.features[1] as RevolveFeature).params.operation).toBe('add');
   });
 });

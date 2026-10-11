@@ -32,7 +32,8 @@ export const revolveDefinition: FeatureDefinition<RevolveFeature> = {
   },
   summary(feature) {
     const angle = feature.params.angle >= 360 ? 'tour complet' : formatAngle(feature.params.angle);
-    return `${angle} autour de ${describeAxis(feature.params.axis)}`;
+    const op = feature.params.operation === 'cut' ? ' (creusée)' : feature.params.operation === 'common' ? ' (partie commune)' : '';
+    return `${angle} autour de ${describeAxis(feature.params.axis)}${op}`;
   },
   tool: {
     input: 'sketch',
