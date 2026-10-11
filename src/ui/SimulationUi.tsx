@@ -95,6 +95,8 @@ export function SimulationRightPanel() {
         picking: s.mode.kind === 'pick-sim-face' ? s.mode.role : null,
         run: run ? { status: run.status, progress: run.progress, error: run.error ?? null, current, result: run.result ? { maxStress: run.result.maxStress, maxDisplacement: run.result.maxDisplacement, cells: run.result.cells, cellSize: run.result.cellSize, converged: run.result.converged, durationMs: run.result.durationMs } : null } : null,
         exaggeration: run?.result ? exaggerationFor(run.result.maxDisplacement, run.size) : 1,
+        // Au-delà de 5 % de la taille de la pièce, l'hypothèse des petites déformations ne tient plus.
+        large: !!run?.result && run.result.maxDisplacement > 0.05 * run.size,
         display: s.simulationDisplay,
         deformed: s.simulationDeformed,
       };
@@ -286,6 +288,12 @@ export function SimulationRightPanel() {
               Résultat indicatif : la pièce est découpée en {formatNumber(result.cells, 0)} cubes de {formatNumber(result.cellSize, 2)} mm. Une pièce imprimée dépend aussi
               du remplissage et du sens des couches.
             </p>
+            {info.large ? (
+              <Callout kind="warning">
+                La pièce se déforme beaucoup : ce calcul suppose de petites déformations, la forme réelle sera différente. Une pièce souple (TPU) plie souvent
+                ainsi sans casser.
+              </Callout>
+            ) : null}
             {!result.converged ? <Callout kind="warning">Le calcul n’a pas tout à fait abouti : le résultat est approximatif.</Callout> : null}
           </div>
         ) : null}

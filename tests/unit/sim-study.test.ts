@@ -58,6 +58,17 @@ describe('simulation : étude d’une pièce', () => {
     expect(r.stress[0]!).toBeGreaterThan(r.stress[1]!);
   });
 
+  it('matériau souple (TPU, ν = 0,45) : la flèche suit encore la théorie', () => {
+    const m = boxMesh(L, B, B);
+    const TPU = { E: 30, nu: 0.45 };
+    const F = 0.1;
+    const r = runStudy({ ...m, fixed: endFace(0, B, B), loaded: endFace(L, B, B), force: { x: 0, y: 0, z: -F }, material: TPU, targetCells: 3000 });
+    expect(r.converged).toBe(true);
+    const theory = (F * L ** 3) / (3 * TPU.E * (B ** 4 / 12));
+    expect(-r.displacement[3 * 1 + 2]! / theory).toBeGreaterThan(0.85);
+    expect(-r.displacement[3 * 1 + 2]! / theory).toBeLessThan(1.15);
+  });
+
   it('erreurs : aucune face fixée, aucune face chargée', () => {
     const m = boxMesh(L, B, B);
     const base = { ...m, force: { x: 0, y: 0, z: -1 }, material: PLA, targetCells: 500 };

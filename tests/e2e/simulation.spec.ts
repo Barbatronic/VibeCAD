@@ -20,16 +20,9 @@ async function faceCenter(page: Page, normal: [number, number, number]) {
 
 /** Clique le centre d'une face, une fois la vue immobile (le changement d'onglet recadre en douceur). */
 async function clickFace(page: Page, normal: [number, number, number]) {
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.rig.animating)).toBe(false);
   const c = await faceCenter(page, normal);
-  let p = await worldToScreen(page, c.x, c.y, c.z);
-  await expect
-    .poll(async () => {
-      const q = await worldToScreen(page, c.x, c.y, c.z);
-      const moved = Math.hypot(q.x - p.x, q.y - p.y);
-      p = q;
-      return moved;
-    }, { intervals: [150] })
-    .toBeLessThan(0.5);
+  const p = await worldToScreen(page, c.x, c.y, c.z);
   await page.mouse.click(p.x, p.y);
 }
 
@@ -82,12 +75,17 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.resultObject)).toBe(false);
   await page.locator('.right-panel').getByRole('button', { name: 'Calculer', exact: true }).click();
   await expect(page.locator('.sim-verdict')).toContainText('Risque de casser', { timeout: 60_000 });
+  // 100 kg sur une poutre de PLA de 10 mm : elle plie de plusieurs centimètres, au-delà du calcul.
+  await expect(page.getByText('La pièce se déforme beaucoup')).toBeVisible();
 
   // Les réglages sont enregistrés dans le projet (annulables).
   expect((await study(page)).load.value).toBe(100);
   // Acrylique (découpe laser) : même raideur que le PLA, un peu plus résistant.
   await page.locator('#sim-material').selectOption({ label: 'Acrylique (PMMA)' });
   await expect.poll(async () => (await study(page)).materialId).toBe('acrylic');
+  // TPU (impression souple).
+  await page.locator('#sim-material').selectOption({ label: 'TPU imprimé (souple)' });
+  await expect.poll(async () => (await study(page)).materialId).toBe('tpu');
 });
 
 test('simulation : onglet réservé au niveau Intermédiaire', async ({ page }) => {

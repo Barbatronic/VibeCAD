@@ -15,6 +15,9 @@ export const SIM_MATERIALS: SimMaterial[] = [
   { id: 'pla', name: 'PLA imprimé', E: 3000, nu: 0.36, strength: 30 },
   { id: 'petg', name: 'PETG imprimé', E: 2000, nu: 0.38, strength: 30 },
   { id: 'abs', name: 'ABS imprimé', E: 1900, nu: 0.35, strength: 25 },
+  // TPU (filament souple, dureté 95A environ) : environ 100 fois moins raide que le PLA ; il plie
+  // beaucoup avant de casser.
+  { id: 'tpu', name: 'TPU imprimé (souple)', E: 30, nu: 0.45, strength: 20 },
   { id: 'plywood', name: 'Contreplaqué', E: 6000, nu: 0.3, strength: 25 },
   // Acrylique (PMMA, plaques de découpe laser) : cassant, et les bords découpés ont des
   // micro-fissures ; résistance retenue bien sous les 60 à 70 MPa annoncés.
