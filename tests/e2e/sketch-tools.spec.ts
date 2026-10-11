@@ -14,8 +14,13 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
 
   // Projeter : le bord du trou (cercle Ø 6 centré en 15, 15) et le bord avant de la plaque.
   await page.click('#sk-project');
-  await moveSketch(page, 18, 15);
-  await expect.poll(async () => (await session(page))?.projectHover).not.toBeNull();
+  // Les arêtes à reprendre peuvent arriver juste après le choix de l'outil : survoler à nouveau.
+  await expect
+    .poll(async () => {
+      await moveSketch(page, 18 + Math.random() * 0.01, 15);
+      return (await session(page))?.projectHover;
+    })
+    .not.toBeNull();
   await page.screenshot({ path: 'tests/output/e2e-projeter.png' });
   await clickSketch(page, 18, 15);
   await clickSketch(page, 30, 0);
