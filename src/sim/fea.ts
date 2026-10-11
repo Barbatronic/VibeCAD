@@ -7,6 +7,8 @@
  * diagonale) : mémoire et temps restent proportionnels au nombre de cubes.
  */
 
+import { solveElasticity } from './multigrid';
+
 export interface VoxelGrid {
   /** Nombre de cubes selon x, y, z. */
   nx: number;
@@ -90,23 +92,29 @@ function bBlock(bx: number, by: number, bz: number): number[][] {
   ];
 }
 
-/** Matrices B (compatible, 6 × 24) et des modes incompatibles (6 × 9) au point (ξ, η, ζ), cube d'arête 1. */
-function bMatrices(xi: number, eta: number, zeta: number): { B: number[][]; Ba: number[][] } {
-  const s = 2; // dξ/dx pour un cube d'arête 1
+/**
+ * Matrices B (compatible, 6 × 24) et des modes incompatibles (6 × 9) au point (ξ, η, ζ), pavé
+ * d'arêtes (ax, ay, az) (cube d'arête 1 par défaut).
+ */
+function bMatrices(xi: number, eta: number, zeta: number, ax = 1, ay = 1, az = 1): { B: number[][]; Ba: number[][] } {
+  // dξ/dx, dη/dy, dζ/dz.
+  const sx = 2 / ax;
+  const sy = 2 / ay;
+  const sz = 2 / az;
   const B = Array.from({ length: 6 }, () => new Array<number>(24).fill(0));
   CORNERS.forEach(([a, b, c], n) => {
     const dx = (a * (1 + b * eta) * (1 + c * zeta)) / 8;
     const dy = ((1 + a * xi) * b * (1 + c * zeta)) / 8;
     const dz = ((1 + a * xi) * (1 + b * eta) * c) / 8;
-    const blk = bBlock(dx * s, dy * s, dz * s);
+    const blk = bBlock(dx * sx, dy * sy, dz * sz);
     for (let r = 0; r < 6; r++) for (let q = 0; q < 3; q++) B[r]![3 * n + q] = blk[r]![q]!;
   });
   // Modes incompatibles 1 − ξ², 1 − η², 1 − ζ² (trois composantes chacun).
   const Ba = Array.from({ length: 6 }, () => new Array<number>(9).fill(0));
   const derivs: [number, number, number][] = [
-    [-2 * xi * s, 0, 0],
-    [0, -2 * eta * s, 0],
-    [0, 0, -2 * zeta * s],
+    [-2 * xi * sx, 0, 0],
+    [0, -2 * eta * sy, 0],
+    [0, 0, -2 * zeta * sz],
   ];
   derivs.forEach(([dx, dy, dz], m) => {
     const blk = bBlock(dx, dy, dz);
@@ -157,16 +165,24 @@ function invert(M: number[][]): number[][] {
  * Intégration de Gauss 2 × 2 × 2, modes incompatibles condensés statiquement.
  */
 export function unitCubeStiffness(nu: number): Float64Array {
+  return boxStiffness(nu, 1, 1, 1);
+}
+
+/**
+ * Raideur élémentaire (24 × 24) d'un pavé d'arêtes (ax, ay, az) (en unités de h) et de module 1 :
+ * à multiplier par E · h. Sert aux grilles grossières du multigrille (pavés 2h × 2h × h…).
+ */
+export function boxStiffness(nu: number, ax: number, ay: number, az: number): Float64Array {
   const D = elasticity(1, nu);
   const g = 1 / Math.sqrt(3);
-  const w = 1 / 8; // poids 1 × jacobien (1/2)³
+  const w = (ax * ay * az) / 8; // poids 1 × jacobien
   const Kuu = Array.from({ length: 24 }, () => new Array<number>(24).fill(0));
   const Kua = Array.from({ length: 24 }, () => new Array<number>(9).fill(0));
   const Kaa = Array.from({ length: 9 }, () => new Array<number>(9).fill(0));
   for (const xi of [-g, g])
     for (const eta of [-g, g])
       for (const zeta of [-g, g]) {
-        const { B, Ba } = bMatrices(xi, eta, zeta);
+        const { B, Ba } = bMatrices(xi, eta, zeta, ax, ay, az);
         btdb(B, D, B, w, Kuu);
         btdb(B, D, Ba, w, Kua);
         btdb(Ba, D, Ba, w, Kaa);
@@ -183,7 +199,10 @@ export function unitCubeStiffness(nu: number): Float64Array {
 }
 
 /** Résout le problème ; `onProgress` reçoit l'avancement (0 → 1) toutes les quelques itérations. */
-export function solveFea(problem: FeaProblem, options: { tolerance?: number; maxIterations?: number; onProgress?: (f: number) => void } = {}): FeaResult {
+export function solveFea(
+  problem: FeaProblem,
+  options: { tolerance?: number; maxIterations?: number; onProgress?: (f: number) => void; /** Préconditionneur multigrille (défaut : à partir de 1 000 cubes). */ multigrid?: boolean } = {},
+): FeaResult {
   const { grid: g, material } = problem;
   const N = (g.nx + 1) * (g.ny + 1) * (g.nz + 1);
   const n3 = 3 * N;
@@ -239,6 +258,26 @@ export function solveFea(problem: FeaProblem, options: { tolerance?: number; max
     }
     for (let d = 0; d < n3; d++) if (!free[d]) y[d] = 0;
   };
+  // Grand problème : gradient conjugué préconditionné par multigrille (voir multigrid.ts).
+  if (options.multigrid ?? elements.length >= 1000) {
+    const cellScale = new Float64Array(g.nx * g.ny * g.nz);
+    for (let c = 0; c < cellScale.length; c++) if (g.solid[c]) cellScale[c] = scale;
+    const fixedMask = new Uint8Array(N);
+    for (const n of problem.fixedNodes) fixedMask[n] = 1;
+    const cache = new Map<string, Float64Array>();
+    const stiffness = (ax: number, ay: number, az: number) => {
+      const key = `${ax},${ay},${az}`;
+      let K = cache.get(key);
+      if (!K) cache.set(key, (K = ax === 1 && ay === 1 && az === 1 ? Ke : boxStiffness(material.nu, ax, ay, az)));
+      return K;
+    };
+    const solved = solveElasticity(g.nx, g.ny, g.nz, cellScale, fixedMask, stiffness, f, {
+      tolerance: options.tolerance ?? 1e-8,
+      maxIterations: options.maxIterations ?? 2000,
+      ...(options.onProgress ? { onProgress: options.onProgress } : {}),
+    });
+    return finish(solved.x, solved.iterations, solved.converged);
+  }
   // Gradient conjugué préconditionné.
   const x = new Float64Array(n3);
   const r = Float64Array.from(f);
@@ -279,6 +318,10 @@ export function solveFea(problem: FeaProblem, options: { tolerance?: number; max
     rz = rz2;
     for (let d = 0; d < n3; d++) p[d] = z[d]! + beta * p[d]!;
   }
+  return finish(x, it, converged);
+
+  /** Contraintes et maxima, une fois les déplacements connus. */
+  function finish(x: Float64Array, it: number, converged: boolean): FeaResult {
   // Contraintes au centre de chaque cube (B compatible au centre).
   const D = elasticity(material.E, material.nu);
   const { B } = bMatrices(0, 0, 0);
@@ -302,4 +345,5 @@ export function solveFea(problem: FeaProblem, options: { tolerance?: number; max
   for (let n = 0; n < N; n++) maxDisplacement = Math.max(maxDisplacement, Math.hypot(x[3 * n]!, x[3 * n + 1]!, x[3 * n + 2]!));
   options.onProgress?.(1);
   return { displacement: x, vonMises, maxDisplacement, maxVonMises, iterations: it, converged };
+  }
 }

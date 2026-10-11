@@ -86,4 +86,19 @@ describe('simulation : éléments finis voxels', () => {
     const r = solveFea({ grid, material: PLA, fixedNodes: [nodeIndex(grid, 0, 0, 0)], forces: new Map() });
     expect(r.maxDisplacement).toBe(0);
   });
+
+  it('multigrille : mêmes déplacements que le gradient conjugué seul, en bien moins d’itérations (plaque mince)', () => {
+    const grid = voxelize(boxMesh(60, 30, 3), 1.5);
+    const fixed = nodesNearTriangles(grid, endFace(0, 30, 3), 0.4);
+    const tip = nodesNearTriangles(grid, endFace(60, 30, 3), 0.4);
+    const forces = new Map(tip.map((n) => [n, { x: 0, y: 0, z: -2 / tip.length }]));
+    const problem = { grid, material: PLA, fixedNodes: fixed, forces };
+    const plain = solveFea(problem, { multigrid: false, tolerance: 1e-9 });
+    const mg = solveFea(problem, { multigrid: true, tolerance: 1e-9 });
+    expect(plain.converged && mg.converged).toBe(true);
+    expect(mg.iterations).toBeLessThan(plain.iterations / 5);
+    let worst = 0;
+    for (let d = 0; d < mg.displacement.length; d++) worst = Math.max(worst, Math.abs(mg.displacement[d]! - plain.displacement[d]!));
+    expect(worst).toBeLessThan(1e-6 * plain.maxDisplacement + 1e-9);
+  });
 });
