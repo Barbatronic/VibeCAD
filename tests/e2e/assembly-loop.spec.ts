@@ -92,3 +92,30 @@ test('quadrilatère articulé : la boucle se referme et suit la manivelle', asyn
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'tests/output/e2e-quadrilatere-tourne.png' });
 });
+
+test('quadrilatère articulé : animer le mécanisme, puis revenir à la position de départ', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  await page.click('#tab-assembly');
+  await expect.poll(() => loopGap(page)).toEqual({ gap: expect.closeTo(0, 3), issues: 0 });
+  const angles = () => appState(page, (s) => s.doc.assembly.joints.map((j: any) => j.angle));
+  const start = await angles();
+  const undo = await appState(page, (s) => s.history.past.length);
+  await page.getByRole('list', { name: 'Liaisons de l’assemblage' }).locator('.feature-main', { hasText: 'Liaison 1 ' }).click();
+  await page.getByRole('button', { name: 'Animer le mécanisme' }).click();
+  // La manivelle tourne toute seule ; le balancier suit et la boucle reste fermée.
+  const seen = new Set<number>();
+  for (let k = 0; k < 8; k++) {
+    await page.waitForTimeout(150);
+    const a = await angles();
+    seen.add(Math.round(a[0]));
+    expect(await loopGap(page)).toEqual({ gap: expect.closeTo(0, 2), issues: 0 });
+  }
+  expect(seen.size).toBeGreaterThan(4);
+  expect((await angles())[2]).not.toBeCloseTo(start[2], 1);
+  // Arrêter : retour exact à la position de départ, sans action dans l'historique.
+  await page.getByRole('button', { name: 'Arrêter' }).click();
+  await expect.poll(angles).toEqual(start);
+  expect(await appState(page, (s) => s.history.past.length)).toBe(undo);
+});

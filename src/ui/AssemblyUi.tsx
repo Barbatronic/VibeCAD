@@ -353,6 +353,7 @@ function LimitsField(props: { label: string; unit: string; limits: [number, numb
 function JointPanel({ joint }: { joint: AssemblyJoint }) {
   const c = useController();
   const issue = useAppState(() => c.assemblyPlacement()?.issues.get(joint.id) ?? null);
+  const animating = useAppState((s) => s.jointAnimation === joint.id);
   const free = jointFreedoms(joint.kind);
   const kinds: JointKind[] = ['fixed', 'revolute', 'slider', 'cylindrical', 'spherical'];
   return (
@@ -368,6 +369,14 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         {free.angle && free.offset ? ' (Maj : glisser au lieu de tourner)' : ''}.
       </p>
       {issue ? <Callout kind="error">{JOINT_ISSUE_MESSAGES[issue]}</Callout> : null}
+      {(free.angle && joint.kind !== 'spherical') || free.offset ? (
+        <div class="joint-animate">
+          <Button small icon={animating ? 'close' : 'play'} variant={animating ? 'default' : 'primary'} onClick={() => c.toggleJointAnimation(joint.id)}>
+            {animating ? 'Arrêter' : 'Animer le mécanisme'}
+          </Button>
+          <span class="field-help">{animating ? 'Les pièces reviendront à leur place.' : 'Cette liaison bouge toute seule ; les pièces reliées suivent.'}</span>
+        </div>
+      ) : null}
       <div class="field" role="group" aria-label="Type de liaison">
         <span class="field-label">Type de liaison</span>
         <div class="joint-kinds">

@@ -2973,3 +2973,11 @@ kbd {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+/* Animation d'un mécanisme (panneau de la liaison) */
+.joint-animate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+}

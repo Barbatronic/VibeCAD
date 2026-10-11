@@ -379,6 +379,8 @@ export class AppController {
 
   /** Applique une transaction annulable sur le document. */
   commit(doc: CadDocument, label: string, extra: Partial<AppState> = {}): void {
+    // Une modification pendant l'animation d'un mécanisme l'arrête, à la position atteinte.
+    if (this.animation) this.stopJointAnimation(false);
     const s = this.state;
     this.set({ ...extra, doc, history: recordAction(s.history, s.doc, label), revision: s.revision + 1 });
     this.sanitize();
@@ -404,6 +406,7 @@ export class AppController {
   }
 
   undo(): void {
+    if (this.animation) this.stopJointAnimation();
     const s = this.state;
     if (s.mode.kind === 'sketch') return;
     if (s.mode.kind !== 'model') {
@@ -422,6 +425,7 @@ export class AppController {
   }
 
   redo(): void {
+    if (this.animation) this.stopJointAnimation();
     const s = this.state;
     if (s.mode.kind !== 'model') return;
     const r = redoAction(s.history, s.doc);
@@ -1652,6 +1656,7 @@ export class AppController {
 
   setWorkspace(workspace: Workspace): void {
     if (this.state.workspace === workspace) return;
+    if (this.animation) this.stopJointAnimation();
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
@@ -2091,6 +2096,7 @@ export class AppController {
   }
 
   selectInAssembly(selection: AppState['assemblySelection']): void {
+    if (this.animation && !(selection?.kind === 'joint' && selection.id === this.animation.jointId)) this.stopJointAnimation();
     this.set({ assemblySelection: selection });
   }
 
@@ -2305,6 +2311,76 @@ export class AppController {
     }
     return out;
   }
+
+  // ----- Animation d'un mécanisme
+
+  /** Animation en cours : la liaison qui mène, le document de départ (rétabli à l'arrêt). */
+  private animation: { jointId: Id; start: CadDocument; param: 'angle' | 'offset'; dir: 1 | -1; last: number; frame: number; origin: number } | null = null;
+
+  /**
+   * Fait tourner (ou glisser) une liaison en continu ; les pièces qui en dépendent suivent, y compris
+   * dans une boucle fermée. Entre des limites, ou quand la boucle ne peut pas aller plus loin
+   * (balancier), le mouvement repart dans l'autre sens. Un second appel arrête et revient au départ.
+   */
+  toggleJointAnimation(jointId: Id): void {
+    if (this.animation) return this.stopJointAnimation();
+    const joint = this.state.doc.assembly?.joints.find((j) => j.id === jointId);
+    if (!joint) return;
+    const free = jointFreedoms(joint.kind);
+    const param = free.angle && joint.kind !== 'spherical' ? 'angle' : free.offset ? 'offset' : null;
+    if (!param) return this.explain('Cette liaison ne permet ni de tourner ni de glisser : rien à animer.');
+    if (this.assemblyPlacement()?.issues.get(jointId)) return this.explain('Corrigez d’abord le souci de cette liaison.');
+    this.animation = { jointId, start: this.state.doc, param, dir: 1, last: performance.now(), frame: 0, origin: joint[param] };
+    this.animation.frame = requestAnimationFrame(this.animationStep);
+    this.set({ jointAnimation: jointId });
+  }
+
+  /** Arrête l'animation ; `restore` revient à la position de départ (sinon on garde la position atteinte). */
+  stopJointAnimation(restore = true): void {
+    const a = this.animation;
+    if (!a) return;
+    cancelAnimationFrame(a.frame);
+    this.animation = null;
+    this.set({ jointAnimation: null, ...(restore ? { doc: a.start } : {}) });
+  }
+
+  private animationStep = (now: number): void => {
+    const a = this.animation;
+    if (!a) return;
+    const dt = Math.min(0.1, (now - a.last) / 1000);
+    a.last = now;
+    const assembly = this.state.doc.assembly;
+    const joint = assembly?.joints.find((j) => j.id === a.jointId);
+    if (!assembly || !joint) return this.stopJointAnimation(false);
+    // 90 °/s pour tourner, 15 mm/s pour glisser.
+    const speed = a.param === 'angle' ? 90 : 15;
+    const limits = a.param === 'angle' ? joint.angleLimits : joint.offsetLimits;
+    const range = limits ? [Math.min(...limits), Math.max(...limits)] : a.param === 'offset' ? [a.origin - 20, a.origin + 20] : null;
+    let value = joint[a.param] + a.dir * speed * dt;
+    if (range) {
+      if (value >= range[1]!) {
+        value = range[1]!;
+        a.dir = -1;
+      } else if (value <= range[0]!) {
+        value = range[0]!;
+        a.dir = 1;
+      }
+    } else if (value > 180) value -= 360;
+    else if (value < -180) value += 360;
+    const moved = updateJoint(this.state.doc, joint.id, (j) => ({ ...j, [a.param]: value }));
+    const placement = solveAssembly(moved.assembly!, (partId) => this.state.display[partId]?.mesh, { driver: joint.id });
+    if ([...placement.issues.values()].includes('LOOP_UNSOLVED')) {
+      // La boucle ne peut pas aller plus loin (position extrême d'un balancier) : demi-tour.
+      a.dir = a.dir > 0 ? -1 : 1;
+    } else {
+      let doc = moved;
+      for (const [id, v] of placement.solvedValues) {
+        doc = updateJoint(doc, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
+      }
+      this.set({ doc });
+    }
+    a.frame = requestAnimationFrame(this.animationStep);
+  };
 
   /** Change une liaison (type, retournement, limites…) : une action annulable. */
   setJoint(jointId: Id, patch: Partial<AssemblyJoint>, label = 'Modifier une liaison'): void {
