@@ -47,6 +47,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   souvent de construction), tour complet ou partiel, avec aperçu.
 - **Lissage** (niveau Expert) : un volume qui passe d'un contour fermé à un autre, dessinés sur
   des plans différents (d'un carré à un rond…), surface lisse ou raccords droits, ajouté ou creusé.
+- **Balayage** (niveau Expert) : un contour fermé qui suit un chemin dessiné dans une autre esquisse
+  (segments et arcs bout à bout, ou un cercle) : tube coudé, anse, rainure ; ajouté ou creusé.
 - **Formes toutes faites** : boîte, cylindre, boule et anneau, placées par leurs coordonnées,
   ajoutées à la pièce ou creusées dedans (comme un trou), sans passer par une esquisse.
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en

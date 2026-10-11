@@ -222,6 +222,17 @@ face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs 
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 
+### Balayage (`"type": "sweep"`)
+
+```json
+{ "id": "sw-…", "type": "sweep", "name": "Balayage 1", "dependsOn": ["sk-…", "sk-…"],
+  "params": { "profileId": "sk-…", "pathId": "sk-…", "operation": "add" } }
+```
+
+`profileId` : esquisse du profil (un contour fermé, trous permis) ; `pathId` : esquisse du chemin
+(segments et arcs bout à bout, ouverts ou fermés, ou un cercle seul). `operation` : `add` ou `cut`.
+Faces : `start`, `end` et `side` + élément du profil.
+
 ### Lissage (`"type": "loft"`)
 
 ```json
