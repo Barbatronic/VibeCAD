@@ -24,7 +24,7 @@ export const extrudeDefinition: FeatureDefinition<ExtrudeFeature> = {
   explanation: "Extrusion : donner une épaisseur au dessin pour créer de la matière.",
   icon: 'extrude',
   affectsSolid: true,
-  dependencies: (feature) => [feature.params.sketchId],
+  dependencies: (feature) => (feature.params.upTo ? [feature.params.sketchId, feature.params.upTo.featureId] : [feature.params.sketchId]),
   validate(feature) {
     const issues: ParamIssue[] = [];
     const d = validateDistance(feature.params.distance, 'La longueur');
@@ -33,6 +33,7 @@ export const extrudeDefinition: FeatureDefinition<ExtrudeFeature> = {
     return issues;
   },
   summary(feature) {
+    if (feature.params.upTo) return 'jusqu’à une face';
     const dir = feature.params.direction === 'default' ? '' : `, ${EXTRUDE_DIRECTION_LABELS[feature.params.direction].toLowerCase()}`;
     return `${formatLength(feature.params.distance)}${dir}`;
   },

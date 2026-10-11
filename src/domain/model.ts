@@ -555,6 +555,12 @@ export interface ExtrudeParams {
   sketchId: Id;
   distance: number;
   direction: ExtentDirection;
+  /**
+   * Jusqu'à une face plane de la pièce (niveau Expert) : l'extrusion part de l'esquisse et s'arrête
+   * sur le plan de cette face, du côté où elle se trouve ; `distance` et `direction` sont alors
+   * ignorées. Absent : extrusion d'une longueur.
+   */
+  upTo?: FaceRef;
 }
 
 export type PocketExtent = { kind: 'distance'; distance: number } | { kind: 'throughAll' };

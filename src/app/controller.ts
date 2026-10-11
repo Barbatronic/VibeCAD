@@ -30,7 +30,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SketchFeature, SketchSupport } from '../domain/model';
 import { formatArea, formatLength, formatVolume } from '../domain/units';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
@@ -855,6 +855,7 @@ export class AppController {
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
     if (feature.type === 'split') return this.pickSplitPlane(pick, feature);
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
+    if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
     if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
@@ -897,6 +898,21 @@ export class AppController {
     const same = (a: FaceRef, b: FaceRef) => a.featureId === b.featureId && a.role === b.role && (a.entityId ?? null) === (b.entityId ?? null) && (a.index ?? null) === (b.index ?? null);
     const open = feature.params.open.some((f) => same(f, ref)) ? feature.params.open.filter((f) => !same(f, ref)) : [...feature.params.open, ref];
     this.updateDraft((f) => ({ ...f, params: { ...(f as ShellFeature).params, open } }) as Feature);
+  }
+
+  /** Clic dans la vue pendant « Jusqu'à une face… » d'une extrusion : la face plane cliquée devient l'arrivée. */
+  private pickExtrudeUpTo(pick: ModelPick, feature: ExtrudeFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature' || mode.draft.fields.pick !== 'upTo') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une face de la pièce en cours de modification.');
+    if (pick.kind !== 'face') return this.explain('Cliquez une face plane : l’extrusion s’arrêtera sur son plan.');
+    const part = findPart(this.state.doc, pick.partId);
+    const face = this.displayedMesh(pick.partId)?.faces[pick.index];
+    if (!part || !face) return;
+    if (!face.plane) return this.explain('Cette face est courbe : choisissez une face plane.');
+    const ref = pickFaceReference(face.tags.filter((t) => t.featureId !== feature.id), part);
+    if (!ref) return this.explain('Choisissez une face de la pièce, pas de l’extrusion elle-même.');
+    this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, upTo: ref } } });
   }
 
   /**

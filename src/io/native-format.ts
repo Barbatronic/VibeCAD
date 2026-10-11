@@ -426,6 +426,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           sketchId: str(v, p, 'sketchId', pp),
           distance: num(v, p, 'distance', pp),
           direction: oneOf(v, p, 'direction', pp, DIRECTIONS),
+          ...(p.upTo !== undefined ? { upTo: readFaceRef(v, p.upTo, `${pp}.upTo`) } : {}),
         },
       };
     case 'revolve': {
@@ -775,7 +776,7 @@ function checkReferences(v: Validator, doc: CadDocument): void {
         if (!target) {
           // Référence vers une étape absente ou placée après : récupérable (erreur affichée à l'étape).
           v.warnings.push(`${f.name} : l’étape référencée « ${dep} » est introuvable avant elle.`);
-        } else if ((f.type === 'extrude' || f.type === 'pocket') && target.type !== 'sketch') {
+        } else if ((f.type === 'extrude' || f.type === 'pocket') && dep === f.params.sketchId && target.type !== 'sketch') {
           v.error(`${path}.params.sketchId`, 'doit désigner une esquisse');
         }
       }
