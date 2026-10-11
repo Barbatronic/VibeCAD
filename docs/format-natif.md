@@ -401,7 +401,8 @@ avertissement).
 }
 ```
 
-Une étude par pièce. `materialId` : `pla`, `petg`, `abs`, `tpu`, `plywood`, `acrylic`,
+Une étude par pièce ; `partId` vaut `"@assembly"` pour l'étude de l'assemblage (pièces qui se
+touchent collées), dont les faces portent en plus `instanceId` (la pièce insérée). `materialId` : `pla`, `petg`, `abs`, `tpu`, `plywood`, `acrylic`,
 `aluminium`, `steel` ; `quality` : `coarse`, `normal`, `fine` ; charge `mass` (kg) ou `force` (N),
 `direction` : `push` (appuie sur la face) ou un axe (`-z`, `+z`, `-x`, `+x`, `-y`, `+y`). Les
 résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).

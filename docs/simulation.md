@@ -24,6 +24,14 @@ Quand le plus grand déplacement dépasse 5 % de la taille de la pièce, un aver
 que le calcul suppose de petites déformations : la forme réelle sera différente (c'est le cas
 courant d'une pièce souple en TPU, qui plie beaucoup sans casser).
 
+**Assemblage collé** (niveau Expert) : dans la liste des pièces, « Assemblage (pièces collées) »
+étudie toutes les pièces insérées, à leur place et dans le même matériau. Les faces fixées et
+chargées se cliquent sur n'importe quelle pièce (elles sont repérées par pièce insérée). Chaque
+pièce est découpée en cubes sur une même grille : deux pièces qui se touchent partagent des nœuds,
+elles sont donc collées (ni jeu, ni glissement, pas de contact). La matière qui ne touche aucune
+face fixée, même par l'intermédiaire d'une autre pièce, flotterait : elle est laissée de côté
+avec un avertissement, et si la charge appuie dessus le calcul est refusé avec une explication.
+
 La précision (Rapide, Normale, Fine) règle le nombre de cubes : environ 3 000, 8 000 ou 20 000.
 Les réglages sont enregistrés dans le projet (champ `simulation` du format natif, annulables) ;
 le résultat ne l'est pas : il se recalcule. Si les réglages ou la pièce changent, le résultat est
@@ -89,6 +97,5 @@ d'itérations.
 
 ## Suite prévue
 
-- assemblages collés (pièces liées par des liaisons fixes) ;
 - animation des mécanismes ;
 - multigrille si le calcul est trop lent.
