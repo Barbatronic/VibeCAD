@@ -25,9 +25,12 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
 ## Découpe laser (SVG, DXF)
 
 - **Matériaux** : une « page » par matériau (onglets du panneau de droite), avec son nom, son
-  **épaisseur**, la taille de ses **plaques** et son **trait de coupe**. Deux matériaux sont
-  préréglés : contreplaqué 3 mm et 5 mm, plaques de 300 × 200 mm, trait de 0,15 mm. « + » ajoute
-  un matériau (plexiglas, carton…), « Supprimer » en retire un (il en reste toujours au moins un).
+  **épaisseur**, la taille de ses **plaques** et son **trait de coupe**. Quatre matériaux sont
+  préréglés, en plaques de 300 × 200 mm : contreplaqué 3 mm et 5 mm (trait de 0,15 mm), acrylique
+  3 mm et 5 mm (trait de 0,1 mm). À épaisseur égale, « Auto » choisit le contreplaqué ; l'acrylique
+  se choisit pièce par pièce. « + » ajoute un matériau (carton, MDF…), « Supprimer » en retire un
+  (il en reste toujours au moins un). Ces préréglages valent pour les nouveaux projets : un projet
+  existant garde ses matériaux.
   Un même projet peut ainsi mélanger plusieurs matériaux et plusieurs épaisseurs.
 - Pour chaque pièce plate (une extrusion de l'épaisseur du matériau) : **nombre d'exemplaires**,
   **matériau** (« Auto » par défaut : celui dont l'épaisseur est la plus proche de celle de la
