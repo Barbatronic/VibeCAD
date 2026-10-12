@@ -56,7 +56,10 @@ test('découpe laser : matériau 5 mm choisi seul, page par matériau, export SV
   // Pièce de 5 mm : matériau « Contreplaqué 5 mm » (préréglé, plaque 300 × 200) choisi automatiquement.
   const tabs = page.getByRole('tablist', { name: 'Matériaux' });
   await expect(tabs.getByRole('tab', { name: /Contreplaqué 5 mm/ })).toHaveAttribute('aria-selected', 'true');
-  await expect(tabs.getByRole('tab')).toHaveCount(2);
+  // Préréglages : contreplaqué et acrylique, 3 et 5 mm.
+  await expect(tabs.getByRole('tab')).toHaveCount(4);
+  await expect(tabs.getByRole('tab', { name: /Acrylique 3 mm/ })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: /Acrylique 5 mm/ })).toBeVisible();
   await expect(page.locator('.right-panel .callout.warning')).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Aperçu de la plaque 1' })).toBeVisible();
   await page.screenshot({ path: 'tests/output/e2e-laser.png' });
@@ -78,10 +81,10 @@ test('découpe laser : matériau 5 mm choisi seul, page par matériau, export SV
   await expect(page.locator('.right-panel .callout.warning')).toContainText('Contreplaqué 3 mm');
   // Nouveau matériau, renommé.
   await page.getByRole('button', { name: 'Ajouter un matériau' }).click();
-  await expect(tabs.getByRole('tab')).toHaveCount(3);
-  await page.getByLabel('Nom du matériau').fill('Plexiglas 3 mm');
+  await expect(tabs.getByRole('tab')).toHaveCount(5);
+  await page.getByLabel('Nom du matériau').fill('MDF 3 mm');
   await page.getByLabel('Nom du matériau').press('Enter');
-  await expect(tabs.getByRole('tab', { name: /Plexiglas 3 mm/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(tabs.getByRole('tab', { name: /MDF 3 mm/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 test('impression 3D : vingt exemplaires répartis sur deux plateaux, export de chaque plateau', async ({ page }) => {

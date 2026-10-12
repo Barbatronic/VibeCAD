@@ -8,10 +8,16 @@ import type { FaceTag, MeshData, ShapeAnalysis } from '../geometry/kernel';
 import { multiply4, translation4, type Mat4 } from '../math/mat4';
 import { normalize3, type Vec3 } from '../math/vec';
 
-/** Matériaux préréglés : plaques de 300 × 200 mm en 3 et 5 mm. */
+/**
+ * Matériaux préréglés : plaques de 300 × 200 mm de contreplaqué et d'acrylique, en 3 et 5 mm. À
+ * épaisseur égale, le choix automatique prend le premier de la liste (le contreplaqué) ; l'acrylique
+ * se choisit pièce par pièce. Trait de coupe de l'acrylique un peu plus fin.
+ */
 export const DEFAULT_LASER_MATERIALS: LaserMaterial[] = [
   { id: 'mat-3', name: 'Contreplaqué 3 mm', thickness: 3, sheet: { w: 300, h: 200 }, kerf: 0.15 },
   { id: 'mat-5', name: 'Contreplaqué 5 mm', thickness: 5, sheet: { w: 300, h: 200 }, kerf: 0.15 },
+  { id: 'mat-acr-3', name: 'Acrylique 3 mm', thickness: 3, sheet: { w: 300, h: 200 }, kerf: 0.1 },
+  { id: 'mat-acr-5', name: 'Acrylique 5 mm', thickness: 5, sheet: { w: 300, h: 200 }, kerf: 0.1 },
 ];
 
 export const DEFAULT_FABRICATION: FabricationSettings = {

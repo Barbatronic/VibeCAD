@@ -52,7 +52,13 @@ describe('découpe laser', () => {
     expect(layout.materials.map((g) => [g.material.id, g.sheets, g.placed.length])).toEqual([
       ['mat-3', 0, 0],
       ['mat-5', 1, 3],
+      ['mat-acr-3', 0, 0],
+      ['mat-acr-5', 0, 0],
     ]);
+    // Acrylique choisi pour la pièce : même épaisseur, aucun avertissement.
+    const acrylic = laserLayout({ ...settings, items: [{ partId, copies: 1, materialId: 'mat-acr-5' }] }, [{ id: partId, name: 'Plaque' }], () => mesh);
+    expect(acrylic.warnings).toEqual([]);
+    expect(acrylic.materials.find((g) => g.material.id === 'mat-acr-5')!.placed).toHaveLength(1);
     expect(loopArea(layout.placed[0]!.loops[0]!)).toBeCloseTo(60.2 * 30.2, 1);
     const xs = layout.placed.map((p) => Math.min(...p.loops[0]!.map((q) => q.x)));
     expect(xs[1]! - xs[0]!).toBeCloseTo(60.2 + settings.spacing, 3);
@@ -98,9 +104,9 @@ describe('découpe laser', () => {
     );
     expect(layout.warnings).toEqual([]);
     expect(layout.thickness.thin).toBeCloseTo(3, 6);
-    expect(layout.materials.map((g) => g.placed.map((p) => p.name))).toEqual([['Fine'], ['Épaisse 1', 'Épaisse 2']]);
+    expect(layout.materials.map((g) => g.placed.map((p) => p.name))).toEqual([['Fine'], ['Épaisse 1', 'Épaisse 2'], [], []]);
     // Chaque matériau commence sa propre plaque, à l’espacement du bord.
-    expect(layout.materials.map((g) => g.sheets)).toEqual([1, 1]);
+    expect(layout.materials.map((g) => g.sheets)).toEqual([1, 1, 0, 0]);
     expect(Math.min(...layout.materials[0]!.placed[0]!.loops[0]!.map((p) => p.x))).toBeCloseTo(4, 3);
   });
 
