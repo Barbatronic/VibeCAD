@@ -82,6 +82,17 @@ repères sont des cercles, Fixe sinon).
   départ, sans rien ajouter à l'historique ; une modification pendant l'animation l'arrête à la
   position atteinte.
 
+## Vue éclatée
+
+Le bouton « Éclater » écarte les pièces pour montrer comment elles s'emboîtent ; un curseur règle
+l'écartement, « Rassembler » revient à l'assemblage. C'est un affichage : le projet, les liaisons et
+l'historique ne changent pas. Chaque pièce tenue par une liaison s'écarte de sa pièce de référence
+le long de l'axe de la liaison (la normale du repère de référence : une goupille sort de son trou,
+une plaque posée se soulève), de l'écartement multiplié par sa propre taille, en plus du décalage
+de sa pièce de référence (les chaînes s'étagent). Les pièces sans liaison s'écartent du centre de
+l'assemblage ; la pièce fixe ne bouge pas ; la visserie suit sa pièce. Pendant la vue éclatée,
+l'outil Main, les repères de liaison et les collisions sont masqués.
+
 ## Engrenages et crémaillères
 
 « Coupler deux liaisons » (sous la liste des liaisons) relie deux liaisons : la **menante** (un

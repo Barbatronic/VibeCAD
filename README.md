@@ -119,7 +119,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   autres suivent. **Engrenages et crémaillères** entre liaisons : deux pivots couplés selon le
   nombre de dents (sens opposé, ou même sens pour une courroie), ou un pivot qui fait avancer une
   glissière ; la roue menée suit quand on tourne ou anime la menante, et inversement.
-  Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en
+  **Vue éclatée** (bouton « Éclater ») : les pièces s'écartent le long de l'axe de leur liaison,
+  avec un curseur d'écartement, sans rien changer au projet. Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en
   commun en rouge). **Visserie** normalisée (vis CHC, BHC, FHC, H, écrous, rondelles, de M2 à
   M12, sans filetage) posée d'un clic dans les trous : la taille vient du trou (passage ISO 273
   ou taraudage), les longueurs sont celles de la norme, et elle apparaît dans la nomenclature.
