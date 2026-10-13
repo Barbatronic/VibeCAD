@@ -43,13 +43,18 @@ export function useStore<S, T>(store: Store<S>, selector: (state: S) => T, equal
   const latest = useRef({ selector, equal });
   latest.current = { selector, equal };
   useEffect(() => {
-    return store.subscribe(() => {
+    const check = () => {
       const next = latest.current.selector(store.get());
       if (!latest.current.equal(ref.current, next)) {
         ref.current = next;
         force((n) => n + 1);
       }
-    });
+    };
+    const unsubscribe = store.subscribe(check);
+    // L'état a pu changer entre le premier rendu et l'abonnement (aperçu arrivé entre-temps) :
+    // sans ce contrôle, ce changement serait perdu et le composant resterait figé.
+    check();
+    return unsubscribe;
   }, [store]);
   return selected;
 }
