@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { readGlb } from '../../src/io/gltf';
 import { readZip } from '../../src/io/zip';
 import {
   appState,
@@ -141,4 +142,24 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
   expect(model).toContain('unit="millimeter"');
   expect(model).toContain('name="Cale"');
   expect(model).toContain('name="Pièce 1"');
+});
+
+test('exporter en GLB (3D pour le web) : un maillage coloré par pièce, en mètres', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await expectVolume(page, PLATE_VOLUME);
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: /Exporter en GLB/ }).click();
+  const dialog = page.getByRole('dialog', { name: /Exporter en GLB/ });
+  await expect(dialog).toContainText('montrer');
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.glb$/);
+  await download.saveAs('tests/output/e2e-export.glb');
+  const { json } = readGlb(new Uint8Array(readFileSync('tests/output/e2e-export.glb')));
+  const j = json as any;
+  expect(j.meshes).toHaveLength(1);
+  expect(j.nodes[1].name).toBe('Pièce 1');
+  const max = j.accessors[j.meshes[0].primitives[0].attributes.POSITION].max;
+  expect(max.map((v: number) => Math.round(v))).toEqual([60, 30, 5]);
+  expect(j.nodes[0].matrix[0]).toBe(0.001);
 });

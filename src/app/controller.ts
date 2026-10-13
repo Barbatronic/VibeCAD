@@ -72,7 +72,9 @@ import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewpor
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
-import { fastenerForHole, holeFromPick, holeOf, placeFasteners, type FastenerPlacement } from './fasteners';
+import { FASTENER_COLOR, fastenerForHole, fastenerMesh, holeFromPick, holeOf, placeFasteners, type FastenerPlacement } from './fasteners';
+import { toGlb, type GltfMesh, type GltfNode } from '../io/gltf';
+import { APP_NAME, APP_VERSION } from '../meta';
 import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
 import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay, type StudySource } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
@@ -1491,8 +1493,8 @@ export class AppController {
       this.set({ dialog: { kind: 'export', format, partIds: s.doc.assembly.instances.map((i) => i.partId), busy: false, assembly: true } });
       return;
     }
-    // Impression : la pièce active par défaut ; STEP : toutes les pièces.
-    const partIds = format !== 'step' && withSolid.includes(s.activePartId) ? [s.activePartId] : withSolid;
+    // Impression : la pièce active par défaut ; STEP et GLB : toutes les pièces.
+    const partIds = (format === 'stl' || format === '3mf') && withSolid.includes(s.activePartId) ? [s.activePartId] : withSolid;
     this.set({ dialog: { kind: 'export', format, partIds, busy: false } });
   }
 
@@ -1535,6 +1537,43 @@ export class AppController {
     }
   }
 
+  /**
+   * Contenu GLB : les maillages d'affichage des pièces ; pour l'assemblage, chaque pièce insérée à
+   * sa place et la visserie.
+   */
+  private glbBytes(partIds: readonly Id[], assembly: boolean): Uint8Array {
+    const s = this.state;
+    const meshes: GltfMesh[] = [];
+    const nodes: GltfNode[] = [];
+    const addPart = (partId: Id) => {
+      const part = findPart(s.doc, partId);
+      const mesh = s.display[partId]?.mesh;
+      if (!part || !mesh || meshes.some((m) => m.key === partId)) return;
+      meshes.push({ key: partId, name: part.name, color: part.color, positions: mesh.positions, normals: mesh.normals, indices: mesh.indices });
+    };
+    if (assembly && s.doc.assembly) {
+      const placement = this.assemblyPlacement();
+      for (const inst of s.doc.assembly.instances) {
+        addPart(inst.partId);
+        nodes.push({ name: inst.name, mesh: inst.partId, ...(placement?.matrices.get(inst.id) ? { matrix: placement.matrices.get(inst.id)! } : {}) });
+      }
+      const fasteners = this.fastenerPlacement();
+      for (const f of s.doc.assembly.fasteners ?? []) {
+        const matrix = fasteners?.matrices.get(f.id);
+        if (!matrix) continue;
+        const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
+        if (!meshes.some((m) => m.key === key)) meshes.push({ key, name: designation(f.kind, f.size, f.length), color: FASTENER_COLOR, positions: mesh.positions, normals: mesh.normals, indices: mesh.indices });
+        nodes.push({ name: designation(f.kind, f.size, f.length), mesh: key, matrix });
+      }
+    } else {
+      for (const id of partIds) {
+        addPart(id);
+        nodes.push({ name: findPart(s.doc, id)?.name ?? id, mesh: id });
+      }
+    }
+    return toGlb(meshes, nodes, `${APP_NAME} ${APP_VERSION}`);
+  }
+
   toggleExportPart(partId: Id): void {
     const d = this.state.dialog;
     if (d?.kind !== 'export') return;
@@ -1566,6 +1605,16 @@ export class AppController {
         });
         this.set({ dialog: null });
         if (target) this.toast('success', `Fichier STEP « ${target.name} » téléchargé : ${parts.length} pièce(s), en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+      } else if (d.format === 'glb') {
+        const bytes = this.glbBytes(d.partIds, !!d.assembly);
+        const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/gltf-binary' }), safeFileName(baseName, '.glb'), {
+          description: 'Fichier GLB (glTF)',
+          mime: 'model/gltf-binary',
+          extension: '.glb',
+          download: true,
+        });
+        this.set({ dialog: null });
+        if (target) this.toast('success', `Fichier GLB « ${target.name} » téléchargé : ${d.assembly ? `${s.doc.assembly?.instances.length ?? 0} pièce(s) insérée(s)` : `${parts.length} pièce(s)`}, en mètres comme le veut le glTF.`);
       } else if (d.format === '3mf') {
         const { bytes, warnings } = await this.deps.client.export3mf(s.doc, d.partIds, placements);
         const mime = 'model/3mf';

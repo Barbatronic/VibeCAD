@@ -88,6 +88,7 @@ function FileMenu() {
           {item('export', 'Exporter en STEP (FreeCAD)…', () => c.showExportDialog('step'), undefined, !exportOk)}
           {item('print3d', 'Exporter en 3MF (impression 3D)…', () => c.showExportDialog('3mf'), undefined, !exportOk)}
           {item('stl', 'Exporter en STL (impression 3D)…', () => c.showExportDialog('stl'), undefined, !exportOk)}
+          {item('export', 'Exporter en GLB (3D pour le web, présentation)…', () => c.showExportDialog('glb'), undefined, !exportOk)}
           <div class="menu-sep" role="separator" />
           {item('settings', 'Préférences…', () => c.setDialog({ kind: 'preferences' }))}
           {item('info', 'À propos et licences', () => c.setDialog({ kind: 'about' }))}

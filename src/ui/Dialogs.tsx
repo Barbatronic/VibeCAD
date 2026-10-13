@@ -8,7 +8,7 @@ import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../meta';
 import { useAppState, useController } from './context';
 import { Button, Callout, IconButton, Segmented } from './components/controls';
 import { LEVELS } from '../app/levels';
-import type { ThemeChoice } from '../app/state';
+import type { ExportFormat, ThemeChoice } from '../app/state';
 import { Icon } from './icons';
 
 function Modal(props: { title: string; onClose: () => void; children: ComponentChildren; footer?: ComponentChildren; wide?: boolean }) {
@@ -140,6 +140,13 @@ function OpenDialog() {
   );
 }
 
+const EXPORT_TITLES: Record<ExportFormat, string> = {
+  step: 'Exporter en STEP (pour FreeCAD)',
+  '3mf': 'Exporter en 3MF (impression 3D)',
+  stl: 'Exporter en STL (impression 3D)',
+  glb: 'Exporter en GLB (3D pour le web)',
+};
+
 function ExportDialog() {
   const c = useController();
   const d = useAppState((s) => (s.dialog?.kind === 'export' ? s.dialog : null));
@@ -151,7 +158,7 @@ function ExportDialog() {
   const isStep = d.format === 'step';
   return (
     <Modal
-      title={`${isStep ? 'Exporter en STEP (pour FreeCAD)' : d.format === '3mf' ? 'Exporter en 3MF (impression 3D)' : 'Exporter en STL (impression 3D)'}${d.assembly ? ' — assemblage' : ''}`}
+      title={`${EXPORT_TITLES[d.format]}${d.assembly ? ' — assemblage' : ''}`}
       onClose={close}
       footer={
         <>
@@ -217,6 +224,14 @@ function ExportDialog() {
             Le fichier STEP contient les <strong>solides</strong> (formes finales, en millimètres) avec le nom et la couleur de chaque pièce. Dans FreeCAD :
             Fichier → Importer. Vous pourrez y ajouter de nouvelles opérations. L’historique de construction (esquisses, cotes) reste dans le projet{' '}
             {NATIVE_EXTENSION} : ce n’est pas un arbre Part Design de FreeCAD.
+          </p>
+        </Callout>
+      ) : d.format === 'glb' ? (
+        <Callout kind="info">
+          <p>
+            Le GLB (glTF) sert à <strong>montrer</strong> le modèle : page web, présentation, visionneuse 3D, réalité augmentée. Il contient les pièces
+            en triangles avec leurs couleurs{d.assembly ? ', à leur place dans l’assemblage, visserie comprise' : ''}. Il ne garde ni l’historique ni les
+            formes exactes : pour la CAO, préférez le STEP ; pour l’impression, le 3MF.
           </p>
         </Callout>
       ) : d.format === '3mf' ? (

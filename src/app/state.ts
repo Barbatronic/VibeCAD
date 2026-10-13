@@ -136,7 +136,7 @@ export interface ProjectMeta {
   storageAvailable: boolean;
 }
 
-export type ExportFormat = 'step' | 'stl' | '3mf';
+export type ExportFormat = 'step' | 'stl' | '3mf' | 'glb';
 
 export interface AppState {
   doc: CadDocument;
