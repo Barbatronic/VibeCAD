@@ -50,6 +50,29 @@ particulier. Le schéma formel est dans [`vibecad.schema.json`](vibecad.schema.j
 
 `units` vaut toujours `"mm"` en version 1 : toutes les longueurs du fichier sont en millimètres.
 
+**Paramètres du projet** (champ facultatif `parameters`, ajouté le 13 octobre 2026) : des nombres
+nommés, utilisables dans les équations des étapes et des cotes.
+
+```json
+"parameters": [
+  { "name": "ep", "expression": "5" },
+  { "name": "largeur", "expression": "ep*12", "comment": "Plateau" }
+]
+```
+
+- `name` : lettres, chiffres et `_`, commençant par une lettre ; unique sans tenir compte des
+  majuscules (`Largeur` et `largeur` désignent le même paramètre).
+- `expression` : un nombre ou une équation (`+ - * /`, aussi `× ÷`, parenthèses, virgule
+  décimale, `pi`, noms d'autres paramètres, dans n'importe quel ordre de la liste). Une équation
+  invalide (nom inconnu, boucle) est signalée dans le panneau ; les valeurs qui en dépendent
+  gardent leur dernière valeur.
+
+Une étape dont un champ est lié à un paramètre porte un champ facultatif `expressions` (nom du
+champ dans le panneau → équation), par exemple `"expressions": { "distance": "ep*2" }` pour une
+extrusion. La **valeur calculée reste écrite dans `params`** : un lecteur qui ignore les équations
+lit un projet complet et juste. Une cote d'esquisse liée porte de même `expression` à côté de
+`value` (`{ "type": "length", "line": "…", "value": 60, "expression": "largeur" }`).
+
 ## Pièce
 
 ```json

@@ -41,6 +41,12 @@ millimètres, avec le nom et la couleur de chaque pièce).
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites
   flèches ▲▼ ou molette de la souris (Maj : ×10, Alt : ×0,1) dans tous les champs de valeur.
+- **Paramètres et équations** (niveau Intermédiaire) : tous les champs de valeur et les cotes
+  acceptent un calcul (`60/2`, `(largeur - 2*marge)/2`, `pi`). Les **paramètres du projet**
+  (panneau de gauche, sous les pièces) sont des nombres nommés, qui peuvent dépendre les uns des
+  autres (`largeur = ep*12`) : changer un paramètre met à jour toutes les étapes et les cotes qui
+  l'utilisent. Renommer un paramètre suit dans toutes les équations ; un paramètre utilisé ne peut
+  pas être supprimé (la liste de ce qui l'utilise est affichée).
 - **Contraintes** : coïncidence, horizontal, vertical, parallèle, perpendiculaire, égalité,
   colinéaire, tangence, point sur une courbe, milieu, concentrique ; par clics successifs ou sur
   la sélection. Affichage du nombre de degrés de liberté (vert = entièrement contraint).
