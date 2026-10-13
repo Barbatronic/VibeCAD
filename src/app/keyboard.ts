@@ -170,6 +170,7 @@ export function installKeyboard(controller: AppController): () => void {
         const sel = s.assemblySelection;
         if (sel?.kind === 'joint') controller.removeJoint(sel.id);
         else if (sel?.kind === 'fasteners') controller.removeFasteners(sel.ids);
+        else if (sel?.kind === 'coupling') controller.removeCoupling(sel.id);
         else if (sel) controller.removeInstance(sel.id);
       } else if (s.mode.kind === 'model') controller.deleteSelection();
       return;

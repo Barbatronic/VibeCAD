@@ -32,3 +32,13 @@ test('engrenage : deux pivots couplés comme des roues de 10 et 20 dents', async
   await expect(page.getByRole('list', { name: 'Engrenages et crémaillères' })).toContainText('Liaison 1 → Liaison 2');
   await page.screenshot({ path: 'tests/output/e2e-engrenage.png' });
 });
+
+test('engrenage sélectionné : la touche Suppr supprime l’engrenage, pas une pièce', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), twoPivots());
+  await page.click('#tab-assembly');
+  await page.getByRole('button', { name: 'Coupler deux liaisons' }).click();
+  await page.getByRole('list', { name: 'Engrenages et crémaillères' }).getByText('Engrenage 1').click();
+  await page.keyboard.press('Delete');
+  await expect.poll(() => appState(page, (s) => [s.doc.assembly.couplings?.length ?? 0, s.doc.assembly.instances.length])).toEqual([0, 3]);
+});

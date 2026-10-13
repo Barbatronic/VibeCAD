@@ -183,7 +183,17 @@ export function AssemblyTools() {
           label="Supprimer"
           shortcut="Suppr"
           availability={s.sel ? { ok: true } : { ok: false, reason: 'Sélectionnez une pièce insérée, une liaison ou de la visserie.' }}
-          onClick={() => (s.sel?.kind === 'joint' ? c.removeJoint(s.sel.id) : s.sel?.kind === 'fasteners' ? c.removeFasteners(s.sel.ids) : s.sel ? c.removeInstance(s.sel.id) : undefined)}
+          onClick={() =>
+            s.sel?.kind === 'joint'
+              ? c.removeJoint(s.sel.id)
+              : s.sel?.kind === 'fasteners'
+                ? c.removeFasteners(s.sel.ids)
+                : s.sel?.kind === 'coupling'
+                  ? c.removeCoupling(s.sel.id)
+                  : s.sel
+                    ? c.removeInstance(s.sel.id)
+                    : undefined
+          }
         />
       </div>
       <div class="toolbar-group" role="group" aria-label="Exporter">
