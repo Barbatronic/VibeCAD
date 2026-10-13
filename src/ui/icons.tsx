@@ -631,6 +631,13 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="3.6" />
     </>
   ),
+  /** Déplacer : flèches dans les quatre directions. */
+  move: (
+    <>
+      <path d="M12 3v18M3 12h18" />
+      <path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
+    </>
+  ),
   /** Engrenage (générateur). */
   gear: (
     <>

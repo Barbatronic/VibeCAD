@@ -53,6 +53,8 @@ export type FeatureIssueCode =
   | 'LOFT_PROFILE'
   | 'COMMON_EMPTY'
   | 'MIRROR_NOTHING_ADDED'
+  | 'MOVE_WITHOUT_SOLID'
+  | 'MOVE_NOTHING'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
 
@@ -125,6 +127,8 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SPLIT_PLANE_LOST: 'La face choisie pour la découpe n’existe plus ou n’est pas plane : choisissez un autre plan.',
   SPLIT_OUTSIDE: 'Le plan de découpe ne traverse pas la pièce : rien n’est coupé. Changez sa position.',
   SPLIT_NOTHING_LEFT: 'Il ne reste rien de ce côté du plan : gardez l’autre côté ou déplacez le plan.',
+  MOVE_WITHOUT_SOLID: 'Il n’y a encore aucun volume à déplacer : construisez d’abord la pièce.',
+  MOVE_NOTHING: 'Le déplacement est nul : indiquez un décalage ou un angle.',
   MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
-import { makeGearFeature } from '../../src/domain/document';
+import { makeGearFeature, makeMoveFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -55,6 +55,15 @@ describe('format natif .vibecad', () => {
     const simulation = { studies: [study, { ...study, partId: 'disparue' }] };
     const parsed = parseNativeFile(serializeDocument({ ...doc, simulation }));
     expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
+  });
+
+  it('conserve une étape « déplacer » (rotation autour d’un axe, copie)', () => {
+    const { doc } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const base = makeMoveFeature(doc, part);
+    const move = { ...base, params: { ...base.params, axis: 'Y' as const, angle: 45, center: { x: 1, y: 2, z: 3 }, copy: true } };
+    const parsed = parseNativeFile(serializeDocument({ ...doc, parts: [{ ...part, features: [...part.features, move] }] }));
+    expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(move);
   });
 
   it('conserve une étape « générateur » (poulie GT2 avec joues)', () => {

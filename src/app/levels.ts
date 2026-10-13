@@ -45,6 +45,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:pattern': 'intermediaire',
   'feature:mirror': 'intermediaire',
   'feature:gear': 'intermediaire',
+  'feature:move': 'intermediaire',
   'feature:shell': 'intermediaire',
   'sketch:arc': 'intermediaire',
   'sketch:centerRectangle': 'intermediaire',

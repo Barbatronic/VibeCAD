@@ -12,6 +12,7 @@ import { loftDefinition } from './loft/definition';
 import { shellDefinition } from './shell/definition';
 import { primitiveDefinition } from './primitive/definition';
 import { gearDefinition } from './gear/definition';
+import { moveDefinition } from './move/definition';
 import { mirrorDefinition } from './mirror/definition';
 import { chamferDefinition } from './chamfer/definition';
 import { extrudeDefinition } from './extrude/definition';
@@ -27,6 +28,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   extrude: extrudeDefinition,
   primitive: primitiveDefinition,
   gear: gearDefinition,
+  move: moveDefinition,
   pocket: pocketDefinition,
   revolve: revolveDefinition,
   loft: loftDefinition,

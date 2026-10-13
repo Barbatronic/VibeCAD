@@ -8,7 +8,7 @@ test('symétrie : reflet de toute la pièce par rapport à YZ, puis à XY', asyn
   await buildPlateViaUi(page);
   await expectVolume(page, PLATE);
 
-  await page.getByRole('button', { name: 'Autres outils : répétitions, symétries et découpes' }).click();
+  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
   await page.click('#tool-menu-mirror');
   await expect(page.getByRole('group', { name: 'Copier' }).getByRole('button', { name: 'Toute la pièce' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

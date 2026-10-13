@@ -489,7 +489,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -575,6 +575,18 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },
+      };
+    }
+    case 'move': {
+      const vec = (key: string) => {
+        const o = obj(v, p[key], `${pp}.${key}`) ?? {};
+        return { x: num(v, o, 'x', `${pp}.${key}`), y: num(v, o, 'y', `${pp}.${key}`), z: num(v, o, 'z', `${pp}.${key}`) };
+      };
+      return {
+        id,
+        name,
+        type,
+        params: { translation: vec('translation'), axis: oneOf(v, p, 'axis', pp, ['X', 'Y', 'Z'] as const), angle: num(v, p, 'angle', pp), center: vec('center'), copy: bool(v, p, 'copy', pp, false) },
       };
     }
     case 'gear': {

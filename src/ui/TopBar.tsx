@@ -250,7 +250,7 @@ const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'formes et générateurs (engrenages, poulies)', types: ['primitive', 'gear'] },
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
   { name: 'arrondis, coques et retouches', types: ['fillet', 'chamfer', 'shell', 'draft', 'thicken'] },
-  { name: 'répétitions, symétries et découpes', types: ['pattern', 'mirror', 'split'] },
+  { name: 'répétitions, symétries, découpes et déplacements', types: ['pattern', 'mirror', 'split', 'move'] },
 ];
 
 /** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */

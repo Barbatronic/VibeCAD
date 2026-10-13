@@ -195,7 +195,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -224,6 +224,7 @@ export type SweepFeature = FeatureBase<'sweep', SweepParams>;
 export type SplitFeature = FeatureBase<'split', SplitParams>;
 export type DraftFeature = FeatureBase<'draft', DraftParams>;
 export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
+export type MoveFeature = FeatureBase<'move', MoveParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -608,6 +609,19 @@ export interface PrimitiveParams {
   diameter: number;
   thickness: number;
   operation: VolumeOperation;
+}
+
+/**
+ * Déplacer : toute la pièce (son volume à ce point de l'historique) tourne de `angle` degrés autour
+ * de l'axe `axis` passant par `center`, puis se décale de `translation` (mm). Les faces gardent
+ * leurs références. `copy` garde l'original et ajoute la copie déplacée.
+ */
+export interface MoveParams {
+  translation: { x: number; y: number; z: number };
+  axis: 'X' | 'Y' | 'Z';
+  angle: number;
+  center: { x: number; y: number; z: number };
+  copy: boolean;
 }
 
 /** Générateur : roue dentée droite (développante), crémaillère, ou poulie crantée. */

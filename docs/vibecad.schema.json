@@ -1219,6 +1219,77 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "move"
+            },
+            "params": {
+              "type": "object",
+              "description": "Déplacer : toute la pièce tourne de angle (°) autour de l'axe passant par center, puis se décale de translation (mm) ; copy garde l'original.",
+              "required": [
+                "translation",
+                "axis",
+                "angle",
+                "center",
+                "copy"
+              ],
+              "properties": {
+                "translation": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "axis": {
+                  "enum": [
+                    "X",
+                    "Y",
+                    "Z"
+                  ]
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "center": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "copy": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
         }
       ]
     },

@@ -7,7 +7,7 @@ test('découpe : couper la plaque à mi-épaisseur, puis par une face, garder le
   await expectVolume(page, PLATE_VOLUME);
 
   // Plan XY proposé à mi-hauteur : on garde le bas.
-  await page.getByRole('button', { name: 'Autres outils : répétitions, symétries et découpes' }).click();
+  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
   await page.click('#tool-menu-split');
   await expect(page.locator('#draft-offset')).toHaveValue('2,5');
   await expect(page.getByRole('group', { name: 'Garder' }).getByRole('button', { name: 'Le bas' })).toHaveAttribute('aria-pressed', 'true');

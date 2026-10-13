@@ -18,6 +18,7 @@ import type {
   DraftFeature,
   ThickenFeature,
   GearFeature,
+  MoveFeature,
   GearKind,
   PatternFeature,
   PatternParams,
@@ -69,6 +70,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   draft: 'Dépouille',
   thicken: 'Épaisseur',
   gear: 'Engrenage',
+  move: 'Déplacement',
 };
 
 export function nowIso(): string {
@@ -258,7 +260,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -351,6 +353,15 @@ export function makeGearFeature(doc: CadDocument, part: Part, kind: GearKind = '
     type: 'gear',
     name: gearName(part, kind),
     params: { kind, module: 1.5, pressureAngle: 20, teeth: 20, belt: 'GT2-2', thickness: 8, bore: 5, rackHeight: 5, flanges: true, position: { x: 0, y: 0, z: 0 }, operation: 'add' },
+  };
+}
+
+export function makeMoveFeature(doc: CadDocument, part: Part): MoveFeature {
+  return {
+    id: newFeatureId(doc, 'move'),
+    type: 'move',
+    name: nextFeatureName(part, 'move'),
+    params: { translation: { x: 10, y: 0, z: 0 }, axis: 'Z', angle: 0, center: { x: 0, y: 0, z: 0 }, copy: false },
   };
 }
 
