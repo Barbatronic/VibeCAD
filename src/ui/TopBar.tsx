@@ -19,7 +19,6 @@ import {
 import { useAppState, useController } from './context';
 import { IconButton, ToolButton } from './components/controls';
 import { Icon } from './icons';
-import { CatFigure } from './Mascot';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
 import { FabricationTools } from './FabricationUi';
 import { SimulationTools } from './SimulationUi';
@@ -681,7 +680,8 @@ export function TopBar() {
         onClick={() => c.toggleLeftPanel(undefined, window.matchMedia('(max-width: 980px)').matches)}
       />
       <div class="brand">
-        <CatFigure decorative class="brand-mark" size={34} />
+        {/* Logo provisoire (cube) : le chat n'est plus le logo, seulement une mascotte facultative. */}
+        <img class="brand-mark" src="icons/icon.svg" alt="" width={30} height={30} />
         <span>{APP_NAME}</span>
       </div>
       <FileMenu />

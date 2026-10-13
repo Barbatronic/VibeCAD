@@ -1,22 +1,18 @@
 #!/usr/bin/env node
 /**
- * Génère les icônes de l'application (public/icons) à partir du dessin du chat
- * (src/ui/mascot-art.ts, compilé au préalable dans .icons-tmp par `npm run icons`).
+ * Génère les icônes PNG de l'application (public/icons) à partir des logos SVG du même dossier
+ * (icon.svg, et icon-maskable.svg pour les écrans qui découpent l'icône). Le logo actuel est
+ * provisoire (cube en perspective) : pour le changer, modifier les deux SVG puis `npm run icons`.
  * Les PNG sont rendus par Chromium (Playwright, déjà utilisé pour les tests).
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), '..');
-const { catSvg } = await import(join(root, '.icons-tmp', 'mascot-art.js'));
 const dir = join(root, 'public', 'icons');
-const BLUE = '#1f5fc0';
-const icon = catSvg('tip', { background: BLUE, padding: 7 });
-// Icône « maskable » : fond plein, chat dans la zone sûre centrale.
-const maskable = catSvg('tip', { padding: 16 }).replace(/(<svg[^>]*>)/, (m) => `${m}<rect x="-16" y="-16" width="80" height="80" fill="${BLUE}"/>`);
-writeFileSync(join(dir, 'icon.svg'), `${icon}\n`);
-writeFileSync(join(dir, 'icon-maskable.svg'), `${maskable}\n`);
+const icon = readFileSync(join(dir, 'icon.svg'), 'utf8');
+const maskable = readFileSync(join(dir, 'icon-maskable.svg'), 'utf8');
 const browser = await chromium.launch();
 for (const [file, svg, size] of [
   ['icon-192.png', icon, 192],

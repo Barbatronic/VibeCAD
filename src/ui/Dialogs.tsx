@@ -507,12 +507,16 @@ function PreferencesDialog() {
         <legend>Aide</legend>
         <label class="checkbox-row">
           <input type="checkbox" checked={prefs.tips} onChange={() => c.setTips(!prefs.tips)} />
-          <span>Bulles d’explication de Java au survol des outils (sinon : info-bulles simples)</span>
+          <span>Bulles d’explication au survol des outils (sinon : info-bulles simples)</span>
         </label>
+      </fieldset>
+      <fieldset class="prefs-group">
+        <legend>Environnement des jeunes</legend>
         <label class="checkbox-row">
           <input type="checkbox" checked={prefs.cat} onChange={() => c.setMascot({ hidden: prefs.cat, dismissed: null })} />
-          <span>Afficher Java, le chat qui guide et prévient des problèmes</span>
+          <span>Afficher Java, le chat qui guide, donne des conseils et prévient des problèmes</span>
         </label>
+        <p class="field-help">Désactivé par défaut. Utile avec les plus jeunes ; les conseils restent dans la barre d’état et l’historique.</p>
       </fieldset>
       <fieldset class="prefs-group">
         <legend>Apparence</legend>

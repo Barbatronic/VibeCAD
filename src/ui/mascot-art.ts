@@ -1,5 +1,5 @@
 /**
- * Dessin de Java, le chat de VibeCAD (logo et mascotte), décrit par des formes simples (grille
+ * Dessin de Java, le chat de VibeCAD (mascotte facultative, ce n'est pas le logo), décrit par des formes simples (grille
  * 48 × 48) : chat noir sur le dessus et blanc en dessous (ventre, museau, pattes), oreilles
  * triangulaires, queue en équerre, yeux verts. Les mêmes données servent au composant
  * d'interface et à la génération des icônes (SVG, PNG).
@@ -82,29 +82,4 @@ export function catShapes(mood: CatMood, options: { headOnly?: boolean } = {}): 
     { kind: 'line', points: [[42.5, 29.5], [35.5, 28.5]], part: 'whisker', width: 1 },
   );
   return shapes;
-}
-
-const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
-
-function shapeToSvg(s: CatShape, fill: string, stroke?: { color: string; width: number }): string {
-  const st = stroke ? ` stroke="${stroke.color}" stroke-width="${stroke.width}" stroke-linejoin="round" stroke-linecap="round"` : '';
-  if (s.kind === 'rect') return `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="${s.r ?? 0}" fill="${fill}"${st}/>`;
-  if (s.kind === 'poly') return `<polygon points="${pts(s.points)}" fill="${fill}"${st}/>`;
-  const w = stroke ? s.width + stroke.width : s.width;
-  return `<polyline points="${pts(s.points)}" fill="none" stroke="${stroke ? stroke.color : fill}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"/>`;
-}
-
-/** SVG autonome du chat (icônes de l'application). */
-export function catSvg(mood: CatMood, options: { background?: string; padding?: number; headOnly?: boolean } = {}): string {
-  const shapes = catShapes(mood, options);
-  const pad = options.padding ?? 2;
-  const size = 48 + pad * 2;
-  const silhouette = shapes.filter((s) => SILHOUETTE_PARTS.includes(s.part));
-  const outline = silhouette.map((s) => shapeToSvg(s, CAT_COLORS.outline, { color: CAT_COLORS.outline, width: 3 })).join('');
-  // Le blanc du ventre est bordé d'un trait fin pour se détacher d'un fond clair.
-  const body = shapes
-    .map((s) => shapeToSvg(s, CAT_COLORS[s.part], s.part === 'belly' ? { color: CAT_COLORS.bellyEdge, width: 0.8 } : undefined))
-    .join('');
-  const bg = options.background ? `<rect x="${-pad}" y="${-pad}" width="${size}" height="${size}" rx="${size * 0.22}" fill="${options.background}"/>` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-pad} ${-pad} ${size} ${size}">${bg}${outline}${body}</svg>`;
 }

@@ -1,5 +1,5 @@
 /**
- * Java, le chat de VibeCAD : logo (en-tête) et mascotte qui accompagne le parcours et explique les
+ * Java, le chat de VibeCAD : mascotte facultative (Préférences › Environnement des jeunes) qui accompagne le parcours et explique les
  * soucis. Le dessin vient de `mascot-art.ts` ; les animations sont légères et désactivées par la
  * préférence « réduire les animations ». Le chat complète les textes, il ne les remplace jamais.
  */

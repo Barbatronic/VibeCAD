@@ -109,9 +109,10 @@ textarea {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   flex: none;
+  border-radius: 7px;
 }
 
 .project-name {

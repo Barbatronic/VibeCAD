@@ -151,7 +151,7 @@ export class AppController {
     await this.restoreLastSession();
     if (this.deps.projects) void requestPersistentStorage();
     const mascot = await this.deps.projects?.getSetting<{ hidden?: boolean; collapsed?: boolean }>('mascot').catch(() => undefined);
-    if (mascot) this.set({ mascot: { ...this.state.mascot, hidden: !!mascot.hidden, collapsed: !!mascot.collapsed } });
+    if (mascot) this.set({ mascot: { ...this.state.mascot, hidden: mascot.hidden ?? true, collapsed: !!mascot.collapsed } });
     // Niveau : celui de l'adresse (?niveau=expert, pratique pour un lien donné en classe), sinon celui retenu.
     const fromUrl = parseLevel(new URLSearchParams(globalThis.location?.search ?? '').get('niveau'));
     const saved = parseLevel(await this.deps.projects?.getSetting<string>('level').catch(() => undefined));
@@ -301,7 +301,7 @@ export class AppController {
     this.setTips(true);
     this.setTheme('auto');
     this.setSketchGrid(true);
-    this.setMascot({ hidden: false, collapsed: false, dismissed: null });
+    this.setMascot({ hidden: true, collapsed: false, dismissed: null });
   }
 
   /** Change le niveau de l'interface ; ce qui n'est plus montré est refermé. */

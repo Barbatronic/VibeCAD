@@ -21,7 +21,7 @@
     "bench": "vitest run --config vitest.bench.config.ts",
     "test:e2e:firefox": "playwright test --project=firefox",
     "verify:freecad": "vitest run tests/geometry/freecad.test.ts",
-    "icons": "tsc src/ui/mascot-art.ts --ignoreConfig --outDir .icons-tmp --target es2022 --module esnext && node scripts/generate-icons.mjs && node -e \"require('fs').rmSync('.icons-tmp',{recursive:true})\""
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",

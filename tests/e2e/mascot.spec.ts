@@ -1,13 +1,25 @@
 import { expect, test } from '@playwright/test';
 import { openApp } from './helpers';
 
-test('le chat : nom VibeCAD, conseil de départ avec action, masquer puis réafficher, parcours guidé', async ({ page }) => {
+test('le chat : absent par défaut, activé dans les préférences, conseil avec action, masquer puis réafficher, parcours guidé', async ({ page }) => {
   await openApp(page);
   await expect(page).toHaveTitle(/VibeCAD/);
   await expect(page.locator('.brand')).toContainText('VibeCAD');
+  const bubble = page.getByRole('status', { name: 'Java, le chat de VibeCAD' });
+
+  // Par défaut : aucun chat, ni bulle ; le logo de l'application n'est pas le chat.
+  await page.waitForTimeout(500);
+  await expect(page.locator('.brand .cat')).toHaveCount(0);
+  await expect(page.locator('.brand img.brand-mark')).toHaveAttribute('src', /icons\/icon\.svg$/);
+  await expect(page.locator('.mascot-bubble, .mascot-mini')).toHaveCount(0);
+  // Préférences › Environnement des jeunes : on l'active.
+  await page.getByRole('button', { name: 'Préférences' }).click();
+  await page.getByRole('group', { name: 'Environnement des jeunes' }).getByRole('checkbox').check();
+  await page.keyboard.press('Escape');
+  // Le chat apparaît comme mascotte, jamais comme logo.
+  await expect(page.locator('.brand .cat')).toHaveCount(0);
 
   // Pièce vide : le chat propose de commencer une esquisse.
-  const bubble = page.getByRole('status', { name: 'Java, le chat de VibeCAD' });
   await expect(bubble).toContainText('fais une esquisse');
   await page.screenshot({ path: 'tests/output/e2e-chat-conseil.png' });
   await bubble.getByRole('button', { name: 'Nouvelle esquisse' }).click();

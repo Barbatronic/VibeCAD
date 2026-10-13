@@ -255,7 +255,8 @@ export function initialState(): AppState {
     simulationDeformed: true,
     simulationAnimate: true,
     assemblySelection: null,
-    mascot: { hidden: false, collapsed: false, dismissed: null },
+    // Le chat (Java) est un réglage de l'environnement des jeunes : masqué tant qu'on ne l'a pas coché.
+    mascot: { hidden: true, collapsed: false, dismissed: null },
     preview: null,
     kernel: { status: 'loading' },
     project: { savedAt: null, savedRevision: null, file: null, autosave: { kind: 'idle' }, storageAvailable: true },

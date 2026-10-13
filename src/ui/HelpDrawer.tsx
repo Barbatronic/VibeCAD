@@ -83,7 +83,7 @@ export function HelpDrawer() {
         </p>
         <label class="checkbox-row">
           <input type="checkbox" checked={tips} onChange={() => c.setTips(!tips)} />
-          <span>Bulles d’explication de Java au survol des outils (sinon : info-bulles simples)</span>
+          <span>Bulles d’explication au survol des outils (sinon : info-bulles simples)</span>
         </label>
         <fieldset class="help-levels">
           <legend>Niveau de l’interface</legend>

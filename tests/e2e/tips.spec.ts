@@ -1,14 +1,15 @@
 import { expect, test } from '@playwright/test';
 import { openApp } from './helpers';
 
-test('bulles d’explication : Java explique l’outil survolé, désactivables dans l’Aide', async ({ page }) => {
+test('bulles d’explication : l’outil survolé est expliqué (sans chat par défaut), désactivables dans l’Aide', async ({ page }) => {
   await openApp(page);
   const tip = page.locator('.tip');
   await page.hover('#tool-extrude');
   await expect(tip).toBeVisible();
   await expect(tip.locator('.tip-title')).toHaveText('Extrusion');
   await expect(tip).toContainText(/donner une épaisseur/i);
-  await expect(tip.locator('.tip-cat')).toBeVisible();
+  // Chat masqué par défaut : la bulle n'a pas d'image de chat.
+  await expect(tip.locator('.tip-cat')).toHaveCount(0);
   // Pas de doublon avec l'info-bulle du navigateur pendant l'affichage.
   await expect(page.locator('#tool-extrude')).not.toHaveAttribute('title');
   await page.screenshot({ path: 'tests/output/e2e-bulle-java.png' });
@@ -18,7 +19,7 @@ test('bulles d’explication : Java explique l’outil survolé, désactivables 
 
   // Désactivées : retour aux info-bulles simples.
   await page.getByRole('button', { name: 'Aide' }).click();
-  await page.getByRole('checkbox', { name: /Bulles d’explication de Java/ }).uncheck();
+  await page.getByRole('checkbox', { name: /Bulles d’explication au survol/ }).uncheck();
   await page.keyboard.press('Escape');
   await page.hover('#tool-pocket');
   await page.waitForTimeout(900);
