@@ -15,6 +15,7 @@ import {
   Group,
   HemisphereLight,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   MOUSE,
   Mesh,
@@ -124,6 +125,8 @@ export interface ViewportInput {
    */
   /** Plans de construction à montrer (rectangle translucide nommé), `active` : celui en cours de modification. */
   datumPlanes?: { key: string; frame: Frame3D; label: string; active?: boolean }[];
+  /** Axes de construction à montrer (trait mixte nommé), `active` : celui en cours de modification. */
+  datumAxes?: { key: string; point: Vec3; dir: Vec3; label: string; active?: boolean }[];
   resultMesh?: {
     key: string;
     positions: Float32Array;
@@ -441,7 +444,7 @@ export class Viewport {
     this.syncMarkedFaces(input.markedFaces ?? []);
     this.syncResultMesh(input.resultMesh ?? null);
     this.syncPoints(input.points ?? []);
-    this.syncDatumPlanes(input.datumPlanes ?? []);
+    this.syncDatumPlanes(input.datumPlanes ?? [], input.datumAxes ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
@@ -715,11 +718,11 @@ export class Viewport {
    * Plans de construction : un carré translucide centré sur la projection du milieu de la pièce,
    * à la taille de la pièce, avec son nom.
    */
-  private syncDatumPlanes(planes: NonNullable<ViewportInput['datumPlanes']>): void {
+  private syncDatumPlanes(planes: NonNullable<ViewportInput['datumPlanes']>, axes: NonNullable<ViewportInput['datumAxes']>): void {
     const box = this.partsBounds();
     const center = box ? box.getCenter(new Vector3()) : new Vector3();
     const size = box ? Math.max(30, box.getSize(new Vector3()).length() * 0.8) : 40;
-    const key = JSON.stringify([planes, center.toArray().map((v) => Math.round(v)), Math.round(size)]);
+    const key = JSON.stringify([planes, axes, center.toArray().map((v) => Math.round(v)), Math.round(size)]);
     if (key === this.datumKey) return;
     this.datumKey = key;
     for (const o of this.datumObjects) {
@@ -763,6 +766,30 @@ export class Viewport {
       label.position.set(corner.x, corner.y, corner.z);
       this.overlayGroup.add(mesh, label);
       this.datumObjects.push(mesh, label);
+    }
+    for (const a of axes) {
+      const color = a.active ? this.palette.selection : this.palette.axisZ;
+      // Segment centré sur le point de l'axe le plus proche du milieu de la pièce.
+      const t = (center.x - a.point.x) * a.dir.x + (center.y - a.point.y) * a.dir.y + (center.z - a.point.z) * a.dir.z;
+      const mid = new Vector3(a.point.x + a.dir.x * t, a.point.y + a.dir.y * t, a.point.z + a.dir.z * t);
+      const d = new Vector3(a.dir.x, a.dir.y, a.dir.z).multiplyScalar(size * 0.6);
+      const p1 = mid.clone().sub(d);
+      const p2 = mid.clone().add(d);
+      const line = new LineSegments(
+        new BufferGeometry().setAttribute('position', new Float32BufferAttribute([p1.x, p1.y, p1.z, p2.x, p2.y, p2.z], 3)),
+        new LineDashedMaterial({ color, dashSize: size * 0.06, gapSize: size * 0.025, transparent: true, opacity: 0.95 }),
+      );
+      line.computeLineDistances();
+      line.renderOrder = 3;
+      const el = document.createElement('span');
+      el.className = 'vp-tag vp-tag-plane vp-tag-datum';
+      el.textContent = a.label;
+      el.style.color = color;
+      el.style.borderColor = color;
+      const label = new CSS2DObject(el);
+      label.position.copy(p2);
+      this.overlayGroup.add(line, label);
+      this.datumObjects.push(line, label);
     }
     this.requestRender();
   }

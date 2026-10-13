@@ -517,7 +517,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -602,6 +602,22 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           diameter: num(v, p, 'diameter', pp, { min: 0 }),
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
+        },
+      };
+    }
+    case 'axis': {
+      const pos = obj(v, p.position, `${pp}.position`) ?? {};
+      const kind = oneOf(v, p, 'kind', pp, ['line', 'edge'] as const);
+      const edge = p.edge !== undefined ? readPatternAxis(v, { kind: 'edge', edge: p.edge }, `${pp}`) : null;
+      return {
+        id,
+        name,
+        type,
+        params: {
+          kind,
+          position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
+          direction: oneOf(v, p, 'direction', pp, ['X', 'Y', 'Z'] as const),
+          ...(edge && edge.kind === 'edge' ? { edge: edge.edge } : {}),
         },
       };
     }
@@ -769,7 +785,8 @@ function readPlaneRef(v: Validator, x: unknown, path: string): MirrorPlane {
 
 function readPatternAxis(v: Validator, x: unknown, path: string): PatternAxis {
   const a = obj(v, x, path) ?? {};
-  const kind = oneOf(v, a, 'kind', path, ['axis', 'edge'] as const);
+  const kind = oneOf(v, a, 'kind', path, ['axis', 'edge', 'datum'] as const);
+  if (kind === 'datum') return { kind, featureId: str(v, a, 'featureId', path) };
   if (kind === 'axis') return { kind, axis: oneOf(v, a, 'axis', path, ['X', 'Y', 'Z'] as const) };
   const e = obj(v, a.edge, `${path}.edge`) ?? {};
   const faces = arr(v, e, 'faces', `${path}.edge`);

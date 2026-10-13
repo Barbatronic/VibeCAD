@@ -30,6 +30,8 @@ export interface PartResult {
   sketches: SketchResult[];
   /** Plans de construction calculés (repère de chacun). */
   planes: { featureId: Id; frame: Frame3D }[];
+  /** Axes de construction calculés (point de passage, direction unitaire). */
+  axes: { featureId: Id; point: Vec3; dir: Vec3 }[];
   /** Identifiant du maillage du dernier solide valide (null si aucun volume). */
   meshKey: string | null;
   /** Maillage, omis (null) si l'interface possède déjà `meshKey`. */

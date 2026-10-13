@@ -1,40 +1,11 @@
 /** Panneau des paramètres d'une répétition. */
 import { PATTERN_SOURCE_TYPES } from '../../domain/document';
-import type { PatternAxis, PatternFeature } from '../../domain/model';
+import type { PatternFeature } from '../../domain/model';
 import { parseLength, readNumber } from '../../domain/units';
-import { Callout, LengthField, Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { LengthField, Segmented } from '../../ui/components/controls';
+import { AxisField, datumAxesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 import { validatePatternAngle, validatePatternCount } from './definition';
-
-type AxisChoice = 'X' | 'Y' | 'Z' | 'edge';
-
-/** Choix d'un axe : X, Y, Z, ou une arête cliquée dans la vue 3D (`pick` : en attente du clic). */
-function AxisField(props: { label: string; axis: PatternAxis; picking: boolean; onAxis: (axis: 'X' | 'Y' | 'Z') => void; onPick: () => void }) {
-  const value: AxisChoice = props.picking || props.axis.kind === 'edge' ? 'edge' : props.axis.axis;
-  return (
-    <>
-      <Segmented<AxisChoice>
-        label={props.label}
-        value={value}
-        options={[
-          { value: 'X', label: 'X', title: 'Axe X (rouge)' },
-          { value: 'Y', label: 'Y', title: 'Axe Y (vert)' },
-          { value: 'Z', label: 'Z', title: 'Axe Z (bleu)' },
-          { value: 'edge', label: 'Arête…', title: 'Une arête droite ou le bord d’un trou, cliqué dans la vue 3D' },
-        ]}
-        onChange={(v) => (v === 'edge' ? props.onPick() : props.onAxis(v))}
-      />
-      {props.picking ? (
-        <Callout kind="info">
-          <p>Cliquez dans la vue 3D une arête droite (direction) ou le bord d’un trou (son axe).</p>
-        </Callout>
-      ) : props.axis.kind === 'edge' ? (
-        <span class="field-help">Arête choisie dans la vue 3D. Cliquez « Arête… » pour en prendre une autre.</span>
-      ) : null}
-    </>
-  );
-}
 
 export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
   const { draft, update, setField } = props;
@@ -43,6 +14,7 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
   const own = props.part.features.findIndex((x) => x.id === f.id);
   const sources = props.part.features.filter((x, i) => PATTERN_SOURCE_TYPES.includes(x.type) && (own < 0 || i < own));
   const pick = draft.fields.pick ?? '';
+  const axes = datumAxesBefore(props.part, f.id);
   const countField = (name: 'count' | 'count2', label: string, apply: (n: number) => PatternFeature) => (
     <LengthField
       id={`draft-${name}`}
@@ -107,8 +79,9 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
         label={p.kind === 'linear' ? 'Direction' : 'Axe de rotation'}
         axis={p.axis}
         picking={pick === 'axis'}
+        datums={axes}
         onAxis={(axis) => {
-          setField('pick', '', { feature: withParams(f, { axis: { kind: 'axis', axis } }) });
+          setField('pick', '', { feature: withParams(f, { axis }) });
         }}
         onPick={() => setField('pick', 'axis', { feature: f })}
       />
@@ -164,7 +137,8 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
                 label="Direction"
                 axis={p.second.axis}
                 picking={pick === 'second'}
-                onAxis={(axis) => setField('pick', '', { feature: withParams(f, { second: { ...p.second!, axis: { kind: 'axis', axis } } }) })}
+                datums={axes}
+                onAxis={(axis) => setField('pick', '', { feature: withParams(f, { second: { ...p.second!, axis } }) })}
                 onPick={() => setField('pick', 'second', { feature: f })}
               />
               {countField('count2', 'Nombre d’exemplaires', (count) => withParams(f, { second: { ...p.second!, count } }))}

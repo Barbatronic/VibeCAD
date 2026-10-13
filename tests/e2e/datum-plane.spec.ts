@@ -6,7 +6,8 @@ test('plan de construction : un plan au-dessus de la plaque sert de support à u
   await buildPlateViaUi(page);
 
   // Plan XY décalé de 20 mm.
-  await page.click('#tool-plane');
+  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
+  await page.click('#tool-menu-plane');
   await page.locator('#draft-offset').fill('20');
   await expect(page.locator('.vp-tag-datum', { hasText: 'Plan 1' })).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
@@ -44,4 +45,27 @@ test('plan de construction : un plan au-dessus de la plaque sert de support à u
   // La plaque (0 à 5) se reflète de 35 à 40 ; le bloc (20 à 22) de 18 à 20.
   await expect.poll(() => appState(page, (s) => Math.round(s.display[s.doc.parts[0].id].result.analysis.bbox.max.z))).toBe(40);
   await page.screenshot({ path: 'tests/output/e2e-plan-construction.png' });
+});
+
+test('axe de construction : le trou refait en cercle autour d’un axe vertical passant par le milieu de la plaque', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+
+  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
+  await page.click('#tool-menu-axis');
+  await page.locator('#draft-pos-x').fill('30');
+  await page.locator('#draft-pos-y').fill('15');
+  await expect(page.locator('.vp-tag-datum', { hasText: 'Axe 1' })).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('selon Z, par (30 ; 15 ; 0 mm)');
+
+  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
+  await page.click('#tool-menu-pattern');
+  await page.getByRole('button', { name: 'En cercle' }).click();
+  await page.getByRole('button', { name: 'Axe…' }).click();
+  await page.locator('#draft-count').fill('2');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expectVolume(page, PLATE_VOLUME - Math.PI * 9 * 5);
+  await page.screenshot({ path: 'tests/output/e2e-axe-construction.png' });
 });

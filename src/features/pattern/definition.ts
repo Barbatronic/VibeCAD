@@ -8,7 +8,7 @@ import type { FeatureDefinition, ParamIssue } from '../definition';
 export const PATTERN_MAX_COPIES = 200;
 
 export function describePatternAxis(axis: PatternAxis): string {
-  return axis.kind === 'axis' ? `l’axe ${axis.axis}` : 'une arête';
+  return axis.kind === 'axis' ? `l’axe ${axis.axis}` : axis.kind === 'datum' ? 'un axe de construction' : 'une arête';
 }
 
 export function validatePatternCount(count: number): string | null {
@@ -44,7 +44,8 @@ export const patternDefinition: FeatureDefinition<PatternFeature> = {
   dependencies: (feature) => {
     const p = feature.params;
     const edges = [p.axis, ...(p.second ? [p.second.axis] : [])].flatMap((a) => (a.kind === 'edge' ? [a.edge] : []));
-    return Array.from(new Set([p.sourceId, ...edgeDependencies(edges)].filter(Boolean)));
+    const datums = [p.axis, ...(p.second ? [p.second.axis] : [])].flatMap((a) => (a.kind === 'datum' ? [a.featureId] : []));
+    return Array.from(new Set([p.sourceId, ...edgeDependencies(edges), ...datums].filter(Boolean)));
   },
   validate(feature) {
     const p = feature.params;

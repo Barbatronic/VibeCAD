@@ -58,6 +58,8 @@ export type FeatureIssueCode =
   | 'HOLE_WITHOUT_SOLID'
   | 'PLANE_BASE_LOST'
   | 'PLANE_HINGE_LOST'
+  | 'AXIS_EDGE_LOST'
+  | 'AXIS_LOST'
   | 'HOLE_NO_CENTER'
   | 'HOLE_REMOVES_NOTHING'
   | 'BLEND_FAILED'
@@ -136,6 +138,8 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   MOVE_NOTHING: 'Le déplacement est nul : indiquez un décalage ou un angle.',
   PLANE_BASE_LOST: 'Le plan ou la face de départ de ce plan de construction n’existe plus : choisissez-en un autre.',
   PLANE_HINGE_LOST: 'L’arête choisie comme charnière n’existe plus ou n’est pas droite : choisissez un axe X, Y, Z ou une autre arête.',
+  AXIS_EDGE_LOST: 'L’arête de cet axe n’existe plus ou n’est ni droite ni ronde : choisissez-en une autre, ou un axe par un point.',
+  AXIS_LOST: 'L’axe de construction utilisé n’existe plus ou n’a pas pu être calculé : choisissez un autre axe.',
   HOLE_WITHOUT_SOLID: 'Un perçage retire de la matière : créez d’abord un volume avec une extrusion.',
   HOLE_NO_CENTER: 'L’esquisse n’a aucun cercle : dessinez un petit cercle à l’endroit de chaque trou (sa taille ne compte pas).',
   HOLE_REMOVES_NOTHING: 'Le perçage ne touche pas la pièce : vérifiez la position des cercles et le sens (« Côté opposé »).',

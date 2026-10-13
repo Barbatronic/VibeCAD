@@ -32,9 +32,8 @@ export const evaluatePlane: FeatureEvaluator<PlaneFeature> = (feature, ctx) => {
   if (!base.ok) return { status: issue(feature.id, 'error', 'PLANE_BASE_LOST', { relatedFeatureId: base.relatedFeatureId }) };
   let frame = offsetFrame(base.frame, p.offset);
   if (p.angle !== 0) {
-    if (p.hinge.kind === 'edge' && !ctx.shape) return { status: issue(feature.id, 'error', 'PLANE_HINGE_LOST', { relatedFeatureId: p.hinge.edge.faces[0].featureId }) };
-    const line = resolvePatternAxis(ctx.kernel, ctx.shape!, p.hinge);
-    if ('error' in line) return { status: issue(feature.id, 'error', 'PLANE_HINGE_LOST', p.hinge.kind === 'edge' ? { relatedFeatureId: p.hinge.edge.faces[0].featureId } : {}) };
+    const line = resolvePatternAxis(ctx.kernel, ctx.shape, p.hinge, ctx.axes);
+    if ('error' in line) return { status: issue(feature.id, 'error', 'PLANE_HINGE_LOST', p.hinge.kind === 'edge' ? { relatedFeatureId: p.hinge.edge.faces[0].featureId } : p.hinge.kind === 'datum' ? { relatedFeatureId: p.hinge.featureId } : {}) };
     frame = rotateFrame(frame, line.point, line.dir, (p.angle * Math.PI) / 180);
   }
   return { status: okStatus(feature.id), datum: frame };

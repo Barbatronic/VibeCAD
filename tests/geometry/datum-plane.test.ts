@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, findPart, makeExtrudeFeature, makeMirrorFeature, makePlaneFeature, makeSketchFeature, makeSplitFeature } from '../../src/domain/document';
-import type { CadDocument, PlaneFeature } from '../../src/domain/model';
+import { addFeature, findPart, makeAxisFeature, makeExtrudeFeature, makeMirrorFeature, makePatternFeature, makePlaneFeature, makeSketchFeature, makeSplitFeature } from '../../src/domain/document';
+import type { AxisFeature, CadDocument, PlaneFeature, SketchFeature } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { getKernel } from '../helpers/kernel';
@@ -75,5 +75,46 @@ describe('plans de construction', () => {
     const broken = { ...withBlock, parts: withBlock.parts.map((p) => ({ ...p, features: p.features.filter((f) => f.id !== planeId) })) };
     const part = evaluate(broken);
     expect(part.statuses.some((s) => s.code === 'SUPPORT_LOST')).toBe(true);
+  });
+});
+
+describe('axes de construction', () => {
+  /** Plaque percée (trou Ø 6 en 15 ; 15) et un axe de construction. */
+  function withAxis(params: Partial<AxisFeature['params']>) {
+    const { doc, ids } = buildPlateDocument();
+    const axis = makeAxisFeature(doc, findPart(doc, ids.partId)!);
+    return { doc: addFeature(doc, ids.partId, { ...axis, params: { ...axis.params, ...params } }), ids, axisId: axis.id };
+  }
+
+  it('répétition en cercle autour d’un axe vertical passant par (30 ; 15) : le trou est refait en (45 ; 15)', () => {
+    const { doc, ids, axisId } = withAxis({ kind: 'line', position: { x: 30, y: 15, z: 0 }, direction: 'Z' });
+    const pattern = makePatternFeature(doc, findPart(doc, ids.partId)!, ids.pocket, 'circular');
+    const part = evaluate(addFeature(doc, ids.partId, { ...pattern, params: { ...pattern.params, count: 2, axis: { kind: 'datum', featureId: axisId } } }));
+    expect(part.failedFeatureId).toBeNull();
+    expect(part.axes[0]).toMatchObject({ featureId: axisId, point: { x: 30, y: 15, z: 0 } });
+    expect(part.analysis!.volume).toBeCloseTo(60 * 30 * 5 - 2 * Math.PI * 9 * 5, 3);
+  });
+
+  it('axe repris du bord du trou : il passe par son centre, à la verticale', () => {
+    const { doc, ids } = buildPlateDocument();
+    const circle = (doc.parts[0]!.features.find((f) => f.id === ids.sketch2) as SketchFeature).params.entities.find((e) => e.type === 'circle')!;
+    const axis = makeAxisFeature(doc, findPart(doc, ids.partId)!);
+    const edge = { faces: [{ featureId: ids.extrude, role: 'end' as const }, { featureId: ids.pocket, role: 'side' as const, entityId: circle.id }] as [never, never] };
+    const part = evaluate(addFeature(doc, ids.partId, { ...axis, params: { ...axis.params, kind: 'edge', edge } }));
+    expect(part.failedFeatureId).toBeNull();
+    const a = part.axes[0]!;
+    expect([round(a.point.x), round(a.point.y)]).toEqual([15, 15]);
+    expect(Math.abs(round(a.dir.z))).toBe(1);
+  });
+
+  it('un plan incliné autour d’un axe de construction', () => {
+    const { doc, ids, axisId } = withAxis({ kind: 'line', position: { x: 0, y: 0, z: 10 }, direction: 'X' });
+    const plane = makePlaneFeature(doc, findPart(doc, ids.partId)!);
+    const part = evaluate(addFeature(doc, ids.partId, { ...plane, params: { base: { kind: 'plane', plane: 'XY' }, offset: 10, angle: 90, hinge: { kind: 'datum', featureId: axisId } } }));
+    expect(part.failedFeatureId).toBeNull();
+    const f = part.datums[0]!.frame;
+    expect(Math.abs(round(f.normal.y))).toBe(1);
+    // Le plan XY décalé à z = 10 contient l'axe : il tourne sur lui-même et passe toujours par z = 10.
+    expect(round(f.origin.z)).toBe(10);
   });
 });

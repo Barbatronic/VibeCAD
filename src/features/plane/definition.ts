@@ -11,7 +11,7 @@ export function describeBasePlane(base: MirrorPlane, names: (id: string) => stri
 }
 
 export function describeHinge(hinge: PatternAxis): string {
-  return hinge.kind === 'axis' ? `l’axe ${hinge.axis}` : 'une arête';
+  return hinge.kind === 'axis' ? `l’axe ${hinge.axis}` : hinge.kind === 'datum' ? 'un axe de construction' : 'une arête';
 }
 
 export function planeIssues(p: PlaneFeature['params']): ParamIssue[] {
@@ -30,7 +30,7 @@ export const planeDefinition: FeatureDefinition<PlaneFeature> = {
   affectsSolid: false,
   dependencies: (feature) => {
     const p = feature.params;
-    return Array.from(new Set([...planeDependency(p.base), ...(p.angle !== 0 && p.hinge.kind === 'edge' ? p.hinge.edge.faces.map((x) => x.featureId) : [])]));
+    return Array.from(new Set([...planeDependency(p.base), ...(p.angle === 0 ? [] : p.hinge.kind === 'edge' ? p.hinge.edge.faces.map((x) => x.featureId) : p.hinge.kind === 'datum' ? [p.hinge.featureId] : [])]));
   },
   validate: (feature) => planeIssues(feature.params),
   summary(feature) {

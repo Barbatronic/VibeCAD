@@ -33,7 +33,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -929,6 +929,7 @@ export class AppController {
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
     if (feature.type === 'split') return this.pickSplitPlane(pick, feature);
     if (feature.type === 'plane') return this.pickDatumPlane(pick, feature);
+    if (feature.type === 'axis') return this.pickDatumAxis(pick, feature);
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
     if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
@@ -1080,6 +1081,22 @@ export class AppController {
     const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
     if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
     this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, hinge: { kind: 'edge', edge: r.ref } } } });
+  }
+
+  /** Clic dans la vue pendant l'édition d'un axe de construction : l'arête cliquée (droite, ou bord d'un trou) le définit. */
+  private pickDatumAxis(pick: ModelPick, feature: AxisFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une arête de la pièce en cours de modification.');
+    if (pick.kind !== 'edge') return this.explain('Cliquez une arête : un trait droit, ou le bord d’un trou pour prendre son axe.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    const curve = mesh.edges[pick.index]?.curve;
+    if (curve !== 'line' && curve !== 'circle') return this.explain('Cette arête est courbe : choisissez un trait droit ou le bord rond d’un trou.');
+    const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+    if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
+    this.updateDraft(() => ({ ...feature, params: { ...feature.params, kind: 'edge', edge: r.ref } }));
   }
 
   /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */

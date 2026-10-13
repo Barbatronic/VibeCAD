@@ -2,12 +2,11 @@
 import type { PlaneFeature, PlaneName } from '../../domain/model';
 import { readNumber } from '../../domain/units';
 import { Callout, LengthField, Segmented } from '../../ui/components/controls';
-import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { AxisField, datumAxesBefore, DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 import { planeIssues } from './definition';
 
 type BaseChoice = PlaneName | 'face' | 'datum';
-type HingeChoice = 'X' | 'Y' | 'Z' | 'edge';
 
 export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
   const { draft, update, setField } = props;
@@ -16,7 +15,6 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
   const datums = datumPlanesBefore(props.part, f.id);
   const picking = draft.fields.pick === 'face';
   const base: BaseChoice = p.base.kind === 'face' ? 'face' : p.base.kind === 'datum' ? 'datum' : p.base.plane;
-  const hinge: HingeChoice = p.hinge.kind === 'edge' ? 'edge' : p.hinge.axis;
   const numberField = (field: 'offset' | 'angle', label: string, unit: string, help: string) => (
     <LengthField
       id={`draft-${field}`}
@@ -69,22 +67,14 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       {numberField('angle', 'Inclinaison', '°', '0 : parallèle au plan de départ. Le plan tourne autour de la charnière choisie ci-dessous.')}
       {p.angle !== 0 ? (
         <>
-          <Segmented<HingeChoice>
+          <AxisField
             label="Charnière (axe de rotation)"
-            value={hinge}
-            options={[
-              { value: 'X', label: 'Axe X', title: 'Tourner autour de l’axe X (passant par l’origine)' },
-              { value: 'Y', label: 'Axe Y', title: 'Tourner autour de l’axe Y (passant par l’origine)' },
-              { value: 'Z', label: 'Axe Z', title: 'Tourner autour de l’axe Z (passant par l’origine)' },
-              { value: 'edge', label: 'Arête…', title: 'Une arête droite de la pièce, cliquée dans la vue 3D' },
-            ]}
-            onChange={(v) => (v === 'edge' ? setField('pick', 'edge', { feature: f }) : setField('pick', '', { feature: withParams(f, { hinge: { kind: 'axis', axis: v } }) }))}
+            axis={p.hinge}
+            picking={draft.fields.pick === 'edge'}
+            datums={datumAxesBefore(props.part, f.id)}
+            onAxis={(hinge) => setField('pick', '', { feature: withParams(f, { hinge }) })}
+            onPick={() => setField('pick', 'edge', { feature: f })}
           />
-          {draft.fields.pick === 'edge' ? (
-            <Callout kind="info">
-              <p>Cliquez dans la vue 3D une arête droite : le plan tourne autour d’elle, comme une porte sur ses gonds.</p>
-            </Callout>
-          ) : null}
         </>
       ) : null}
       <p class="field-help">Le plan ne change pas la pièce : il sert ensuite de support à une esquisse (« Esquisse »), de miroir (« Symétrie ») ou de plan de « Découpe ».</p>

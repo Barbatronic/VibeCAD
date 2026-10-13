@@ -12,6 +12,7 @@ import { evaluateGear } from './gear/evaluate';
 import { evaluateMove } from './move/evaluate';
 import { evaluateHole } from './hole/evaluate';
 import { evaluatePlane } from './plane/evaluate';
+import { evaluateAxis } from './axis/evaluate';
 import { evaluateMirror } from './mirror/evaluate';
 import { evaluateChamfer } from './chamfer/evaluate';
 import { evaluateExtrude } from './extrude/evaluate';
@@ -32,6 +33,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   move: evaluateMove,
   hole: evaluateHole,
   plane: evaluatePlane,
+  axis: evaluateAxis,
   pocket: evaluatePocket,
   revolve: evaluateRevolve,
   loft: evaluateLoft,

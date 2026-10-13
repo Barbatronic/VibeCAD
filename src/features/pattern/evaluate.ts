@@ -9,7 +9,7 @@ import { patternDefinition } from './definition';
 const WORLD: Record<'X' | 'Y' | 'Z', Vec3> = { X: { x: 1, y: 0, z: 0 }, Y: { x: 0, y: 1, z: 0 }, Z: { x: 0, y: 0, z: 1 } };
 
 /** Droite d'une direction de répétition : point de passage et direction unitaire (null : arête inutilisable). */
-export type AxisLine = { point: Vec3; dir: Vec3 } | { error: 'EDGE_LOST' | 'PATTERN_AXIS_INVALID' };
+export type AxisLine = { point: Vec3; dir: Vec3 } | { error: 'EDGE_LOST' | 'PATTERN_AXIS_INVALID' | 'AXIS_LOST' };
 
 /**
  * Direction orientée de façon stable (le sens d'une arête dépend du calcul) : sa plus grande
@@ -21,8 +21,10 @@ function canonical(d: Vec3): Vec3 {
   return big < 0 ? scale3(n, -1) : n;
 }
 
-export function resolvePatternAxis(kernel: GeometryKernel, shape: KernelShape, axis: PatternAxis): AxisLine {
+export function resolvePatternAxis(kernel: GeometryKernel, shape: KernelShape | null, axis: PatternAxis, axes: ReadonlyMap<string, { point: Vec3; dir: Vec3 }> = new Map()): AxisLine {
   if (axis.kind === 'axis') return { point: { x: 0, y: 0, z: 0 }, dir: WORLD[axis.axis] };
+  if (axis.kind === 'datum') return axes.get(axis.featureId) ?? { error: 'AXIS_LOST' };
+  if (!shape) return { error: 'EDGE_LOST' };
   const curves = kernel.edgeCurves(shape, axis.edge);
   const c = curves[0];
   if (!c) return { error: 'EDGE_LOST' };
@@ -74,11 +76,11 @@ export const evaluatePattern: FeatureEvaluator<PatternFeature> = (feature, ctx) 
   const source = ctx.tools.get(feature.params.sourceId);
   if (!source) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING', { relatedFeatureId: feature.params.sourceId }) };
   const p = feature.params;
-  const first = resolvePatternAxis(ctx.kernel, ctx.shape, p.axis);
+  const first = resolvePatternAxis(ctx.kernel, ctx.shape, p.axis, ctx.axes);
   if ('error' in first) return { status: issue(feature.id, 'error', first.error) };
   let second: { point: Vec3; dir: Vec3 } | undefined;
   if (p.kind === 'linear' && p.second) {
-    const s = resolvePatternAxis(ctx.kernel, ctx.shape, p.second.axis);
+    const s = resolvePatternAxis(ctx.kernel, ctx.shape, p.second.axis, ctx.axes);
     if ('error' in s) return { status: issue(feature.id, 'error', s.error) };
     second = s;
   }

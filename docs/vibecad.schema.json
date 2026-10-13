@@ -1510,6 +1510,59 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "axis"
+            },
+            "params": {
+              "type": "object",
+              "description": "Axe de construction : droite passant par position, parallèle à direction (kind = line), ou reprise de l'arête edge (kind = edge : droite de l'arête, ou axe d'un bord circulaire). Ne modifie pas la pièce.",
+              "required": [
+                "kind",
+                "position",
+                "direction"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "line",
+                    "edge"
+                  ]
+                },
+                "position": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "direction": {
+                  "enum": [
+                    "X",
+                    "Y",
+                    "Z"
+                  ]
+                },
+                "edge": {
+                  "$ref": "#/$defs/edgeRef"
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -2212,7 +2265,7 @@
       }
     },
     "patternAxis": {
-      "description": "Direction ou axe d'une répétition : axe du repère passant par l'origine, ou arête de la pièce (droite : direction ; cercle : son axe).",
+      "description": "Direction ou axe d'une répétition : axe du repère passant par l'origine, ou arête de la pièce (droite : direction ; cercle : son axe). Ou axe de construction (étape « axis » placée avant).",
       "oneOf": [
         {
           "type": "object",
@@ -2245,6 +2298,21 @@
             },
             "edge": {
               "$ref": "#/$defs/edgeRef"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "featureId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "datum"
+            },
+            "featureId": {
+              "$ref": "#/$defs/id"
             }
           }
         }

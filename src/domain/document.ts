@@ -21,6 +21,7 @@ import type {
   MoveFeature,
   HoleFeature,
   PlaneFeature,
+  AxisFeature,
   GearKind,
   PatternFeature,
   PatternParams,
@@ -75,6 +76,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   move: 'Déplacement',
   hole: 'Perçage',
   plane: 'Plan',
+  axis: 'Axe',
 };
 
 export function nowIso(): string {
@@ -264,7 +266,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -385,6 +387,10 @@ export function makePlaneFeature(doc: CadDocument, part: Part): PlaneFeature {
     name: nextFeatureName(part, 'plane'),
     params: { base: { kind: 'plane', plane: 'XY' }, offset: 10, angle: 0, hinge: { kind: 'axis', axis: 'X' } },
   };
+}
+
+export function makeAxisFeature(doc: CadDocument, part: Part): AxisFeature {
+  return { id: newFeatureId(doc, 'axis'), type: 'axis', name: nextFeatureName(part, 'axis'), params: { kind: 'line', position: { x: 0, y: 0, z: 0 }, direction: 'Z' } };
 }
 
 export function makeShellFeature(doc: CadDocument, part: Part, open: FaceRef[] = [], thickness = 2): ShellFeature {

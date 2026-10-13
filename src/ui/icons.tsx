@@ -639,6 +639,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M2.5 11l4-7h15l-4 7z" stroke-dasharray="2 2" />
     </>
   ),
+  /** Axe de construction : une droite en traits d'axe, avec une flèche de rotation. */
+  'datum-axis': (
+    <>
+      <path d="M12 2v20" stroke-dasharray="4 2 1 2" />
+      <path d="M5 12.5a7 3 0 0 0 14 0" />
+      <path d="M16.5 15.5l2.5-3 1 3.5" />
+    </>
+  ),
   /** Perçage : trou lamé vu en coupe, avec son axe. */
   hole: (
     <>

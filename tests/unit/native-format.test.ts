@@ -3,7 +3,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
-import { makeGearFeature, makeHoleFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
+import { makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -88,6 +88,20 @@ describe('format natif .vibecad', () => {
     const text = serializeDocument(next);
     const parsed = parseNativeFile(text);
     expect(parsed.ok && parsed.doc.parts[0]!.features.slice(-3)).toEqual(next.parts[0]!.features.slice(-3));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('conserve un axe de construction (repris d’une arête) et une charnière qui l’utilise', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const base = makeAxisFeature(doc, part);
+    const edge = { faces: [{ featureId: ids.extrude, role: 'end' as const }, { featureId: ids.extrude, role: 'side' as const, entityId: 'l1' }] as [never, never] };
+    const axis = { ...base, params: { ...base.params, kind: 'edge' as const, edge } };
+    const plane = { ...makePlaneFeature(doc, part), id: 'pl-test', params: { base: { kind: 'plane' as const, plane: 'XZ' as const }, offset: 0, angle: 45, hinge: { kind: 'datum' as const, featureId: axis.id } } };
+    const text = serializeDocument({ ...doc, parts: [{ ...part, features: [...part.features, axis, plane] }] });
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.parts[0]!.features.slice(-2)).toEqual([axis, plane]);
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
     expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });

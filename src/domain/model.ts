@@ -210,7 +210,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -247,6 +247,7 @@ export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 export type MoveFeature = FeatureBase<'move', MoveParams>;
 export type HoleFeature = FeatureBase<'hole', HoleParams>;
 export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams>;
+export type AxisFeature = FeatureBase<'axis', DatumAxisParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -530,7 +531,7 @@ export interface RevolveParams {
 }
 
 /** Direction ou axe d'une répétition : un axe du repère (passant par l'origine) ou une arête de la pièce. */
-export type PatternAxis = { kind: 'axis'; axis: 'X' | 'Y' | 'Z' } | { kind: 'edge'; edge: EdgeRef };
+export type PatternAxis = { kind: 'axis'; axis: 'X' | 'Y' | 'Z' } | { kind: 'edge'; edge: EdgeRef } | { kind: 'datum'; featureId: Id };
 
 /** Seconde direction d'une répétition linéaire (grille). */
 export interface PatternDirection {
@@ -569,6 +570,18 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
  * charnière `hinge` (axe X, Y ou Z passant par l'origine, ou arête droite de la pièce). Il ne
  * change pas la pièce : il sert de support d'esquisse, de plan de symétrie ou de découpe.
  */
+/**
+ * Axe de construction : la droite passant par `position` le long de l'axe `direction` (`kind`
+ * `line`), ou reprise d'une arête de la pièce (`edge` : la droite d'une arête droite, l'axe du
+ * bord d'un trou). Il ne change pas la pièce : il sert d'axe de répétition ou de charnière.
+ */
+export interface DatumAxisParams {
+  kind: 'line' | 'edge';
+  position: { x: number; y: number; z: number };
+  direction: 'X' | 'Y' | 'Z';
+  edge?: EdgeRef;
+}
+
 export interface DatumPlaneParams {
   base: MirrorPlane;
   offset: number;

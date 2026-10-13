@@ -6,6 +6,7 @@ import type { Feature, Id, SketchParams } from '../domain/model';
 import type { FeatureStatus } from '../domain/status';
 import type { GeometryKernel, KernelShape, ShapeAnalysis } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
+import type { Vec3 } from '../math/vec';
 import type { ProfileResult } from '../sketch/profiles';
 
 export interface SketchEvaluation {
@@ -48,6 +49,8 @@ export interface EvaluationContext {
   sketches: ReadonlyMap<Id, EvaluatedSketch>;
   /** Plans de construction déjà calculés dans cette pièce, par identifiant. */
   datums: ReadonlyMap<Id, Frame3D>;
+  /** Axes de construction déjà calculés dans cette pièce, par identifiant. */
+  axes: ReadonlyMap<Id, { point: Vec3; dir: Vec3 }>;
   /** Corps outils des étapes précédentes (volume ajouté ou retiré), pour la répétition. */
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
   /** Solides d'une ressource STEP embarquée (lecture mise en cache par le moteur). */
@@ -66,6 +69,8 @@ export interface FeatureOutcome {
   sketch?: SketchEvaluation;
   /** Plan de construction calculé (étape `plane`). */
   datum?: Frame3D;
+  /** Axe de construction calculé (étape `axis`) : point de passage et direction unitaire. */
+  datumAxis?: { point: Vec3; dir: Vec3 };
 }
 
 export type FeatureEvaluator<F extends Feature> = (feature: F, ctx: EvaluationContext) => FeatureOutcome;
