@@ -236,6 +236,26 @@ fichiers antérieurs, il vaut `add`. Creuser sans volume : `POCKET_WITHOUT_SOLID
 l'axe (`REVOLVE_CROSSES_AXIS` sinon). Faces : `start` / `end` (révolution partielle), `side` +
 élément d'esquisse.
 
+### Perçage (`"type": "hole"`)
+
+```json
+{ "id": "ho-…", "type": "hole", "name": "Perçage 1", "dependsOn": ["sk-…"],
+  "params": { "sketchId": "sk-…", "kind": "counterbore", "size": "M4", "fit": "medium",
+              "through": true, "depth": 10, "reversed": false, "headDiameter": 8, "headDepth": 4.4 } }
+```
+
+Un trou pour vis métrique au **centre de chaque cercle** de l'esquisse (cercles repris de la pièce
+exceptés ; le diamètre dessiné est ignoré). `kind` : `clearance` (passage, Ø de la série `fit`
+d'ISO 273 : `fine`, `medium`, `coarse`), `counterbore` (lamé : logement Ø `headDiameter` sur
+`headDepth` mm, puis passage), `countersink` (fraisé : cône à 90° de Ø `headDiameter`, puis
+passage ; `headDepth` est ignoré) ou `tapped` (Ø de perçage avant taraudage ; `fit` ignoré).
+`size` : `M2`, `M2.5`, `M3`, `M4`, `M5`, `M6`, `M8`, `M10`, `M12`. Le trou part du plan de
+l'esquisse contre sa normale (dans la matière), ou le long de la normale si `reversed` ;
+`through` : traverse toute la pièce, sinon `depth` mm. Les valeurs proposées par l'interface
+pour la tête viennent de DIN 974-1 (lamage pour vis CHC ISO 4762) et ISO 15065 (fraisure pour vis
+FHC ISO 10642). Faces créées : `side` + `<id du cercle>:<rang du côté du profil>`. Erreurs :
+`HOLE_WITHOUT_SOLID`, `HOLE_NO_CENTER` ; avertissement `HOLE_REMOVES_NOTHING`.
+
 ### Répétition (`"type": "pattern"`)
 
 ```json

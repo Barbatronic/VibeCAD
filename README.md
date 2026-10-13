@@ -55,7 +55,12 @@ millimètres, avec le nom et la couleur de chaque pièce).
   la pièce quand elle change.
 - **Volumes** : extrusion et poche (profondeur cotée ou traversante, sens normal / opposé /
   symétrique, ou **deux côtés** avec une longueur différente de chaque côté) avec **aperçu** avant
-  validation. Un perçage est une poche circulaire traversante.
+  validation. Un perçage simple est une poche circulaire traversante.
+- **Perçage normalisé** (bouton « Poche ▾ », niveau Intermédiaire) : un trou pour vis M2 à M12 au
+  centre de chaque cercle d'une esquisse (sa taille ne compte pas) : **passage** (jeu serré,
+  normal ou large, ISO 273), **lamé** pour cacher une tête de vis CHC, **fraisé** à 90° pour une
+  vis FHC qui affleure, ou **à tarauder** ; traversant ou à une profondeur donnée. Les dimensions
+  de la tête sont proposées par la norme et modifiables.
   Au niveau Expert, une extrusion peut aller **jusqu'à une face** plane cliquée (même inclinée).
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
   souvent de construction), tour complet ou partiel, avec aperçu ; elle ajoute de la matière ou la
