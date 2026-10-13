@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
-import { makeGearFeature, makeMoveFeature } from '../../src/domain/document';
+import { makeGearFeature, makeHoleFeature, makeMoveFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -64,6 +64,15 @@ describe('format natif .vibecad', () => {
     const move = { ...base, params: { ...base.params, axis: 'Y' as const, angle: 45, center: { x: 1, y: 2, z: 3 }, copy: true } };
     const parsed = parseNativeFile(serializeDocument({ ...doc, parts: [{ ...part, features: [...part.features, move] }] }));
     expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(move);
+  });
+
+  it('conserve une étape « perçage » (lamé M4 borgne, de l’autre côté)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const base = makeHoleFeature(doc, part, ids.sketch2);
+    const hole = { ...base, params: { ...base.params, kind: 'counterbore' as const, size: 'M4' as const, fit: 'coarse' as const, through: false, depth: 4, reversed: true, headDiameter: 8, headDepth: 2 } };
+    const parsed = parseNativeFile(serializeDocument({ ...doc, parts: [{ ...part, features: [...part.features, hole] }] }));
+    expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(hole);
   });
 
   it('conserve une étape « générateur » (poulie GT2 avec joues)', () => {

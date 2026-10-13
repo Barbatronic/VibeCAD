@@ -188,7 +188,7 @@ function IssueBox(props: { part: Part; feature: Feature; status: FeatureStatus }
             Modifier « {related.name} »
           </button>
         ) : null}
-        {status.state === 'error' && !supportIssue && (props.feature.type === 'extrude' || props.feature.type === 'pocket') ? (
+        {status.state === 'error' && !supportIssue && (props.feature.type === 'extrude' || props.feature.type === 'pocket' || props.feature.type === 'hole') ? (
           <button type="button" class="btn btn-small" onClick={() => c.editFeature(props.feature.id)}>
             Modifier les paramètres
           </button>

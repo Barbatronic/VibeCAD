@@ -557,7 +557,7 @@ function Banner() {
   const info = useAppState(
     (s) => {
       if (s.mode.kind === 'sketch') return { kind: 'sketch', text: `Mode esquisse — outil ${TOOL_LABELS[s.mode.session.tool]}` };
-      if (s.mode.kind === 'feature') return { kind: s.mode.draft.feature.type === 'pocket' ? 'preview cut' : 'preview', text: 'Aperçu — non validé' };
+      if (s.mode.kind === 'feature') return { kind: s.mode.draft.feature.type === 'pocket' || s.mode.draft.feature.type === 'hole' ? 'preview cut' : 'preview', text: 'Aperçu — non validé' };
       if (s.mode.kind === 'pick-support') return { kind: 'sketch', text: 'Choisissez un plan ou une face plane' };
       if (s.mode.kind === 'measure') return { kind: 'sketch', text: 'Mesure : cliquez des arêtes ou des faces' };
       const stale = s.doc.parts.find((p) => s.display[p.id]?.stale);

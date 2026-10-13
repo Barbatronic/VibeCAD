@@ -19,6 +19,7 @@ import type {
   ThickenFeature,
   GearFeature,
   MoveFeature,
+  HoleFeature,
   GearKind,
   PatternFeature,
   PatternParams,
@@ -71,6 +72,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   thicken: 'Épaisseur',
   gear: 'Engrenage',
   move: 'Déplacement',
+  hole: 'Perçage',
 };
 
 export function nowIso(): string {
@@ -260,7 +262,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -362,6 +364,15 @@ export function makeMoveFeature(doc: CadDocument, part: Part): MoveFeature {
     type: 'move',
     name: nextFeatureName(part, 'move'),
     params: { translation: { x: 10, y: 0, z: 0 }, axis: 'Z', angle: 0, center: { x: 0, y: 0, z: 0 }, copy: false },
+  };
+}
+
+export function makeHoleFeature(doc: CadDocument, part: Part, sketchId: Id, reversed = false): HoleFeature {
+  return {
+    id: newFeatureId(doc, 'hole'),
+    type: 'hole',
+    name: nextFeatureName(part, 'hole'),
+    params: { sketchId, kind: 'clearance', size: 'M3', fit: 'medium', through: true, depth: 10, reversed, headDiameter: 6.5, headDepth: 3.4 },
   };
 }
 

@@ -176,6 +176,22 @@ export const HOLES: Record<MetricSize, { fine: number; medium: number; coarse: n
   M12: { fine: 13, medium: 13.5, coarse: 14.5, tap: 10.2 },
 };
 
+/**
+ * Logement de tête proposé pour un perçage : lamage pour vis CHC ISO 4762 (diamètre DIN 974-1,
+ * profondeur = hauteur de tête + 0,4 mm), fraisure à 90° pour vis FHC ISO 10642 (diamètre ISO 15065).
+ */
+export const HOLE_HEADS: Record<MetricSize, { counterbore: number; counterboreDepth: number; countersink: number }> = {
+  M2: { counterbore: 4.3, counterboreDepth: 2.4, countersink: 4.4 },
+  'M2.5': { counterbore: 5, counterboreDepth: 2.9, countersink: 5.5 },
+  M3: { counterbore: 6.5, counterboreDepth: 3.4, countersink: 6.9 },
+  M4: { counterbore: 8, counterboreDepth: 4.4, countersink: 9.2 },
+  M5: { counterbore: 10, counterboreDepth: 5.4, countersink: 11.5 },
+  M6: { counterbore: 11, counterboreDepth: 6.4, countersink: 13.7 },
+  M8: { counterbore: 15, counterboreDepth: 8.4, countersink: 18.2 },
+  M10: { counterbore: 18, counterboreDepth: 10.4, countersink: 22.7 },
+  M12: { counterbore: 20, counterboreDepth: 12.4, countersink: 27.2 },
+};
+
 export type HoleMatch = { size: MetricSize; hole: 'clearance' | 'tapped' };
 
 /**

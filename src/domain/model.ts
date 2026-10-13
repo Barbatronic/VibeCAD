@@ -210,7 +210,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -245,6 +245,7 @@ export type SplitFeature = FeatureBase<'split', SplitParams>;
 export type DraftFeature = FeatureBase<'draft', DraftParams>;
 export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 export type MoveFeature = FeatureBase<'move', MoveParams>;
+export type HoleFeature = FeatureBase<'hole', HoleParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -730,6 +731,32 @@ export interface PocketParams {
   direction: ExtentDirection;
   /** Sens « deux côtés » : profondeur de l'autre côté du plan de l'esquisse (le long de la normale). */
   extent2?: PocketExtent;
+}
+
+/** Perçage : trou de passage, lamé (tête cylindrique noyée), fraisé (tête conique) ou à tarauder. */
+export type HoleKind = 'clearance' | 'counterbore' | 'countersink' | 'tapped';
+
+/** Série de trous de passage (ISO 273) : fine, moyenne ou large. */
+export type HoleFit = 'fine' | 'medium' | 'coarse';
+
+/**
+ * Perçage normalisé pour une vis métrique, à chaque centre de cercle de l'esquisse (le diamètre
+ * dessiné ne compte pas : c'est la taille de vis qui donne celui du trou). Le trou part du plan de
+ * l'esquisse et entre dans la matière (`reversed` : de l'autre côté). `headDiameter` et
+ * `headDepth` décrivent le lamage (diamètre, profondeur) ou la fraisure (diamètre, à 90°) ; ils
+ * sont proposés par la norme et modifiables.
+ */
+export interface HoleParams {
+  sketchId: Id;
+  kind: HoleKind;
+  size: MetricSize;
+  fit: HoleFit;
+  /** Vrai : traverse toute la pièce ; sinon profondeur `depth` (mm). */
+  through: boolean;
+  depth: number;
+  reversed: boolean;
+  headDiameter: number;
+  headDepth: number;
 }
 
 export interface ImportedSolidParams {

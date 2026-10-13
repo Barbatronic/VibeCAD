@@ -516,7 +516,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -604,6 +604,23 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         },
       };
     }
+    case 'hole':
+      return {
+        id,
+        name,
+        type,
+        params: {
+          sketchId: str(v, p, 'sketchId', pp),
+          kind: oneOf(v, p, 'kind', pp, ['clearance', 'counterbore', 'countersink', 'tapped'] as const),
+          size: oneOf(v, p, 'size', pp, METRIC_SIZES),
+          fit: oneOf(v, p, 'fit', pp, ['fine', 'medium', 'coarse'] as const),
+          through: bool(v, p, 'through', pp, true),
+          depth: num(v, p, 'depth', pp),
+          reversed: bool(v, p, 'reversed', pp, false),
+          headDiameter: num(v, p, 'headDiameter', pp),
+          headDepth: num(v, p, 'headDepth', pp),
+        },
+      };
     case 'move': {
       const vec = (key: string) => {
         const o = obj(v, p[key], `${pp}.${key}`) ?? {};
@@ -935,7 +952,7 @@ function checkReferences(v: Validator, doc: CadDocument): void {
         if (!target) {
           // Référence vers une étape absente ou placée après : récupérable (erreur affichée à l'étape).
           v.warnings.push(`${f.name} : l’étape référencée « ${dep} » est introuvable avant elle.`);
-        } else if ((f.type === 'extrude' || f.type === 'pocket') && dep === f.params.sketchId && target.type !== 'sketch') {
+        } else if ((f.type === 'extrude' || f.type === 'pocket' || f.type === 'hole') && dep === f.params.sketchId && target.type !== 'sketch') {
           v.error(`${path}.params.sketchId`, 'doit désigner une esquisse');
         }
       }

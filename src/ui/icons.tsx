@@ -632,6 +632,14 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   /** Déplacer : flèches dans les quatre directions. */
+  /** Perçage : trou lamé vu en coupe, avec son axe. */
+  hole: (
+    <>
+      <path d="M3 5h5v5h2v10H3z" />
+      <path d="M21 5h-5v5h-2v10h7z" />
+      <path d="M12 2v20" stroke-dasharray="1.5 2.5" />
+    </>
+  ),
   move: (
     <>
       <path d="M12 3v18M3 12h18" />

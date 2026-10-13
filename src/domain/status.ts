@@ -55,6 +55,9 @@ export type FeatureIssueCode =
   | 'MIRROR_NOTHING_ADDED'
   | 'MOVE_WITHOUT_SOLID'
   | 'MOVE_NOTHING'
+  | 'HOLE_WITHOUT_SOLID'
+  | 'HOLE_NO_CENTER'
+  | 'HOLE_REMOVES_NOTHING'
   | 'BLEND_FAILED'
   | 'BLOCKED_BY_PREVIOUS';
 
@@ -129,6 +132,9 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SPLIT_NOTHING_LEFT: 'Il ne reste rien de ce côté du plan : gardez l’autre côté ou déplacez le plan.',
   MOVE_WITHOUT_SOLID: 'Il n’y a encore aucun volume à déplacer : construisez d’abord la pièce.',
   MOVE_NOTHING: 'Le déplacement est nul : indiquez un décalage ou un angle.',
+  HOLE_WITHOUT_SOLID: 'Un perçage retire de la matière : créez d’abord un volume avec une extrusion.',
+  HOLE_NO_CENTER: 'L’esquisse n’a aucun cercle : dessinez un petit cercle à l’endroit de chaque trou (sa taille ne compte pas).',
+  HOLE_REMOVES_NOTHING: 'Le perçage ne touche pas la pièce : vérifiez la position des cercles et le sens (« Côté opposé »).',
   MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',

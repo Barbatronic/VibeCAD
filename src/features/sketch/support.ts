@@ -33,6 +33,7 @@ export function describeFaceRef(ref: FaceRef, part: Part | undefined): string {
   if (feature?.type === 'split') return `face de coupe de ${name}`;
   if (ref.role === 'imported') return `face n° ${(ref.index ?? 0) + 1} de ${name}`;
   if (ref.role === 'blend') return feature?.type === 'chamfer' ? `face de chanfrein de ${name}` : `face arrondie de ${name}`;
+  if (feature?.type === 'hole') return `paroi de ${name}`;
   if (feature?.type === 'pocket') return ref.role === 'side' ? `paroi de ${name}` : `fond de ${name}`;
   if (ref.role === 'end') return `face d’arrivée de ${name}`;
   if (ref.role === 'start') return `face de départ de ${name}`;

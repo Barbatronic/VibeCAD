@@ -1305,6 +1305,81 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "hole"
+            },
+            "params": {
+              "type": "object",
+              "description": "Perçage normalisé pour une vis métrique au centre de chaque cercle de l'esquisse sketchId : passage (ISO 273), lamé, fraisé (90°) ou à tarauder. headDiameter / headDepth : logement de tête (mm).",
+              "required": [
+                "sketchId",
+                "kind",
+                "size",
+                "fit",
+                "through",
+                "depth",
+                "reversed",
+                "headDiameter",
+                "headDepth"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "kind": {
+                  "enum": [
+                    "clearance",
+                    "counterbore",
+                    "countersink",
+                    "tapped"
+                  ]
+                },
+                "size": {
+                  "enum": [
+                    "M2",
+                    "M2.5",
+                    "M3",
+                    "M4",
+                    "M5",
+                    "M6",
+                    "M8",
+                    "M10",
+                    "M12"
+                  ]
+                },
+                "fit": {
+                  "enum": [
+                    "fine",
+                    "medium",
+                    "coarse"
+                  ]
+                },
+                "through": {
+                  "type": "boolean"
+                },
+                "depth": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "mm, si through est faux"
+                },
+                "reversed": {
+                  "type": "boolean",
+                  "description": "vrai : du côté de la normale de l'esquisse"
+                },
+                "headDiameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "headDepth": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
         }
       ]
     },

@@ -26,7 +26,7 @@ export function sketchProfileOk(state: AppState, partId: Id, sketchId: Id): bool
 
 function usedSketchIds(part: Part): Set<Id> {
   const used = new Set<Id>();
-  for (const f of part.features) if (f.type === 'extrude' || f.type === 'pocket') used.add(f.params.sketchId);
+  for (const f of part.features) if (f.type === 'extrude' || f.type === 'pocket' || f.type === 'hole') used.add(f.params.sketchId);
   return used;
 }
 
