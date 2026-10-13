@@ -17,6 +17,8 @@ import type {
   SplitFeature,
   DraftFeature,
   ThickenFeature,
+  GearFeature,
+  GearKind,
   PatternFeature,
   PatternParams,
   RevolveAxis,
@@ -66,6 +68,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   split: 'Découpe',
   draft: 'Dépouille',
   thicken: 'Épaisseur',
+  gear: 'Engrenage',
 };
 
 export function nowIso(): string {
@@ -255,7 +258,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -322,6 +325,32 @@ export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: Primit
     type: 'primitive',
     name: nextFeatureName(part, 'primitive'),
     params: { shape, position: { x: 0, y: 0, z: 0 }, width: 20, depth: 20, height: 20, diameter: 20, thickness: 6, operation },
+  };
+}
+
+/** Nom par défaut d'un générateur, selon ce qu'il fabrique (« Roue dentée 1 », « Poulie 2 »…). */
+export const GEAR_NAMES: Record<GearKind, string> = { spur: 'Roue dentée', rack: 'Crémaillère', pulley: 'Poulie' };
+
+/** Premier nom libre « Roue dentée n », « Poulie n »… (`exceptId` : l'étape renommée elle-même). */
+export function gearName(part: Part, kind: GearKind, exceptId?: Id): string {
+  const prefix = GEAR_NAMES[kind];
+  const names = new Set(part.features.filter((f) => f.id !== exceptId).map((f) => f.name));
+  let n = 1;
+  while (names.has(`${prefix} ${n}`)) n++;
+  return `${prefix} ${n}`;
+}
+
+/** Vrai si le nom est encore un nom automatique (l'élève ne l'a pas renommé). */
+export function isDefaultGearName(name: string): boolean {
+  return Object.values(GEAR_NAMES).some((prefix) => new RegExp(`^${prefix} \\d+$`).test(name));
+}
+
+export function makeGearFeature(doc: CadDocument, part: Part, kind: GearKind = 'spur'): GearFeature {
+  return {
+    id: newFeatureId(doc, 'gear'),
+    type: 'gear',
+    name: gearName(part, kind),
+    params: { kind, module: 1.5, pressureAngle: 20, teeth: 20, belt: 'GT2-2', thickness: 8, bore: 5, rackHeight: 5, flanges: true, position: { x: 0, y: 0, z: 0 }, operation: 'add' },
   };
 }
 

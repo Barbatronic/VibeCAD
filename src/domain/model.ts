@@ -195,7 +195,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -609,6 +609,35 @@ export interface PrimitiveParams {
   thickness: number;
   operation: VolumeOperation;
 }
+
+/** Générateur : roue dentée droite (développante), crémaillère, ou poulie crantée. */
+export type GearKind = 'spur' | 'rack' | 'pulley';
+
+/** Courroies crantées : GT2 (pas 2, 3, 5 mm) et T (pas 2,5, 5, 10 mm). */
+export type BeltProfile = 'GT2-2' | 'GT2-3' | 'GT2-5' | 'T2.5' | 'T5' | 'T10';
+
+/**
+ * Pièce générée, extrudée selon Z sur `thickness` à partir de `position` : centre de la roue ou de
+ * la poulie, ou point de la ligne primitive au début de la crémaillère (dents vers +Y). Roue et
+ * crémaillère : `module` (mm) et `pressureAngle` (°) ; elles engrènent si ces deux valeurs sont
+ * égales. Poulie : profil de courroie `belt` ; `flanges` ajoute deux joues (épaisseur 1 mm).
+ * `bore` : alésage central (0 : aucun) ; `rackHeight` : hauteur du corps sous les dents.
+ */
+export interface GearParams {
+  kind: GearKind;
+  module: number;
+  pressureAngle: number;
+  teeth: number;
+  belt: BeltProfile;
+  thickness: number;
+  bore: number;
+  rackHeight: number;
+  flanges: boolean;
+  position: { x: number; y: number; z: number };
+  operation: VolumeOperation;
+}
+
+export type GearFeature = FeatureBase<'gear', GearParams>;
 
 /**
  * Coque : la pièce est vidée en gardant une paroi d'épaisseur `thickness` (mm). Les faces

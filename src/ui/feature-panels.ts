@@ -14,6 +14,7 @@ import { SweepPanel } from '../features/sweep/panel';
 import { MirrorPanel } from '../features/mirror/panel';
 import { PatternPanel } from '../features/pattern/panel';
 import { PrimitivePanel } from '../features/primitive/panel';
+import { GearPanel } from '../features/gear/panel';
 import { ShellPanel } from '../features/shell/panel';
 import { RevolvePanel } from '../features/revolve/panel';
 import { SplitPanel } from '../features/split/panel';
@@ -28,6 +29,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   sweep: SweepPanel as FunctionComponent<FeaturePanelProps<never>>,
   pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
   primitive: PrimitivePanel as FunctionComponent<FeaturePanelProps<never>>,
+  gear: GearPanel as FunctionComponent<FeaturePanelProps<never>>,
   shell: ShellPanel as FunctionComponent<FeaturePanelProps<never>>,
   thicken: ThickenPanel as FunctionComponent<FeaturePanelProps<never>>,
   draft: DraftPanel as FunctionComponent<FeaturePanelProps<never>>,

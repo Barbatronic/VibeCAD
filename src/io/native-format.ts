@@ -489,7 +489,7 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -573,6 +573,27 @@ function readFeature(v: Validator, x: unknown, path: string): Feature | null {
           height: num(v, p, 'height', pp, { min: 0 }),
           diameter: num(v, p, 'diameter', pp, { min: 0 }),
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
+          operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
+        },
+      };
+    }
+    case 'gear': {
+      const pos = obj(v, p.position, `${pp}.position`) ?? {};
+      return {
+        id,
+        name,
+        type,
+        params: {
+          kind: oneOf(v, p, 'kind', pp, ['spur', 'rack', 'pulley'] as const),
+          module: num(v, p, 'module', pp, { min: 0 }),
+          pressureAngle: num(v, p, 'pressureAngle', pp, { min: 0, max: 45 }),
+          teeth: num(v, p, 'teeth', pp, { min: 1, integer: true }),
+          belt: oneOf(v, p, 'belt', pp, ['GT2-2', 'GT2-3', 'GT2-5', 'T2.5', 'T5', 'T10'] as const),
+          thickness: num(v, p, 'thickness', pp, { min: 0 }),
+          bore: num(v, p, 'bore', pp, { min: 0 }),
+          rackHeight: num(v, p, 'rackHeight', pp, { min: 0 }),
+          flanges: bool(v, p, 'flanges', pp, false),
+          position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },
       };

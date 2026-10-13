@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
+import { makeGearFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -54,6 +55,16 @@ describe('format natif .vibecad', () => {
     const simulation = { studies: [study, { ...study, partId: 'disparue' }] };
     const parsed = parseNativeFile(serializeDocument({ ...doc, simulation }));
     expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
+  });
+
+  it('conserve une étape « générateur » (poulie GT2 avec joues)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const gear = { ...makeGearFeature(doc, part, 'pulley'), params: { ...makeGearFeature(doc, part, 'pulley').params, kind: 'pulley' as const, belt: 'T5' as const, teeth: 24 } };
+    const withGear = { ...doc, parts: [{ ...part, features: [...part.features, gear] }] };
+    const parsed = parseNativeFile(serializeDocument(withGear));
+    expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(gear);
+    void ids;
   });
 
   it('conserve l’étude de l’assemblage (faces repérées par pièce insérée)', () => {

@@ -1124,6 +1124,101 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "gear"
+            },
+            "params": {
+              "type": "object",
+              "description": "Générateur : roue dentée droite (développante), crémaillère ou poulie crantée, extrudé selon Z depuis position.",
+              "required": [
+                "kind",
+                "module",
+                "pressureAngle",
+                "teeth",
+                "belt",
+                "thickness",
+                "bore",
+                "rackHeight",
+                "flanges",
+                "position",
+                "operation"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "spur",
+                    "rack",
+                    "pulley"
+                  ]
+                },
+                "module": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "pressureAngle": {
+                  "type": "number"
+                },
+                "teeth": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "belt": {
+                  "enum": [
+                    "GT2-2",
+                    "GT2-3",
+                    "GT2-5",
+                    "T2.5",
+                    "T5",
+                    "T10"
+                  ]
+                },
+                "thickness": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "bore": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "rackHeight": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "flanges": {
+                  "type": "boolean"
+                },
+                "position": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut",
+                    "common"
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     },
