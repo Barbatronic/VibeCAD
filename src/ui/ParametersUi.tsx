@@ -45,7 +45,8 @@ const PLAIN_NUMBER = /^\s*-?\d+([.,]\d+)?\s*$/;
 export function ParametersSection() {
   const c = useController();
   const params = useAppState((s) => s.doc.parameters ?? []);
-  const [open, setOpen] = useState(true);
+  // Repliée tant qu'il n'y a aucun paramètre : elle ne prend pas de place à qui ne s'en sert pas.
+  const [open, setOpen] = useState(params.length > 0);
   const { values, errors } = resolveParameters(params);
   return (
     <section class="panel-section params-section" aria-labelledby="params-title">
