@@ -1927,12 +1927,13 @@ kbd {
 /* ------------------------------------------------------------------ Écrans étroits */
 
 /* Barre d'outils : compactage automatique. `TopBar` mesure la place disponible et pose
-   data-compact (1, 2, 3) sur la barre tant que son contenu ne tient pas sur une ligne : outils
-   secondaires puis tous les outils en icônes seules (le nom reste dans l'infobulle et pour les
+   data-compact (1 à 4) sur la barre tant que son contenu ne tient pas sur une ligne : outils
+   secondaires, puis les groupes Pièces et Outils, puis tous les outils en icônes seules (le nom reste dans l'infobulle et pour les
    lecteurs d'écran), puis espacements réduits. En dernier recours (data-overflow), les derniers
-   groupes d'outils passent dans le tiroir « Plus ». Voir docs/decisions/0010-barre-d-outils.md. */
+   groupes d'outils passent dans le tiroir « Plus ». */
 .topbar[data-compact='2'] .brand span,
-.topbar[data-compact='3'] .brand span {
+.topbar[data-compact='3'] .brand span,
+.topbar[data-compact='4'] .brand span {
   display: none;
 }
 .topbar[data-compact] {
@@ -1967,13 +1968,11 @@ kbd {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
-/* Palier 2 : tous les outils en icônes seules. */
-.topbar[data-compact='2'] .toolbar .tool-btn,
-.topbar[data-compact='3'] .toolbar .tool-btn {
+/* Palier 2 : groupes secondaires (Pièce, STEP, Mesurer) en icônes seules. */
+.topbar[data-compact='2'] .toolbar-group.secondary .tool-btn {
   min-width: 38px;
 }
-.topbar[data-compact='2'] .toolbar .tool-btn > span:not(.visually-hidden),
-.topbar[data-compact='3'] .toolbar .tool-btn > span:not(.visually-hidden) {
+.topbar[data-compact='2'] .toolbar-group.secondary .tool-btn > span:not(.visually-hidden) {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1981,17 +1980,31 @@ kbd {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
-/* Palier 3 : espacements réduits. */
-.topbar[data-compact='3'] .project-name {
+/* Palier 3 : tous les outils en icônes seules. */
+.topbar[data-compact='3'] .toolbar .tool-btn,
+.topbar[data-compact='4'] .toolbar .tool-btn {
+  min-width: 38px;
+}
+.topbar[data-compact='3'] .toolbar .tool-btn > span:not(.visually-hidden),
+.topbar[data-compact='4'] .toolbar .tool-btn > span:not(.visually-hidden) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+/* Palier 4 : espacements réduits. */
+.topbar[data-compact='4'] .project-name {
   width: 80px;
 }
-.topbar[data-compact='3'] .toolbar-group {
+.topbar[data-compact='4'] .toolbar-group {
   padding: 0 2px;
 }
-.topbar[data-compact='3'] .toolbar .tool-btn {
+.topbar[data-compact='4'] .toolbar .tool-btn {
   min-width: 34px;
 }
-.topbar[data-compact='3'] .workspace-tabs button {
+.topbar[data-compact='4'] .workspace-tabs button {
   padding: 4px 5px;
   font-size: 12px;
 }

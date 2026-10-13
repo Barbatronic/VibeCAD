@@ -29,7 +29,7 @@ test('barre d’outils : écran étroit, les derniers outils passent dans le tir
   await page.setViewportSize({ width: 820, height: 800 });
   await openApp(page);
   await expect.poll(async () => (await fits(page)).fits).toBe(true);
-  expect(await fits(page)).toMatchObject({ compact: '3', overflow: true });
+  expect(await fits(page)).toMatchObject({ compact: '4', overflow: true });
   const more = page.getByRole('button', { name: 'Plus d’outils' });
   await expect(more).toBeVisible();
   // Un outil masqué dans la barre est accessible dans le tiroir, avec son nom.

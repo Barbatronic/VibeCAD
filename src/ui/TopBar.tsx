@@ -208,11 +208,11 @@ function ModelTools() {
           );
         })}
       </div>
-      <div class="toolbar-group" role="group" aria-label="Pièces">
+      <div class="toolbar-group secondary" role="group" aria-label="Pièces">
         <ToolButton id="tool-new-part" icon="part" label="Pièce" hint="Ajouter une nouvelle pièce indépendante" availability={a.importOk} onClick={() => c.addPart()} />
         <ToolButton id="tool-export" icon="export" label="STEP" hint="Exporter en STEP pour FreeCAD" availability={a.importOk} onClick={() => c.showExportDialog('step')} />
       </div>
-      <div class="toolbar-group" role="group" aria-label="Outils">
+      <div class="toolbar-group secondary" role="group" aria-label="Outils">
         <ToolButton id="tool-measure" icon="measure" label="Mesurer" hint="Mesurer une arête, une face ou une distance" availability={a.measure} onClick={() => c.startMeasure()} />
       </div>
     </>
@@ -621,7 +621,7 @@ function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTM
       delete el.dataset.overflow;
       delete el.dataset.compact;
       if (!overflowing()) return;
-      for (const level of ['1', '2', '3']) {
+      for (const level of ['1', '2', '3', '4']) {
         el.dataset.compact = level;
         if (!overflowing()) return;
       }
