@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { exportAvailability, measureAvailability, sketchAvailability, toolAvailability, toolFeatureTypes, type Availability } from '../app/availability';
 import { FEATURE_DEFINITIONS } from '../features/registry';
 import { allows } from '../app/levels';
@@ -597,14 +597,83 @@ function SketchTools() {
   );
 }
 
+/**
+ * Compactage automatique de la barre (voir app.css, « Barre d'outils : compactage automatique ») :
+ * la barre est mesurée à chaque changement de taille ou de contenu ; tant qu'elle déborde, on
+ * passe au palier suivant ; en dernier recours, les derniers groupes d'outils vont dans le tiroir
+ * « Plus ». Les mesures modifient directement les attributs (pas d'état Preact : pas de boucle).
+ */
+function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTMLElement | null }, expanded: boolean) {
+  useLayoutEffect(() => {
+    const el = bar.current;
+    const tools = nav.current;
+    if (!el || !tools || expanded) return;
+    let frame = 0;
+    const overflowing = () => el.scrollWidth > el.clientWidth + 1;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      const groups = Array.from(tools.querySelectorAll<HTMLElement>(':scope > .toolbar-group'));
+      groups.forEach((g) => g.classList.remove('is-overflow'));
+      delete el.dataset.overflow;
+      delete el.dataset.compact;
+      if (!overflowing()) return;
+      for (const level of ['1', '2', '3']) {
+        el.dataset.compact = level;
+        if (!overflowing()) return;
+      }
+      // Toujours trop large : les derniers groupes passent dans le tiroir « Plus » (le premier reste).
+      el.dataset.overflow = '1';
+      for (let i = groups.length - 1; i >= 1 && overflowing(); i--) groups[i]!.classList.add('is-overflow');
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(fit);
+    };
+    fit();
+    const resize = new ResizeObserver(schedule);
+    resize.observe(el);
+    // Le contenu change avec l'onglet, l'opération en cours, le niveau…
+    const mutation = new MutationObserver(schedule);
+    mutation.observe(tools, { childList: true, subtree: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      mutation.disconnect();
+      window.removeEventListener('resize', schedule);
+    };
+  }, [expanded]);
+}
+
 export function TopBar() {
   const c = useController();
+  const barRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const [expanded, setExpanded] = useState<{ width: number } | null>(null);
+  useToolbarFit(barRef, navRef, !!expanded);
+  const close = () => setExpanded(null);
+  useEffect(() => {
+    if (!expanded) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!navRef.current?.contains(t) && !(t as Element).closest?.('.toolbar-more, .menu')) close();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+    };
+  }, [!!expanded]);
   const mode = useAppState((s) => s.mode.kind);
   const workspace = useAppState((s) => s.workspace);
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const leftShown = useAppState((s) => (window.matchMedia('(max-width: 980px)').matches ? s.leftPanelOpen : !s.leftPanelHidden));
   return (
-    <header class="topbar">
+    <header class="topbar" ref={barRef}>
       <IconButton
         icon="panel"
         label="Afficher ou masquer le panneau des pièces"
@@ -618,10 +687,31 @@ export function TopBar() {
       <FileMenu />
       <ProjectName />
       {mode === 'model' || mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? <WorkspaceTabs /> : null}
-      <nav class="toolbar" aria-label="Outils">
+      {expanded ? <div class="toolbar-placeholder" style={{ width: `${expanded.width}px` }} /> : null}
+      <nav
+        class={`toolbar${expanded ? ' is-expanded' : ''}`}
+        aria-label="Outils"
+        ref={navRef}
+        onClick={(e) => {
+          // Tiroir ouvert : il se referme après un outil (pas après l'ouverture d'un menu).
+          const button = (e.target as Element).closest('button');
+          if (expanded && button && !button.hasAttribute('aria-haspopup')) close();
+        }}
+      >
         <UndoRedo />
         {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
       </nav>
+      <button
+        type="button"
+        class="tool-btn toolbar-more"
+        aria-expanded={!!expanded}
+        aria-label="Plus d’outils"
+        title="Plus d’outils : la barre est trop étroite pour tous les montrer"
+        onClick={() => (expanded ? close() : setExpanded({ width: navRef.current?.offsetWidth ?? 0 }))}
+      >
+        <Icon name="more" />
+        <span>Plus</span>
+      </button>
       <div class="spacer" />
       <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
       <ToolButton icon="help" label="Aide" shortcut="F1" hint="Aide : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} />

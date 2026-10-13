@@ -586,6 +586,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M14 19.5l1-3.5 5-5 2.5 2.5-5 5z" />
     </>
   ),
+  /** Plus d'outils (trois points). */
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.6" fill="currentColor" />
+    </>
+  ),
   /** Lecture (animer). */
   play: <path d="M8 5.5v13l10.5-6.5z" />,
   /** Visserie : vis à tête cylindrique, vue de côté. */
