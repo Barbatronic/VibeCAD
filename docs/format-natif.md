@@ -122,6 +122,7 @@ recalculé à l'ouverture.
 | --- | --- | --- |
 | `plane` | `plane` : `XY`, `XZ` ou `YZ` ; `offset` (mm) | plan d'origine (décalé le long de sa normale). XY : vu de dessus (normale +Z) ; XZ : vu de face (normale −Y) ; YZ : vu de droite (normale +X), comme FreeCAD |
 | `face` | `ref` : `{ featureId, role, entityId?, index? }` | face plane désignée par une **référence sémantique** : `end` / `start` (faces d'arrivée / de départ d'une extrusion ou d'une poche), `side` + `entityId` (face latérale engendrée par cet élément d'esquisse ; des segments alignés ou des arcs d'un même cercle qui se suivent donnent une seule face, désignée par chacun d'eux), `imported` + `index` (face d'un solide importé), `blend` + `index` (face créée par un congé ou un chanfrein) |
+| `datum` | `featureId` | plan de construction (étape `plane` placée avant l'esquisse) ; l'esquisse prend son repère. S'il n'existe plus : `SUPPORT_LOST` |
 
 **Éléments** (`entities`), coordonnées en mm dans le repère de l'esquisse :
 
@@ -377,12 +378,29 @@ répétée ou reproduite par symétrie.
 
 `source` : `{ "kind": "part" }` (le reflet de toute la pièce est ajouté) ou
 `{ "kind": "feature", "featureId": "po-…" }` (le volume ajouté ou retiré par cette étape est
-reproduit). `plane` : `{ "kind": "plane", "plane": "XY" | "XZ" | "YZ" }` (plan d'origine) ou
-`{ "kind": "face", "ref": faceRef }` (face plane de la pièce). Faces du reflet : symétrie d'une
+reproduit). `plane` : `{ "kind": "plane", "plane": "XY" | "XZ" | "YZ" }` (plan d'origine),
+`{ "kind": "face", "ref": faceRef }` (face plane de la pièce) ou `{ "kind": "datum", "featureId":
+"pl-…" }` (plan de construction ; même forme pour le plan de la découpe et le plan neutre de la
+dépouille, ajoutée le 13 octobre 2026). Faces du reflet : symétrie d'une
 étape, comme une copie de répétition (`index` = 1) ; symétrie de la pièce, `featureId` = la
 symétrie, `role` d'origine, `entityId` = « <étape d'origine>/<élément> », `index` d'origine.
 Erreur `MIRROR_PLANE_LOST` si la face n'existe plus ; avertissement `MIRROR_NOTHING_ADDED` si le
 reflet se superpose à la pièce.
+
+### Plan de construction (`"type": "plane"`)
+
+```json
+{ "id": "pl-…", "type": "plane", "name": "Plan 1", "dependsOn": [],
+  "params": { "base": { "kind": "plane", "plane": "XY" }, "offset": 20, "angle": 0,
+              "hinge": { "kind": "axis", "axis": "X" } } }
+```
+
+Un plan qui ne change pas la pièce : `base` (plan d'origine, face plane ou autre plan de
+construction, même forme que le `plane` d'une symétrie) est décalé de `offset` mm le long de sa
+normale, puis tourné de `angle` degrés autour de `hinge` (axe `X`, `Y`, `Z` passant par
+l'origine, ou arête droite `{ "kind": "edge", "edge": edgeRef }`, comme l'axe d'une répétition ;
+ignoré si `angle` vaut 0). Il sert de support d'esquisse (`support.kind = "datum"`), de plan de
+symétrie, de découpe ou de plan neutre. Erreurs : `PLANE_BASE_LOST`, `PLANE_HINGE_LOST`.
 
 ### Solide importé (`"type": "imported-solid"`)
 
