@@ -1,0 +1,526 @@
+{
+  "format": "vibecad",
+  "schemaVersion": 1,
+  "generator": {
+    "name": "VibeCAD",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-12T08:00:00.000Z",
+  "document": {
+    "id": "doc-reference",
+    "name": "Projet de référence (schéma 1)",
+    "units": "mm",
+    "createdAt": "2026-10-12T08:00:00.000Z",
+    "modifiedAt": "2026-10-12T08:00:00.000Z",
+    "parts": [
+      {
+        "id": "part-lwxux961",
+        "name": "Pièce 1",
+        "color": "#4f86c6",
+        "visible": true,
+        "features": [
+          {
+            "id": "sk-31bhlv8f",
+            "type": "sketch",
+            "name": "Esquisse 1",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 60,
+                  "y": 0
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 60,
+                  "y": 0
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 60,
+                  "y": 30
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 60,
+                  "y": 30
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": 0,
+                  "y": 30
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": 0,
+                  "y": 30
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 60,
+                  "id": "k10"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 30,
+                  "id": "k11"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-rmtnxmk8",
+            "type": "extrude",
+            "name": "Extrusion 1",
+            "params": {
+              "sketchId": "sk-31bhlv8f",
+              "distance": 5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-31bhlv8f"
+            ]
+          },
+          {
+            "id": "sk-m0vu8dz4",
+            "type": "sketch",
+            "name": "Esquisse 2",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "face",
+                "ref": {
+                  "featureId": "ex-rmtnxmk8",
+                  "role": "end"
+                }
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 15,
+                  "y": 15
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 3
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 6,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 15,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 15,
+                  "id": "k3"
+                }
+              ]
+            },
+            "dependsOn": [
+              "ex-rmtnxmk8"
+            ]
+          },
+          {
+            "id": "po-ar2uiljr",
+            "type": "pocket",
+            "name": "Poche 1",
+            "params": {
+              "sketchId": "sk-m0vu8dz4",
+              "extent": {
+                "kind": "throughAll"
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-m0vu8dz4"
+            ]
+          }
+        ]
+      }
+    ],
+    "resources": {},
+    "assembly": {
+      "instances": [
+        {
+          "id": "in-1",
+          "partId": "part-lwxux961",
+          "name": "Plaque",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "in-2",
+          "partId": "part-lwxux961",
+          "name": "Plaque (2)",
+          "position": {
+            "x": 80,
+            "y": 0,
+            "z": 0
+          }
+        }
+      ],
+      "joints": [
+        {
+          "id": "jt-1",
+          "name": "Liaison 1",
+          "kind": "revolute",
+          "moving": {
+            "instanceId": "in-2",
+            "lcs": {
+              "kind": "circle",
+              "edge": {
+                "faces": [
+                  {
+                    "featureId": "po-ar2uiljr",
+                    "role": "side",
+                    "entityId": "c1"
+                  },
+                  {
+                    "featureId": "ex-rmtnxmk8",
+                    "role": "start"
+                  }
+                ]
+              }
+            }
+          },
+          "base": {
+            "instanceId": "in-1",
+            "lcs": {
+              "kind": "circle",
+              "edge": {
+                "faces": [
+                  {
+                    "featureId": "po-ar2uiljr",
+                    "role": "side",
+                    "entityId": "c1"
+                  },
+                  {
+                    "featureId": "ex-rmtnxmk8",
+                    "role": "end"
+                  }
+                ]
+              }
+            }
+          },
+          "flip": false,
+          "angle": 30,
+          "offset": 0,
+          "angleLimits": [
+            0,
+            90
+          ]
+        }
+      ],
+      "fasteners": [
+        {
+          "id": "fs-1",
+          "kind": "iso7089",
+          "size": "M6",
+          "at": {
+            "instanceId": "in-2",
+            "edge": {
+              "faces": [
+                {
+                  "featureId": "po-ar2uiljr",
+                  "role": "side",
+                  "entityId": "c1"
+                },
+                {
+                  "featureId": "ex-rmtnxmk8",
+                  "role": "end"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "fs-2",
+          "kind": "iso4762",
+          "size": "M6",
+          "length": 16,
+          "at": {
+            "instanceId": "in-2",
+            "edge": {
+              "faces": [
+                {
+                  "featureId": "po-ar2uiljr",
+                  "role": "side",
+                  "entityId": "c1"
+                },
+                {
+                  "featureId": "ex-rmtnxmk8",
+                  "role": "end"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "fs-3",
+          "kind": "iso4032",
+          "size": "M6",
+          "at": {
+            "instanceId": "in-1",
+            "edge": {
+              "faces": [
+                {
+                  "featureId": "po-ar2uiljr",
+                  "role": "side",
+                  "entityId": "c1"
+                },
+                {
+                  "featureId": "ex-rmtnxmk8",
+                  "role": "start"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "fabrication": {
+      "print": {
+        "bed": {
+          "x": 220,
+          "y": 220,
+          "z": 250
+        },
+        "spacing": 5,
+        "items": [
+          {
+            "partId": "part-lwxux961",
+            "copies": 2,
+            "scale": 100,
+            "downFace": {
+              "featureId": "ex-rmtnxmk8",
+              "role": "start"
+            }
+          }
+        ]
+      },
+      "laser": {
+        "materials": [
+          {
+            "id": "mat-3",
+            "name": "Contreplaqué 3 mm",
+            "thickness": 3,
+            "sheet": {
+              "w": 300,
+              "h": 200
+            },
+            "kerf": 0.15
+          },
+          {
+            "id": "mat-5",
+            "name": "Contreplaqué 5 mm",
+            "thickness": 5,
+            "sheet": {
+              "w": 300,
+              "h": 200
+            },
+            "kerf": 0.15
+          },
+          {
+            "id": "mat-acr-3",
+            "name": "Acrylique 3 mm",
+            "thickness": 3,
+            "sheet": {
+              "w": 300,
+              "h": 200
+            },
+            "kerf": 0.1
+          },
+          {
+            "id": "mat-acr-5",
+            "name": "Acrylique 5 mm",
+            "thickness": 5,
+            "sheet": {
+              "w": 300,
+              "h": 200
+            },
+            "kerf": 0.1
+          }
+        ],
+        "spacing": 4,
+        "items": [
+          {
+            "partId": "part-lwxux961",
+            "copies": 1,
+            "materialId": "mat-acr-5"
+          }
+        ]
+      }
+    },
+    "simulation": {
+      "studies": [
+        {
+          "partId": "part-lwxux961",
+          "materialId": "pla",
+          "quality": "normal",
+          "fixed": [
+            {
+              "featureId": "ex-rmtnxmk8",
+              "role": "start"
+            }
+          ],
+          "load": {
+            "faces": [
+              {
+                "featureId": "ex-rmtnxmk8",
+                "role": "end"
+              }
+            ],
+            "kind": "mass",
+            "value": 2,
+            "direction": "-z"
+          }
+        },
+        {
+          "partId": "@assembly",
+          "materialId": "acrylic",
+          "quality": "coarse",
+          "fixed": [
+            {
+              "featureId": "ex-rmtnxmk8",
+              "role": "start",
+              "instanceId": "in-1"
+            }
+          ],
+          "load": {
+            "faces": [
+              {
+                "featureId": "ex-rmtnxmk8",
+                "role": "end",
+                "instanceId": "in-2"
+              }
+            ],
+            "kind": "force",
+            "value": 20,
+            "direction": "push"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -208,11 +208,20 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
   return x;
 }
 
+/** Champs connus du document (schéma 1). */
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'fabrication', 'simulation']);
+
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
   if (!o) return null;
   const units = o.units;
   if (units !== 'mm') v.error(`${path}.units`, 'seule l’unité « mm » est prise en charge');
+  // Format gelé (schéma 1) : une version plus récente peut ajouter des champs facultatifs. Ils sont
+  // ignorés ici, et seraient perdus au prochain enregistrement : on le dit.
+  const unknown = Object.keys(o).filter((k) => !DOCUMENT_FIELDS.has(k));
+  if (unknown.length) {
+    v.warnings.push(`Ce projet vient d’une version plus récente de ${APP_NAME} : ces informations sont ignorées et seront perdues si vous l’enregistrez ici (${unknown.join(', ')}).`);
+  }
   const parts = arr(v, o, 'parts', path).map((p, i) => readPart(v, p, `${path}.parts[${i}]`));
   const resourcesRaw = obj(v, o.resources ?? {}, `${path}.resources`) ?? {};
   const resources: Record<string, Resource> = {};
