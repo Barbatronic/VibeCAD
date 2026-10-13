@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { lcsFromPick, solveAssembly } from '../../src/app/assembly';
+import { explodeOffsets, lcsFromPick, meshBox, solveAssembly } from '../../src/app/assembly';
 import { addFeature, addPart, createDocument, findPart, makePrimitiveFeature } from '../../src/domain/document';
 import type { Assembly, AssemblyJoint, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
@@ -179,5 +179,22 @@ describe('assemblage : engrenages et crémaillères entre liaisons', () => {
     };
     const placed = solveAssembly(coupled, meshOf);
     expect(placed.solvedValues.get('jb')!.offset).toBeCloseTo(2 + (Math.PI * 20) / 4, 9);
+  });
+});
+
+describe('assemblage : vue éclatée', () => {
+  it('chaque barre s’écarte du socle le long de l’axe de son pivot, d’autant plus qu’elle est grande ; le socle ne bouge pas', () => {
+    const { assembly, meshOf } = fourBar();
+    const placed = solveAssembly(assembly, meshOf);
+    const offsets = explodeOffsets(assembly, placed, meshOf, 0.5);
+    expect(offsets.get('socle')).toEqual({ x: 0, y: 0, z: 0 });
+    const size = meshBox(meshOf(assembly.instances[1]!.partId)!).size;
+    const crank = offsets.get('manivelle')!;
+    // Pivot d'axe Z : la manivelle monte de la moitié de sa taille.
+    expect(Math.abs(crank.z)).toBeCloseTo(0.5 * size, 6);
+    expect(Math.hypot(crank.x, crank.y)).toBeCloseTo(0, 6);
+    // La bielle, posée sur la manivelle, s'écarte encore plus.
+    expect(Math.abs(offsets.get('bielle')!.z)).toBeGreaterThan(Math.abs(crank.z));
+    expect(explodeOffsets(assembly, placed, meshOf, 0).size).toBe(0);
   });
 });

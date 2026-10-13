@@ -639,6 +639,15 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M2.5 11l4-7h15l-4 7z" stroke-dasharray="2 2" />
     </>
   ),
+  /** Vue éclatée : deux blocs écartés, avec des flèches. */
+  explode: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <path d="M11.5 11.5l1 1" />
+      <path d="M17.5 3.5h3v3M3.5 17.5v3h3" />
+    </>
+  ),
   /** Axe de construction : une droite en traits d'axe, avec une flèche de rotation. */
   'datum-axis': (
     <>

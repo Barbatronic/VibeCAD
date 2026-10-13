@@ -29,10 +29,10 @@ import {
 } from '../sketch/session';
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
-import { jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
+import { explodeOffsets, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
-import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
+import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
 import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
 import { useAppState, useController } from './context';
@@ -69,6 +69,13 @@ function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderI
 function buildAssemblyInput(s: AppState): ViewportInput {
   const assembly = s.doc.assembly ?? { instances: [], joints: [] };
   const placement = solveAssembly(assembly, (partId) => s.display[partId]?.mesh);
+  // Vue éclatée : chaque pièce (et sa visserie) décalée, sans toucher au projet.
+  const exploded = s.explode > 0;
+  const offsets = exploded ? explodeOffsets(assembly, placement, (partId) => s.display[partId]?.mesh, s.explode) : null;
+  const shifted = (id: string, m: Mat4 | undefined): Mat4 | undefined => {
+    const o = offsets?.get(id);
+    return m && o ? multiply4(translation4(o), m) : m;
+  };
   const parts: ViewPartInput[] = assembly.instances.map((inst) => {
     const part = s.doc.parts.find((p) => p.id === inst.partId);
     const d = s.display[inst.partId];
@@ -79,7 +86,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
       appearance: 'normal',
-      matrix: placement.matrices.get(inst.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      matrix: shifted(inst.id, placement.matrices.get(inst.id)) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
     };
   });
   // Visserie : un objet par élément, placé sur son bord de trou (maillages partagés).
@@ -87,14 +94,14 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     ? placeFasteners(assembly, (partId) => s.display[partId]?.mesh, (id) => placement.matrices.get(id))
     : null;
   for (const f of assembly.fasteners ?? []) {
-    const matrix = fasteners?.matrices.get(f.id);
+    const matrix = shifted(f.at.instanceId, fasteners?.matrices.get(f.id));
     if (!matrix) continue;
     const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
     parts.push({ partId: `fs:${f.id}`, color: FASTENER_COLOR, visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
   }
   const markers: ViewMarker[] = [];
   const sel = s.assemblySelection;
-  if (sel?.kind === 'joint') {
+  if (sel?.kind === 'joint' && !exploded) {
     const f = placement.jointFrames.get(sel.id);
     if (f) markers.push({ origin: f.base.origin, axis: f.base.normal, role: 'base' }, { origin: f.moving.origin, axis: f.moving.normal, role: 'moving' });
   }
@@ -145,11 +152,11 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     if (mesh) mesh.edges.forEach((_e, index) => selection.push({ partId: sel.id, kind: 'edge', index }));
   }
   // Outil Main : seules les pièces tenues par une liaison mobile peuvent être attrapées.
-  const dragTargets = s.assemblyHand && s.mode.kind === 'model'
+  const dragTargets = s.assemblyHand && s.mode.kind === 'model' && !exploded
     ? assembly.joints.filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset)).map((j) => j.moving.instanceId)
     : [];
   // Collisions : la matière commune à deux pièces, en rouge.
-  const highlightMeshes = s.collisionCheck && s.collisions ? s.collisions.items.map((c, i) => ({ key: `${s.collisions!.key}:${i}`, mesh: c.mesh })) : [];
+  const highlightMeshes = s.collisionCheck && s.collisions && !exploded ? s.collisions.items.map((c, i) => ({ key: `${s.collisions!.key}:${i}`, mesh: c.mesh })) : [];
   const lockedFace = s.mode.kind === 'joint' && s.mode.lockedFace ? { partId: s.mode.lockedFace.instanceId, index: s.mode.lockedFace.index } : null;
   if (lockedFace) selection.push({ partId: lockedFace.partId, kind: 'face', index: lockedFace.index });
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes };

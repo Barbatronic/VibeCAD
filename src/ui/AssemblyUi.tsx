@@ -136,6 +136,7 @@ export function AssemblyTools() {
       joint: st.mode.kind === 'joint',
       hand: st.assemblyHand,
       collisions: st.collisionCheck,
+      exploded: st.explode > 0,
       count: st.doc.assembly?.instances.length ?? 0,
       sel: st.assemblySelection,
     }),
@@ -161,6 +162,15 @@ export function AssemblyTools() {
           pressed={s.collisions}
           availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
           onClick={() => c.toggleCollisions()}
+        />
+        <ToolButton
+          id="as-explode"
+          icon="explode"
+          label="Éclater"
+          hint="Vue éclatée : écarter les pièces pour voir comment elles s’emboîtent (le projet ne change pas)"
+          pressed={s.exploded}
+          availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
+          onClick={() => c.setExplode(s.exploded ? 0 : 0.6)}
         />
         <ToolButton
           id="as-joint"
@@ -202,6 +212,25 @@ export function AssemblyTools() {
         <ToolButton icon="export" label="GLB" hint="Exporter l’assemblage en GLB (3D pour le web, présentation), visserie comprise" availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }} onClick={() => c.showExportDialog('glb')} />
       </div>
     </>
+  );
+}
+
+/** Écartement de la vue éclatée (visible tant qu'elle est active). */
+function ExplodeSlider() {
+  const c = useController();
+  const explode = useAppState((s) => s.explode);
+  if (explode <= 0) return null;
+  return (
+    <div class="field explode-field">
+      <label class="field-label" for="as-explode-amount">
+        Vue éclatée : écartement
+      </label>
+      <input id="as-explode-amount" type="range" min={0.1} max={2} step={0.05} value={explode} onInput={(e) => c.setExplode(Number((e.target as HTMLInputElement).value))} />
+      <span class="field-help">Chaque pièce s’écarte le long de l’axe de sa liaison. Rien n’est modifié dans le projet.</span>
+      <Button small icon="close" onClick={() => c.setExplode(0)}>
+        Rassembler
+      </Button>
+    </div>
   );
 }
 
@@ -256,6 +285,7 @@ export function AssemblySection() {
             </li>
           ))}
         </ul>
+        <ExplodeSlider />
         <CollisionReport />
         {data.joints.length > 0 ? <h3 class="list-title">Liaisons</h3> : null}
         <ul class="feature-list" aria-label="Liaisons de l’assemblage">

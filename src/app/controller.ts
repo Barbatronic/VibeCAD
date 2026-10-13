@@ -2446,9 +2446,22 @@ export class AppController {
     this.set({ mode: { ...mode, lockedFace: { instanceId: h.partId, index: h.index } } });
   }
 
+  /**
+   * Vue éclatée : écarte les pièces de l'assemblage pour voir comment elles s'emboîtent (affichage
+   * seulement, le projet ne change pas). La main et la création de liaison sont alors coupées.
+   */
+  setExplode(value: number): void {
+    const explode = Math.max(0, Math.min(2, value));
+    if (explode > 0 && this.state.mode.kind === 'joint') this.set({ mode: model });
+    // Entrée et sortie de la vue éclatée : la vue recadre l'ensemble.
+    const toggled = explode > 0 !== this.state.explode > 0;
+    this.set({ explode, ...(explode > 0 ? { assemblyHand: false } : {}), ...(toggled ? { fitRequest: this.state.fitRequest + 1 } : {}) });
+  }
+
   /** Outil Main : attraper les pièces de l'assemblage à la souris (ou seulement tourner la vue). */
   toggleAssemblyHand(on?: boolean): void {
     const hand = on ?? !this.state.assemblyHand;
+    if (hand && this.state.explode > 0) this.set({ explode: 0 });
     if (hand && this.state.mode.kind === 'joint') this.set({ mode: model });
     this.set({ assemblyHand: hand });
   }

@@ -195,6 +195,8 @@ export interface AppState {
   assemblySelection: AssemblySelection;
   /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
   assemblyHand: boolean;
+  /** Vue éclatée de l'assemblage : écartement des pièces (0 : assemblées). Affichage seulement. */
+  explode: number;
   /** Liaison qui mène l'animation du mécanisme en cours. */
   jointAnimation: Id | null;
   /** Barre de retour en arrière, par pièce (voir `rollback.ts`). */
@@ -246,6 +248,7 @@ export function initialState(): AppState {
     workspace: 'parts',
     fabricationTab: 'print',
     assemblyHand: false,
+    explode: 0,
     jointAnimation: null,
     fabricationPart: null,
     printPlate: 0,

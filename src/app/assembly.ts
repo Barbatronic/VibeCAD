@@ -422,6 +422,83 @@ export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshDa
   return { matrices, jointFrames, issues, solvedValues, closingJoints: new Set(closing.map((j) => j.id)) };
 }
 
+/** Centre et taille (diagonale) de la boîte d'un maillage, dans le repère de la pièce. */
+const meshBoxCache = new WeakMap<MeshData, { center: Vec3; size: number }>();
+export function meshBox(mesh: MeshData): { center: Vec3; size: number } {
+  let box = meshBoxCache.get(mesh);
+  if (!box) {
+    const p = mesh.positions;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < p.length; i += 3) {
+      for (let k = 0; k < 3; k++) {
+        min[k] = Math.min(min[k]!, p[i + k]!);
+        max[k] = Math.max(max[k]!, p[i + k]!);
+      }
+    }
+    box = p.length
+      ? { center: { x: (min[0]! + max[0]!) / 2, y: (min[1]! + max[1]!) / 2, z: (min[2]! + max[2]!) / 2 }, size: Math.hypot(max[0]! - min[0]!, max[1]! - min[1]!, max[2]! - min[2]!) }
+      : { center: { x: 0, y: 0, z: 0 }, size: 0 };
+    meshBoxCache.set(mesh, box);
+  }
+  return box;
+}
+
+/**
+ * Vue éclatée : décalage (monde) de chaque pièce insérée, pour `factor` de 0 (assemblée) à 1 et
+ * plus. Une pièce tenue par une liaison s'écarte de sa pièce de référence le long de l'axe de la
+ * liaison (une goupille sort de son trou, une plaque posée se soulève), de `factor` fois sa
+ * taille, en plus du décalage de sa pièce de référence. Les pièces libres s'écartent du centre de
+ * l'assemblage ; la pièce fixe ne bouge pas.
+ */
+export function explodeOffsets(assembly: Assembly, placement: AssemblyPlacement, meshOf: (partId: Id) => MeshData | null | undefined, factor: number): Map<Id, Vec3> {
+  const offsets = new Map<Id, Vec3>();
+  const zero = { x: 0, y: 0, z: 0 };
+  if (factor <= 0) return offsets;
+  const fixed = assembly.instances[0]?.id;
+  const holder = new Map<Id, AssemblyJoint>();
+  for (const j of assembly.joints) if (!holder.has(j.moving.instanceId) && placement.jointFrames.has(j.id)) holder.set(j.moving.instanceId, j);
+  const box = (id: Id) => {
+    const inst = assembly.instances.find((i) => i.id === id);
+    const mesh = inst && meshOf(inst.partId);
+    return mesh ? meshBox(mesh) : null;
+  };
+  const worldCenter = (id: Id): Vec3 | null => {
+    const b = box(id);
+    const m = placement.matrices.get(id);
+    return b && m ? { x: m[0]! * b.center.x + m[4]! * b.center.y + m[8]! * b.center.z + m[12]!, y: m[1]! * b.center.x + m[5]! * b.center.y + m[9]! * b.center.z + m[13]!, z: m[2]! * b.center.x + m[6]! * b.center.y + m[10]! * b.center.z + m[14]! } : null;
+  };
+  const centers = assembly.instances.map((i) => worldCenter(i.id)).filter((c): c is Vec3 => !!c);
+  const middle = centers.length ? scale3(centers.reduce((a, c) => ({ x: a.x + c.x, y: a.y + c.y, z: a.z + c.z }), zero), 1 / centers.length) : zero;
+  const visiting = new Set<Id>();
+  const offsetOf = (id: Id): Vec3 => {
+    const known = offsets.get(id);
+    if (known) return known;
+    if (id === fixed) {
+      offsets.set(id, zero);
+      return zero;
+    }
+    if (visiting.has(id)) return zero;
+    visiting.add(id);
+    const j = holder.get(id);
+    const size = box(id)?.size ?? 0;
+    let out: Vec3;
+    if (j) {
+      const axis = placement.jointFrames.get(j.id)!.base.normal;
+      const base = offsetOf(j.base.instanceId);
+      out = { x: base.x + axis.x * size * factor, y: base.y + axis.y * size * factor, z: base.z + axis.z * size * factor };
+    } else {
+      const c = worldCenter(id);
+      out = c ? scale3(sub3(c, middle), factor) : zero;
+    }
+    visiting.delete(id);
+    offsets.set(id, out);
+    return out;
+  };
+  for (const i of assembly.instances) offsetOf(i.id);
+  return offsets;
+}
+
 /** Résout A x = b (petit système, pivot partiel) ; null si singulier. */
 function solveLinear(Ain: number[][], bIn: number[]): number[] | null {
   const n = bIn.length;

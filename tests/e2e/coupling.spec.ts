@@ -42,3 +42,20 @@ test('engrenage sélectionné : la touche Suppr supprime l’engrenage, pas une 
   await page.keyboard.press('Delete');
   await expect.poll(() => appState(page, (s) => [s.doc.assembly.couplings?.length ?? 0, s.doc.assembly.instances.length])).toEqual([0, 3]);
 });
+
+test('vue éclatée : les pièces s’écartent à l’affichage, le projet ne change pas', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), twoPivots());
+  await page.click('#tab-assembly');
+  const before = await appState(page, (s) => JSON.stringify(s.doc));
+  await page.click('#as-explode');
+  await expect(page.locator('#as-explode-amount')).toBeVisible();
+  await page.locator('#as-explode-amount').fill('1.2');
+  await expect.poll(() => appState(page, (s) => s.explode)).toBe(1.2);
+  expect(await appState(page, (s) => JSON.stringify(s.doc))).toBe(before);
+  await page.evaluate(() => (window as any).vibecad.controller.setView('front'));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: 'tests/output/e2e-vue-eclatee.png' });
+  await page.getByRole('button', { name: 'Rassembler' }).click();
+  await expect(page.locator('#as-explode-amount')).toBeHidden();
+});
