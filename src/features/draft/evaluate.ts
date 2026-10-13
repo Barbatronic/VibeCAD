@@ -2,6 +2,7 @@ import type { DraftFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
 import { scale3, vec3, type Vec3 } from '../../math/vec';
 import type { FeatureEvaluator } from '../evaluation';
+import { resolvePlaneRef } from '../plane/resolve';
 import { draftDefinition } from './definition';
 
 export const evaluateDraft: FeatureEvaluator<DraftFeature> = (feature, ctx) => {
@@ -19,10 +20,11 @@ export const evaluateDraft: FeatureEvaluator<DraftFeature> = (feature, ctx) => {
     origin = vec3(0, 0, 0);
     direction = p.neutral.plane === 'XY' ? vec3(0, 0, 1) : p.neutral.plane === 'XZ' ? vec3(0, 1, 0) : vec3(1, 0, 0);
   } else {
-    const found = ctx.kernel.findFacePlane(ctx.shape, p.neutral.ref);
-    if (found.status !== 'found') return { status: issue(feature.id, 'error', 'DRAFT_NEUTRAL_LOST', { relatedFeatureId: p.neutral.ref.featureId }) };
-    origin = found.origin;
-    direction = scale3(found.normal, -1);
+    const found = resolvePlaneRef(p.neutral, ctx);
+    if (!found.ok) return { status: issue(feature.id, 'error', 'DRAFT_NEUTRAL_LOST', { relatedFeatureId: found.relatedFeatureId }) };
+    origin = found.frame.origin;
+    // Face : vers l'intérieur de la pièce ; plan de construction : le long de sa normale.
+    direction = p.neutral.kind === 'face' ? scale3(found.frame.normal, -1) : found.frame.normal;
   }
   if (p.reversed) direction = scale3(direction, -1);
   const r = ctx.kernel.draft(ctx.shape, { featureId: feature.id, faces: p.faces, angle: p.angle, origin, direction });

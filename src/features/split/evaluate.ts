@@ -4,6 +4,7 @@ import type { KernelShape } from '../../geometry/kernel';
 import { add3, length3, scale3, vec3, type Vec3 } from '../../math/vec';
 import type { FeatureEvaluator } from '../evaluation';
 import { halfSpace } from '../half-space';
+import { resolvePlaneRef } from '../plane/resolve';
 import { SPLIT_AXIS, splitDefinition } from './definition';
 
 /**
@@ -24,10 +25,10 @@ export const evaluateSplit: FeatureEvaluator<SplitFeature> = (feature, ctx) => {
     normal = vec3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0);
     origin = scale3(normal, p.offset);
   } else {
-    const found = kernel.findFacePlane(ctx.shape, p.plane.ref);
-    if (found.status !== 'found') return { status: issue(feature.id, 'error', 'SPLIT_PLANE_LOST', { relatedFeatureId: p.plane.ref.featureId }) };
-    normal = found.normal;
-    origin = add3(found.origin, scale3(found.normal, p.offset));
+    const found = resolvePlaneRef(p.plane, ctx);
+    if (!found.ok) return { status: issue(feature.id, 'error', 'SPLIT_PLANE_LOST', { relatedFeatureId: found.relatedFeatureId }) };
+    normal = found.frame.normal;
+    origin = add3(found.frame.origin, scale3(normal, p.offset));
   }
   // Demi-espaces : boîtes assez grandes pour contenir toute la pièce.
   const { min, max } = ctx.shapeAnalysis.bbox;

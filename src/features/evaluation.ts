@@ -46,6 +46,8 @@ export interface EvaluationContext {
   shapeAnalysis: ShapeAnalysis | null;
   /** Esquisses déjà évaluées dans cette pièce, par identifiant. */
   sketches: ReadonlyMap<Id, EvaluatedSketch>;
+  /** Plans de construction déjà calculés dans cette pièce, par identifiant. */
+  datums: ReadonlyMap<Id, Frame3D>;
   /** Corps outils des étapes précédentes (volume ajouté ou retiré), pour la répétition. */
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
   /** Solides d'une ressource STEP embarquée (lecture mise en cache par le moteur). */
@@ -62,6 +64,8 @@ export interface FeatureOutcome {
   /** Le corps outil a été ajouté (extrusion, révolution) ou retiré (poche) du solide. */
   toolMode?: 'add' | 'cut';
   sketch?: SketchEvaluation;
+  /** Plan de construction calculé (étape `plane`). */
+  datum?: Frame3D;
 }
 
 export type FeatureEvaluator<F extends Feature> = (feature: F, ctx: EvaluationContext) => FeatureOutcome;

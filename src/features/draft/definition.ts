@@ -1,6 +1,7 @@
 import { makeDraftFeature } from '../../domain/document';
 import type { DraftFeature } from '../../domain/model';
 import { formatNumber } from '../../domain/units';
+import { planeDependency } from '../plane/resolve';
 import type { FeatureDefinition, ParamIssue } from '../definition';
 
 export function validateDraftAngle(v: number): string | null {
@@ -18,7 +19,7 @@ export const draftDefinition: FeatureDefinition<DraftFeature> = {
   affectsSolid: true,
   dependencies: (feature) => {
     const p = feature.params;
-    return Array.from(new Set([...p.faces.map((f) => f.featureId), ...(p.neutral.kind === 'face' ? [p.neutral.ref.featureId] : [])]));
+    return Array.from(new Set([...p.faces.map((f) => f.featureId), ...planeDependency(p.neutral)]));
   },
   validate(feature) {
     const issues: ParamIssue[] = [];

@@ -10,6 +10,10 @@ import type { EvaluationContext, FeatureEvaluator, FeatureOutcome } from '../eva
 export function resolveSketchFrame(feature: SketchFeature, ctx: EvaluationContext): { frame: Frame3D } | { code: FeatureIssueCode } {
   const support = feature.params.support;
   if (support.kind === 'plane') return { frame: originPlaneFrame(support.plane, support.offset) };
+  if (support.kind === 'datum') {
+    const frame = ctx.datums.get(support.featureId);
+    return frame ? { frame } : { code: 'SUPPORT_LOST' };
+  }
   if (!ctx.shape) return { code: 'SUPPORT_LOST' };
   const found = ctx.kernel.findFacePlane(ctx.shape, support.ref);
   switch (found.status) {

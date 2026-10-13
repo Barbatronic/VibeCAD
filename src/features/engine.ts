@@ -14,6 +14,7 @@ import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
 import { issue, type FeatureStatus } from '../domain/status';
 import { KernelError, type GeometryKernel, type KernelShape, type MeshData, type MeshOptions, type ShapeAnalysis } from '../geometry/kernel';
+import type { Frame3D } from '../math/frame';
 import type { EvaluatedSketch, EvaluationContext, FeatureOutcome, ResourceProvider, SketchEvaluation } from './evaluation';
 import { evaluatorOf } from './evaluators';
 import { definitionOf } from './registry';
@@ -35,6 +36,8 @@ export interface PartEvaluation {
   /** Un statut par fonction, dans l'ordre de l'historique. */
   statuses: FeatureStatus[];
   sketches: SketchEvaluation[];
+  /** Plans de construction calculés, dans l'ordre de l'historique. */
+  datums: { featureId: Id; frame: Frame3D }[];
   /** Dernier solide valide de la pièce (null si aucun volume). */
   shape: KernelShape | null;
   /** Clé de l'étape qui a produit ce solide (sert de clé de cache au maillage). */
@@ -56,6 +59,7 @@ interface WalkState {
   analysis: ShapeAnalysis | null;
   failure: Id | null;
   sketches: ReadonlyMap<Id, EvaluatedSketch>;
+  datums: ReadonlyMap<Id, Frame3D>;
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
 }
 
@@ -125,6 +129,8 @@ export class RecomputeEngine {
     const statuses: FeatureStatus[] = [];
     const sketches: SketchEvaluation[] = [];
     const sketchMap = new Map<Id, EvaluatedSketch>();
+    const datumMap = new Map<Id, Frame3D>();
+    const datums: { featureId: Id; frame: Frame3D }[] = [];
     const tools = new Map<Id, KernelShape>();
     const toolModes = new Map<Id, { shape: KernelShape; mode: 'add' | 'cut' }>();
     const stepKeys = new Map<Id, string>();
@@ -134,7 +140,7 @@ export class RecomputeEngine {
       stepKeys.set(feature.id, key);
       let record = this.records.get(key);
       if (!record) {
-        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, tools: toolModes });
+        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, tools: toolModes });
         this.records.set(key, record);
       }
       record.lastUsed = gen;
@@ -146,6 +152,10 @@ export class RecomputeEngine {
       if (outcome.sketch) {
         sketches.push(outcome.sketch);
         sketchMap.set(feature.id, { evaluation: outcome.sketch, status: outcome.status });
+      }
+      if (outcome.datum) {
+        datumMap.set(feature.id, outcome.datum);
+        datums.push({ featureId: feature.id, frame: outcome.datum });
       }
       if (outcome.tool) tools.set(feature.id, outcome.tool);
       // Seul un volume réellement appliqué (étape sans erreur) peut être répété.
@@ -160,12 +170,15 @@ export class RecomputeEngine {
       if (!state.failure && record.failureAfter) failedFeatureId = feature.id;
       state.failure = record.failureAfter;
     }
-    return { partId: part.id, statuses, sketches, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys };
+    return { partId: part.id, statuses, sketches, datums, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys };
   }
 
   private computeStep(feature: Feature, key: string, state: WalkState): StepRecord {
     const def = definitionOf(feature);
-    const needsSolid = def.affectsSolid || (feature.type === 'sketch' && feature.params.support.kind === 'face');
+    const needsSolid =
+      def.affectsSolid ||
+      (feature.type === 'sketch' && feature.params.support.kind === 'face') ||
+      (feature.type === 'plane' && (feature.params.base.kind === 'face' || (feature.params.angle !== 0 && feature.params.hinge.kind === 'edge')));
     if (state.failure && needsSolid) {
       return {
         key,
@@ -179,6 +192,7 @@ export class RecomputeEngine {
       shape: state.shape,
       shapeAnalysis: state.analysis,
       sketches: state.sketches,
+      datums: state.datums,
       tools: state.tools,
       readStepSolids: (resourceId) => this.readStepSolids(resourceId),
     };

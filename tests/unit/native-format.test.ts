@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
-import { makeGearFeature, makeHoleFeature, makeMoveFeature } from '../../src/domain/document';
+import { makeGearFeature, makeHoleFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -73,6 +75,21 @@ describe('format natif .vibecad', () => {
     const hole = { ...base, params: { ...base.params, kind: 'counterbore' as const, size: 'M4' as const, fit: 'coarse' as const, through: false, depth: 4, reversed: true, headDiameter: 8, headDepth: 2 } };
     const parsed = parseNativeFile(serializeDocument({ ...doc, parts: [{ ...part, features: [...part.features, hole] }] }));
     expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(hole);
+  });
+
+  it('conserve un plan de construction, une esquisse posée dessus et une symétrie par ce plan (schéma respecté)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const base = makePlaneFeature(doc, part);
+    const plane = { ...base, params: { base: { kind: 'face' as const, ref: { featureId: ids.extrude, role: 'end' as const } }, offset: 3, angle: 30, hinge: { kind: 'axis' as const, axis: 'Y' as const } } };
+    const sketch = makeSketchFeature(doc, part, { kind: 'datum', featureId: plane.id });
+    const mirror = makeMirrorFeature(doc, part, { kind: 'part' }, { kind: 'datum', featureId: plane.id });
+    const next = { ...doc, parts: [{ ...part, features: [...part.features, plane, sketch, { ...mirror, id: 'mi-test' }] }] };
+    const text = serializeDocument(next);
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.parts[0]!.features.slice(-3)).toEqual(next.parts[0]!.features.slice(-3));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });
 
   it('conserve une étape « générateur » (poulie GT2 avec joues)', () => {

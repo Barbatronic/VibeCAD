@@ -6,6 +6,7 @@
  * Aucun objet du noyau n'est sérialisé : la géométrie est reconstruite à l'ouverture.
  */
 import type {
+  MirrorPlane,
   Assembly,
   AssemblyFastener,
   FabricationSettings,
@@ -516,7 +517,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -604,6 +605,13 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         },
       };
     }
+    case 'plane':
+      return {
+        id,
+        name,
+        type,
+        params: { base: readPlaneRef(v, p.base, `${pp}.base`), offset: num(v, p, 'offset', pp), angle: num(v, p, 'angle', pp), hinge: readPatternAxis(v, p.hinge, `${pp}.hinge`) },
+      };
     case 'hole':
       return {
         id,
@@ -657,8 +665,6 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
     case 'thicken':
       return { id, name, type, params: { distance: num(v, p, 'distance', pp), corners: oneOf(v, p, 'corners', pp, ['round', 'sharp'] as const) } };
     case 'draft': {
-      const pl = obj(v, p.neutral, `${pp}.neutral`) ?? {};
-      const plKind = oneOf(v, pl, 'kind', `${pp}.neutral`, ['plane', 'face'] as const);
       return {
         id,
         name,
@@ -666,20 +672,18 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         params: {
           faces: arr(v, p, 'faces', pp).map((f, i) => readFaceRef(v, f, `${pp}.faces[${i}]`)),
           angle: num(v, p, 'angle', pp, { min: 0, max: 90 }),
-          neutral: plKind === 'plane' ? { kind: 'plane', plane: oneOf(v, pl, 'plane', `${pp}.neutral`, ['XY', 'XZ', 'YZ'] as const) } : { kind: 'face', ref: readFaceRef(v, pl.ref, `${pp}.neutral.ref`) },
+          neutral: readPlaneRef(v, p.neutral, `${pp}.neutral`),
           reversed: p.reversed === true,
         },
       };
     }
     case 'split': {
-      const pl = obj(v, p.plane, `${pp}.plane`) ?? {};
-      const plKind = oneOf(v, pl, 'kind', `${pp}.plane`, ['plane', 'face'] as const);
       return {
         id,
         name,
         type,
         params: {
-          plane: plKind === 'plane' ? { kind: 'plane', plane: oneOf(v, pl, 'plane', `${pp}.plane`, ['XY', 'XZ', 'YZ'] as const) } : { kind: 'face', ref: readFaceRef(v, pl.ref, `${pp}.plane.ref`) },
+          plane: readPlaneRef(v, p.plane, `${pp}.plane`),
           offset: num(v, p, 'offset', pp),
           keep: oneOf(v, p, 'keep', pp, ['below', 'above', 'both'] as const),
           gap: num(v, p, 'gap', pp, { min: 0 }),
@@ -689,15 +693,13 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
     case 'mirror': {
       const src = obj(v, p.source, `${pp}.source`) ?? {};
       const srcKind = oneOf(v, src, 'kind', `${pp}.source`, ['part', 'feature'] as const);
-      const pl = obj(v, p.plane, `${pp}.plane`) ?? {};
-      const plKind = oneOf(v, pl, 'kind', `${pp}.plane`, ['plane', 'face'] as const);
       return {
         id,
         name,
         type,
         params: {
           source: srcKind === 'part' ? { kind: 'part' } : { kind: 'feature', featureId: str(v, src, 'featureId', `${pp}.source`) },
-          plane: plKind === 'plane' ? { kind: 'plane', plane: oneOf(v, pl, 'plane', `${pp}.plane`, ['XY', 'XZ', 'YZ'] as const) } : { kind: 'face', ref: readFaceRef(v, pl.ref, `${pp}.plane.ref`) },
+          plane: readPlaneRef(v, p.plane, `${pp}.plane`),
         },
       };
     }
@@ -756,6 +758,15 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   }
 }
 
+/** Plan désigné : plan d'origine, face plane ou plan de construction. */
+function readPlaneRef(v: Validator, x: unknown, path: string): MirrorPlane {
+  const pl = obj(v, x, path) ?? {};
+  const kind = oneOf(v, pl, 'kind', path, ['plane', 'face', 'datum'] as const);
+  if (kind === 'plane') return { kind, plane: oneOf(v, pl, 'plane', path, ['XY', 'XZ', 'YZ'] as const) };
+  if (kind === 'datum') return { kind, featureId: str(v, pl, 'featureId', path) };
+  return { kind: 'face', ref: readFaceRef(v, pl.ref, `${path}.ref`) };
+}
+
 function readPatternAxis(v: Validator, x: unknown, path: string): PatternAxis {
   const a = obj(v, x, path) ?? {};
   const kind = oneOf(v, a, 'kind', path, ['axis', 'edge'] as const);
@@ -790,7 +801,8 @@ function readEdges(v: Validator, p: Record<string, unknown>, path: string): Edge
 function readSupport(v: Validator, x: unknown, path: string): SketchSupport {
   const o = obj(v, x, path);
   if (!o) return { kind: 'plane', plane: 'XY', offset: 0 };
-  const kind = oneOf(v, o, 'kind', path, ['plane', 'face'] as const);
+  const kind = oneOf(v, o, 'kind', path, ['plane', 'face', 'datum'] as const);
+  if (kind === 'datum') return { kind, featureId: str(v, o, 'featureId', path) };
   if (kind === 'plane') {
     return { kind, plane: oneOf(v, o, 'plane', path, ['XY', 'XZ', 'YZ'] as const), offset: typeof o.offset === 'number' ? o.offset : 0 };
   }

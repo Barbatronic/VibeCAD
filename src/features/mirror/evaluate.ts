@@ -1,7 +1,7 @@
 import type { MirrorFeature } from '../../domain/model';
 import { issue, okStatus, type FeatureStatus } from '../../domain/status';
 import type { KernelShape } from '../../geometry/kernel';
-import { originPlaneFrame } from '../../math/frame';
+import { resolvePlaneRef } from '../plane/resolve';
 import type { FeatureEvaluator } from '../evaluation';
 import { mirrorDefinition } from './definition';
 
@@ -11,18 +11,9 @@ export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) =>
   if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
   const p = feature.params;
   // Plan de symétrie.
-  let origin;
-  let normal;
-  if (p.plane.kind === 'plane') {
-    const frame = originPlaneFrame(p.plane.plane);
-    origin = frame.origin;
-    normal = frame.normal;
-  } else {
-    const found = ctx.kernel.findFacePlane(ctx.shape, p.plane.ref);
-    if (found.status !== 'found') return { status: issue(feature.id, 'error', 'MIRROR_PLANE_LOST', { relatedFeatureId: p.plane.ref.featureId }) };
-    origin = found.origin;
-    normal = found.normal;
-  }
+  const found = resolvePlaneRef(p.plane, ctx);
+  if (!found.ok) return { status: issue(feature.id, 'error', 'MIRROR_PLANE_LOST', { relatedFeatureId: found.relatedFeatureId }) };
+  const { origin, normal } = found.frame;
   // Volume à copier : toute la pièce, ou le corps outil d'une étape.
   let source: { shape: KernelShape; mode: 'add' | 'cut' };
   if (p.source.kind === 'part') source = { shape: ctx.shape, mode: 'add' };

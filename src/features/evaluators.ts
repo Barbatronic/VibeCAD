@@ -11,6 +11,7 @@ import { evaluatePrimitive } from './primitive/evaluate';
 import { evaluateGear } from './gear/evaluate';
 import { evaluateMove } from './move/evaluate';
 import { evaluateHole } from './hole/evaluate';
+import { evaluatePlane } from './plane/evaluate';
 import { evaluateMirror } from './mirror/evaluate';
 import { evaluateChamfer } from './chamfer/evaluate';
 import { evaluateExtrude } from './extrude/evaluate';
@@ -30,6 +31,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   gear: evaluateGear,
   move: evaluateMove,
   hole: evaluateHole,
+  plane: evaluatePlane,
   pocket: evaluatePocket,
   revolve: evaluateRevolve,
   loft: evaluateLoft,

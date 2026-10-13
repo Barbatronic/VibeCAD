@@ -122,6 +122,8 @@ export interface ViewportInput {
    * `animation` : la pièce va et vient entre sa forme d'origine (`base`) et la déformée
    * (`base + scale × displacement`).
    */
+  /** Plans de construction à montrer (rectangle translucide nommé), `active` : celui en cours de modification. */
+  datumPlanes?: { key: string; frame: Frame3D; label: string; active?: boolean }[];
   resultMesh?: {
     key: string;
     positions: Float32Array;
@@ -439,6 +441,7 @@ export class Viewport {
     this.syncMarkedFaces(input.markedFaces ?? []);
     this.syncResultMesh(input.resultMesh ?? null);
     this.syncPoints(input.points ?? []);
+    this.syncDatumPlanes(input.datumPlanes ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
@@ -705,6 +708,65 @@ export class Viewport {
     this.requestRender();
   }
 
+  private datumObjects: Object3D[] = [];
+  private datumKey = '';
+
+  /**
+   * Plans de construction : un carré translucide centré sur la projection du milieu de la pièce,
+   * à la taille de la pièce, avec son nom.
+   */
+  private syncDatumPlanes(planes: NonNullable<ViewportInput['datumPlanes']>): void {
+    const box = this.partsBounds();
+    const center = box ? box.getCenter(new Vector3()) : new Vector3();
+    const size = box ? Math.max(30, box.getSize(new Vector3()).length() * 0.8) : 40;
+    const key = JSON.stringify([planes, center.toArray().map((v) => Math.round(v)), Math.round(size)]);
+    if (key === this.datumKey) return;
+    this.datumKey = key;
+    for (const o of this.datumObjects) {
+      o.parent?.remove(o);
+      o.traverse((x) => {
+        if (x instanceof Mesh || x instanceof LineSegments) {
+          x.geometry.dispose();
+          (x.material as Material).dispose();
+        }
+      });
+    }
+    this.datumObjects = [];
+    for (const p of planes) {
+      const color = p.active ? this.palette.selection : this.palette.axisZ;
+      const mesh = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color, transparent: true, opacity: p.active ? 0.22 : 0.1, side: DoubleSide, depthWrite: false }));
+      mesh.matrixAutoUpdate = false;
+      const outline = new LineSegments(
+        new BufferGeometry().setAttribute(
+          'position',
+          new Float32BufferAttribute([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0, -0.5, 0.5, 0, -0.5, -0.5, 0], 3),
+        ),
+        new LineBasicMaterial({ color, transparent: true, opacity: 0.9 }),
+      );
+      mesh.add(outline);
+      // Centre : le milieu de la pièce ramené sur le plan.
+      const local = worldToFrame(p.frame, { x: center.x, y: center.y, z: center.z });
+      const at = frameToWorld(p.frame, local);
+      const m = frameMatrix(p.frame);
+      m.scale(new Vector3(size, size, 1));
+      m.setPosition(at.x, at.y, at.z);
+      mesh.matrix.copy(m);
+      mesh.matrixWorldNeedsUpdate = true;
+      mesh.renderOrder = 2;
+      const el = document.createElement('span');
+      el.className = 'vp-tag vp-tag-plane vp-tag-datum';
+      el.textContent = p.label;
+      el.style.color = color;
+      el.style.borderColor = color;
+      const label = new CSS2DObject(el);
+      const corner = frameToWorld(p.frame, { x: local.x + size / 2, y: local.y + size / 2 });
+      label.position.set(corner.x, corner.y, corner.z);
+      this.overlayGroup.add(mesh, label);
+      this.datumObjects.push(mesh, label);
+    }
+    this.requestRender();
+  }
+
   private sectionOverlays: Object3D[] = [];
   private sectionKey = '';
 
@@ -911,6 +973,14 @@ export class Viewport {
 
   get projection(): Projection {
     return this.rig.projection;
+  }
+
+  /** Boîte des pièces visibles seulement (taille des plans de construction). */
+  private partsBounds(): Box3 | null {
+    const box = new Box3();
+    this.partsGroup.updateMatrixWorld(true);
+    for (const p of this.parts.values()) if (p.group.visible) box.expandByObject(p.faces);
+    return box.isEmpty() ? null : box;
   }
 
   private contentBounds(): Box3 | null {

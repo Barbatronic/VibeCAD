@@ -798,6 +798,22 @@
                           "$ref": "#/$defs/faceRef"
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
                     }
                   ]
                 }
@@ -1024,6 +1040,22 @@
                           "$ref": "#/$defs/faceRef"
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
                     }
                   ]
                 },
@@ -1105,6 +1137,22 @@
                           "$ref": "#/$defs/faceRef"
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
                     }
                   ]
                 },
@@ -1380,6 +1428,88 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "plane"
+            },
+            "params": {
+              "type": "object",
+              "description": "Plan de construction : base (plan d'origine, face plane ou autre plan de construction) décalée de offset (mm) le long de sa normale, puis inclinée de angle (°) autour de hinge (axe X/Y/Z par l'origine ou arête droite). Ne modifie pas la pièce.",
+              "required": [
+                "base",
+                "offset",
+                "angle",
+                "hinge"
+              ],
+              "properties": {
+                "base": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
+                    }
+                  ]
+                },
+                "offset": {
+                  "type": "number"
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "hinge": {
+                  "$ref": "#/$defs/patternAxis"
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -1465,6 +1595,22 @@
                   "$ref": "#/$defs/faceRef"
                 }
               }
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "featureId"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "datum"
+                },
+                "featureId": {
+                  "$ref": "#/$defs/id"
+                }
+              },
+              "description": "Plan de construction (étape « plane » placée avant)"
             }
           ]
         },

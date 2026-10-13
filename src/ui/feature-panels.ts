@@ -17,6 +17,7 @@ import { PrimitivePanel } from '../features/primitive/panel';
 import { GearPanel } from '../features/gear/panel';
 import { MovePanel } from '../features/move/panel';
 import { HolePanel } from '../features/hole/panel';
+import { PlanePanel } from '../features/plane/panel';
 import { ShellPanel } from '../features/shell/panel';
 import { RevolvePanel } from '../features/revolve/panel';
 import { SplitPanel } from '../features/split/panel';
@@ -34,6 +35,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   gear: GearPanel as FunctionComponent<FeaturePanelProps<never>>,
   move: MovePanel as FunctionComponent<FeaturePanelProps<never>>,
   hole: HolePanel as FunctionComponent<FeaturePanelProps<never>>,
+  plane: PlanePanel as FunctionComponent<FeaturePanelProps<never>>,
   shell: ShellPanel as FunctionComponent<FeaturePanelProps<never>>,
   thicken: ThickenPanel as FunctionComponent<FeaturePanelProps<never>>,
   draft: DraftPanel as FunctionComponent<FeaturePanelProps<never>>,

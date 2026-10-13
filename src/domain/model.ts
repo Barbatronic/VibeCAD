@@ -210,7 +210,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -246,6 +246,7 @@ export type DraftFeature = FeatureBase<'draft', DraftParams>;
 export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 export type MoveFeature = FeatureBase<'move', MoveParams>;
 export type HoleFeature = FeatureBase<'hole', HoleParams>;
+export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -257,7 +258,9 @@ export type HoleFeature = FeatureBase<'hole', HoleParams>;
  */
 export type SketchSupport =
   | { kind: 'plane'; plane: PlaneName; offset: number }
-  | { kind: 'face'; ref: FaceRef };
+  | { kind: 'face'; ref: FaceRef }
+  /** Plan de construction (étape `plane` de la même pièce, placée avant). */
+  | { kind: 'datum'; featureId: Id };
 
 /**
  * Référence sémantique et persistante d'une face générée :
@@ -557,8 +560,21 @@ export interface PatternParams {
   second?: PatternDirection;
 }
 
-/** Plan de symétrie : un plan d'origine (XY, XZ, YZ) ou une face plane de la pièce. */
-export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; ref: FaceRef };
+/** Plan de symétrie : un plan d'origine (XY, XZ, YZ), une face plane de la pièce ou un plan de construction. */
+export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; ref: FaceRef } | { kind: 'datum'; featureId: Id };
+
+/**
+ * Plan de construction : un plan d'origine, une face plane ou un autre plan de construction,
+ * décalé de `offset` mm le long de sa normale, puis incliné de `angle` degrés autour de la
+ * charnière `hinge` (axe X, Y ou Z passant par l'origine, ou arête droite de la pièce). Il ne
+ * change pas la pièce : il sert de support d'esquisse, de plan de symétrie ou de découpe.
+ */
+export interface DatumPlaneParams {
+  base: MirrorPlane;
+  offset: number;
+  angle: number;
+  hinge: PatternAxis;
+}
 
 /**
  * Symétrie (miroir) : la copie symétrique de toute la pièce, ou du volume ajouté / retiré par une

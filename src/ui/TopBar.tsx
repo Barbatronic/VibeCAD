@@ -252,6 +252,7 @@ const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
   { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
   { name: 'arrondis, coques et retouches', types: ['fillet', 'chamfer', 'shell', 'draft', 'thicken'] },
   { name: 'répétitions, symétries, découpes et déplacements', types: ['pattern', 'mirror', 'split', 'move'] },
+  { name: 'plans de construction', types: ['plane'] },
 ];
 
 /** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */

@@ -632,6 +632,13 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   /** Déplacer : flèches dans les quatre directions. */
+  /** Plan de construction : un plan vu en perspective et sa copie décalée (pointillés). */
+  'datum-plane': (
+    <>
+      <path d="M2.5 19l4-7h15l-4 7z" />
+      <path d="M2.5 11l4-7h15l-4 7z" stroke-dasharray="2 2" />
+    </>
+  ),
   /** Perçage : trou lamé vu en coupe, avec son axe. */
   hole: (
     <>

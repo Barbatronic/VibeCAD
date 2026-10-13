@@ -83,6 +83,7 @@ export class GeometryService {
       partId: ev.partId,
       statuses: ev.statuses,
       sketches,
+      planes: ev.datums,
       meshKey,
       mesh,
       analysis: ev.analysis,

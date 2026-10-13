@@ -1,9 +1,10 @@
 import { makeMirrorFeature } from '../../domain/document';
 import type { MirrorFeature, MirrorPlane } from '../../domain/model';
 import type { FeatureDefinition, ParamIssue } from '../definition';
+import { planeDependency } from '../plane/resolve';
 
 export function describeMirrorPlane(plane: MirrorPlane): string {
-  return plane.kind === 'plane' ? `le plan ${plane.plane}` : 'une face';
+  return plane.kind === 'plane' ? `le plan ${plane.plane}` : plane.kind === 'datum' ? 'un plan de construction' : 'une face';
 }
 
 export const mirrorDefinition: FeatureDefinition<MirrorFeature> = {
@@ -15,7 +16,7 @@ export const mirrorDefinition: FeatureDefinition<MirrorFeature> = {
   affectsSolid: true,
   dependencies: (feature) => {
     const p = feature.params;
-    return Array.from(new Set([...(p.source.kind === 'feature' ? [p.source.featureId] : []), ...(p.plane.kind === 'face' ? [p.plane.ref.featureId] : [])]));
+    return Array.from(new Set([...(p.source.kind === 'feature' ? [p.source.featureId] : []), ...planeDependency(p.plane)]));
   },
   validate(feature) {
     const issues: ParamIssue[] = [];

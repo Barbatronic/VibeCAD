@@ -1,6 +1,7 @@
 import { makeSplitFeature } from '../../domain/document';
 import type { MirrorPlane, SplitFeature, SplitKeep } from '../../domain/model';
 import { formatLength } from '../../domain/units';
+import { planeDependency } from '../plane/resolve';
 import type { FeatureDefinition, ParamIssue } from '../definition';
 
 /** Écart minimal entre les deux morceaux gardés (sinon ils se recolleraient). */
@@ -12,6 +13,7 @@ export const SPLIT_AXIS = { XY: 'z', XZ: 'y', YZ: 'x' } as const;
 /** Nom de chaque côté selon le plan, pour que « dessus » ait un sens (gauche/droite, avant/arrière). */
 export function splitSideLabels(plane: MirrorPlane): Record<Exclude<SplitKeep, 'both'>, string> {
   if (plane.kind === 'face') return { below: 'Côté pièce', above: 'Côté face' };
+  if (plane.kind === 'datum') return { below: 'Sous le plan', above: 'Au-dessus du plan' };
   if (plane.plane === 'XY') return { below: 'Le bas', above: 'Le haut' };
   if (plane.plane === 'XZ') return { below: 'L’avant (Y−)', above: 'L’arrière (Y+)' };
   return { below: 'La gauche (X−)', above: 'La droite (X+)' };
@@ -32,11 +34,11 @@ export const splitDefinition: FeatureDefinition<SplitFeature> = {
   explanation: 'Découpe : couper la pièce en deux par un plan, et garder un côté ou les deux morceaux (par exemple pour imprimer une pièce trop grande).',
   icon: 'split',
   affectsSolid: true,
-  dependencies: (feature) => (feature.params.plane.kind === 'face' ? [feature.params.plane.ref.featureId] : []),
+  dependencies: (feature) => planeDependency(feature.params.plane),
   validate: (feature) => splitIssues(feature.params),
   summary(feature) {
     const p = feature.params;
-    const plane = p.plane.kind === 'plane' ? `plan ${p.plane.plane} à ${formatLength(p.offset)}` : `une face, décalée de ${formatLength(p.offset)}`;
+    const plane = p.plane.kind === 'plane' ? `plan ${p.plane.plane} à ${formatLength(p.offset)}` : `${p.plane.kind === 'datum' ? 'un plan de construction' : 'une face'}, décalé${p.plane.kind === 'datum' ? '' : 'e'} de ${formatLength(p.offset)}`;
     const keep = p.keep === 'both' ? `deux morceaux écartés de ${formatLength(p.gap)}` : splitSideLabels(p.plane)[p.keep].toLowerCase();
     return `${plane} : ${keep}`;
   },

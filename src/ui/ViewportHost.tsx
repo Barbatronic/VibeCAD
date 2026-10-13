@@ -325,12 +325,28 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
 
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
-  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell');
+  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || s.mode.draft.feature.type === 'plane' || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell');
   // Centre de gravité de la pièce active (pièce entière : pas pendant une coupe ni une esquisse).
   const points: { at: Vec3; label: string }[] = [];
   const active = s.display[s.activePartId]?.result.analysis;
   if (s.showCentroid && allows(s.level, 'view-centroid') && !cut && mode !== 'sketch' && active?.centroid) points.push({ at: active.centroid, label: 'G' });
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points };
+  // Plans de construction des pièces affichées (hors esquisse) ; pendant la modification d'une
+  // étape, ceux de son aperçu. Celui modifié ou sélectionné est mis en avant.
+  const datumPlanes: NonNullable<ViewportInput['datumPlanes']> = [];
+  if (mode !== 'sketch' && !cut) {
+    const editing = s.mode.kind === 'feature' ? s.mode.draft.feature.id : null;
+    const selectedId = s.selection?.kind === 'feature' ? s.selection.featureId : null;
+    for (const part of s.doc.parts) {
+      if (!partShown(s, part)) continue;
+      const result = (s.mode.kind === 'feature' && s.mode.draft.partId === part.id ? s.preview?.parts[part.id] : undefined) ?? s.display[part.id]?.result;
+      for (const pl of result?.planes ?? []) {
+        const f = part.features.find((x) => x.id === pl.featureId);
+        const label = f?.name ?? (s.mode.kind === 'feature' && s.mode.draft.feature.id === pl.featureId ? s.mode.draft.feature.name : 'Plan');
+        datumPlanes.push({ key: pl.featureId, frame: pl.frame, label, active: pl.featureId === editing || pl.featureId === selectedId });
+      }
+    }
+  }
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {

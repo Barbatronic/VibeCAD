@@ -33,7 +33,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -754,6 +754,15 @@ export class AppController {
     this.beginSketchOn(mode.partId, { kind: 'plane', plane, offset: 0 }, originPlaneFrame(plane), mode.repairFeatureId);
   }
 
+  /** Esquisse sur un plan de construction de la pièce. */
+  pickDatum(featureId: Id): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'pick-support') return;
+    const frame = this.state.display[mode.partId]?.result.planes.find((p) => p.featureId === featureId)?.frame;
+    if (!frame) return this.explain('Ce plan de construction n’a pas pu être calculé : corrigez-le d’abord.');
+    this.beginSketchOn(mode.partId, { kind: 'datum', featureId }, frame, mode.repairFeatureId);
+  }
+
   sketchOnFace(partId: Id, faceIndex: number, repairFeatureId: Id | null): boolean {
     const display = this.state.display[partId];
     const face = display?.mesh?.faces[faceIndex];
@@ -919,6 +928,7 @@ export class AppController {
     if (feature.type === 'pattern') return this.pickPatternAxis(pick, feature);
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
     if (feature.type === 'split') return this.pickSplitPlane(pick, feature);
+    if (feature.type === 'plane') return this.pickDatumPlane(pick, feature);
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
     if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
@@ -1044,6 +1054,32 @@ export class AppController {
     const next: SplitFeature = { ...feature, params: { ...feature.params, plane: { kind: 'face', ref }, offset } };
     this.setDraftField('offset', String(offset).replace('.', ','), { feature: next });
     this.setDraftField('pick', '', { feature: next });
+  }
+
+  /**
+   * Clic dans la vue pendant l'édition d'un plan de construction : une face plane devient le plan
+   * de départ, une arête droite la charnière autour de laquelle il s'incline.
+   */
+  private pickDatumPlane(pick: ModelPick, feature: PlaneFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une face ou une arête de la pièce en cours de modification.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    if (pick.kind === 'face') {
+      const face = mesh.faces[pick.index];
+      if (!face) return;
+      if (!face.plane) return this.explain('Cette face est courbe : choisissez une face plane.');
+      const ref = pickFaceReference(face.tags, part);
+      if (!ref) return;
+      this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, base: { kind: 'face', ref } } } });
+      return;
+    }
+    if (mesh.edges[pick.index]?.curve !== 'line') return this.explain('Pour incliner le plan, choisissez une arête droite (la charnière).');
+    const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+    if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
+    this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, hinge: { kind: 'edge', edge: r.ref } } } });
   }
 
   /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */

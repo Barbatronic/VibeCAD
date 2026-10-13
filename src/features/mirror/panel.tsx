@@ -2,10 +2,10 @@
 import { PATTERN_SOURCE_TYPES } from '../../domain/document';
 import type { MirrorFeature, PlaneName } from '../../domain/model';
 import { Callout, Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
-type PlaneChoice = PlaneName | 'face';
+type PlaneChoice = PlaneName | 'face' | 'datum';
 
 export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
   const { draft, update, setField } = props;
@@ -14,7 +14,8 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
   const own = props.part.features.findIndex((x) => x.id === f.id);
   const steps = props.part.features.filter((x, i) => PATTERN_SOURCE_TYPES.includes(x.type) && (own < 0 || i < own));
   const picking = draft.fields.pick === 'plane';
-  const plane: PlaneChoice = picking || p.plane.kind === 'face' ? 'face' : p.plane.plane;
+  const datums = datumPlanesBefore(props.part, f.id);
+  const plane: PlaneChoice = picking || p.plane.kind === 'face' ? 'face' : p.plane.kind === 'datum' ? 'datum' : p.plane.plane;
   return (
     <>
       <Segmented<'part' | 'feature'>
@@ -56,9 +57,17 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
           { value: 'XZ', label: 'XZ', title: 'Plan XZ : reflet d’avant en arrière (selon Y)' },
           { value: 'XY', label: 'XY', title: 'Plan XY : reflet de haut en bas (selon Z)' },
           { value: 'face', label: 'Face…', title: 'Une face plane de la pièce, cliquée dans la vue 3D' },
+          ...(datums.length ? [{ value: 'datum', label: 'Plan…', title: 'Un plan de construction (outil « Plan »)' } as const] : []),
         ]}
-        onChange={(v) => (v === 'face' ? setField('pick', 'plane', { feature: f }) : setField('pick', '', { feature: withParams(f, { plane: { kind: 'plane', plane: v } }) }))}
+        onChange={(v) =>
+          v === 'face'
+            ? setField('pick', 'plane', { feature: f })
+            : setField('pick', '', { feature: withParams(f, { plane: v === 'datum' ? { kind: 'datum', featureId: datums[datums.length - 1]!.id } : { kind: 'plane', plane: v } }) })
+        }
       />
+      {p.plane.kind === 'datum' && !picking ? (
+        <DatumPlaneSelect planes={datums} value={p.plane.featureId} onChange={(featureId) => update((x) => withParams(x, { plane: { kind: 'datum', featureId } }))} />
+      ) : null}
       {picking ? (
         <Callout kind="info">
           <p>Cliquez dans la vue 3D une face plane de la pièce : le reflet apparaît de l’autre côté de cette face.</p>

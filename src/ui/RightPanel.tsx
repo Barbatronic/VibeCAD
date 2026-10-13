@@ -19,6 +19,7 @@ import { allows } from '../app/levels';
 
 function supportText(support: SketchSupport, part: Part | undefined): string {
   if (support.kind === 'plane') return `sur le ${describeSupportPlane(support.plane)}`;
+  if (support.kind === 'datum') return `sur « ${part?.features.find((f) => f.id === support.featureId)?.name ?? 'un plan de construction'} »`;
   return `sur la ${describeFaceRef(support.ref, part)}`;
 }
 
@@ -220,6 +221,17 @@ function PickSupportPanel() {
     mode?.repairFeatureId ? s.doc.parts.flatMap((p) => p.features).find((f) => f.id === mode.repairFeatureId)?.name : null,
   );
   const hasSolid = useAppState((s) => (mode ? (s.display[mode.partId]?.result.analysis?.solidCount ?? 0) > 0 : false));
+  // Plans de construction calculés, placés avant l'esquisse à réparer (tous pour une nouvelle esquisse).
+  const datums = useAppState(
+    (s) => {
+      if (!mode) return [];
+      const part = s.doc.parts.find((p) => p.id === mode.partId);
+      const computed = new Set((s.display[mode.partId]?.result.planes ?? []).map((p) => p.featureId));
+      const limit = mode.repairFeatureId ? (part?.features.findIndex((f) => f.id === mode.repairFeatureId) ?? -1) : -1;
+      return (part?.features ?? []).filter((f, i) => f.type === 'plane' && computed.has(f.id) && (limit < 0 || i < limit)).map((f) => ({ id: f.id, name: f.name }));
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
   if (!mode) return null;
   const planes = [
     { plane: 'XY' as const, icon: 'top', title: 'Plan XY — dessus', text: 'Le « sol » : on dessine à plat, vu de dessus.' },
@@ -244,6 +256,16 @@ function PickSupportPanel() {
                 <strong>{p.title}</strong>
                 <br />
                 <span class="field-help">{p.text}</span>
+              </span>
+            </button>
+          ))}
+          {datums.map((d) => (
+            <button key={d.id} type="button" class="btn plane-choice" onClick={() => c.pickDatum(d.id)}>
+              <Icon name="datum-plane" />
+              <span>
+                <strong>{d.name}</strong>
+                <br />
+                <span class="field-help">Plan de construction de la pièce.</span>
               </span>
             </button>
           ))}

@@ -14,7 +14,7 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
   affectsSolid: false,
   dependencies(feature) {
     const s = feature.params.support;
-    const ids = new Set<string>(s.kind === 'face' ? [s.ref.featureId] : []);
+    const ids = new Set<string>(s.kind === 'face' ? [s.ref.featureId] : s.kind === 'datum' ? [s.featureId] : []);
     // Arêtes reprises de la pièce : l'esquisse dépend des étapes qui ont créé leurs faces.
     for (const e of feature.params.entities) {
       if ((e.type === 'line' || e.type === 'circle') && e.reference) for (const f of e.reference.edge.faces) ids.add(f.featureId);
@@ -37,7 +37,9 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
     const where =
       s.kind === 'plane'
         ? `${PLANE_LABELS[s.plane]}${s.offset ? `, décalé de ${formatLength(s.offset)}` : ''}`
-        : 'sur une face';
+        : s.kind === 'datum'
+          ? 'sur un plan de construction'
+          : 'sur une face';
     const { lines, circles } = countCurves(feature.params);
     const parts = [];
     if (lines) parts.push(`${lines} segment${lines > 1 ? 's' : ''}`);

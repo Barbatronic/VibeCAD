@@ -1,5 +1,5 @@
 /** Champs communs aux panneaux des fonctions volumiques (esquisse utilisée, sens, aperçu). */
-import type { ExtentDirection, Feature, VolumeOperation } from '../../domain/model';
+import type { ExtentDirection, Feature, Id, Part, PlaneFeature, VolumeOperation } from '../../domain/model';
 import type { FeatureStatus } from '../../domain/status';
 import type { SketchOption } from '../../features/panel-types';
 import { useAppState } from '../context';
@@ -76,4 +76,26 @@ export function OperationField(props: { value: VolumeOperation; onChange: (op: V
     options.push({ value: 'common', label: 'Garder', title: `Garder seulement la matière commune à la pièce et à ${props.what.toLowerCase()} (intersection)` });
   }
   return <Segmented<VolumeOperation> label="Matière" value={props.value} options={options} onChange={props.onChange} />;
+}
+
+/** Plans de construction de la pièce placés avant l'étape (tous, pour une nouvelle étape). */
+export function datumPlanesBefore(part: Part, featureId: Id): PlaneFeature[] {
+  const own = part.features.findIndex((x) => x.id === featureId);
+  return part.features.filter((x, i): x is PlaneFeature => x.type === 'plane' && (own < 0 || i < own));
+}
+
+/** Choix du plan de construction utilisé (affiché quand le plan choisi en est un). */
+export function DatumPlaneSelect(props: { planes: PlaneFeature[]; value: Id; onChange: (featureId: Id) => void }) {
+  return (
+    <label class="field">
+      <span class="field-label">Plan de construction</span>
+      <select id="draft-datum" class="select" value={props.value} onChange={(e) => props.onChange((e.target as HTMLSelectElement).value)}>
+        {props.planes.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
