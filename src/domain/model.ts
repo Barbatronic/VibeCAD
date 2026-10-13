@@ -24,6 +24,8 @@ export interface CadDocument {
   assembly?: Assembly;
   /** Préparation de la fabrication (facultatif : réglages de l'onglet Fabrication). */
   fabrication?: FabricationSettings;
+  /** Paramètres du projet (variables utilisables dans les cotes et les champs numériques). */
+  parameters?: ProjectParameter[];
   /** Études de déformation (facultatif : réglages de l'onglet Simulation). */
   simulation?: SimulationSettings;
   createdAt: string;
@@ -66,6 +68,19 @@ export interface FabricationSettings {
   /** Les pièces qui ne tiennent pas sur un plateau passent sur le suivant. */
   print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
   laser: { materials: LaserMaterial[]; spacing: number; engraveNames?: boolean; items: LaserItem[] };
+}
+
+// ---------------------------------------------------------------------------
+// Paramètres du projet
+
+/**
+ * Variable du projet : un nom (lettres, chiffres, _) et sa valeur, donnée par une équation qui peut
+ * utiliser d'autres paramètres (ex. `entraxe = largeur - 2*marge`). Unité : mm (ou ° pour un angle).
+ */
+export interface ProjectParameter {
+  name: string;
+  expression: string;
+  comment?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +218,11 @@ interface FeatureBase<T extends string, P> {
   type: T;
   name: string;
   params: P;
+  /**
+   * Champs réglés par une équation qui utilise des paramètres du projet (nom du champ du panneau →
+   * équation, ex. `{ distance: "epaisseur*2" }`) : recalculés quand un paramètre change.
+   */
+  expressions?: Record<string, string>;
 }
 
 export type SketchFeature = FeatureBase<'sketch', SketchParams> & {
@@ -348,6 +368,8 @@ interface ConstraintBase<T extends string> {
 
 /** Position d'affichage d'une cote (décalage perpendiculaire en mm), sans effet géométrique. */
 export interface DimensionPlacement {
+  /** Équation de la cote si elle utilise des paramètres du projet (ex. « largeur/2 ») : recalculée quand un paramètre change. */
+  expression?: string;
   /**
    * Placement d'affichage choisi à la souris (mm, repère de l'esquisse), sans effet géométrique :
    * longueur / distance alignée : décalage latéral de la ligne de cote ; distance horizontale ou

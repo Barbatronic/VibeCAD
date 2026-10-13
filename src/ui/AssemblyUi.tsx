@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { clampToLimits, JOINT_ISSUE_MESSAGES, jointFreedoms } from '../app/assembly';
 import { JOINT_EXPLANATIONS, JOINT_LABELS } from '../domain/document';
 import type { AssemblyJoint, JointKind } from '../domain/model';
-import { formatLength, formatNumber } from '../domain/units';
+import { formatLength, formatNumber, readNumber } from '../domain/units';
 import { useAppState, useController } from './context';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
@@ -324,8 +324,8 @@ function MotionField(props: {
         ariaLabel={`${props.label} exact`}
         onInput={(t) => {
           setText(t);
-          const v = Number(t.replace(',', '.'));
-          if (Number.isFinite(v)) props.onExact(clampToLimits(v, props.limits));
+          const v = readNumber(t);
+          if (v !== null) props.onExact(clampToLimits(v, props.limits));
         }}
       />
     </div>
@@ -343,8 +343,8 @@ function LimitsField(props: { label: string; unit: string; limits: [number, numb
       </label>
       {on ? (
         <div class="limits-row">
-          <NumberInput value={formatNumber(a, 2)} unit={props.unit} min={-100000} ariaLabel={`${props.label} minimum`} onInput={(t) => Number.isFinite(Number(t.replace(',', '.'))) && props.onChange([Number(t.replace(',', '.')), b])} />
-          <NumberInput value={formatNumber(b, 2)} unit={props.unit} min={-100000} ariaLabel={`${props.label} maximum`} onInput={(t) => Number.isFinite(Number(t.replace(',', '.'))) && props.onChange([a, Number(t.replace(',', '.'))])} />
+          <NumberInput value={formatNumber(a, 2)} unit={props.unit} min={-100000} ariaLabel={`${props.label} minimum`} onInput={(t) => { const v = readNumber(t); if (v !== null) props.onChange([v, b]); }} />
+          <NumberInput value={formatNumber(b, 2)} unit={props.unit} min={-100000} ariaLabel={`${props.label} maximum`} onInput={(t) => { const v = readNumber(t); if (v !== null) props.onChange([a, v]); }} />
         </div>
       ) : null}
     </div>
@@ -477,8 +477,8 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
                 max={180}
                 ariaLabel="Inclinaison maximale"
                 onInput={(t) => {
-                  const v = Number(t.replace(',', '.'));
-                  if (Number.isFinite(v) && v >= 0 && v <= 180) c.setJoint(joint.id, { tiltLimit: v, tilt: Math.min(joint.tilt ?? 0, v) }, 'Limites de la liaison');
+                  const v = readNumber(t);
+                  if (v !== null && v >= 0 && v <= 180) c.setJoint(joint.id, { tiltLimit: v, tilt: Math.min(joint.tilt ?? 0, v) }, 'Limites de la liaison');
                 }}
               />
             ) : null}
@@ -516,8 +516,8 @@ function InstancePanel({ id }: { id: string }) {
       min={-100000}
       ariaLabel={`Position ${k.toUpperCase()}`}
       onInput={(t) => {
-        const v = Number(t.replace(',', '.'));
-        if (Number.isFinite(v)) c.moveInstance(id, { ...inst.position, [k]: v });
+        const v = readNumber(t);
+        if (v !== null) c.moveInstance(id, { ...inst.position, [k]: v });
       }}
     />
     </label>

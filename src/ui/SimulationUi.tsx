@@ -5,7 +5,7 @@
  */
 import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, verdict } from '../app/simulation';
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
-import { formatNumber } from '../domain/units';
+import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
 import { exaggerationFor } from '../sim/study';
 import { useAppState, useController } from './context';
@@ -13,10 +13,8 @@ import { Button, Callout, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
-const num = (t: string) => {
-  const v = Number(t.replace(',', '.'));
-  return Number.isFinite(v) ? v : null;
-};
+/** Valeur saisie : nombre ou équation (paramètres du projet compris). */
+const num = (t: string) => readNumber(t);
 
 export function SimulationTools() {
   const c = useController();

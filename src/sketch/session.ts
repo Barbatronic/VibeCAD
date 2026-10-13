@@ -8,7 +8,7 @@ import { sameEdgeRef } from '../domain/document';
 import type { EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
 import { ORIGIN_POINT_ID } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
-import { formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
+import { expressionNames, formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, distanceToSegment2, dot2, midpoint2, normalize2, scale2, sub2, type Vec2 } from '../math/vec';
 import { trimAt, trimPiece } from './trim';
@@ -1395,7 +1395,8 @@ export function editDimension(s: SketchSession, constraintId: string): SketchSes
       constraintId,
       candidates: [],
       choice: 0,
-      text: formatLength(c.value, 3, false),
+      // Cote liée à un paramètre : on rouvre son équation.
+      text: 'expression' in c && c.expression ? c.expression : formatLength(c.value, 3, false),
       fresh: true,
       error: null,
       anchor,
@@ -1444,6 +1445,12 @@ export function editorUnit(s: SketchSession): 'mm' | '°' {
   return cand ? dimensionUnit(cand.constraint.type) : 'mm';
 }
 
+/** Cote qui retient l'équation tapée si elle utilise des paramètres du projet (sinon : valeur seule). */
+function withExpression<C extends { expression?: string }>(c: C, text: string): C {
+  const { expression: _old, ...bare } = c;
+  return (expressionNames(text).length > 0 ? { ...bare, expression: text.trim() } : bare) as C;
+}
+
 export function confirmEditor(s: SketchSession): SketchSession {
   const ed = s.editor;
   if (!ed) return s;
@@ -1452,7 +1459,8 @@ export function confirmEditor(s: SketchSession): SketchSession {
     if (!c || !('value' in c)) return { ...s, editor: null };
     const parsed = parseDimension(c.type, ed.text);
     if (!parsed.ok) return { ...s, editor: { ...ed, error: parsed.error } };
-    const next = { ...s.sketch, constraints: s.sketch.constraints.map((k) => (k.id === c.id ? ({ ...k, value: parsed.value } as SketchConstraint) : k)) };
+    const linked = withExpression(c, ed.text);
+    const next = { ...s.sketch, constraints: s.sketch.constraints.map((k) => (k.id === c.id ? ({ ...linked, value: parsed.value } as SketchConstraint) : k)) };
     const { session, ok } = commit(s, next, {
       weights: anchorWeights(c, s.sketch),
       message: success(`Cote modifiée : ${formatDimension(c.type, parsed.value)}.`),
@@ -1464,7 +1472,7 @@ export function confirmEditor(s: SketchSession): SketchSession {
   if (!cand) return { ...s, editor: null };
   const parsed = parseDimension(cand.constraint.type, ed.text);
   if (!parsed.ok) return { ...s, editor: { ...ed, error: parsed.error } };
-  const constraint = { ...cand.constraint, value: parsed.value } as NewConstraint;
+  const constraint = withExpression({ ...cand.constraint, value: parsed.value } as NewConstraint & { expression?: string }, ed.text) as NewConstraint;
   const kind = classifyNewConstraint(s.sketch, { ...constraint, id: '__candidate__' } as SketchConstraint);
   if (kind === 'redundant') {
     return { ...s, editor: { ...ed, error: 'Cette cote est déjà déterminée par les autres contraintes : inutile de l’ajouter.' } };

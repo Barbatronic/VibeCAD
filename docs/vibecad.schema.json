@@ -83,6 +83,13 @@
             "$ref": "#/$defs/stepResource"
           }
         },
+        "parameters": {
+          "type": "array",
+          "description": "Paramètres du projet : nombres nommés (valeur ou équation) utilisables dans les cotes et les champs des étapes.",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
         "assembly": {
           "$ref": "#/$defs/assembly"
         },
@@ -372,6 +379,14 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/id"
+          }
+        },
+        "expressions": {
+          "type": "object",
+          "description": "Équations des champs liés à des paramètres (nom du champ dans le panneau → équation) ; la valeur calculée est aussi écrite dans params.",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
           }
         }
       },
@@ -1643,6 +1658,10 @@
                 "minimum": 0,
                 "description": "mm, ou degrés pour un angle"
               },
+              "expression": {
+                "type": "string",
+                "description": "Équation dont la cote est tirée (paramètres du projet)"
+              },
               "offset": {
                 "type": "number"
               },
@@ -2019,6 +2038,28 @@
       ],
       "properties": {
         "instanceId": {
+          "type": "string"
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "required": [
+        "name",
+        "expression"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[\\p{L}_][\\p{L}\\p{N}_]*$",
+          "description": "Nom unique (sans tenir compte des majuscules)"
+        },
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nombre ou équation : + - * / ( ), pi, autres paramètres"
+        },
+        "comment": {
           "type": "string"
         }
       }

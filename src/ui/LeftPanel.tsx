@@ -10,6 +10,7 @@ import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
 import { FabricationSection } from './FabricationUi';
 import { SimulationSection } from './SimulationUi';
+import { ParametersSection } from './ParametersUi';
 import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
 
@@ -345,6 +346,7 @@ function HistorySection() {
 
 export function LeftPanel() {
   const workspace = useAppState((s) => s.workspace);
+  const canParameters = useAppState((s) => allows(s.level, 'parameters'));
   return (
     <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : 'Pièces et historique'}>
       {workspace === 'assembly' ? (
@@ -356,6 +358,7 @@ export function LeftPanel() {
       ) : (
         <>
           <PartsSection />
+          {canParameters ? <ParametersSection /> : null}
           <HistorySection />
         </>
       )}

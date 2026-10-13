@@ -31,6 +31,7 @@ export type Capability =
   | 'import-step'
   | 'view-section'
   | 'view-centroid'
+  | 'parameters'
   | 'tutorial:assembly'
   | 'tutorial:fabrication';
 
@@ -74,6 +75,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'tutorial:fabrication': 'intermediaire',
   'view-section': 'intermediaire',
   'view-centroid': 'intermediaire',
+  parameters: 'intermediaire',
   'feature:loft': 'expert',
   'feature:sweep': 'expert',
   'feature:split': 'expert',

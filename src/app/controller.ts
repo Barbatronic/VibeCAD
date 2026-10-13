@@ -33,9 +33,10 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
-import { formatArea, formatLength, formatVolume } from '../domain/units';
+import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
+import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
 import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
@@ -127,6 +128,8 @@ export class AppController {
   }
 
   private set(partial: Partial<AppState>): void {
+    // Les champs numériques connaissent les paramètres du projet (équations comme « largeur/2 »).
+    if (partial.doc && partial.doc.parameters !== this.state.doc.parameters) setParameterScope(resolveParameters(partial.doc.parameters ?? []).values);
     this.store.patch(partial);
   }
 
@@ -716,7 +719,8 @@ export class AppController {
     }
     const def = FEATURE_DEFINITIONS[feature.type] as unknown as FeatureDefinition;
     if (def.tool) {
-      this.openDraft({ partId: part.id, isNew: false, feature, fields: def.tool.initialFields(feature), errors: {} });
+      // Un champ lié à un paramètre se rouvre avec son équation.
+      this.openDraft({ partId: part.id, isNew: false, feature, fields: { ...def.tool.initialFields(feature), ...(feature.expressions ?? {}) }, errors: {} });
       return;
     }
     this.toast('info', 'Un solide importé n’a pas de paramètres modifiables : sa forme vient du fichier STEP.');
@@ -1144,7 +1148,12 @@ export class AppController {
       return;
     }
     delete errors[name];
-    this.set({ mode: { kind: 'feature', draft: { ...mode.draft, feature: result.feature, fields, errors } } });
+    // Une saisie qui utilise des paramètres du projet est retenue : elle suivra leurs changements.
+    const { [name]: _old, ...others } = result.feature.expressions ?? {};
+    const expressions = expressionNames(text).length > 0 ? { ...others, [name]: text.trim() } : others;
+    const { expressions: _e, ...bare } = result.feature;
+    const feature = (Object.keys(expressions).length ? { ...bare, expressions } : bare) as Feature;
+    this.set({ mode: { kind: 'feature', draft: { ...mode.draft, feature, fields, errors } } });
     void this.previewDraft();
   }
 
@@ -1710,6 +1719,48 @@ export class AppController {
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  // ----- Paramètres du projet
+
+  /** Ajoute un paramètre (nom libre suivant : p1, p2…). */
+  addParameter(): void {
+    const params = this.state.doc.parameters ?? [];
+    const taken = new Set(params.map((p) => p.name.toLowerCase()));
+    let n = params.length + 1;
+    while (taken.has(`p${n}`)) n++;
+    this.commit({ ...this.state.doc, parameters: [...params, { name: `p${n}`, expression: '10' }] }, 'Ajouter un paramètre');
+  }
+
+  /**
+   * Change un paramètre : son nom (repris dans toutes les équations qui l'utilisent) ou sa valeur.
+   * Les cotes et les champs qui en dépendent sont recalculés.
+   */
+  updateParameter(index: number, patch: Partial<ProjectParameter>): void {
+    const params = [...(this.state.doc.parameters ?? [])];
+    const old = params[index];
+    if (!old) return;
+    const next = { ...old, ...patch };
+    if (patch.name !== undefined && patch.name !== old.name) {
+      if (!PARAMETER_NAME.test(patch.name)) return this.explain('Un nom de paramètre commence par une lettre et ne contient que des lettres, des chiffres et _ (pas d’espace).');
+      if (params.some((p, i) => i !== index && p.name.toLowerCase() === patch.name!.toLowerCase())) return this.explain(`Le nom « ${patch.name} » est déjà utilisé.`);
+    }
+    params[index] = next;
+    let doc: CadDocument = { ...this.state.doc, parameters: params };
+    if (patch.name !== undefined && patch.name !== old.name) doc = renameParameterUses(doc, old.name, patch.name);
+    this.commit(applyParameters(doc), patch.name !== undefined && patch.name !== old.name ? `Renommer le paramètre « ${old.name} »` : `Paramètre « ${next.name} »`);
+  }
+
+  /** Supprime un paramètre, s'il n'est utilisé nulle part. */
+  removeParameter(index: number): void {
+    const params = this.state.doc.parameters ?? [];
+    const p = params[index];
+    if (!p) return;
+    const users = parameterUses(this.state.doc, p.name);
+    if (users.length) return this.explain(`« ${p.name} » est utilisé par : ${users.slice(0, 4).join(', ')}${users.length > 4 ? '…' : ''}. Remplacez-le d’abord par un nombre.`);
+    const rest = params.filter((_q, i) => i !== index);
+    const { parameters: _p, ...bare } = this.state.doc;
+    this.commit(rest.length ? { ...this.state.doc, parameters: rest } : (bare as CadDocument), `Supprimer le paramètre « ${p.name} »`);
   }
 
   // ----- Simulation

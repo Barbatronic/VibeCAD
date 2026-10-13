@@ -3033,3 +3033,91 @@ kbd {
   gap: 10px;
   margin: 8px 0 12px;
 }
+
+/* Paramètres du projet (panneau de gauche) */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.section-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.section-toggle .count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.params-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.param-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.param-row .input {
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
+.param-row .param-expression {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.param-equals {
+  color: var(--text-muted);
+}
+
+.param-value {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  padding-right: 30px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.param-row.has-error .param-value {
+  justify-content: flex-start;
+  padding-right: 0;
+}
+
+.param-row.has-error .param-value {
+  color: var(--danger);
+}
+
+.param-value svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}

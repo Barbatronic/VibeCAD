@@ -3,7 +3,7 @@
  * exemplaires, échelle, export 3MF), la découpe laser (SVG, DXF) et les documents (mise en plan,
  * gabarit 1:1, nomenclature). Voir docs/fabrication.md.
  */
-import { formatNumber } from '../domain/units';
+import { formatNumber, readNumber } from '../domain/units';
 import { bomSizeText, scaleLabel } from '../app/drawings';
 import { allows } from '../app/levels';
 import { PLA_DENSITY } from '../app/fabrication';
@@ -15,10 +15,8 @@ import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
-const num = (t: string) => {
-  const v = Number(t.replace(',', '.'));
-  return Number.isFinite(v) ? v : null;
-};
+/** Valeur saisie : nombre ou équation (paramètres du projet compris). */
+const num = (t: string) => readNumber(t);
 
 export function FabricationTools() {
   const c = useController();

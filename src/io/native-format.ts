@@ -10,6 +10,7 @@ import type {
   AssemblyFastener,
   FabricationSettings,
   SimulationSettings,
+  ProjectParameter,
   StudyFace,
   AssemblyInstance,
   AssemblyJoint,
@@ -27,6 +28,7 @@ import type {
   SketchParams,
   SketchSupport,
 } from '../domain/model';
+import { PARAMETER_NAME } from '../domain/units';
 import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
 import { ASSEMBLY_STUDY, constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
 import { featureDependencies } from '../features/registry';
@@ -71,6 +73,7 @@ export function serializeDocument(doc: CadDocument, savedAt = new Date().toISOSt
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
       ...(doc.fabrication ? { fabrication: doc.fabrication } : {}),
+      ...(doc.parameters?.length ? { parameters: doc.parameters } : {}),
       ...(doc.simulation ? { simulation: doc.simulation } : {}),
     },
   };
@@ -209,7 +212,7 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
 }
 
 /** Champs connus du document (schéma 1). */
-const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'fabrication', 'simulation']);
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'fabrication', 'simulation', 'parameters']);
 
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
@@ -244,6 +247,16 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
   if (o.fabrication !== undefined) {
     const fabrication = readFabrication(v, o.fabrication, `${path}.fabrication`, new Set(doc.parts.map((p) => p.id)));
     if (fabrication) doc.fabrication = fabrication;
+  }
+  if (o.parameters !== undefined) {
+    const parameters: ProjectParameter[] = arr(v, o, 'parameters', path).map((raw, i) => {
+      const pp = `${path}.parameters[${i}]`;
+      const po = obj(v, raw, pp) ?? {};
+      const name = str(v, po, 'name', pp);
+      if (!PARAMETER_NAME.test(name)) v.error(`${pp}.name`, `nom de paramètre invalide : ${name}`);
+      return { name, expression: str(v, po, 'expression', pp), ...(typeof po.comment === 'string' && po.comment ? { comment: po.comment } : {}) };
+    });
+    if (parameters.length) doc.parameters = parameters;
   }
   if (o.simulation !== undefined) {
     const simulation = readSimulation(v, o.simulation, `${path}.simulation`, new Set(doc.parts.map((p) => p.id)));
@@ -484,7 +497,21 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
 
 const DIRECTIONS = ['default', 'reversed', 'symmetric', 'twoSides'] as const;
 
+/** Étape, avec ses équations éventuelles (champs liés à des paramètres du projet). */
 function readFeature(v: Validator, x: unknown, path: string): Feature | null {
+  const feature = readFeatureBody(v, x, path);
+  const o = isObject(x) ? x : null;
+  if (!feature || !o || o.expressions === undefined) return feature;
+  const raw = obj(v, o.expressions, `${path}.expressions`) ?? {};
+  const expressions: Record<string, string> = {};
+  for (const [k, e] of Object.entries(raw)) {
+    if (typeof e === 'string' && e.trim()) expressions[k] = e;
+    else v.error(`${path}.expressions.${k}`, 'équation attendue (texte)');
+  }
+  return Object.keys(expressions).length ? { ...feature, expressions } : feature;
+}
+
+function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null {
   const o = obj(v, x, path);
   if (!o) return null;
   const id = str(v, o, 'id', path);
@@ -813,6 +840,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       'pointLineDistance',
     ] as const);
     const offset = {
+      ...(typeof o.expression === 'string' && o.expression.trim() ? { expression: o.expression } : {}),
       ...(typeof o.offset === 'number' && Number.isFinite(o.offset) ? { offset: o.offset } : {}),
       ...(typeof o.labelAngle === 'number' && Number.isFinite(o.labelAngle) ? { labelAngle: o.labelAngle } : {}),
     };
