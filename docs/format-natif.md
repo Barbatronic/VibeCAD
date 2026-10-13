@@ -402,6 +402,20 @@ l'origine, ou arête droite `{ "kind": "edge", "edge": edgeRef }`, comme l'axe d
 ignoré si `angle` vaut 0). Il sert de support d'esquisse (`support.kind = "datum"`), de plan de
 symétrie, de découpe ou de plan neutre. Erreurs : `PLANE_BASE_LOST`, `PLANE_HINGE_LOST`.
 
+### Axe de construction (`"type": "axis"`)
+
+```json
+{ "id": "ax-…", "type": "axis", "name": "Axe 1", "dependsOn": [],
+  "params": { "kind": "line", "position": { "x": 30, "y": 15, "z": 0 }, "direction": "Z" } }
+```
+
+Une droite qui ne change pas la pièce : `kind` `line` (parallèle à `direction`, passant par
+`position`, en mm) ou `edge` (reprise de l'arête `edge`, un edgeRef : la droite d'une arête
+droite, ou l'axe d'un bord circulaire ; `position` et `direction` sont alors conservés mais
+ignorés). Elle s'utilise partout où un axe de répétition est attendu (axe d'une répétition,
+charnière d'un plan) sous la forme `{ "kind": "datum", "featureId": "ax-…" }`. Erreurs :
+`AXIS_EDGE_LOST` (arête introuvable), `AXIS_LOST` (axe utilisé introuvable).
+
 ### Solide importé (`"type": "imported-solid"`)
 
 ```json

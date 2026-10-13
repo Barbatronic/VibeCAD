@@ -81,11 +81,13 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
   grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
   droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
-- **Plans de construction** (bouton « Plan », niveau Intermédiaire) : un plan décalé d'un plan
+- **Plans de construction** (menu « Répétition ▾ », niveau Intermédiaire) : un plan décalé d'un plan
   d'origine, d'une face ou d'un autre plan, éventuellement incliné autour d'un axe X, Y, Z ou d'une
   arête cliquée (comme une porte sur ses gonds). Il est montré dans la vue 3D et sert de support
   d'esquisse là où il n'y a pas de face, de miroir pour une symétrie, de plan de découpe ou de
-  plan neutre d'une dépouille.
+  plan neutre d'une dépouille. **Axes de construction** (même menu) : une droite parallèle à X, Y
+  ou Z passant par un point, ou reprise d'une arête (l'axe d'un trou), autour de laquelle faire
+  une répétition en cercle ou incliner un plan.
 - **Symétrie** : ajouter le reflet de toute la pièce, ou d'une seule étape (un trou, un plot…),
   par rapport au plan XY, XZ, YZ, à une face plane cliquée ou à un plan de construction.
 - **Déplacer** (niveau Intermédiaire) : décaler toute la pièce et/ou la faire pivoter autour d'un
