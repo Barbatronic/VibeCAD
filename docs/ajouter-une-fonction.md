@@ -66,13 +66,16 @@ son explication quand il est indisponible, et l'aperçu fonctionne sans autre co
    `src/ui/TopBar.tsx`) et son raccourci (`src/app/keyboard.ts`).
 6. Tester la session sans navigateur (`tests/unit/sketch-session.test.ts`).
 
-## 3. Ajouter un format d'export (ex. « GLB »)
+## 3. Ajouter un format d'export
+
+Exemple réel : le GLB (`src/io/gltf.ts`, test `tests/unit/gltf.test.ts`).
 
 1. Écrire le convertisseur pur dans `src/io/` (entrée : `MeshData` du noyau, sortie :
-   `Uint8Array`), sur le modèle de `src/io/stl.ts`, avec un test.
-2. Ajouter une requête au protocole du worker (`src/geometry/protocol.ts`), son traitement dans
-   `src/workers/geometry-service.ts` et `geometry.worker.ts`, et une méthode dans
-   `src/geometry/client.ts`.
+   `Uint8Array`), sur le modèle de `src/io/stl.ts` ou `src/io/gltf.ts`, avec un test.
+2. Si le format a besoin des formes exactes (comme STEP), ajouter une requête au protocole du
+   worker (`src/geometry/protocol.ts`), son traitement dans `src/workers/geometry-service.ts` et
+   `geometry.worker.ts`, et une méthode dans `src/geometry/client.ts`. Un format de maillage
+   (comme GLB) peut partir des maillages d'affichage déjà reçus, sans passer par le worker.
 3. Ajouter l'entrée du menu Fichier (`src/ui/TopBar.tsx`) et l'action du contrôleur
    (`showExportDialog` / `confirmExport` dans `src/app/controller.ts`).
 4. Documenter ce que le format contient et ne contient pas (unités, historique).

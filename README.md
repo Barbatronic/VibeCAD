@@ -61,6 +61,12 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Formes toutes faites** : boîte, cylindre, boule et anneau, placées par leurs coordonnées,
   ajoutées à la pièce ou creusées dedans (comme un trou), sans passer par une esquisse ; au niveau
   Expert, « Garder » ne conserve que la matière commune (intersection).
+- **Générateurs** (bouton « Forme ▾ », niveau Intermédiaire) : **roue dentée** droite à
+  développante de cercle (module, nombre de dents, angle de pression, alésage), **crémaillère**,
+  **poulie crantée** pour courroie GT2 (pas 2, 3, 5 mm) ou T (T2.5, T5, T10) avec joues. Le panneau
+  donne les diamètres et l'entraxe ; deux roues de même module engrènent (vérifié par le calcul :
+  à l'entraxe théorique, elles ne se rentrent pas dedans). Profils de poulie approchés : impression
+  d'essai recommandée.
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
   grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
   droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
@@ -118,7 +124,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   STEP sont réparés à la lecture, et un STEP surfacique fait de coques fermées est reconstitué en
   volume ; un STL est cousu en volume, ses faces
   planes sont reconstituées, 30 000 triangles au plus, maillage fermé exigé), export **3MF**
-  (impression 3D : unité, noms et couleurs des pièces) et STL (en mm).
+  (impression 3D : unité, noms et couleurs des pièces), STL (en mm) et **GLB** (glTF 2.0, pour
+  montrer le modèle dans une page web, une présentation ou une visionneuse : pièces colorées,
+  assemblage à sa place avec sa visserie).
 - **Bulles d'explication** au survol de chaque outil (désactivables dans l'Aide).
 - **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
   droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).

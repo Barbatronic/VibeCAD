@@ -8,7 +8,7 @@ charges ; elles ont été prises pour ne pas bloquer le développement et peuven
 | --- | --- | --- |
 | [0001](0001-noyau-geometrique.md) | Noyau Open CASCADE via `replicad-opencascadejs` | adoptée (validée par prototype) |
 | [0002](0002-pile-technique.md) | TypeScript, Vite, Three.js, Preact | adoptée |
-| [0003](0003-format-natif.md) | Format natif JSON `.vibecad` versionné | adoptée ; extension provisoire |
+| [0003](0003-format-natif.md) | Format natif JSON `.vibecad` versionné | adoptée ; extension définitive, schéma 1 gelé (12/10/2026) |
 | [0004](0004-solveur-esquisse.md) | Solveur de contraintes maison (Newton pondéré) | adoptée |
 | [0005](0005-references-persistantes.md) | Références sémantiques de faces et repère canonique | adoptée |
 | [0006](0006-licence.md) | Licence MIT pour le code de l'application | provisoire |

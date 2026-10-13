@@ -6,8 +6,9 @@ importés. C'est un fichier **JSON UTF-8** lisible, indenté, sans dépendance �
 particulier. Le schéma formel est dans [`vibecad.schema.json`](vibecad.schema.json)
 (JSON Schema 2020-12).
 
-- Extension : `.vibecad` (provisoire, définie dans `src/io/native-format.ts`) — à ne pas
-  confondre avec STEP (`.step`) ni avec FreeCAD (`.FCStd`).
+- Extension : `.vibecad` (définitive depuis le 12 octobre 2026, définie dans
+  `src/io/native-format.ts`) — à ne pas confondre avec STEP (`.step`) ni avec FreeCAD (`.FCStd`).
+- **Format gelé** : le schéma 1 est stable (voir « Stabilité du format » plus bas).
 - Type MIME proposé : `application/vnd.vibecad+json`.
 - Aucun objet du noyau géométrique n'est enregistré : la géométrie est reconstruite à
   l'ouverture. L'**état de validité** des étapes (erreurs, avertissements) est recalculé lui
@@ -467,6 +468,28 @@ n'est plus utilisée par aucune fonction est retirée du projet.
    est **récupérable** : le projet s'ouvre avec un avertissement et l'étape concernée est signalée
    en erreur dans l'historique ;
 6. vérifie l'empreinte des ressources importées.
+
+## Stabilité du format (gel du 12 octobre 2026)
+
+Le nom du logiciel et l'extension étant fixés, le **schéma 1 est gelé** : un projet enregistré
+aujourd'hui s'ouvrira dans toutes les versions futures de VibeCAD.
+
+- **Permis sans changer de version** :
+  - ajouter un champ **facultatif** (absent, il garde son sens actuel). Une version plus ancienne
+    l'ignore et le signale à l'ouverture (« ce projet vient d'une version plus récente… ») : il
+    serait perdu si on enregistrait le projet avec elle ;
+  - ajouter une **valeur** à une liste (un nouveau type d'étape comme les générateurs
+    d'engrenages, un nouveau matériau…). Un projet qui l'utilise ne s'ouvre pas dans une version
+    plus ancienne : elle le refuse avec un message clair (mettre l'application à jour), sans rien
+    abîmer ; les projets qui ne l'utilisent pas restent lisibles partout.
+- **Interdit dans le schéma 1** : supprimer ou renommer un champ, changer son sens ou son unité,
+  rendre obligatoire un champ facultatif. Un tel changement passe au **schéma 2**, avec une
+  migration (ci-dessous) qui transforme automatiquement les anciens fichiers.
+- **Garde-fou** : `tests/fixtures/reference-schema-1.vibecad` est un projet complet enregistré le
+  jour du gel (historique, assemblage avec liaison et visserie, fabrication, études de
+  simulation). `tests/geometry/format-freeze.test.ts` vérifie qu'il s'ouvre sans avertissement,
+  valide le schéma publié, garde tout son contenu, se réécrit à l'identique et se reconstruit avec
+  le même volume. Ce fichier ne se modifie pas : si le test échoue, c'est que le format a changé.
 
 ## Versions et migrations
 
