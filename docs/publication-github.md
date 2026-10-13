@@ -54,8 +54,8 @@ main sur ce qui est mis en ligne.
    resterait sur l'ancienne version malgré la coche verte. Toujours lancer un **nouveau** « Run
    workflow ». Pour vérifier : dans la liste des lancements, le commit affiché doit être le
    dernier (`git log -1 --oneline`). En ligne de commande : `gh workflow run pages.yml --ref main`.
-3. Ouvrir (ou recharger) le site : la nouvelle version se télécharge en arrière-plan, puis Java
-   et la barre d'état proposent **« Mettre à jour »**. Un clic, et la page repart sur la nouvelle
+3. Ouvrir (ou recharger) le site : la nouvelle version se télécharge en arrière-plan, puis la
+   barre d'état (et le chat, s'il est activé) propose **« Mettre à jour »**. Un clic, et la page repart sur la nouvelle
    version (le travail en cours est sauvegardé automatiquement). Un site déjà ouvert vérifie
    aussi les mises à jour toutes les 30 minutes.
 

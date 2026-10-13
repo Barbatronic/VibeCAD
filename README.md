@@ -15,7 +15,7 @@ millimètres, avec le nom et la couleur de chaque pièce).
 
 ![Assemblage : goupille en glissière dans le trou de la plaque, avec ses curseurs](docs/images/assemblage.png)
 
-![Parcours guidé présenté par Java, le chat de VibeCAD](docs/images/parcours-java.png)
+![Parcours guidé : chaque étape se valide toute seule](docs/images/parcours-java.png)
 
 ## Ce que l'on peut faire
 
@@ -119,20 +119,23 @@ millimètres, avec le nom et la couleur de chaque pièce).
   volume ; un STL est cousu en volume, ses faces
   planes sont reconstituées, 30 000 triangles au plus, maillage fermé exigé), export **3MF**
   (impression 3D : unité, noms et couleurs des pièces) et STL (en mm).
-- **Bulles d'explication** présentées par Java au survol de chaque outil (désactivables dans l'Aide).
+- **Bulles d'explication** au survol de chaque outil (désactivables dans l'Aide).
 - **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
   droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).
 - **Préférences** (roue dentée en haut à droite, ou menu Fichier) : niveau, bulles d'explication,
-  chat, thème automatique / clair / sombre, aimantation à la grille des esquisses ; retenues sur
+  environnement des jeunes (le chat), thème automatique / clair / sombre, aimantation à la grille
+  des esquisses ; retenues sur
   l'appareil, jamais dans le projet, avec un retour aux réglages par défaut.
 - **Parcours guidés**, au choix : « la plaque percée » (première pièce), « assembler et faire
   bouger » (insérer, relier par un pivot, faire tourner) et « préparer la fabrication »
   (impression 3D, découpe laser, documents). Chaque étape se valide toute seule en observant le
   modèle ; aide intégrée (navigation, vocabulaire, raccourcis).
-- **Java, le chat de VibeCAD** (logo et mascotte, noir et blanc) : il présente les étapes du parcours, félicite quand une
+- **Java, le chat de VibeCAD** (mascotte noir et blanc, **désactivée par défaut** ; à activer dans
+  Préférences › Environnement des jeunes) : il présente les étapes du parcours, félicite quand une
   étape est réussie et, quand une étape a un souci, l'explique en une phrase avec un bouton pour
-  le corriger. Discret (réductible, masquable depuis l'aide), sans réseau, il ne modifie jamais la
-  pièce tout seul. Les icônes de l'application se régénèrent depuis son dessin : `npm run icons`.
+  le corriger. Discret (réductible, masquable), sans réseau, il ne modifie jamais la pièce tout
+  seul. Ce n'est pas le logo de l'application : le logo (onglet du navigateur, application
+  installée, en-tête) est un cube provisoire, dans `public/icons` (`npm run icons` refait les PNG).
 - **Hors ligne** : application installable (PWA) ; après la première visite, tout fonctionne
   sans réseau. Aucun compte, aucun serveur de calcul, aucune transmission de vos modèles.
 

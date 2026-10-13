@@ -29,21 +29,29 @@ en haut à droite), avec les bulles d'explication, le chat, le thème et l'aiman
 exemple `…/VibeCAD/?niveau=debutant` ou `?niveau=intermediaire`. Un projet fait à un niveau
 supérieur s'ouvre toujours : ses étapes restent visibles et modifiables dans l'historique.
 
-## Bulles d'explication de Java
+## Bulles d'explication
 
-Au survol prolongé d'un outil (environ une demi-seconde), Java, le chat, affiche une bulle qui
-explique l'outil avec le vrai vocabulaire et, s'il est indisponible, pourquoi. On peut les couper
-dans l'Aide (« Bulles d'explication de Java ») : on retrouve alors les info-bulles simples du
-navigateur. Le réglage est retenu sur l'ordinateur ; si le chat est masqué, les bulles restent,
-sans lui.
+Au survol prolongé d'un outil (environ une demi-seconde), une bulle explique l'outil avec le vrai
+vocabulaire et, s'il est indisponible, pourquoi. On peut les couper dans l'Aide (« Bulles
+d'explication au survol des outils ») : on retrouve alors les info-bulles simples du navigateur.
+Le réglage est retenu sur l'ordinateur.
+
+## Environnement des jeunes : Java, le chat
+
+Java, le chat de VibeCAD, est **désactivé par défaut** : ce n'est pas le logo de l'application,
+seulement une mascotte facultative. Pour les plus
+jeunes, on l'active dans Préférences › « Environnement des jeunes » (ou dans l'Aide). Il présente
+alors les étapes des parcours, illustre les bulles d'explication et signale les soucis avec un
+bouton pour les corriger. Sans lui, les mêmes informations restent dans la barre d'état,
+l'historique et les parcours.
 
 ## Le parcours guidé « plaque percée »
 
 Bouton **Parcours** en haut à droite (ou Aide → Lancer le parcours guidé). Douze étapes courtes ;
 chacune se valide toute seule en observant le modèle réel (« Bravo, c'est fait ! »), et on peut
 passer une étape, revenir en arrière ou quitter à tout moment. Le bouton à utiliser est mis en
-évidence par un contour orange animé. **Java**, le chat de VibeCAD (noir sur le dessus, blanc en dessous), présente chaque étape et saute de
-joie quand elle est réussie.
+évidence par un contour orange animé. Si le chat est activé, **Java** (noir sur le dessus, blanc en
+dessous) présente chaque étape et saute de joie quand elle est réussie.
 
 En dehors du parcours, le chat n'apparaît que lorsqu'il a quelque chose d'utile à dire : une
 étape en erreur (avec un bouton pour l'ouvrir ou la réparer), une esquisse au contour ouvert, une
