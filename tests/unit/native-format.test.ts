@@ -106,6 +106,18 @@ describe('format natif .vibecad', () => {
     expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });
 
+  it('conserve les engrenages entre liaisons et supprime ceux qui visent une liaison absente', () => {
+    const file = JSON.parse(readFileSync('tests/fixtures/reference-schema-1.vibecad', 'utf8'));
+    const coupling = { id: 'cp-1', name: 'Crémaillère 1', kind: 'rack', driver: 'jt-1', driven: 'jt-1', teeth: [20, 20], pitchDiameter: 24, reversed: true, phase: 1.5 };
+    file.document.assembly.couplings = [coupling, { ...coupling, id: 'cp-2', driven: 'jt-absente' }];
+    const text = JSON.stringify(file);
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.assembly?.couplings).toEqual([coupling]);
+    expect(parsed.ok && parsed.warnings.some((w) => w.includes('liaison supprimée'))).toBe(true);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(file), JSON.stringify(validate.errors)).toBe(true);
+  });
+
   it('conserve une étape « générateur » (poulie GT2 avec joues)', () => {
     const { doc, ids } = buildPlateDocument();
     const part = doc.parts[0]!;

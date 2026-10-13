@@ -2246,6 +2246,63 @@
               "at"
             ]
           }
+        },
+        "couplings": {
+          "type": "array",
+          "description": "Engrenages et crémaillères : la liaison driven suit la liaison driver (rapport ∓ teeth[0]/teeth[1] pour un engrenage, π × pitchDiameter mm par tour pour une crémaillère ; reversed inverse le sens ; phase = réglage de driven quand driver est à 0).",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "driver",
+              "driven",
+              "teeth",
+              "pitchDiameter",
+              "reversed",
+              "phase"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "gear",
+                  "rack"
+                ]
+              },
+              "driver": {
+                "$ref": "#/$defs/id"
+              },
+              "driven": {
+                "$ref": "#/$defs/id"
+              },
+              "teeth": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "pitchDiameter": {
+                "type": "number",
+                "minimum": 0
+              },
+              "reversed": {
+                "type": "boolean"
+              },
+              "phase": {
+                "type": "number"
+              }
+            }
+          }
         }
       }
     },

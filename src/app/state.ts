@@ -67,7 +67,7 @@ export interface SimulationRun {
 export type FabricationTab = 'print' | 'laser' | 'docs';
 
 /** Visserie : un ou plusieurs éléments (un groupe d'éléments identiques de la liste). */
-export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | { kind: 'fasteners'; ids: Id[] } | null;
+export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | { kind: 'fasteners'; ids: Id[] } | { kind: 'coupling'; id: Id } | null;
 
 export type Selection =
   | { kind: 'part'; partId: Id }

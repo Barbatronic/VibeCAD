@@ -7,6 +7,7 @@
  */
 import type {
   MirrorPlane,
+  JointCoupling,
   Assembly,
   AssemblyFastener,
   FabricationSettings,
@@ -477,6 +478,34 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
       fasteners.push(fastener);
     });
     if (fasteners.length) assembly.fasteners = fasteners;
+  }
+  if (o.couplings !== undefined) {
+    const couplings: JointCoupling[] = [];
+    const jointIds = new Set(joints.map((j) => j.id));
+    arr(v, o, 'couplings', path).forEach((raw, i) => {
+      const cp = `${path}.couplings[${i}]`;
+      const co = obj(v, raw, cp);
+      if (!co) return;
+      const teeth = arr(v, co, 'teeth', cp);
+      if (teeth.length !== 2) v.error(`${cp}.teeth`, 'deux nombres de dents attendus');
+      const coupling: JointCoupling = {
+        id: str(v, co, 'id', cp),
+        name: str(v, co, 'name', cp),
+        kind: oneOf(v, co, 'kind', cp, ['gear', 'rack'] as const),
+        driver: str(v, co, 'driver', cp),
+        driven: str(v, co, 'driven', cp),
+        teeth: [num(v, { t: teeth[0] }, 't', `${cp}.teeth[0]`, { min: 1 }), num(v, { t: teeth[1] }, 't', `${cp}.teeth[1]`, { min: 1 })],
+        pitchDiameter: num(v, co, 'pitchDiameter', cp, { min: 0 }),
+        reversed: co.reversed === true,
+        phase: num(v, co, 'phase', cp),
+      };
+      if (!jointIds.has(coupling.driver) || !jointIds.has(coupling.driven)) {
+        v.warnings.push(`Assemblage : « ${coupling.name} » relie une liaison supprimée ; il est supprimé.`);
+        return;
+      }
+      couplings.push(coupling);
+    });
+    if (couplings.length) assembly.couplings = couplings;
   }
   return assembly;
 }

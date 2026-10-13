@@ -5,6 +5,7 @@
  */
 import { createId } from './ids';
 import type {
+  JointCoupling,
   VolumeOperation,
   SweepFeature,
   LoftFeature,
@@ -191,6 +192,13 @@ export function removeInstance(doc: CadDocument, instanceId: Id): CadDocument {
       ...assembly,
       instances: assembly.instances.filter((i) => i.id !== instanceId),
       joints: assembly.joints.filter((j) => j.moving.instanceId !== instanceId && j.base.instanceId !== instanceId),
+      ...(assembly.couplings
+        ? {
+            couplings: assembly.couplings.filter((c) =>
+              [c.driver, c.driven].every((id) => assembly.joints.some((j) => j.id === id && j.moving.instanceId !== instanceId && j.base.instanceId !== instanceId)),
+            ),
+          }
+        : {}),
       ...(assembly.fasteners ? { fasteners: assembly.fasteners.filter((f) => f.at.instanceId !== instanceId) } : {}),
     },
   };
@@ -226,7 +234,28 @@ export function updateJoint(doc: CadDocument, jointId: Id, update: (j: AssemblyJ
 export function removeJoint(doc: CadDocument, jointId: Id): CadDocument {
   const assembly = doc.assembly;
   if (!assembly) return doc;
-  return { ...doc, assembly: { ...assembly, joints: assembly.joints.filter((j) => j.id !== jointId) } };
+  const couplings = assembly.couplings?.filter((c) => c.driver !== jointId && c.driven !== jointId);
+  return { ...doc, assembly: { ...assembly, joints: assembly.joints.filter((j) => j.id !== jointId), ...(couplings ? { couplings } : {}) } };
+}
+
+/** Ajoute un couplage (engrenage, crémaillère) entre deux liaisons. */
+export function addCoupling(doc: CadDocument, coupling: Omit<JointCoupling, 'id'>): { doc: CadDocument; couplingId: Id } {
+  const assembly = doc.assembly ?? emptyAssembly();
+  const list = assembly.couplings ?? [];
+  const id = createId('cp', new Set(list.map((c) => c.id)));
+  return { doc: { ...doc, assembly: { ...assembly, couplings: [...list, { ...coupling, id }] } }, couplingId: id };
+}
+
+export function updateCoupling(doc: CadDocument, id: Id, change: (c: JointCoupling) => JointCoupling): CadDocument {
+  const assembly = doc.assembly;
+  if (!assembly?.couplings) return doc;
+  return { ...doc, assembly: { ...assembly, couplings: assembly.couplings.map((c) => (c.id === id ? change(c) : c)) } };
+}
+
+export function removeCoupling(doc: CadDocument, id: Id): CadDocument {
+  const assembly = doc.assembly;
+  if (!assembly?.couplings) return doc;
+  return { ...doc, assembly: { ...assembly, couplings: assembly.couplings.filter((c) => c.id !== id) } };
 }
 
 /** Ajoute un élément de visserie (nommé par sa désignation, pas de nom propre). */

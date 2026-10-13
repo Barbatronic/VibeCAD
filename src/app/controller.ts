@@ -14,6 +14,9 @@ import {
   insertFeatureAfter,
   removeInstance,
   removeJoint,
+  addCoupling,
+  updateCoupling,
+  removeCoupling,
   updateInstance,
   updateJoint,
   addPart,
@@ -33,7 +36,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -59,7 +62,7 @@ import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
-import { clampToLimits, isSphereLcs, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { clampToLimits, couplingPhase, isSphereLcs, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
@@ -2555,6 +2558,47 @@ export class AppController {
     this.set({ history: recordAction(s.history, start, label), revision: s.revision + 1 });
     this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
     if (this.state.collisionCheck) void this.refreshCollisions();
+  }
+
+  // ----- Engrenages et crémaillères entre liaisons
+
+  /**
+   * Couple deux liaisons : la première pivot mène, la suivante (pivot : engrenage ; glissière :
+   * crémaillère) suit. Le calage est pris pour que rien ne bouge à la création.
+   */
+  addCoupling(): void {
+    const assembly = this.state.doc.assembly;
+    const joints = assembly?.joints ?? [];
+    const driver = joints.find((j) => j.kind === 'revolute' || j.kind === 'cylindrical');
+    const driven = joints.find((j) => j !== driver && j.kind !== 'fixed' && j.kind !== 'spherical');
+    if (!assembly || !driver || !driven) return this.explain('Il faut deux liaisons, dont un pivot, pour faire un engrenage : créez-les d’abord.');
+    const kind = driven.kind === 'slider' ? 'rack' : 'gear';
+    const count = (assembly.couplings ?? []).filter((c) => c.kind === kind).length + 1;
+    const base = { name: `${kind === 'rack' ? 'Crémaillère' : 'Engrenage'} ${count}`, kind, driver: driver.id, driven: driven.id, teeth: [20, 20] as [number, number], pitchDiameter: 20, reversed: false, phase: 0 } as const;
+    const phase = couplingPhase(assembly, { ...base, id: '' });
+    const { doc, couplingId } = addCoupling(this.state.doc, { ...base, phase });
+    this.commit(this.settleLoops(doc), 'Ajouter un engrenage', { assemblySelection: { kind: 'coupling', id: couplingId } });
+  }
+
+  /**
+   * Change un couplage. Changer les liaisons, le rapport ou le sens recale la menée là où elle est
+   * (rien ne saute) ; seul le calage (`phase`) la fait tourner ou glisser.
+   */
+  updateCoupling(id: Id, patch: Partial<JointCoupling>): void {
+    const assembly = this.state.doc.assembly;
+    const old = assembly?.couplings?.find((c) => c.id === id);
+    if (!assembly || !old) return;
+    let next = { ...old, ...patch };
+    if (patch.driven !== undefined && patch.kind === undefined) {
+      const driven = assembly.joints.find((j) => j.id === patch.driven);
+      if (driven) next.kind = driven.kind === 'slider' ? 'rack' : 'gear';
+    }
+    if (patch.phase === undefined) next = { ...next, phase: couplingPhase(assembly, next) };
+    this.commit(this.settleLoops(updateCoupling(this.state.doc, id, () => next)), 'Modifier un engrenage');
+  }
+
+  removeCoupling(id: Id): void {
+    this.commit(removeCoupling(this.state.doc, id), 'Supprimer un engrenage', { assemblySelection: null });
   }
 
   removeJoint(jointId: Id): void {

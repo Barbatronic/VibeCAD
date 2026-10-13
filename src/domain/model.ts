@@ -192,12 +192,36 @@ export interface AssemblyFastener {
   flip?: boolean;
 }
 
+/**
+ * Couplage entre deux liaisons : la liaison menée suit la menante.
+ * - `gear` (engrenage, deux pivots) : la menée tourne de `teeth[0] / teeth[1]` fois l'angle de la
+ *   menante, en sens opposé (dans le même sens si `reversed` : courroie, couronne à denture
+ *   intérieure) ;
+ * - `rack` (crémaillère : pivot menant, glissière menée) : un tour de la roue fait avancer la
+ *   glissière de π × `pitchDiameter` mm (sens inverse si `reversed`).
+ * `phase` est le réglage de la menée quand la menante est à 0 (degrés ou mm) : il est pris à la
+ * création pour que rien ne bouge, puis modifiable pour caler les dents.
+ */
+export interface JointCoupling {
+  id: Id;
+  name: string;
+  kind: 'gear' | 'rack';
+  driver: Id;
+  driven: Id;
+  teeth: [number, number];
+  pitchDiameter: number;
+  reversed: boolean;
+  phase: number;
+}
+
 export interface Assembly {
   /** La première pièce insérée est fixe. */
   instances: AssemblyInstance[];
   joints: AssemblyJoint[];
   /** Visserie (facultatif). */
   fasteners?: AssemblyFastener[];
+  /** Engrenages et crémaillères entre liaisons (facultatif). */
+  couplings?: JointCoupling[];
 }
 
 export interface Part {

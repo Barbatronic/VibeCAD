@@ -13,6 +13,7 @@ import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
+import { CouplingList, CouplingPanel } from './CouplingUi';
 
 /** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
 export function WorkspaceTabs() {
@@ -279,6 +280,7 @@ export function AssemblySection() {
             </li>
           ))}
         </ul>
+        <CouplingList />
         <FastenerList />
       </div>
     </section>
@@ -556,6 +558,7 @@ function InstancePanel({ id }: { id: string }) {
 export function AssemblyRightPanel() {
   const sel = useAppState((s) => s.assemblySelection);
   const joint = useAppState((s) => (sel?.kind === 'joint' ? s.doc.assembly?.joints.find((j) => j.id === sel.id) ?? null : null));
+  const coupling = useAppState((s) => (sel?.kind === 'coupling' ? s.doc.assembly?.couplings?.find((k) => k.id === sel.id) ?? null : null));
   const jointMode = useAppState((s) => (s.mode.kind === 'joint' ? s.mode : null));
   const fastenerKind = useAppState((s) => (s.mode.kind === 'fastener' ? s.mode.fastenerKind : null));
   const c = useController();
@@ -586,6 +589,8 @@ export function AssemblyRightPanel() {
         </>
       ) : joint ? (
         <JointPanel joint={joint} />
+      ) : coupling ? (
+        <CouplingPanel coupling={coupling} />
       ) : sel?.kind === 'instance' ? (
         <InstancePanel id={sel.id} />
       ) : (

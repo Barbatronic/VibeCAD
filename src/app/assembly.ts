@@ -3,7 +3,7 @@
  * puis placement le long de l'arborescence des liaisons à partir de la pièce fixe (la première
  * insérée). Simple calcul de matrices, sans solveur itératif (voir docs/assemblage.md).
  */
-import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointKind, LcsRef, Part } from '../domain/model';
+import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part } from '../domain/model';
 import { pickFaceReference } from '../features/sketch/support';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
@@ -193,6 +193,39 @@ function freeKeys(kind: JointKind): (keyof JointValues)[] {
   return [...(f.angle ? (['angle'] as const) : []), ...(f.offset ? (['offset'] as const) : []), ...(f.tilt ? (['tilt', 'tiltDirection'] as const) : [])];
 }
 
+/**
+ * Rapport d'un couplage : variation du réglage de la liaison menée (degrés, ou mm pour une
+ * crémaillère) pour un degré de la liaison menante.
+ */
+export function couplingRatio(c: JointCoupling): number {
+  if (c.kind === 'rack') return ((c.reversed ? -1 : 1) * Math.PI * c.pitchDiameter) / 360;
+  return ((c.reversed ? 1 : -1) * c.teeth[0]) / c.teeth[1];
+}
+
+/** Calage pour que la liaison menée reste où elle est avec les réglages actuels des deux liaisons. */
+export function couplingPhase(assembly: Assembly, c: JointCoupling): number {
+  const a = assembly.joints.find((j) => j.id === c.driver);
+  const b = assembly.joints.find((j) => j.id === c.driven);
+  if (!a || !b) return c.phase;
+  return (c.kind === 'rack' ? b.offset : b.angle) - couplingRatio(c) * a.angle;
+}
+
+/** Ce qui empêche un couplage de fonctionner (null : il fonctionne). */
+export function couplingProblem(assembly: Assembly, c: JointCoupling): string | null {
+  const a = assembly.joints.find((j) => j.id === c.driver);
+  const b = assembly.joints.find((j) => j.id === c.driven);
+  if (!a || !b) return 'Une des deux liaisons a été supprimée.';
+  if (a.id === b.id) return 'Choisissez deux liaisons différentes.';
+  if (!jointFreedoms(a.kind).angle || a.kind === 'spherical') return `« ${a.name} » doit être un pivot (elle doit pouvoir tourner).`;
+  if (c.kind === 'gear' && (!jointFreedoms(b.kind).angle || b.kind === 'spherical')) return `« ${b.name} » doit être un pivot pour un engrenage.`;
+  if (c.kind === 'rack' && !jointFreedoms(b.kind).offset) return `« ${b.name} » doit être une glissière pour une crémaillère.`;
+  if (c.kind === 'gear' && !(c.teeth[0] >= 1 && c.teeth[1] >= 1)) return 'Indiquez le nombre de dents des deux roues.';
+  if (c.kind === 'rack' && !(c.pitchDiameter > 0)) return 'Indiquez le diamètre primitif de la roue.';
+  if ((assembly.couplings ?? []).some((o) => o.id !== c.id && o.driven === c.driven && (assembly.couplings ?? []).indexOf(o) < (assembly.couplings ?? []).indexOf(c)))
+    return `« ${b.name} » est déjà menée par un autre couplage.`;
+  return null;
+}
+
 /** Échelle (mm) donnée à un écart d'orientation dans les équations de fermeture. */
 const AXIS_SCALE = 20;
 /** Fermeture acceptée : écart de position (mm) et d'orientation résiduels. */
@@ -296,15 +329,33 @@ export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshDa
   };
 
   const stored = new Map(tree.map((j) => [j.id, valuesOf(j)]));
-  let values = stored;
+  const copy = (m: Map<Id, JointValues>) => new Map([...m].map(([id, x]) => [id, { ...x }]));
+  // Couplages (engrenages, crémaillères) entre liaisons de l'arbre : la menée suit la menante ;
+  // si l'on manipule la menée, c'est la menante qui suit.
+  const treeIds = new Set(tree.map((j) => j.id));
+  const couplings = (assembly.couplings ?? []).filter((c) => treeIds.has(c.driver) && treeIds.has(c.driven) && !couplingProblem(assembly, c));
+  const dependent = new Set(couplings.map((c) => (options.driver === c.driven ? c.driver : c.driven)));
+  const couple = (v: Map<Id, JointValues>): Map<Id, JointValues> => {
+    for (const c of couplings) {
+      const a = v.get(c.driver)!;
+      const b = v.get(c.driven)!;
+      const r = couplingRatio(c);
+      const key = c.kind === 'rack' ? 'offset' : 'angle';
+      if (options.driver === c.driven) a.angle = (b[key] - c.phase) / r;
+      else b[key] = c.phase + r * a.angle;
+    }
+    return v;
+  };
+  let values = couple(copy(stored));
   if (closing.length > 0) {
-    // Inconnues : réglages libres des liaisons de l'arbre (sauf celle que l'on manipule).
-    const slots = tree.filter((j) => j.id !== options.driver).flatMap((j) => freeKeys(j.kind).map((key) => ({ id: j.id, key })));
+    // Inconnues : réglages libres des liaisons de l'arbre (sauf celle que l'on manipule et celles
+    // qui suivent un couplage).
+    const slots = tree.filter((j) => j.id !== options.driver && !dependent.has(j.id)).flatMap((j) => freeKeys(j.kind).map((key) => ({ id: j.id, key })));
     const p0 = slots.map((s) => stored.get(s.id)![s.key]);
     const toValues = (p: number[]) => {
-      const v = new Map([...stored].map(([id, x]) => [id, { ...x }]));
+      const v = copy(stored);
       slots.forEach((s, i) => (v.get(s.id)![s.key] = p[i]!));
-      return v;
+      return couple(v);
     };
     const closureOf = (p: number[]) => {
       const m = place(toValues(p));
@@ -351,16 +402,16 @@ export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshDa
     }
     values = toValues(p);
     const ok = Math.max(0, ...closureOf(p).map(Math.abs)) < CLOSURE_TOL;
-    if (ok) {
-      for (const [id, v] of values) {
-        const s = stored.get(id)!;
-        if (Math.abs(v.angle - s.angle) + Math.abs(v.offset - s.offset) + Math.abs(v.tilt - s.tilt) + Math.abs(v.tiltDirection - s.tiltDirection) > 1e-9) solvedValues.set(id, v);
-      }
-    } else {
+    if (!ok) {
       // Boucle impossible : les pièces restent à leurs réglages enregistrés.
-      values = stored;
+      values = couple(copy(stored));
       for (const j of closing) issues.set(j.id, 'LOOP_UNSOLVED');
     }
+  }
+  // Réglages changés (boucle refermée, couplage) : à reporter dans le document.
+  for (const [id, v] of values) {
+    const s = stored.get(id)!;
+    if (Math.abs(v.angle - s.angle) + Math.abs(v.offset - s.offset) + Math.abs(v.tilt - s.tilt) + Math.abs(v.tiltDirection - s.tiltDirection) > 1e-9) solvedValues.set(id, v);
   }
 
   const matrices = place(values);

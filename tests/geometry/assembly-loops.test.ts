@@ -119,3 +119,65 @@ describe('assemblage : boucles fermées', () => {
     expect(placed.solvedValues.size).toBe(0);
   });
 });
+
+describe('assemblage : engrenages et crémaillères entre liaisons', () => {
+  /** Socle (entraxe 30) et deux barres en pivot sur ses trous. */
+  function twoWheels(kind2: 'revolute' | 'cylindrical' = 'revolute') {
+    let doc = createDocument('Engrenage');
+    const parts: Record<string, Id> = {};
+    for (const [name, e] of [['socle', 30], ['a', 20], ['b', 20]] as const) {
+      const r = bar(doc, name, e);
+      doc = r.doc;
+      parts[name] = r.partId;
+    }
+    const m = meshes(doc);
+    const joint = (id: string, kind: 'revolute' | 'cylindrical', moving: string, x: number): AssemblyJoint => ({
+      id,
+      name: id,
+      kind,
+      moving: { instanceId: moving, lcs: hole(doc, m, parts[moving]!, 5, 0) },
+      base: { instanceId: 'socle', lcs: hole(doc, m, parts.socle!, x, 5) },
+      flip: false,
+      angle: 0,
+      offset: 0,
+    });
+    const assembly: Assembly = {
+      instances: [
+        { id: 'socle', partId: parts.socle!, name: 'Socle', position: { x: 0, y: 0, z: 0 } },
+        { id: 'a', partId: parts.a!, name: 'A', position: { x: 0, y: 30, z: 0 } },
+        { id: 'b', partId: parts.b!, name: 'B', position: { x: 0, y: 60, z: 0 } },
+      ],
+      joints: [joint('ja', 'revolute', 'a', 5), joint('jb', kind2, 'b', 35)],
+    };
+    return { assembly, meshOf: (id: Id) => m.get(id) };
+  }
+
+  it('roues de 10 et 20 dents : la menée tourne deux fois moins vite, en sens opposé ; manipuler la menée fait tourner la menante', () => {
+    const { assembly, meshOf } = twoWheels();
+    const coupled: Assembly = {
+      ...assembly,
+      joints: assembly.joints.map((j) => (j.id === 'ja' ? { ...j, angle: 40 } : j)),
+      couplings: [{ id: 'c1', name: 'Engrenage 1', kind: 'gear', driver: 'ja', driven: 'jb', teeth: [10, 20], pitchDiameter: 0, reversed: false, phase: 0 }],
+    };
+    const placed = solveAssembly(coupled, meshOf);
+    expect(placed.issues.size).toBe(0);
+    expect(placed.solvedValues.get('jb')!.angle).toBeCloseTo(-20, 9);
+    // La barre B a bien tourné : son axe X est tourné de −20° autour de Z.
+    const x = transformDirection4(placed.matrices.get('b')!, { x: 1, y: 0, z: 0 });
+    expect(Math.abs(Math.atan2(x.y, x.x) * (180 / Math.PI))).toBeCloseTo(20, 6);
+
+    const back = solveAssembly({ ...coupled, joints: coupled.joints.map((j) => (j.id === 'jb' ? { ...j, angle: 30 } : j)) }, meshOf, { driver: 'jb' });
+    expect(back.solvedValues.get('ja')!.angle).toBeCloseTo(-60, 9);
+  });
+
+  it('crémaillère : un quart de tour d’une roue de Ø 20 fait avancer la glissière de π × 20 / 4', () => {
+    const { assembly, meshOf } = twoWheels('cylindrical');
+    const coupled: Assembly = {
+      ...assembly,
+      joints: assembly.joints.map((j) => (j.id === 'ja' ? { ...j, angle: 90 } : j)),
+      couplings: [{ id: 'c1', name: 'Crémaillère 1', kind: 'rack', driver: 'ja', driven: 'jb', teeth: [1, 1], pitchDiameter: 20, reversed: false, phase: 2 }],
+    };
+    const placed = solveAssembly(coupled, meshOf);
+    expect(placed.solvedValues.get('jb')!.offset).toBeCloseTo(2 + (Math.PI * 20) / 4, 9);
+  });
+});
