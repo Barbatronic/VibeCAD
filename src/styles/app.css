@@ -2999,6 +2999,12 @@ kbd {
   cursor: pointer;
 }
 
+.menu-item .fastener-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
 .fastener-list > summary svg {
   flex: none;
   width: 18px;

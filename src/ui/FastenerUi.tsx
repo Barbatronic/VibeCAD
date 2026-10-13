@@ -65,6 +65,7 @@ export function FastenerMenu() {
                 c.startFastener(t.kind);
               }}
             >
+              <Icon name={`fastener-${t.kind}`} class="fastener-icon" />
               <span>{t.label}</span>
               <span class="shortcut">{t.standard}</span>
             </button>
@@ -82,7 +83,7 @@ export function FastenerList() {
     (s) => {
       const placement = c.fastenerPlacement();
       return {
-        groups: fastenerGroups(s.doc.assembly).map((g) => ({ name: g.name, ids: g.ids, issue: g.ids.some((id) => placement?.issues.has(id)) })),
+        groups: fastenerGroups(s.doc.assembly).map((g) => ({ name: g.name, kind: g.kind, ids: g.ids, issue: g.ids.some((id) => placement?.issues.has(id)) })),
         sel: s.assemblySelection?.kind === 'fasteners' ? s.assemblySelection.ids : null,
       };
     },
@@ -104,6 +105,7 @@ export function FastenerList() {
           <li key={g.name}>
             <div class={`feature-row${selected(g.ids) ? ' is-selected' : ''}`}>
               <button type="button" class="feature-main" aria-pressed={selected(g.ids)} onClick={() => c.selectInAssembly({ kind: 'fasteners', ids: g.ids })}>
+                <Icon name={`fastener-${g.kind}`} class="feature-icon" />
                 <span class="feature-texts">
                   <span class="name">{g.name}</span>
                   <span class="status-line">
@@ -130,7 +132,7 @@ export function FastenerModePanel({ kind }: { kind: FastenerKind }) {
   return (
     <>
       <div class="panel-title">
-        <Icon name="screw" />
+        <Icon name={`fastener-${kind}`} />
         <span>Poser : {t.label}</span>
       </div>
       <div class="panel-content">
@@ -203,7 +205,7 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
   return (
     <>
       <div class="panel-title">
-        <Icon name="screw" />
+        <Icon name={`fastener-${data.kind}`} />
         <span>
           {data.name}
           {plural ? ` (× ${data.count})` : ''}

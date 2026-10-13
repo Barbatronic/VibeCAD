@@ -586,6 +586,51 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M14 19.5l1-3.5 5-5 2.5 2.5-5 5z" />
     </>
   ),
+  /** Visserie, vue de côté (tête en haut) : CHC, BHC, FHC, H ; écrou et rondelle vus de dessus. */
+  'fastener-iso4762': (
+    <>
+      <rect x="7" y="3" width="10" height="6" rx="1" />
+      <path d="M10.5 3v2.5h3V3" />
+      <path d="M10 9v11.5h4V9" />
+      <path d="M10 13h4M10 16.5h4" />
+    </>
+  ),
+  'fastener-iso7380': (
+    <>
+      <path d="M5 9a7 5.5 0 0 1 14 0z" />
+      <path d="M10.5 4.5v2h3v-2" />
+      <path d="M10 9v11.5h4V9" />
+      <path d="M10 13h4M10 16.5h4" />
+    </>
+  ),
+  'fastener-iso10642': (
+    <>
+      <path d="M4.5 4h15L14 9.5h-4z" />
+      <path d="M10.5 4v1.5h3V4" />
+      <path d="M10 9.5v11h4v-11" />
+      <path d="M10 13.5h4M10 17h4" />
+    </>
+  ),
+  'fastener-iso4017': (
+    <>
+      <path d="M5.5 3.5h13l1.5 2.75-1.5 2.75h-13L4 6.25z" />
+      <path d="M9.5 3.5v5.5M14.5 3.5v5.5" />
+      <path d="M10 9v11.5h4V9" />
+      <path d="M10 13h4M10 16.5h4" />
+    </>
+  ),
+  'fastener-iso4032': (
+    <>
+      <path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z" />
+      <circle cx="12" cy="12" r="3.6" />
+    </>
+  ),
+  'fastener-iso7089': (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="3.6" />
+    </>
+  ),
   /** Engrenage (générateur). */
   gear: (
     <>
