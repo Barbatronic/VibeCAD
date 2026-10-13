@@ -82,6 +82,27 @@ repères sont des cercles, Fixe sinon).
   départ, sans rien ajouter à l'historique ; une modification pendant l'animation l'arrête à la
   position atteinte.
 
+## Engrenages et crémaillères
+
+« Coupler deux liaisons » (sous la liste des liaisons) relie deux liaisons : la **menante** (un
+pivot) entraîne la **menée**.
+
+- **Engrenage** (deux pivots) : la menée tourne de `z1 / z2` fois l'angle de la menante, en sens
+  opposé ; « Même sens » pour une courroie ou une couronne à denture intérieure. Les nombres de
+  dents sont ceux des roues (le générateur de roue dentée les donne) ; seul leur rapport compte.
+- **Crémaillère** (pivot menant, glissière menée) : un tour de la roue fait avancer la glissière
+  de π × diamètre primitif (module × nombre de dents).
+- À la création, et quand on change le rapport ou les liaisons, le **calage** est recalculé pour
+  que rien ne saute ; le champ « Calage » tourne (ou fait glisser) la pièce menée seule, pour que
+  les dents tombent entre elles.
+- Tourner, glisser à la souris ou animer la menante fait suivre la menée ; manipuler la menée
+  fait tourner la menante en sens inverse du rapport. Les couplages fonctionnent aussi dans une
+  boucle fermée : les liaisons menées ne sont pas des inconnues du solveur, elles sont recalculées
+  à partir de leur menante à chaque essai. Une liaison menée par deux couplages, ou un couplage
+  dont une liaison n'a pas le bon type, est signalé et ignoré.
+- Les dents ne se touchent pas dans le calcul (pas de contact) : le rapport fait tout. La
+  recherche de collisions permet de vérifier l'entraxe et le calage.
+
 ## Calcul et données
 
 - Placement en arbre : chaque pièce est placée par la première liaison qui la tient, à partir de
@@ -102,7 +123,8 @@ repères sont des cercles, Fixe sinon).
   projet, une définition par pièce (nom, couleur) et une instance placée par pièce insérée (une
   pièce insérée plusieurs fois n'est écrite qu'une fois) ; FreeCAD et les autres logiciels de CAO
   retrouvent l'assemblage et ses pièces.
-- Format natif : champ facultatif `assembly` du document (`instances`, `joints`) ; les anciens
+- Format natif : champ facultatif `assembly` du document (`instances`, `joints`, `fasteners` et
+  `couplings` facultatifs) ; les anciens
   projets s'ouvrent sans changement.
 
 ## Visserie
@@ -148,6 +170,6 @@ arrête la pose. Le filetage n'est pas dessiné.
 
 ## Hors périmètre (pour l'instant)
 
-Engrenages, ressorts, efforts et vitesses (cinématique automatique), limites de course prises en
+Contact entre les dents (le couplage impose le rapport), ressorts, efforts et vitesses (cinématique automatique), limites de course prises en
 compte par le solveur de boucles. Les boucles impossibles sont signalées clairement au lieu d'être
 calculées à moitié.

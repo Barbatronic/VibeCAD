@@ -465,6 +465,22 @@ vis seulement) ; `flip` facultatif. Une taille absente de la norme ou une longue
 rend le fichier invalide ; un élément posé sur une pièce retirée est supprimé à la lecture (avec un
 avertissement).
 
+`couplings` (facultatif, ajouté le 13 octobre 2026) : engrenages et crémaillères entre liaisons.
+
+```json
+"couplings": [
+  { "id": "cp-1", "name": "Engrenage 1", "kind": "gear", "driver": "jt-1", "driven": "jt-2",
+    "teeth": [10, 20], "pitchDiameter": 20, "reversed": false, "phase": 15 }
+]
+```
+
+La liaison `driven` suit la liaison `driver` (un pivot) : `gear` (deux pivots) — angle mené =
+`phase` − `teeth[0]` / `teeth[1]` × angle menant (`+` si `reversed` : courroie, couronne
+intérieure) ; `rack` (glissière menée) — décalage mené = `phase` + π × `pitchDiameter` / 360 ×
+angle menant (signe inversé si `reversed`). Les réglages calculés sont aussi écrits dans les
+liaisons. Un couplage qui vise une liaison absente est supprimé à la lecture (avec un
+avertissement).
+
 ## Simulation (champ facultatif `simulation`)
 
 ```json
