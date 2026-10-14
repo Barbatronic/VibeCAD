@@ -705,9 +705,29 @@ textarea {
   white-space: nowrap;
 }
 
+/* Pièce masquée : toute la ligne grisée (pastille de couleur décolorée), avec la mention « masquée ». */
+.part-row.is-hidden {
+  background: var(--surface-2);
+}
+
+.part-row.is-hidden .color-swatch {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
 .part-select.is-hidden .name {
   color: var(--text-faint);
-  text-decoration: line-through;
+  font-style: italic;
+}
+
+.part-select .hidden-tag {
+  flex: none;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 11.5px;
 }
 
 .color-swatch {

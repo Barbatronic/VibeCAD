@@ -63,7 +63,7 @@ function PartsSection() {
       <div class="panel-body">
         <ul class="part-list">
           {parts.map((p) => (
-            <li key={p.id} class={`part-row${p.id === activePartId ? ' is-active' : ''}`}>
+            <li key={p.id} class={`part-row${p.id === activePartId ? ' is-active' : ''}${(isolatedId ? p.id === isolatedId : p.visible) ? '' : ' is-hidden'}`}>
               <label class="color-swatch" style={{ background: p.color }} title={`Couleur de « ${p.name} »`}>
                 <input
                   type="color"
@@ -91,6 +91,7 @@ function PartsSection() {
                   onDblClick={() => setRenaming(p.id)}
                 >
                   <span class="name">{p.name}</span>
+                  {(isolatedId ? p.id === isolatedId : p.visible) ? null : <span class="hidden-tag">masquée</span>}
                   {p.id === activePartId ? <span class="visually-hidden"> (pièce active)</span> : null}
                 </button>
               )}
