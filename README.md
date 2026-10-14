@@ -150,8 +150,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Vue 3D** : rotation, déplacement, zoom vers le curseur, vues standard, cadrage, projection
   orthographique, repère d'orientation, sélection de faces et d'arêtes, **mesure**. **Modes
   d'affichage** (bouton « Affichage ») : ombré avec ou sans arêtes, arêtes cachées en pointillés
-  (comme un dessin technique), transparent, fil de fer, noir et blanc ; le choix est retenu sur
-  l'appareil.
+  (comme un dessin technique), transparent, fil de fer, noir et blanc, et épaisseur des arêtes
+  (0,5 à 4 px) ; les choix sont retenus sur l'appareil.
 - **Échanges** : export STEP (une ou plusieurs pièces), import STEP et **STL** (niveau Expert)
   comme « Solide importé » (contenu conservé dans le projet ; les petits défauts de précision d'un
   STEP sont réparés à la lecture, et un STEP surfacique fait de coques fermées est reconstitué en
