@@ -23,4 +23,12 @@ test('modes d’affichage : choisis dans le bouton « Affichage », retenus au r
   await expect(page.getByRole('menuitemradio', { name: 'Fil de fer' })).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('menuitemradio', { name: 'Ombré avec arêtes' }).click();
   await expect.poll(() => appState(page, (s) => s.displayStyle)).toBe('shaded-edges');
+
+  // Épaisseur des arêtes : curseur du même menu, retenue elle aussi.
+  await page.click('#view-display');
+  await page.locator('#view-edge-width').fill('3');
+  await expect.poll(() => appState(page, (s) => s.edgeWidth)).toBe(3);
+  await expect(page.locator('.edge-width-field')).toContainText('3 px');
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: 'tests/output/e2e-aretes-epaisses.png' });
 });

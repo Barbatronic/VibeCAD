@@ -9,9 +9,6 @@ import {
   DoubleSide,
   Group,
   GreaterDepth,
-  LineBasicMaterial,
-  LineDashedMaterial,
-  LineSegments,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -84,7 +81,8 @@ export function fatLineMaterial(color: string, width: number, opts: { dashed?: b
 export class PartObject {
   readonly group = new Group();
   readonly faces: Mesh;
-  readonly edges: LineSegments;
+  /** Arêtes en lignes épaisses (épaisseur en pixels réglable). */
+  readonly edges: LineSegments2;
   /** Premier triangle de chaque face, pour retrouver la face d'un triangle touché. */
   private readonly faceTriangleStarts: number[];
 
@@ -96,6 +94,7 @@ export class PartObject {
     readonly appearance: PartAppearance,
     palette: ViewportPalette,
     style: DisplayStyle = 'shaded-edges',
+    edgeWidth = 1,
   ) {
     // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
     const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
@@ -107,15 +106,11 @@ export class PartObject {
     geometry.computeBoundingSphere();
     this.faces = new Mesh(geometry, styled === 'shaded-edges' || styled === 'shaded' ? this.faceMaterial(color, appearance, palette) : this.styledFaceMaterial(color, styled, palette));
     this.faces.userData = { partId, kind: 'part-faces' };
-    const edgeGeometry = new BufferGeometry();
-    edgeGeometry.setAttribute('position', new BufferAttribute(data.edgePositions, 3));
-    this.edges = new LineSegments(edgeGeometry, styled === 'monochrome' ? new LineBasicMaterial({ color: '#111111' }) : this.edgeMaterial(appearance, palette));
+    const edgeGeometry = new LineSegmentsGeometry();
+    edgeGeometry.setPositions(data.edgePositions);
+    this.edges = new LineSegments2(edgeGeometry, this.edgeMaterial(appearance, palette, styled, edgeWidth));
     this.edges.userData = { partId, kind: 'part-edges' };
     if (styled === 'shaded') this.edges.visible = false;
-    if (styled === 'wireframe') {
-      // Toutes les arêtes, même derrière la matière.
-      (this.edges.material as LineBasicMaterial).depthTest = false;
-    }
     if (appearance === 'tool-add' || appearance === 'tool-cut') {
       this.faces.renderOrder = 10;
       this.edges.renderOrder = 11;
@@ -124,10 +119,12 @@ export class PartObject {
     if (styled === 'hidden-lines') {
       // Arêtes cachées : dessinées seulement là où la matière les masque (test de profondeur inversé).
       // (En mode transparent, les faces n'écrivent pas la profondeur : toutes les arêtes se voient.)
-      const hidden = new LineSegments(
-        edgeGeometry,
-        new LineDashedMaterial({ color: palette.edge, dashSize: 1.2, gapSize: 1, transparent: true, opacity: 0.55, depthFunc: GreaterDepth, depthWrite: false }),
-      );
+      const material = fatLineMaterial(palette.edge, Math.max(0.5, edgeWidth * 0.8), { dashed: true, opacity: 0.55 });
+      material.dashSize = 1.2;
+      material.gapSize = 1;
+      material.depthFunc = GreaterDepth;
+      material.depthWrite = false;
+      const hidden = new LineSegments2(edgeGeometry, material);
       hidden.computeLineDistances();
       hidden.renderOrder = 2;
       hidden.userData = { partId, kind: 'part-hidden-edges' };
@@ -157,14 +154,32 @@ export class PartObject {
     }
   }
 
-  private edgeMaterial(appearance: PartAppearance, palette: ViewportPalette): LineBasicMaterial {
+  private edgeMaterial(appearance: PartAppearance, palette: ViewportPalette, style: DisplayStyle, width: number): LineMaterial {
     const color =
-      appearance === 'tool-add' ? palette.previewAdd : appearance === 'tool-cut' ? palette.previewCut : appearance === 'stale' ? palette.stale : palette.edge;
-    return new LineBasicMaterial({ color, transparent: appearance !== 'normal', opacity: appearance === 'dimmed' ? 0.35 : appearance === 'ghost' ? 0.2 : 1 });
+      style === 'monochrome'
+        ? '#111111'
+        : appearance === 'tool-add'
+          ? palette.previewAdd
+          : appearance === 'tool-cut'
+            ? palette.previewCut
+            : appearance === 'stale'
+              ? palette.stale
+              : palette.edge;
+    const opacity = appearance === 'dimmed' ? 0.35 : appearance === 'ghost' ? 0.2 : 1;
+    // Fil de fer : toutes les arêtes, même derrière la matière.
+    const m = fatLineMaterial(color, width, { opacity, depthTest: style !== 'wireframe' });
+    if (appearance !== 'normal') m.transparent = true;
+    return m;
   }
 
   /** Arêtes cachées en pointillés (mode « arêtes cachées »), partageant la géométrie des arêtes. */
-  private hiddenEdges: LineSegments | null = null;
+  private hiddenEdges: LineSegments2 | null = null;
+
+  /** Taille de la vue (pixels) : l'épaisseur des lignes épaisses en dépend. */
+  setResolution(width: number, height: number): void {
+    (this.edges.material as LineMaterial).resolution.set(width, height);
+    if (this.hiddenEdges) (this.hiddenEdges.material as LineMaterial).resolution.set(width, height);
+  }
 
   private styledFaceMaterial(color: string, style: DisplayStyle, palette: ViewportPalette): Material {
     const offset = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };

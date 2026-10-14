@@ -560,6 +560,7 @@ const DISPLAY_LABELS: Record<DisplayStyle, { label: string; help: string }> = {
 function DisplayMenu() {
   const c = useController();
   const style = useAppState((s) => s.displayStyle);
+  const edgeWidth = useAppState((s) => s.edgeWidth);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -602,6 +603,13 @@ function DisplayMenu() {
               <span>{DISPLAY_LABELS[d].label}</span>
             </button>
           ))}
+          <div class="menu-sep" role="separator" />
+          <label class="field edge-width-field">
+            <span class="field-label">
+              Épaisseur des arêtes : <strong>{formatNumber(edgeWidth, 1)} px</strong>
+            </span>
+            <input id="view-edge-width" type="range" min={0.5} max={4} step={0.5} value={edgeWidth} onInput={(e) => c.setEdgeWidth(Number((e.target as HTMLInputElement).value))} />
+          </label>
         </div>
       ) : null}
     </div>
@@ -702,9 +710,9 @@ export function ViewportHost() {
     () => {
       const partId = state.workspace === 'simulation' ? c.simulationPartId() : null;
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
-      return { ...built, displayStyle: state.displayStyle };
+      return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle],
+    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

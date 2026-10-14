@@ -110,6 +110,8 @@ export interface ViewportInput {
   points?: { at: Vec3; label: string }[];
   /** Mode d'affichage des pièces (ombré, arêtes cachées, fil de fer…). */
   displayStyle?: DisplayStyle;
+  /** Épaisseur des arêtes des pièces (pixels). */
+  edgeWidth?: number;
   /** Points d'accroche cliquables (points seuls des esquisses, pendant la création d'une liaison). */
   anchors?: { key: string; at: Vec3; title: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
@@ -351,6 +353,8 @@ export class Viewport {
     const res = { width: this.width, height: this.height };
     this.sessionView.setResolution(res.width, res.height);
     for (const { view } of this.sketchViews.values()) view.setResolution(res.width, res.height);
+    for (const part of this.parts.values()) part.setResolution(res.width, res.height);
+    this.tool?.object.setResolution(res.width, res.height);
     for (const o of [...this.selectionOverlays, ...this.measureObjects, this.hoverOverlay]) {
       if (o instanceof LineSegments2) (o.material as { resolution: Vector2 }).resolution.set(res.width, res.height);
     }
@@ -488,7 +492,8 @@ export class Viewport {
       seen.add(p.partId);
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
-      const signature = `${p.meshKey}|${p.color}|${p.appearance}|${style}`;
+      const edgeWidth = this.input.edgeWidth ?? 1;
+      const signature = `${p.meshKey}|${p.color}|${p.appearance}|${style}|${edgeWidth}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -502,7 +507,8 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth);
+        obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;
         obj.group.userData.signature = signature;
@@ -538,7 +544,8 @@ export class Viewport {
       this.tool = null;
     }
     if (tool && !this.tool) {
-      const object = new PartObject('tool', tool.key, tool.mesh, '#ffffff', tool.kind === 'add' ? 'tool-add' : 'tool-cut', this.palette);
+      const object = new PartObject('tool', tool.key, tool.mesh, '#ffffff', tool.kind === 'add' ? 'tool-add' : 'tool-cut', this.palette, 'shaded-edges', this.input.edgeWidth ?? 1);
+      object.setResolution(this.width, this.height);
       this.overlayGroup.add(object.group);
       this.tool = { key: tool.key, object };
     }

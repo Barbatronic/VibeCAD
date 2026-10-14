@@ -172,6 +172,8 @@ export class AppController {
     if (theme === 'light' || theme === 'dark') this.set({ theme });
     const style = await this.deps.projects?.getSetting<string>('displayStyle').catch(() => undefined);
     if (DISPLAY_STYLES.includes(style as DisplayStyle)) this.set({ displayStyle: style as DisplayStyle });
+    const edgeWidth = await this.deps.projects?.getSetting<number>('edgeWidth').catch(() => undefined);
+    if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
   }
@@ -299,6 +301,13 @@ export class AppController {
     void this.deps.projects?.setSetting('displayStyle', displayStyle).catch(() => undefined);
   }
 
+  /** Épaisseur des arêtes des pièces (0,5 à 4 px), retenue sur l'appareil. */
+  setEdgeWidth(width: number): void {
+    const edgeWidth = Math.max(0.5, Math.min(4, Math.round(width * 2) / 2));
+    this.set({ edgeWidth });
+    void this.deps.projects?.setSetting('edgeWidth', edgeWidth).catch(() => undefined);
+  }
+
   setTheme(theme: ThemeChoice): void {
     this.set({ theme });
     void this.deps.projects?.setSetting('theme', theme).catch(() => undefined);
@@ -319,6 +328,7 @@ export class AppController {
     this.setTheme('auto');
     this.setSketchGrid(true);
     this.setDisplayStyle('shaded-edges');
+    this.setEdgeWidth(1);
     this.setMascot({ hidden: true, collapsed: false, dismissed: null });
   }
 

@@ -211,6 +211,8 @@ export interface AppState {
   projection: Projection;
   /** Mode d'affichage des pièces (préférence de l'appareil). */
   displayStyle: DisplayStyle;
+  /** Épaisseur des arêtes des pièces, en pixels (préférence de l'appareil). */
+  edgeWidth: number;
   dialog: Dialog | null;
   helpOpen: boolean;
   /** Écran étroit : panneau des pièces ouvert par-dessus la vue (tiroir). */
@@ -269,6 +271,7 @@ export function initialState(): AppState {
     offline: { status: 'dev' },
     projection: 'perspective',
     displayStyle: 'shaded-edges',
+    edgeWidth: 1,
     dialog: null,
     helpOpen: false,
     leftPanelOpen: false,
