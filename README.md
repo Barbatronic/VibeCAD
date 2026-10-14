@@ -138,7 +138,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   documents : mise en plan cotée (3 vues, PDF / SVG), gabarit papier 1:1 (PDF), nomenclature (CSV).
   Voir [docs/fabrication.md](docs/fabrication.md).
 - **Simulation** (onglet à part, niveau Intermédiaire) : choisir le matériau, cliquer les faces
-  fixées et celles où appuie une charge (masse en kg ou force en N), puis calculer : la pièce
+  fixées et celles où appuie une charge (masse en kg ou force en N, dans le sens choisi : appuyer
+  ou tirer sur la face, un axe, ou une direction au choix), puis calculer : la pièce
   apparaît déformée (exagérée) et colorée du bleu au rouge selon l'effort, avec un verdict
   (« La pièce tient », « C'est juste », « Risque de casser »). Résultat indicatif, calculé par
   éléments finis dans un worker. Voir [docs/simulation.md](docs/simulation.md).

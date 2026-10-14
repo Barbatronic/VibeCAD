@@ -9,9 +9,13 @@ imprimée dépend aussi du remplissage et du sens des couches.
 1. Choisir la **pièce étudiée** (panneau de gauche) et son **matériau** (panneau de droite).
 2. **Faces fixées** : cliquer les faces où la pièce est tenue (vissée, collée, posée). Un second
    clic retire une face ; Échap termine.
-3. **Charge** : cliquer les faces où l'on appuie, puis indiquer une **masse posée** (kg, son poids
-   tire vers le bas, −Z) ou une **force** (N) et son sens : « appuie sur la face » (vers
-   l'intérieur de la pièce) ou un axe du repère. Une face est fixée ou chargée, pas les deux.
+3. **Charge** : cliquer les faces où l'on appuie, puis indiquer une **masse posée** (kg) ou une
+   **force** (N) et son sens : « appuie sur la face » (vers l'intérieur de la pièce), « tire sur la
+   face », un axe du repère, ou une **direction au choix** (trois composantes X, Y, Z, par exemple
+   0 ; 1 ; −1 pour 45° vers +Y et vers le bas). Le poids d'une masse tire vers le bas (−Z) par
+   défaut ; son sens se change aussi, pour une pièce qui ne sera pas utilisée dans la position où
+   elle est dessinée. La flèche de la vue montre le sens choisi. Une face est fixée ou chargée, pas
+   les deux.
 4. **Calculer** : la pièce apparaît déformée (exagérée, pour que la déformation se voie) et colorée
    du bleu (peu sollicitée) au rouge (très sollicitée), en contrainte ou en déplacement. Le
    **verdict** compare la contrainte maximale à la résistance du matériau :

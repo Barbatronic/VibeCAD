@@ -500,7 +500,9 @@ avertissement).
 Une étude par pièce ; `partId` vaut `"@assembly"` pour l'étude de l'assemblage (pièces qui se
 touchent collées), dont les faces portent en plus `instanceId` (la pièce insérée). `materialId` : `pla`, `petg`, `abs`, `tpu`, `plywood`, `acrylic`,
 `aluminium`, `steel` ; `quality` : `coarse`, `normal`, `fine` ; charge `mass` (kg) ou `force` (N),
-`direction` : `push` (appuie sur la face) ou un axe (`-z`, `+z`, `-x`, `+x`, `-y`, `+y`). Les
+`direction` (pour une masse comme pour une force) : `push` (appuie sur la face), `pull` (tire
+dessus), un axe (`-z`, `+z`, `-x`, `+x`, `-y`, `+y`) ou `custom` (direction `vector` `{ x, y, z }`,
+normalisée au calcul ; `pull`, `custom` et `vector` ajoutés le 14 octobre 2026). Les
 résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).
 
 ## Fabrication (champ facultatif `fabrication`)
