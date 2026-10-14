@@ -92,7 +92,7 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
   await buildPlateViaUi(page);
 
   // Seconde pièce : un bloc 15 × 15 × 10 posé à côté de la plaque.
-  await page.click('#tool-new-part');
+  await page.click('#part-add');
   await page.getByRole('button', { name: 'Renommer « Pièce 2 »' }).click();
   await page.getByRole('textbox', { name: 'Nouveau nom de la pièce' }).fill('Cale');
   await page.getByRole('textbox', { name: 'Nouveau nom de la pièce' }).press('Enter');

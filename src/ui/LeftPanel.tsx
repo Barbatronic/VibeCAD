@@ -42,6 +42,7 @@ function PartsSection() {
   const c = useController();
   const parts = useAppState((s) => s.doc.parts);
   const activePartId = useAppState((s) => s.activePartId);
+  const busy = useAppState((s) => s.mode.kind !== 'model');
   const isolatedId = useAppState((s) => (s.isolatedPartId && s.doc.parts.some((p) => p.id === s.isolatedPartId) ? s.isolatedPartId : null));
   const [renaming, setRenaming] = useState<Id | null>(null);
   const isolated = parts.find((p) => p.id === isolatedId);
@@ -50,7 +51,14 @@ function PartsSection() {
       <div class="panel-header">
         <span id="parts-title">Pièces</span>
         <span class="spacer" />
-        <IconButton icon="plus" label="Ajouter une pièce" small onClick={() => c.addPart()} />
+        <IconButton
+          id="part-add"
+          icon="plus"
+          label={busy ? 'Ajouter une pièce (terminez d’abord l’opération en cours)' : 'Ajouter une nouvelle pièce indépendante'}
+          small
+          disabled={busy}
+          onClick={() => c.addPart()}
+        />
       </div>
       <div class="panel-body">
         <ul class="part-list">

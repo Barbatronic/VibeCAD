@@ -42,6 +42,7 @@ export function ToolButton(props: {
 }
 
 export function IconButton(props: {
+  id?: string;
   icon: string;
   label: string;
   onClick: (e: MouseEvent) => void;
@@ -52,6 +53,7 @@ export function IconButton(props: {
   return (
     <button
       type="button"
+      id={props.id}
       class={`icon-btn${props.small ? ' small' : ''}`}
       title={props.label}
       aria-label={props.label}

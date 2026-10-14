@@ -9,7 +9,7 @@ const shown = (page: Page) =>
   });
 
 async function addBox(page: Page, x: number, index: number) {
-  if (index > 0) await page.click('#tool-new-part');
+  if (index > 0) await page.click('#part-add');
   await page.click('#tool-primitive');
   await page.locator('#draft-pos-x').fill(String(x));
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

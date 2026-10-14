@@ -1968,7 +1968,7 @@ kbd {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
-/* Palier 2 : groupes secondaires (Pièce, STEP, Mesurer) en icônes seules. */
+/* Palier 2 : groupes secondaires (Mesurer) en icônes seules. */
 .topbar[data-compact='2'] .toolbar-group.secondary .tool-btn {
   min-width: 38px;
 }

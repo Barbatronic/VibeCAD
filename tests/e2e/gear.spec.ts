@@ -25,7 +25,7 @@ test('générateurs : roue dentée puis poulie GT2 depuis le menu « Forme »', 
   await page.screenshot({ path: 'tests/output/e2e-roue-dentee.png' });
 
   // Nouvelle pièce : poulie GT2 20 dents, le nom suit le choix.
-  await page.click('#tool-new-part');
+  await page.click('#part-add');
   await openGenerator();
   await page.getByRole('group', { name: 'Pièce à générer' }).getByRole('button', { name: 'Poulie' }).click();
   await expect(page.locator('.right-panel .panel-title')).toContainText('Poulie 1');

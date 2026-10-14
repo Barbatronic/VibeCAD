@@ -164,7 +164,6 @@ function ModelTools() {
       sketch: sketchAvailability(s),
       tools: types.map((t) => toolAvailability(s, t)),
       measure: measureAvailability(s),
-      importOk: s.mode.kind === 'model' ? ({ ok: true } as Availability) : ({ ok: false, reason: 'Terminez d’abord l’opération en cours.' } as Availability),
       selectedSketch: s.selection?.kind === 'feature' && s.doc.parts.some((p) => p.features.some((f) => f.id === (s.selection as { featureId: string }).featureId && f.type === 'sketch')),
       planarFace: s.selection?.kind === 'face',
     }),
@@ -207,10 +206,6 @@ function ModelTools() {
             />
           );
         })}
-      </div>
-      <div class="toolbar-group secondary" role="group" aria-label="Pièces">
-        <ToolButton id="tool-new-part" icon="part" label="Pièce" hint="Ajouter une nouvelle pièce indépendante" availability={a.importOk} onClick={() => c.addPart()} />
-        <ToolButton id="tool-export" icon="export" label="STEP" hint="Exporter en STEP pour FreeCAD" availability={a.importOk} onClick={() => c.showExportDialog('step')} />
       </div>
       <div class="toolbar-group secondary" role="group" aria-label="Outils">
         <ToolButton id="tool-measure" icon="measure" label="Mesurer" hint="Mesurer une arête, une face ou une distance" availability={a.measure} onClick={() => c.startMeasure()} />

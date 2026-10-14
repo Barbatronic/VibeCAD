@@ -16,7 +16,7 @@ test('pendant une opération ou une esquisse, les autres pièces deviennent tran
   await expectVolume(page, 8000);
 
   // Seconde pièce : une boîte posée à côté.
-  await page.click('#tool-new-part');
+  await page.click('#part-add');
   await page.click('#tool-primitive');
   await page.locator('#draft-pos-x').fill('40');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

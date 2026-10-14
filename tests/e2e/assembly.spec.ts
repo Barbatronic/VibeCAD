@@ -45,7 +45,7 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await buildPlateViaUi(page);
 
   // Seconde pièce : goupille Ø 6 × 10 centrée sur l'origine.
-  await page.click('#tool-new-part');
+  await page.click('#part-add');
   await page.click('#tool-sketch');
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
