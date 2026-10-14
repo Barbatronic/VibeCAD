@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp } from './helpers';
+import { menuItem, openApp } from './helpers';
 
 test('bulles d’explication : l’outil survolé est expliqué (sans chat par défaut), désactivables dans l’Aide', async ({ page }) => {
   await openApp(page);
@@ -18,7 +18,7 @@ test('bulles d’explication : l’outil survolé est expliqué (sans chat par d
   await expect(page.locator('#tool-extrude')).toHaveAttribute('title', /épaisseur/);
 
   // Désactivées : retour aux info-bulles simples.
-  await page.getByRole('button', { name: 'Aide' }).click();
+  await menuItem(page, /^Aide/);
   await page.getByRole('checkbox', { name: /Bulles d’explication au survol/ }).uncheck();
   await page.keyboard.press('Escape');
   await page.hover('#tool-pocket');

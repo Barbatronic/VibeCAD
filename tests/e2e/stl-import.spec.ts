@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, expectVolume, openApp, openFileMenu } from './helpers';
+import { openExport, appState, expectVolume, openApp, openFileMenu } from './helpers';
 
 test('importer un STL : une boîte exportée en STL revient en solide à six faces, gardé dans le projet', async ({ page }) => {
   await openApp(page);
@@ -12,9 +12,7 @@ test('importer un STL : une boîte exportée en STL revient en solide à six fac
   await expectVolume(page, 8000);
 
   // Export STL de la boîte.
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en STL/ }).click();
-  const exportDialog = page.getByRole('dialog', { name: /Exporter en STL/ });
+  const exportDialog = await openExport(page, 'STL');
   const [download] = await Promise.all([page.waitForEvent('download'), exportDialog.getByRole('button', { name: 'Exporter' }).click()]);
   await download.saveAs('tests/output/e2e-boite.stl');
 

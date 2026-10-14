@@ -29,6 +29,7 @@ function FileMenu() {
   const root = useRef<HTMLDivElement>(null);
   const exportOk = useAppState((s) => exportAvailability(s).ok);
   const canImport = useAppState((s) => allows(s.level, 'import-step'));
+  const tutorialOn = useAppState((s) => s.tutorial !== null);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -73,7 +74,7 @@ function FileMenu() {
   };
   return (
     <div class="anchor" ref={root}>
-      <button type="button" class="tool-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Fichier : nouveau, ouvrir, enregistrer, importer, exporter">
+      <button type="button" class="tool-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Fichier : nouveau, ouvrir, enregistrer, importer, exporter ; parcours guidés, aide, préférences">
         <Icon name="menu" />
         <span>Fichier</span>
       </button>
@@ -85,11 +86,10 @@ function FileMenu() {
           {item('export', 'Enregistrer sous… (fichier)', () => void c.saveAs(), 'Ctrl+Maj+S')}
           <div class="menu-sep" role="separator" />
           {canImport ? item('import', 'Importer un fichier (STEP, STL)…', () => void c.importStep()) : null}
-          {item('export', 'Exporter en STEP (FreeCAD)…', () => c.showExportDialog('step'), undefined, !exportOk)}
-          {item('print3d', 'Exporter en 3MF (impression 3D)…', () => c.showExportDialog('3mf'), undefined, !exportOk)}
-          {item('stl', 'Exporter en STL (impression 3D)…', () => c.showExportDialog('stl'), undefined, !exportOk)}
-          {item('export', 'Exporter en GLB (3D pour le web, présentation)…', () => c.showExportDialog('glb'), undefined, !exportOk)}
+          {item('export', 'Exporter… (STEP, 3MF, STL, GLB)', () => c.showExportDialog(), undefined, !exportOk)}
           <div class="menu-sep" role="separator" />
+          {item('graduation', tutorialOn ? 'Fermer le parcours guidé' : 'Parcours guidés…', () => (tutorialOn ? c.closeTutorial() : c.startTutorial()))}
+          {item('help', 'Aide', () => c.toggleHelp(), 'F1')}
           {item('settings', 'Préférences…', () => c.setDialog({ kind: 'preferences' }))}
           {item('info', 'À propos et licences', () => c.setDialog({ kind: 'about' }))}
         </div>
@@ -669,6 +669,7 @@ export function TopBar() {
   const mode = useAppState((s) => s.mode.kind);
   const workspace = useAppState((s) => s.workspace);
   const tutorialOn = useAppState((s) => s.tutorial !== null);
+  const level = useAppState((s) => s.level);
   const leftShown = useAppState((s) => (window.matchMedia('(max-width: 980px)').matches ? s.leftPanelOpen : !s.leftPanelHidden));
   return (
     <header class="topbar" ref={barRef}>
@@ -712,9 +713,11 @@ export function TopBar() {
         <span>Plus</span>
       </button>
       <div class="spacer" />
-      <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
-      <ToolButton icon="help" label="Aide" shortcut="F1" hint="Aide : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} />
-      <ToolButton id="tool-preferences" icon="settings" label="Préférences" hint="Préférences : niveau, aide, thème, esquisse" onClick={() => c.setDialog({ kind: 'preferences' })} />
+      {/* Raccourcis pour débuter : Parcours (Débutant) et Aide (Débutant, Intermédiaire) ; tous deux restent dans le menu Fichier. */}
+      {level === 'debutant' ? (
+        <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
+      ) : null}
+      {level !== 'expert' ? <ToolButton icon="help" label="Aide" shortcut="F1" hint="Aide : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} /> : null}
     </header>
   );
 }

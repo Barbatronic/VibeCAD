@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildPlateViaUi, openApp } from './helpers';
+import { menuItem, buildPlateViaUi, openApp } from './helpers';
 
 test('parcours guidés : choix du parcours, assemblage puis fabrication suivis pas à pas', async ({ page }) => {
   await openApp(page);
@@ -7,7 +7,7 @@ test('parcours guidés : choix du parcours, assemblage puis fabrication suivis p
   const tour = page.locator('.tutorial');
   const done = tour.getByText('Bravo, c’est fait !');
 
-  await page.getByRole('button', { name: 'Parcours' }).click();
+  await menuItem(page, /Parcours guidés/);
   await expect(tour.getByRole('heading', { name: 'Que veux-tu apprendre ?' })).toBeVisible();
   await expect(tour.locator('.tutorial-choice')).toHaveCount(3);
   await page.screenshot({ path: 'tests/output/e2e-parcours-choix.png' });
@@ -30,7 +30,7 @@ test('parcours guidés : choix du parcours, assemblage puis fabrication suivis p
   await tour.getByRole('button', { name: 'Quitter le parcours guidé' }).click();
 
   // Fabrication.
-  await page.getByRole('button', { name: 'Parcours' }).click();
+  await menuItem(page, /Parcours guidés/);
   await tour.getByRole('button', { name: /Préparer la fabrication/ }).click();
   await tour.getByRole('button', { name: 'Suivant' }).click();
   await page.click('#tab-fabrication');

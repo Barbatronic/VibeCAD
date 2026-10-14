@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openApp } from './helpers';
+import { menuItem, openApp } from './helpers';
 
 test('le chat : absent par défaut, activé dans les préférences, conseil avec action, masquer puis réafficher, parcours guidé', async ({ page }) => {
   await openApp(page);
@@ -13,7 +13,7 @@ test('le chat : absent par défaut, activé dans les préférences, conseil avec
   await expect(page.locator('.brand img.brand-mark')).toHaveAttribute('src', /icons\/icon\.svg$/);
   await expect(page.locator('.mascot-bubble, .mascot-mini')).toHaveCount(0);
   // Préférences › Environnement des jeunes : on l'active.
-  await page.getByRole('button', { name: 'Préférences' }).click();
+  await menuItem(page, /Préférences/);
   await page.getByRole('group', { name: 'Environnement des jeunes' }).getByRole('checkbox').check();
   await page.keyboard.press('Escape');
   // Le chat apparaît comme mascotte, jamais comme logo.
@@ -33,7 +33,7 @@ test('le chat : absent par défaut, activé dans les préférences, conseil avec
   await page.getByRole('button', { name: /Afficher le conseil du chat/ }).click();
   await bubble.getByRole('button', { name: 'Masquer le chat' }).click();
   await expect(page.locator('.mascot-bubble, .mascot-mini')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Aide' }).click();
+  await menuItem(page, /^Aide/);
   await page.getByRole('checkbox', { name: 'Afficher le chat' }).check();
   await page.keyboard.press('Escape');
   await expect(bubble).toBeVisible();
@@ -65,12 +65,12 @@ test('le chat : absent par défaut, activé dans les préférences, conseil avec
   await page.waitForFunction(() => (window as any).vibecad?.store?.get().kernel.status === 'ready');
   await page.waitForTimeout(500);
   await expect(page.locator('.mascot-bubble, .mascot-mini')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Aide' }).click();
+  await menuItem(page, /^Aide/);
   await page.getByRole('checkbox', { name: 'Afficher le chat' }).check();
   await page.keyboard.press('Escape');
 
   // Parcours guidé : le chat présente l'étape (la bulle de conseil se tait pendant le parcours).
-  await page.getByRole('button', { name: 'Parcours' }).click();
+  await menuItem(page, /Parcours guidés/);
   await expect(page.locator('.tutorial .tutorial-cat')).toBeVisible();
   await expect(bubble).toHaveCount(0);
   await page.screenshot({ path: 'tests/output/e2e-chat-parcours.png' });

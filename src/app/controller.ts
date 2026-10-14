@@ -1542,7 +1542,12 @@ export class AppController {
     );
   }
 
-  showExportDialog(format: ExportFormat): void {
+  /** Format proposé à l'ouverture de la fenêtre d'export : le dernier choisi. */
+  private lastExportFormat: ExportFormat = 'step';
+
+  /** Ouvre la fenêtre d'export (format au choix dans la fenêtre ; le dernier utilisé par défaut). */
+  showExportDialog(format?: ExportFormat): void {
+    if (!format) format = this.state.workspace === 'assembly' && this.lastExportFormat === 'stl' ? 'step' : this.lastExportFormat;
     const avail = exportAvailability(this.state);
     if (!avail.ok) return this.explain(avail.reason);
     const s = this.state;
@@ -1561,6 +1566,15 @@ export class AppController {
     // Impression : la pièce active par défaut ; STEP et GLB : toutes les pièces.
     const partIds = (format === 'stl' || format === '3mf') && withSolid.includes(s.activePartId) ? [s.activePartId] : withSolid;
     this.set({ dialog: { kind: 'export', format, partIds, busy: false } });
+  }
+
+  /** Change le format dans la fenêtre d'export (les pièces cochées sont gardées). */
+  setExportFormat(format: ExportFormat): void {
+    const d = this.state.dialog;
+    if (d?.kind !== 'export' || d.plate !== undefined) return;
+    if (d.assembly && format === 'stl') return;
+    this.lastExportFormat = format;
+    this.set({ dialog: { ...d, format } });
   }
 
   /** Choix du plateau exporté (dialogue d'export du plateau d'impression). */

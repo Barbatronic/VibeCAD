@@ -3,7 +3,7 @@
  * Lancer : npx playwright test tests/e2e/screens.spec.ts --project=chromium
  */
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, clickSketch, openApp, openFileMenu, session, worldToScreen } from './helpers';
+import { menuItem, appState, buildPlateViaUi, clickSketch, openApp, openFileMenu, session, worldToScreen } from './helpers';
 
 const OUT = 'tests/output/screens';
 
@@ -67,15 +67,15 @@ test('captures des principaux écrans', async ({ page }) => {
   await openFileMenu(page);
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${OUT}/06-menu-fichier.png` });
-  await page.getByRole('menuitem', { name: /Exporter en STEP/ }).click();
+  await page.getByRole('menuitem', { name: /Exporter…/ }).click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${OUT}/07-export-step.png` });
   await page.keyboard.press('Escape');
-  await page.click('button:has-text("Aide")');
+  await menuItem(page, /^Aide/);
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${OUT}/08-aide.png` });
   await page.keyboard.press('Escape');
-  await page.click('button:has-text("Parcours")');
+  await menuItem(page, /Parcours guidés/);
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${OUT}/09-parcours.png` });
   await page.locator('.tutorial').getByRole('button', { name: 'Quitter le parcours guidé' }).click();

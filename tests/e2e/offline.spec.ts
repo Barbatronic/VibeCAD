@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { appState, clickSketch, expectVolume, finishSketch, moveSketch, openFileMenu, PROD_URL, session } from './helpers';
+import { openExport, appState, clickSketch, expectVolume, finishSketch, moveSketch, PROD_URL, session } from './helpers';
 
 test('après préparation du mode hors ligne, un rechargement sans réseau permet de créer, enregistrer et exporter', async ({ page, context }) => {
   await page.goto(PROD_URL);
@@ -35,9 +35,7 @@ test('après préparation du mode hors ligne, un rechargement sans réseau perme
   // Enregistrer et exporter, toujours hors ligne.
   await page.keyboard.press('Control+s');
   await expect(page.getByText(/Projet enregistré/)).toBeVisible();
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en STEP/ }).click();
-  const dialog = page.getByRole('dialog', { name: /Exporter en STEP/ });
+  const dialog = await openExport(page, 'STEP');
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   await download.saveAs('tests/output/e2e-offline.step');
   expect(readFileSync('tests/output/e2e-offline.step', 'utf8')).toMatch(/MANIFOLD_SOLID_BREP/);

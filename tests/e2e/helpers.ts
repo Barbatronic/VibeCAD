@@ -152,3 +152,20 @@ export async function buildPlateViaUi(page: Page): Promise<void> {
 export async function openFileMenu(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Fichier' }).click();
 }
+
+/** Une entrée du menu Fichier (parcours, aide, préférences…). */
+export async function menuItem(page: Page, name: RegExp): Promise<void> {
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name }).click();
+}
+
+/** Fichier → Exporter…, puis choix du format dans la fenêtre d'export (renvoyée). */
+export async function openExport(page: Page, format: 'STEP' | '3MF' | 'STL' | 'GLB') {
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: /Exporter…/ }).click();
+  const dialog = page.getByRole('dialog', { name: /Exporter/ });
+  const button = dialog.getByRole('button', { name: format, exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  return dialog;
+}

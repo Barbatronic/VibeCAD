@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { appState, openApp, session } from './helpers';
+import { menuItem, appState, openApp, session } from './helpers';
 
 test('préférences : thème, niveau, aide et aimantation retenus sur l’appareil, puis rétablis', async ({ page }) => {
   await openApp(page);
-  await page.click('#tool-preferences');
+  await menuItem(page, /Préférences/);
   const dialog = page.getByRole('dialog', { name: 'Préférences' });
   await expect(dialog).toBeVisible();
 

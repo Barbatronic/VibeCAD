@@ -172,7 +172,7 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     title: '11. Enregistrer et partager',
     body: [
       'Clique sur **Fichier → Enregistrer** (ou Ctrl+S). Pour garder une copie sur l’ordinateur : **Enregistrer sous…**.',
-      'Pour ouvrir la pièce dans **FreeCAD** : **Fichier → Exporter en STEP**. Bravo, tu as réalisé ta première pièce en CAO !',
+      'Pour ouvrir la pièce dans **FreeCAD** : **Fichier → Exporter…**, format **STEP**. Bravo, tu as réalisé ta première pièce en CAO !',
     ],
     check: (s) => s.project.savedRevision === s.revision && s.project.savedAt !== null,
   },

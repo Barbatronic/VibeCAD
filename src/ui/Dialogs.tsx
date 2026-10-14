@@ -140,12 +140,12 @@ function OpenDialog() {
   );
 }
 
-const EXPORT_TITLES: Record<ExportFormat, string> = {
-  step: 'Exporter en STEP (pour FreeCAD)',
-  '3mf': 'Exporter en 3MF (impression 3D)',
-  stl: 'Exporter en STL (impression 3D)',
-  glb: 'Exporter en GLB (3D pour le web)',
-};
+const EXPORT_FORMATS: { format: ExportFormat; label: string; title: string }[] = [
+  { format: 'step', label: 'STEP', title: 'Pour FreeCAD et les autres logiciels de CAO (formes exactes)' },
+  { format: '3mf', label: '3MF', title: 'Pour l’impression 3D (pièces, couleurs, unité en mm)' },
+  { format: 'stl', label: 'STL', title: 'Pour l’impression 3D (le format le plus répandu)' },
+  { format: 'glb', label: 'GLB', title: 'Pour montrer le modèle : page web, présentation, visionneuse 3D' },
+];
 
 function ExportDialog() {
   const c = useController();
@@ -158,7 +158,7 @@ function ExportDialog() {
   const isStep = d.format === 'step';
   return (
     <Modal
-      title={`${EXPORT_TITLES[d.format]}${d.assembly ? ' — assemblage' : ''}`}
+      title={d.plate !== undefined ? 'Exporter le plateau en 3MF' : `Exporter${d.assembly ? ' l’assemblage' : ''}`}
       onClose={close}
       footer={
         <>
@@ -169,6 +169,19 @@ function ExportDialog() {
         </>
       }
     >
+      {d.plate === undefined ? (
+        <div class="field" role="group" aria-label="Format">
+          <span class="field-label">Format</span>
+          <div class="segmented">
+            {EXPORT_FORMATS.filter((f) => !d.assembly || f.format !== 'stl').map((f) => (
+              <button key={f.format} type="button" aria-pressed={d.format === f.format} title={f.title} onClick={() => c.setExportFormat(f.format)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <span class="field-help">{EXPORT_FORMATS.find((f) => f.format === d.format)?.title}</span>
+        </div>
+      ) : null}
       {d.plate !== undefined ? (
         <>
           <p>

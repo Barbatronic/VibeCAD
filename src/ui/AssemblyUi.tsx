@@ -207,9 +207,14 @@ export function AssemblyTools() {
         />
       </div>
       <div class="toolbar-group" role="group" aria-label="Exporter">
-        <ToolButton icon="export" label="STEP" hint="Exporter l’assemblage en STEP (FreeCAD)" availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }} onClick={() => c.showExportDialog('step')} />
-        <ToolButton icon="print3d" label="3MF" hint="Exporter l’assemblage en 3MF (impression 3D)" availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }} onClick={() => c.showExportDialog('3mf')} />
-        <ToolButton icon="export" label="GLB" hint="Exporter l’assemblage en GLB (3D pour le web, présentation), visserie comprise" availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }} onClick={() => c.showExportDialog('glb')} />
+        <ToolButton
+          id="as-export"
+          icon="export"
+          label="Exporter"
+          hint="Exporter l’assemblage : STEP (FreeCAD), 3MF (impression 3D) ou GLB (3D pour le web, visserie comprise)"
+          availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }}
+          onClick={() => c.showExportDialog()}
+        />
       </div>
     </>
   );

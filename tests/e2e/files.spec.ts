@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { readGlb } from '../../src/io/gltf';
 import { readZip } from '../../src/io/zip';
-import {
+import { openExport,
   appState,
   buildPlateViaUi,
   clickSketch,
@@ -17,9 +17,7 @@ import {
 } from './helpers';
 
 async function exportStep(page: Page, file: string): Promise<string> {
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en STEP/ }).click();
-  const dialog = page.getByRole('dialog', { name: /Exporter en STEP/ });
+  const dialog = await openExport(page, 'STEP');
   await expect(dialog).toBeVisible();
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   await download.saveAs(file);
@@ -119,9 +117,7 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
   await expect.poll(() => appState(page, (s) => s.doc.parts.map((p: any) => p.visible))).toEqual([false, true]);
 
   // Exporter seulement la cale.
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en STEP/ }).click();
-  const dialog = page.getByRole('dialog', { name: /Exporter en STEP/ });
+  const dialog = await openExport(page, 'STEP');
   await dialog.getByRole('checkbox').first().uncheck();
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   await download.saveAs('tests/output/e2e-cale.step');
@@ -130,9 +126,7 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
   expect(text).not.toMatch(/PRODUCT\('Pièce 1'/);
 
   // Exporter les deux pièces en 3MF (impression 3D) : un objet nommé par pièce.
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en 3MF/ }).click();
-  const dialog3mf = page.getByRole('dialog', { name: /Exporter en 3MF/ });
+  const dialog3mf = await openExport(page, '3MF');
   for (const box of await dialog3mf.getByRole('checkbox').all()) await box.check();
   const [download3mf] = await Promise.all([page.waitForEvent('download'), dialog3mf.getByRole('button', { name: 'Exporter' }).click()]);
   expect(download3mf.suggestedFilename()).toMatch(/\.3mf$/);
@@ -148,9 +142,7 @@ test('exporter en GLB (3D pour le web) : un maillage coloré par pièce, en mèt
   await openApp(page);
   await buildPlateViaUi(page);
   await expectVolume(page, PLATE_VOLUME);
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en GLB/ }).click();
-  const dialog = page.getByRole('dialog', { name: /Exporter en GLB/ });
+  const dialog = await openExport(page, 'GLB');
   await expect(dialog).toContainText('montrer');
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   expect(download.suggestedFilename()).toMatch(/\.glb$/);

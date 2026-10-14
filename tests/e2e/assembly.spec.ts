@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readZip } from '../../src/io/zip';
-import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, openFileMenu, session } from './helpers';
+import { openExport, appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, session } from './helpers';
 
 /**
  * Point écran d'une arête circulaire (centre à la hauteur z) d'une pièce insérée : le plus haut à
@@ -140,9 +140,8 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await expect.poll(async () => (await pinOrigin(page)).z).toBeCloseTo(0, 5);
 
   // Export 3MF de l'assemblage : deux objets, la goupille à sa place (bas à z = 0).
-  await openFileMenu(page);
-  await page.getByRole('menuitem', { name: /Exporter en 3MF/ }).click();
-  const dialog = page.getByRole('dialog', { name: /assemblage/ });
+  const dialog = await openExport(page, '3MF');
+  await expect(dialog).toContainText('assemblage');
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   await download.saveAs('tests/output/e2e-assemblage.3mf');
   const files = await readZip(new Uint8Array(readFileSync('tests/output/e2e-assemblage.3mf')));
