@@ -50,18 +50,23 @@ millimètres, avec le nom et la couleur de chaque pièce).
 - **Contraintes** : coïncidence, horizontal, vertical, parallèle, perpendiculaire, égalité,
   colinéaire, tangence, point sur une courbe, milieu, concentrique ; par clics successifs ou sur
   la sélection. Affichage du nombre de degrés de liberté (vert = entièrement contraint).
+- **Points** (outil Point) : un point seul, placé par des cotes depuis l'origine ; il sert de
+  centre à un perçage et d'accroche pour une liaison d'assemblage.
 - **Construction et projection** : traits de construction (pointillés, ignorés pour le volume) ;
   arêtes de la pièce **projetées** dans l'esquisse (bord, trou…) comme repères fixes qui suivent
   la pièce quand elle change.
 - **Volumes** : extrusion et poche (profondeur cotée ou traversante, sens normal / opposé /
   symétrique, ou **deux côtés** avec une longueur différente de chaque côté) avec **aperçu** avant
   validation. Un perçage simple est une poche circulaire traversante.
-- **Perçage normalisé** (bouton « Poche ▾ », niveau Intermédiaire) : un trou pour vis M2 à M12 au
-  centre de chaque cercle d'une esquisse (sa taille ne compte pas) : **passage** (jeu serré,
-  normal ou large, ISO 273), **lamé** pour cacher une tête de vis CHC, **fraisé** à 90° pour une
-  vis FHC qui affleure, ou **à tarauder** ; traversant ou à une profondeur donnée. Les dimensions
-  de la tête sont proposées par la norme et modifiables.
   Au niveau Expert, une extrusion peut aller **jusqu'à une face** plane cliquée (même inclinée).
+- **Perçage normalisé** (bouton « Poche ▾ », niveau Intermédiaire) : un trou à chaque **point**
+  (outil Point de l'esquisse) et au centre de chaque cercle d'une esquisse (sa taille ne compte
+  pas), pour une vis M2 à M12 ou d'un **diamètre libre** : **passage** (sans jeu, jeu serré,
+  normal ou large d'ISO 273, ou jeu choisi, utile en impression 3D), **lamé** pour cacher une tête
+  de vis CHC, **fraisé** à 90° pour une vis FHC qui affleure, ou **fileté** (perçage avant
+  taraudage ISO, ou trou où la vis forme son filet dans le plastique imprimé : 0,9 × d) ;
+  traversant ou à une profondeur donnée. Les dimensions de la tête sont proposées par la norme et
+  modifiables.
 - **Révolution** : faire tourner un profil autour d'un axe de l'esquisse (axe X, Y ou un segment,
   souvent de construction), tour complet ou partiel, avec aperçu ; elle ajoute de la matière ou la
   **creuse** (gorge, perçage conique), et au niveau Expert peut garder la partie commune.

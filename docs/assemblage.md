@@ -23,6 +23,7 @@ les esquisses sur face et les congés (jamais par un numéro de face) :
 | une arête droite | milieu de l'arête | direction de l'arête |
 | une sphère (boule) | centre de la sphère | axe Z de la pièce ; la liaison créée est une **rotule** |
 | un coin d'une face plane : survoler la face, **maintenir Maj** (la face est verrouillée, hachurée), viser le coin puis cliquer | le sommet | normale de la face |
+| une pastille bleue : un **point seul** d'une esquisse de la pièce (outil Point), montré pendant la création d'une liaison | le point | normale de l'esquisse |
 
 Pendant la création d'une liaison, le repère qui servira d'accroche est montré sous la souris avec
 une étiquette (pièce qui bouge, puis pièce de référence) ; l'élément déjà choisi reste en

@@ -245,12 +245,15 @@ l'axe (`REVOLVE_CROSSES_AXIS` sinon). Faces : `start` / `end` (révolution parti
               "through": true, "depth": 10, "reversed": false, "headDiameter": 8, "headDepth": 4.4 } }
 ```
 
-Un trou pour vis métrique au **centre de chaque cercle** de l'esquisse (cercles repris de la pièce
-exceptés ; le diamètre dessiné est ignoré). `kind` : `clearance` (passage, Ø de la série `fit`
-d'ISO 273 : `fine`, `medium`, `coarse`), `counterbore` (lamé : logement Ø `headDiameter` sur
+Un trou à chaque **point seul** et au **centre de chaque cercle** de l'esquisse (cercles repris de
+la pièce exceptés ; le diamètre dessiné est ignoré). `size` : `M2`, `M2.5`, `M3`, `M4`, `M5`,
+`M6`, `M8`, `M10`, `M12`, ou `custom` (diamètre libre `diameter`, mm). `kind` : `clearance`
+(passage : `fit` = `none` diamètre de la vis, `fine` / `medium` / `coarse` séries d'ISO 273, ou
+`custom` diamètre de la vis + `clearance` mm), `counterbore` (lamé : logement Ø `headDiameter` sur
 `headDepth` mm, puis passage), `countersink` (fraisé : cône à 90° de Ø `headDiameter`, puis
-passage ; `headDepth` est ignoré) ou `tapped` (Ø de perçage avant taraudage ; `fit` ignoré).
-`size` : `M2`, `M2.5`, `M3`, `M4`, `M5`, `M6`, `M8`, `M10`, `M12`. Le trou part du plan de
+passage ; `headDepth` est ignoré) ou `tapped` (fileté : `thread` = `tap` perçage avant taraudage
+ISO, ou `plastic` 0,9 × le diamètre de la vis, pour une vis qui forme son filet dans le plastique ;
+`fit` ignoré). `diameter`, `clearance` et `thread` sont facultatifs. Le trou part du plan de
 l'esquisse contre sa normale (dans la matière), ou le long de la normale si `reversed` ;
 `through` : traverse toute la pièce, sinon `depth` mm. Les valeurs proposées par l'interface
 pour la tête viennent de DIN 974-1 (lamage pour vis CHC ISO 4762) et ISO 15065 (fraisure pour vis
@@ -452,8 +455,9 @@ puisque le fichier est figé dans le projet).
 La première pièce insérée est fixe. `position` sert tant qu'une pièce n'est tenue par aucune
 liaison. Repères (`lcs`) : `face` (centre d'une face plane, axe = normale), `circle` (centre d'un
 bord circulaire, axe du cercle), `edge` (milieu d'une arête droite, axe = direction de l'arête), `vertex` (sommet d'une face plane :
-`face` et deux `edges` qui s'y rejoignent ; axe = normale de la face) ; une `face` sphérique désigne
-le centre de la sphère,
+`face` et deux `edges` qui s'y rejoignent ; axe = normale de la face), `point` (point seul d'une
+esquisse de la pièce : `sketchId`, `pointId` ; axe = normale de l'esquisse) ; une `face` sphérique
+désigne le centre de la sphère,
 désignés comme les congés par leurs faces. `kind` : `fixed`, `revolute`, `slider`,
 `cylindrical`, `spherical` (rotule : `tilt` inclinaison et `tiltDirection` direction en degrés, `tiltLimit` inclinaison maximale facultative) ; `angle` en degrés, `offset` en mm, limites facultatives `[min, max]`. Un projet
 sans assemblage n'a pas ce champ. Détails : [assemblage.md](assemblage.md).
