@@ -8,9 +8,12 @@ import {
   Color,
   DoubleSide,
   Group,
+  GreaterDepth,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   ShaderMaterial,
   type Material,
@@ -21,6 +24,19 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import type { Id } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import type { ViewportPalette } from './colors';
+
+/**
+ * Mode d'affichage des pièces (bouton « Affichage » de la vue) :
+ * - `shaded-edges` : faces ombrées et arêtes (par défaut) ;
+ * - `shaded` : faces ombrées seules (présentation) ;
+ * - `hidden-lines` : faces blanches, arêtes visibles en trait plein et cachées en pointillés ;
+ * - `transparent` : faces translucides, toutes les arêtes visibles ;
+ * - `wireframe` : arêtes seules, toutes visibles ;
+ * - `monochrome` : faces blanches et arêtes noires (impression, daltonisme).
+ */
+export type DisplayStyle = 'shaded-edges' | 'shaded' | 'hidden-lines' | 'transparent' | 'wireframe' | 'monochrome';
+
+export const DISPLAY_STYLES: DisplayStyle[] = ['shaded-edges', 'shaded', 'hidden-lines', 'transparent', 'wireframe', 'monochrome'];
 
 /** `ghost` : autre pièce pendant une opération ou une esquisse, très transparente et ignorée par les clics. */
 export type PartAppearance = 'normal' | 'stale' | 'preview' | 'tool-add' | 'tool-cut' | 'dimmed' | 'ghost';
@@ -79,24 +95,45 @@ export class PartObject {
     color: string,
     readonly appearance: PartAppearance,
     palette: ViewportPalette,
+    style: DisplayStyle = 'shaded-edges',
   ) {
+    // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
+    const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(data.positions, 3));
     geometry.setAttribute('normal', new BufferAttribute(data.normals, 3));
     geometry.setIndex(new BufferAttribute(data.indices, 1));
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
-    this.faces = new Mesh(geometry, this.faceMaterial(color, appearance, palette));
+    this.faces = new Mesh(geometry, styled === 'shaded-edges' || styled === 'shaded' ? this.faceMaterial(color, appearance, palette) : this.styledFaceMaterial(color, styled, palette));
     this.faces.userData = { partId, kind: 'part-faces' };
     const edgeGeometry = new BufferGeometry();
     edgeGeometry.setAttribute('position', new BufferAttribute(data.edgePositions, 3));
-    this.edges = new LineSegments(edgeGeometry, this.edgeMaterial(appearance, palette));
+    this.edges = new LineSegments(edgeGeometry, styled === 'monochrome' ? new LineBasicMaterial({ color: '#111111' }) : this.edgeMaterial(appearance, palette));
     this.edges.userData = { partId, kind: 'part-edges' };
+    if (styled === 'shaded') this.edges.visible = false;
+    if (styled === 'wireframe') {
+      // Toutes les arêtes, même derrière la matière.
+      (this.edges.material as LineBasicMaterial).depthTest = false;
+    }
     if (appearance === 'tool-add' || appearance === 'tool-cut') {
       this.faces.renderOrder = 10;
       this.edges.renderOrder = 11;
     }
     this.group.add(this.faces, this.edges);
+    if (styled === 'hidden-lines') {
+      // Arêtes cachées : dessinées seulement là où la matière les masque (test de profondeur inversé).
+      // (En mode transparent, les faces n'écrivent pas la profondeur : toutes les arêtes se voient.)
+      const hidden = new LineSegments(
+        edgeGeometry,
+        new LineDashedMaterial({ color: palette.edge, dashSize: 1.2, gapSize: 1, transparent: true, opacity: 0.55, depthFunc: GreaterDepth, depthWrite: false }),
+      );
+      hidden.computeLineDistances();
+      hidden.renderOrder = 2;
+      hidden.userData = { partId, kind: 'part-hidden-edges' };
+      this.hiddenEdges = hidden;
+      this.group.add(hidden);
+    }
     this.faceTriangleStarts = data.faces.map((f) => f.start / 3);
   }
 
@@ -124,6 +161,25 @@ export class PartObject {
     const color =
       appearance === 'tool-add' ? palette.previewAdd : appearance === 'tool-cut' ? palette.previewCut : appearance === 'stale' ? palette.stale : palette.edge;
     return new LineBasicMaterial({ color, transparent: appearance !== 'normal', opacity: appearance === 'dimmed' ? 0.35 : appearance === 'ghost' ? 0.2 : 1 });
+  }
+
+  /** Arêtes cachées en pointillés (mode « arêtes cachées »), partageant la géométrie des arêtes. */
+  private hiddenEdges: LineSegments | null = null;
+
+  private styledFaceMaterial(color: string, style: DisplayStyle, palette: ViewportPalette): Material {
+    const offset = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
+    switch (style) {
+      case 'transparent':
+        return new MeshStandardMaterial({ ...offset, color, roughness: 0.62, metalness: 0.04, transparent: true, opacity: 0.28, depthWrite: false, side: DoubleSide });
+      case 'wireframe':
+        // Invisibles mais toujours cliquables (choisir une face reste possible).
+        return new MeshBasicMaterial({ ...offset, colorWrite: false, depthWrite: false });
+      case 'monochrome':
+        return new MeshStandardMaterial({ ...offset, color: '#ffffff', roughness: 0.9, metalness: 0 });
+      default:
+        // Arêtes cachées : faces unies de la couleur du fond, comme une feuille.
+        return new MeshBasicMaterial({ ...offset, color: palette.background });
+    }
   }
 
   /** Face (rang dans `data.faces`) qui contient le triangle donné. */
@@ -171,5 +227,6 @@ export class PartObject {
     (this.faces.material as Material).dispose();
     this.edges.geometry.dispose();
     (this.edges.material as Material).dispose();
+    if (this.hiddenEdges) (this.hiddenEdges.material as Material).dispose();
   }
 }

@@ -16,6 +16,7 @@ import type { AutosaveRecord, ProjectSummary } from '../persistence/db';
 import type { SaveTarget } from '../persistence/files';
 import type { SketchSession } from '../sketch/session';
 import type { Projection } from '../viewport/camera-rig';
+import type { DisplayStyle } from '../viewport/part-meshes';
 import type { ModelPick } from '../viewport/viewport';
 import type { StudyOutput } from '../sim/study';
 import type { ResultDisplay } from './simulation';
@@ -208,6 +209,8 @@ export interface AppState {
   project: ProjectMeta;
   offline: OfflineState;
   projection: Projection;
+  /** Mode d'affichage des pièces (préférence de l'appareil). */
+  displayStyle: DisplayStyle;
   dialog: Dialog | null;
   helpOpen: boolean;
   /** Écran étroit : panneau des pièces ouvert par-dessus la vue (tiroir). */
@@ -265,6 +268,7 @@ export function initialState(): AppState {
     project: { savedAt: null, savedRevision: null, file: null, autosave: { kind: 'idle' }, storageAvailable: true },
     offline: { status: 'dev' },
     projection: 'perspective',
+    displayStyle: 'shaded-edges',
     dialog: null,
     helpOpen: false,
     leftPanelOpen: false,

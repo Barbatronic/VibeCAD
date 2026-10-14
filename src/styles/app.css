@@ -3186,3 +3186,15 @@ kbd {
   transform: scale(1.35);
   outline: none;
 }
+
+/* Bouton « Affichage » (commandes de vue) : le menu s'ouvre à gauche de la colonne. */
+.display-menu {
+  position: relative;
+}
+
+.display-menu .display-menu-list {
+  top: 0;
+  left: auto;
+  right: calc(100% + 8px);
+  min-width: 250px;
+}

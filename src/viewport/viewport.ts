@@ -47,7 +47,7 @@ import type { Vec2, Vec3 } from '../math/vec';
 import { CameraRig, type Projection, type StandardView } from './camera-rig';
 import { readPalette, type ViewportPalette } from './colors';
 import { AxesView, frameMatrix, PlaneGrid } from './grid';
-import { fatLineMaterial, hatchMaterial, PartObject, type PartAppearance } from './part-meshes';
+import { fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type PartAppearance } from './part-meshes';
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 
@@ -108,6 +108,8 @@ export interface ViewportInput {
   highlightMeshes?: { key: string; mesh: MeshData }[];
   /** Points remarquables (centre de gravité), avec une étiquette. */
   points?: { at: Vec3; label: string }[];
+  /** Mode d'affichage des pièces (ombré, arêtes cachées, fil de fer…). */
+  displayStyle?: DisplayStyle;
   /** Points d'accroche cliquables (points seuls des esquisses, pendant la création d'une liaison). */
   anchors?: { key: string; at: Vec3; title: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
@@ -485,7 +487,8 @@ export class Viewport {
     for (const p of parts) {
       seen.add(p.partId);
       const existing = this.parts.get(p.partId);
-      const signature = `${p.meshKey}|${p.color}|${p.appearance}`;
+      const style = this.input.displayStyle ?? 'shaded-edges';
+      const signature = `${p.meshKey}|${p.color}|${p.appearance}|${style}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -499,7 +502,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;
         obj.group.userData.signature = signature;

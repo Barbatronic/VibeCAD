@@ -65,6 +65,7 @@ import { invertRigid4, transformPoint4 } from '../math/mat4';
 import { clampToLimits, couplingPhase, isSphereLcs, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
+import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
@@ -169,6 +170,8 @@ export class AppController {
     if (tips === false) this.set({ tips: false });
     const theme = await this.deps.projects?.getSetting<string>('theme').catch(() => undefined);
     if (theme === 'light' || theme === 'dark') this.set({ theme });
+    const style = await this.deps.projects?.getSetting<string>('displayStyle').catch(() => undefined);
+    if (DISPLAY_STYLES.includes(style as DisplayStyle)) this.set({ displayStyle: style as DisplayStyle });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
   }
@@ -290,6 +293,12 @@ export class AppController {
   }
 
   /** Thème de l'interface (automatique : celui du système). */
+  /** Mode d'affichage des pièces, retenu sur l'appareil. */
+  setDisplayStyle(displayStyle: DisplayStyle): void {
+    this.set({ displayStyle });
+    void this.deps.projects?.setSetting('displayStyle', displayStyle).catch(() => undefined);
+  }
+
   setTheme(theme: ThemeChoice): void {
     this.set({ theme });
     void this.deps.projects?.setSetting('theme', theme).catch(() => undefined);
@@ -309,6 +318,7 @@ export class AppController {
     this.setTips(true);
     this.setTheme('auto');
     this.setSketchGrid(true);
+    this.setDisplayStyle('shaded-edges');
     this.setMascot({ hidden: true, collapsed: false, dismissed: null });
   }
 

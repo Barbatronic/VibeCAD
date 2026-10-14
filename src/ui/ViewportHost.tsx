@@ -3,6 +3,7 @@ import { partShown, type AppState } from '../app/state';
 import type { SketchFeature } from '../domain/model';
 import { pointPosition, standalonePoints } from '../sketch/model';
 import { frameToWorld } from '../math/frame';
+import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { extractProfiles } from '../sketch/profiles';
 import {
   cancelEditor,
@@ -546,6 +547,67 @@ function SectionPanel() {
   );
 }
 
+const DISPLAY_LABELS: Record<DisplayStyle, { label: string; help: string }> = {
+  'shaded-edges': { label: 'Ombré avec arêtes', help: 'L’affichage habituel' },
+  shaded: { label: 'Ombré sans arêtes', help: 'Rendu lisse, pour présenter' },
+  'hidden-lines': { label: 'Arêtes cachées en pointillés', help: 'Comme un dessin technique : on voit les trous et ce qui est derrière' },
+  transparent: { label: 'Transparent', help: 'Voir à travers la matière : l’intérieur, les poches, les perçages' },
+  wireframe: { label: 'Fil de fer', help: 'Les arêtes seules, toutes visibles' },
+  monochrome: { label: 'Noir et blanc', help: 'Faces blanches, arêtes noires : lisible imprimé ou en capture' },
+};
+
+/** Bouton « Affichage » : choix du mode d'affichage des pièces. */
+function DisplayMenu() {
+  const c = useController();
+  const style = useAppState((s) => s.displayStyle);
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+  return (
+    <div class="display-menu" ref={root}>
+      <IconButton id="view-display" icon="display" label={`Affichage : ${DISPLAY_LABELS[style].label}`} pressed={open} onClick={() => setOpen(!open)} />
+      {open ? (
+        <div class="menu display-menu-list" role="menu" aria-label="Affichage des pièces">
+          {DISPLAY_STYLES.map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="menuitemradio"
+              aria-checked={style === d}
+              class="menu-item"
+              title={DISPLAY_LABELS[d].help}
+              onClick={() => {
+                c.setDisplayStyle(d);
+                setOpen(false);
+              }}
+            >
+              <Icon name={style === d ? 'check' : 'blank'} />
+              <span>{DISPLAY_LABELS[d].label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ViewControls() {
   const c = useController();
   const projection = useAppState((s) => s.projection);
@@ -582,6 +644,7 @@ function ViewControls() {
       </div>
       <div class="cluster">
         <IconButton icon="fit" label="Cadrer tout (F)" onClick={() => c.fitAll()} />
+        <DisplayMenu />
         {canSection ? (
           <IconButton
             icon="section"
@@ -637,11 +700,11 @@ export function ViewportHost() {
   const state = useAppState((s) => s);
   const input = useMemo(
     () => {
-      if (state.workspace !== 'simulation') return buildViewportInput(state);
-      const partId = c.simulationPartId();
-      return buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
+      const partId = state.workspace === 'simulation' ? c.simulationPartId() : null;
+      const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
+      return { ...built, displayStyle: state.displayStyle };
     },
-    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId],
+    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

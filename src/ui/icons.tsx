@@ -639,6 +639,17 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M2.5 11l4-7h15l-4 7z" stroke-dasharray="2 2" />
     </>
   ),
+  /** Affichage des pièces : un cube dont une moitié est pleine et l'autre en fil de fer. */
+  display: (
+    <>
+      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+      <path d="M12 12l8-4.5M12 12v9" />
+      <path d="M12 12L4 7.5" stroke-dasharray="2 2" />
+      <path d="M4 7.5L12 12v9l-8-4.5z" fill="currentColor" fill-opacity="0.25" />
+    </>
+  ),
+  /** Case vide (alignement des menus à cocher). */
+  blank: <></>,
   /** Point d'esquisse : une croix et son centre. */
   point: (
     <>
