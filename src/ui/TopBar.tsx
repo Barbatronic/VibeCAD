@@ -216,6 +216,7 @@ function ModelTools() {
 
 const SKETCH_TOOLS: { tool: SketchTool; icon: string; key?: string }[] = [
   { tool: 'select', icon: 'select', key: 'Échap' },
+  { tool: 'point', icon: 'point' },
   { tool: 'line', icon: 'line', key: 'L' },
 ];
 

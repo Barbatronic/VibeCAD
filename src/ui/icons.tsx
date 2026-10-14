@@ -639,6 +639,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M2.5 11l4-7h15l-4 7z" stroke-dasharray="2 2" />
     </>
   ),
+  /** Point d'esquisse : une croix et son centre. */
+  point: (
+    <>
+      <path d="M6 6l12 12M18 6L6 18" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    </>
+  ),
   /** Vue éclatée : deux blocs écartés, avec des flèches. */
   explode: (
     <>

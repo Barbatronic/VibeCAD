@@ -62,7 +62,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -80,6 +80,7 @@ export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
 
 export const TOOL_LABELS: Record<SketchTool, string> = {
   select: 'Sélection',
+  point: 'Point',
   line: 'Segment',
   rectangle: 'Rectangle',
   centerRectangle: 'Rectangle centré',
@@ -109,6 +110,8 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
 export const TOOL_HELP: Record<SketchTool, string> = {
   select:
     'Sélection : chaque clic ajoute un élément (un nouveau clic le retire), glisser dans le vide trace un cadre, double-clic dans le vide ou Espace vide la sélection. Faites glisser un élément pour le déplacer ; double-cliquez une cote pour changer sa valeur.',
+  point:
+    'Point : cliquez pour poser un point seul (centre d’un perçage, repère d’accroche pour l’assemblage). Placez-le ensuite avec des cotes depuis l’origine.',
   line: 'Segment : cliquez le point de départ puis les points suivants. Cliquez le premier point pour fermer le contour. Vous pouvez taper la longueur.',
   rectangle: 'Rectangle : cliquez un premier coin puis le coin opposé. Vous pouvez aussi taper la largeur et la hauteur au clavier.',
   centerRectangle:
@@ -420,7 +423,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
+  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -445,6 +448,8 @@ export function pointerLeave(s: SketchSession): SketchSession {
 export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; alt?: boolean; double?: boolean } = {}): SketchSession {
   if (s.editor) s = { ...s, editor: null };
   switch (s.tool) {
+    case 'point':
+      return pointClick(s, computeSnap(s, p, !!opts.alt));
     case 'line':
       return lineClick(s, computeSnap(s, p, !!opts.alt));
     case 'rectangle':
@@ -720,6 +725,14 @@ function createRectangle(s: SketchSession, start: SnapResult, end: SnapResult, s
     ? success(`Rectangle ${formatLength(size.w, 2, false)} × ${formatLength(size.h)} ajouté avec ses cotes.`)
     : success('Rectangle ajouté. Pour fixer ses dimensions, ajoutez des cotes avec l’outil Cote.');
   const { session } = commit(s, sk, { weights, message });
+  return resetDraw(session);
+}
+
+/** Point seul : posé là où l'on clique (accroché à la grille, aligné…), pas sur un point existant. */
+function pointClick(s: SketchSession, snap: SnapResult): SketchSession {
+  if (snap.pointId) return { ...s, message: failure('Il y a déjà un point ici : cliquez ailleurs.') };
+  const { sketch } = addPoint(s.sketch, snap.point);
+  const { session } = commit(s, sketch, { message: success('Point ajouté. Placez-le avec des cotes depuis l’origine (outil Cote : le point puis l’origine).') });
   return resetDraw(session);
 }
 

@@ -289,6 +289,12 @@ export function removeConstraints(sketch: SketchParams, ids: Iterable<string>): 
   return { ...sketch, constraints: sketch.constraints.filter((c) => !removed.has(c.id)) };
 }
 
+/** Points seuls (posés avec l'outil Point) : aucune courbe ne les utilise. L'origine n'en fait pas partie. */
+export function standalonePoints(sketch: SketchParams): SketchPoint[] {
+  const owned = new Set(curves(sketch).flatMap((c) => ownedPoints(c)));
+  return sketch.entities.filter((e): e is SketchPoint => e.type === 'point' && !owned.has(e.id));
+}
+
 /** Courbe qui possède un point (segment dont c'est une extrémité, cercle dont c'est le centre). */
 export function ownerOfPoint(sketch: SketchParams, pointId: string): SketchCurve | undefined {
   return curves(sketch).find((c) => ownedPoints(c).includes(pointId));

@@ -12,7 +12,7 @@ import { ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type Sketc
 import { formatAngle, formatLength } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
-import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, pointPosition, splineOf } from '../sketch/model';
+import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, pointPosition, splineOf, standalonePoints } from '../sketch/model';
 import { sampleBeziers, sampleEllipse } from '../sketch/curves';
 import type { ProjectableCurve, SessionPreview } from '../sketch/session';
 import type { SnapResult } from '../sketch/snapping';
@@ -379,6 +379,13 @@ export class SketchView {
           }, true);
         });
       }
+    }
+
+    // Points seuls (outil Point) : une croix, visible aussi hors de l'édition.
+    for (const p of standalonePoints(sketch)) {
+      const style = entityColor([p.id], p.id);
+      const k = 6 * px;
+      for (const seg of [[{ x: p.x - k, y: p.y - k }, { x: p.x + k, y: p.y + k }], [{ x: p.x - k, y: p.y + k }, { x: p.x + k, y: p.y - k }]] as Segment[]) (style.strong ? strong : normal).add(seg, style.color);
     }
 
     // Points (mode édition) ; ceux des éléments repris de la pièce sont violets (fixes).
