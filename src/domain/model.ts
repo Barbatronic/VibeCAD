@@ -789,12 +789,16 @@ export interface PocketParams {
 /** Perçage : trou de passage, lamé (tête cylindrique noyée), fraisé (tête conique) ou à tarauder. */
 export type HoleKind = 'clearance' | 'counterbore' | 'countersink' | 'tapped';
 
-/** Série de trous de passage (ISO 273) : fine, moyenne ou large. */
-export type HoleFit = 'fine' | 'medium' | 'coarse';
+/**
+ * Jeu d'un trou de passage : aucun (le diamètre de la vis), série fine, moyenne ou large d'ISO 273,
+ * ou jeu choisi (`clearance`).
+ */
+export type HoleFit = 'none' | 'fine' | 'medium' | 'coarse' | 'custom';
 
 /**
- * Perçage normalisé pour une vis métrique, à chaque centre de cercle de l'esquisse (le diamètre
- * dessiné ne compte pas : c'est la taille de vis qui donne celui du trou). Le trou part du plan de
+ * Perçage normalisé pour une vis métrique (`size`), ou d'un diamètre libre (`size` = `custom` :
+ * `diameter` mm), à chaque point seul et à chaque centre de cercle de l'esquisse (le diamètre
+ * dessiné ne compte pas). Le trou part du plan de
  * l'esquisse et entre dans la matière (`reversed` : de l'autre côté). `headDiameter` et
  * `headDepth` décrivent le lamage (diamètre, profondeur) ou la fraisure (diamètre, à 90°) ; ils
  * sont proposés par la norme et modifiables.
@@ -802,7 +806,16 @@ export type HoleFit = 'fine' | 'medium' | 'coarse';
 export interface HoleParams {
   sketchId: Id;
   kind: HoleKind;
-  size: MetricSize;
+  size: MetricSize | 'custom';
+  /** Diamètre du trou (mm) quand `size` vaut `custom`. */
+  diameter?: number;
+  /** Jeu choisi (mm, ajouté au diamètre de la vis) quand `fit` vaut `custom`. */
+  clearance?: number;
+  /**
+   * Trou fileté (`kind` = `tapped`) : `tap` (perçage avant taraudage, ISO) ou `plastic` (la vis
+   * forme elle-même son filet dans le plastique imprimé : 0,9 × diamètre de la vis).
+   */
+  thread?: 'tap' | 'plastic';
   fit: HoleFit;
   /** Vrai : traverse toute la pièce ; sinon profondeur `depth` (mm). */
   through: boolean;

@@ -5,6 +5,7 @@ import { RecomputeEngine } from '../../src/features/engine';
 import { standardHead } from '../../src/features/hole/definition';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { getKernel } from '../helpers/kernel';
+import { addPoint } from '../../src/sketch/model';
 import { buildPlateDocument, holeSketch } from '../helpers/plate';
 
 const PLATE = 60 * 30 * 5;
@@ -67,5 +68,40 @@ describe('perçage normalisé, au centre de chaque cercle', () => {
     expect(ok.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(3.4, 2), 3);
     const wrong = evaluate(withHole({ through: false, depth: 2, reversed: false }, { holeOnFace: false }));
     expect(wrong.statuses.find((s) => s.code === 'HOLE_REMOVES_NOTHING')).toBeDefined();
+  });
+
+  it('diamètre libre : Ø 8 traversant', () => {
+    const part = evaluate(withHole({ kind: 'clearance', size: 'custom', diameter: 8 }));
+    expect(part.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(8, 5), 3);
+  });
+
+  it('sans jeu : M4 → Ø 4', () => {
+    const part = evaluate(withHole({ kind: 'clearance', size: 'M4', fit: 'none' }));
+    expect(part.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(4, 5), 3);
+  });
+
+  it('jeu choisi : M3 + 0,25 mm = Ø 3,25', () => {
+    const part = evaluate(withHole({ kind: 'clearance', size: 'M3', fit: 'custom', clearance: 0.25 }));
+    expect(part.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(3.25, 5), 3);
+  });
+
+  it('fileté dans le plastique : M3 → Ø 2,7 (au taraud : Ø 2,5)', () => {
+    const plastic = evaluate(withHole({ kind: 'tapped', size: 'M3', thread: 'plastic' }));
+    expect(plastic.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(2.7, 5), 3);
+    const tap = evaluate(withHole({ kind: 'tapped', size: 'M3', thread: 'tap' }));
+    expect(tap.analysis!.volume).toBeCloseTo(PLATE - 2 * cylinder(2.5, 5), 3);
+  });
+
+  it('un point seul de l’esquisse est aussi un centre de trou', () => {
+    const doc = withHole({ kind: 'clearance', size: 'M3', fit: 'medium' });
+    const withPoint: CadDocument = {
+      ...doc,
+      parts: doc.parts.map((p) => ({
+        ...p,
+        features: p.features.map((f): Feature => (f.type === 'sketch' && f.params.support.kind === 'face' ? { ...f, params: addPoint(f.params, { x: 30, y: 25 }).sketch } : f)),
+      })),
+    };
+    const part = evaluate(withPoint);
+    expect(part.analysis!.volume).toBeCloseTo(PLATE - 3 * cylinder(3.4, 5), 3);
   });
 });

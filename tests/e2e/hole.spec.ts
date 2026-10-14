@@ -37,3 +37,26 @@ test('perçage : un trou lamé M4 au centre d’un cercle dessiné sur la face d
   await expect(history).toContainText('M4 lamé, traversant');
   await page.screenshot({ path: 'tests/output/e2e-percage.png' });
 });
+
+test('perçage : un point posé avec l’outil Point, percé à un diamètre libre de 8 mm', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.waitForTimeout(500);
+  const top = await worldToScreen(page, 45, 15, 5);
+  await page.mouse.dblclick(top.x, top.y);
+  await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
+  await page.waitForTimeout(450);
+  await page.click('#sk-point');
+  await clickSketch(page, 45, 15);
+  await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'point').length).toBe(1);
+  await finishSketch(page);
+
+  await page.getByRole('button', { name: /Autres outils : poches et perçages/ }).click();
+  await page.click('#tool-menu-hole');
+  await page.locator('#draft-size').selectOption('custom');
+  await page.locator('#draft-diameter').fill('8');
+  await expect(page.locator('#draft-hole-figures')).toContainText('Ø 8 mm');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expectVolume(page, PLATE_VOLUME - cylinder(8, 5));
+});

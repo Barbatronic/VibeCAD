@@ -1,7 +1,7 @@
 /** Panneau du perçage normalisé : type de trou, taille de vis, profondeur, logement de tête. */
 import { METRIC_SIZES, type MetricSize } from '../../domain/fasteners';
 import type { HoleFeature, HoleFit, HoleKind } from '../../domain/model';
-import { formatLength, formatNumber, parseLength } from '../../domain/units';
+import { formatLength, formatNumber, parseLength, readNumber } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -15,12 +15,13 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
   /** Type ou taille changés : le logement de tête reprend la valeur de la norme. */
   const choose = (patch: Partial<HoleFeature['params']>) => {
     const next = withParams(f, patch);
-    const head = standardHead(next.params.kind, next.params.size);
+    const head = standardHead(next.params.kind, next.params.size, next.params.diameter ?? 5);
     const withHead = withParams(next, head);
     setField('headDiameter', mm(head.headDiameter), { feature: withHead });
     setField('headDepth', mm(head.headDepth), { feature: withHead });
+    if (patch.diameter !== undefined) setField('diameter', mm(patch.diameter), { feature: withHead });
   };
-  const lengthField = (field: 'depth' | 'headDiameter' | 'headDepth', label: string, help?: string) => (
+  const lengthField = (field: 'depth' | 'headDiameter' | 'headDepth' | 'diameter' | 'clearance', label: string, help?: string) => (
     <LengthField
       id={`draft-${field}`}
       label={label}
@@ -29,7 +30,8 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
       {...(help ? { help } : {})}
       selectOnFocus
       onInput={(text) => {
-        const parsed = parseLength(text, { label });
+        // Le jeu peut être négatif (trou un peu plus petit que la vis) : nombre simple.
+        const parsed = field === 'clearance' ? (readNumber(text) === null ? { ok: false as const, error: 'Le jeu doit être un nombre de millimètres.' } : { ok: true as const, value: readNumber(text)! }) : parseLength(text, { label });
         if (!parsed.ok) return setField(field, text, { error: parsed.error });
         const next = withParams(f, { [field]: parsed.value } as Partial<HoleFeature['params']>);
         const issue = holeIssues(next.params).find((i) => i.field === field);
@@ -43,7 +45,7 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
   return (
     <>
       <SketchSelect value={p.sketchId} options={props.sketches} onChange={(sketchId) => update((x) => withParams(x, { sketchId }))} />
-      <p class="field-help">Un trou au centre de chaque cercle de l’esquisse : la taille du cercle dessiné ne compte pas.</p>
+      <p class="field-help">Un trou à chaque point (outil Point) et au centre de chaque cercle de l’esquisse : la taille du cercle dessiné ne compte pas.</p>
       <Segmented
         label="Type de trou"
         value={p.kind}
@@ -53,28 +55,53 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
       <p class="field-help">{HOLE_KIND_HELP[p.kind]}</p>
       <label class="field">
         <span class="field-label">Taille de vis</span>
-        <select id="draft-size" class="select" value={p.size} onChange={(e) => choose({ size: (e.target as HTMLSelectElement).value as MetricSize })}>
+        <select
+          id="draft-size"
+          class="select"
+          value={p.size}
+          onChange={(e) => {
+            const size = (e.target as HTMLSelectElement).value as MetricSize | 'custom';
+            // Diamètre libre : il part du diamètre actuel du trou.
+            choose(size === 'custom' ? { size, diameter: p.diameter ?? Math.round(d * 10) / 10 } : { size });
+          }}
+        >
           {METRIC_SIZES.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
+          <option value="custom">Diamètre libre</option>
         </select>
       </label>
-      {p.kind !== 'tapped' ? (
-        <Segmented
-          label="Jeu autour de la vis (ISO 273)"
-          value={p.fit}
-          options={(Object.keys(HOLE_FIT_LABELS) as HoleFit[]).map((k) => ({ value: k, label: HOLE_FIT_LABELS[k] }))}
-          onChange={(fit) => update((x) => withParams(x, { fit }))}
+      {p.size === 'custom' ? (
+        lengthField('diameter', 'Diamètre du perçage', 'Le trou a exactement ce diamètre (pour un axe, une tige, un aimant…).')
+      ) : p.kind === 'tapped' ? (
+        <Segmented<'tap' | 'plastic'>
+          label="Filetage"
+          value={p.thread ?? 'tap'}
+          options={[
+            { value: 'tap', label: 'Au taraud', title: 'Perçage avant taraudage de la norme ISO (M3 : 2,5 mm) : on fait le filet avec un taraud' },
+            { value: 'plastic', label: 'Dans le plastique', title: 'La vis forme son filet en se vissant dans la pièce imprimée (0,9 × le diamètre de la vis)' },
+          ]}
+          onChange={(thread) => update((x) => withParams(x, { thread }))}
         />
-      ) : null}
+      ) : (
+        <>
+          <Segmented
+            label="Jeu autour de la vis"
+            value={p.fit}
+            options={(Object.keys(HOLE_FIT_LABELS) as HoleFit[]).map((k) => ({ value: k, label: HOLE_FIT_LABELS[k], title: k === 'custom' ? 'Jeu choisi, ajouté au diamètre de la vis' : k === 'none' ? 'Le trou a exactement le diamètre de la vis' : `Série ${HOLE_FIT_LABELS[k].toLowerCase()} de la norme ISO 273` }))}
+            onChange={(fit) => (fit === 'custom' ? setField('clearance', mm(p.clearance ?? 0.3), { feature: withParams(f, { fit, clearance: p.clearance ?? 0.3 }) }) : update((x) => withParams(x, { fit })))}
+          />
+          {p.fit === 'custom' ? lengthField('clearance', 'Jeu (ajouté au diamètre de la vis)', 'En impression 3D, 0,2 à 0,4 mm suffisent en général ; faites un essai avec votre imprimante.') : null}
+        </>
+      )}
       <p class="field-help" id="draft-hole-figures">
         Trou Ø {formatNumber(d, 2)} mm
-        {p.kind === 'tapped' ? ` (perçage avant taraudage ${p.size})` : ''}
+        {p.size !== 'custom' && p.kind === 'tapped' ? (p.thread === 'plastic' ? ` (la vis ${p.size} forme son filet dans le plastique)` : ` (perçage avant taraudage ${p.size})`) : ''}
+        {p.size !== 'custom' && p.kind !== 'tapped' ? (p.fit === 'custom' ? ` (vis ${p.size} + jeu de ${formatNumber(p.clearance ?? 0.3, 2)} mm)` : p.fit === 'none' ? ` (diamètre de la vis ${p.size}, sans jeu)` : ` (série ${HOLE_FIT_LABELS[p.fit].toLowerCase()} ISO 273)`) : ''}
         {p.kind === 'counterbore' ? `, lamage Ø ${formatNumber(p.headDiameter, 2)} mm sur ${formatNumber(p.headDepth, 2)} mm` : ''}
         {p.kind === 'countersink' ? `, fraisure à 90° Ø ${formatNumber(p.headDiameter, 2)} mm` : ''}.
-        {p.kind !== 'tapped' ? ' En impression 3D, « Normal » ou « Large » laisse passer la vis sans forcer.' : ''}
       </p>
       <Segmented
         label="Profondeur"

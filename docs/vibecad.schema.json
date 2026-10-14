@@ -1361,7 +1361,7 @@
             },
             "params": {
               "type": "object",
-              "description": "Perçage normalisé pour une vis métrique au centre de chaque cercle de l'esquisse sketchId : passage (ISO 273), lamé, fraisé (90°) ou à tarauder. headDiameter / headDepth : logement de tête (mm).",
+              "description": "Perçage au centre de chaque point seul et de chaque cercle de l'esquisse sketchId : vis métrique (size) ou diamètre libre (size = custom, diameter). kind : passage (fit : série ISO 273 ou jeu choisi clearance), lamé, fraisé (90°) ou fileté (thread : taraud ou plastique). headDiameter / headDepth : logement de tête (mm).",
               "required": [
                 "sketchId",
                 "kind",
@@ -1395,14 +1395,17 @@
                     "M6",
                     "M8",
                     "M10",
-                    "M12"
+                    "M12",
+                    "custom"
                   ]
                 },
                 "fit": {
                   "enum": [
+                    "none",
                     "fine",
                     "medium",
-                    "coarse"
+                    "coarse",
+                    "custom"
                   ]
                 },
                 "through": {
@@ -1424,6 +1427,22 @@
                 "headDepth": {
                   "type": "number",
                   "minimum": 0
+                },
+                "diameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "mm, si size = custom"
+                },
+                "clearance": {
+                  "type": "number",
+                  "description": "mm ajoutés au diamètre de la vis, si fit = custom"
+                },
+                "thread": {
+                  "enum": [
+                    "tap",
+                    "plastic"
+                  ],
+                  "description": "trou fileté : perçage avant taraudage (tap) ou vis qui forme son filet dans le plastique imprimé (plastic, 0,9 × d)"
                 }
               }
             }

@@ -3,7 +3,7 @@ import { issue, okStatus } from '../../domain/status';
 import type { KernelShape } from '../../geometry/kernel';
 import { frameToWorld, type Frame3D } from '../../math/frame';
 import { cross3, scale3, type Vec2 } from '../../math/vec';
-import { pointPosition } from '../../sketch/model';
+import { pointPosition, standalonePoints } from '../../sketch/model';
 import type { ProfileRegion, ProfileSegment } from '../../sketch/profiles';
 import type { FeatureEvaluator } from '../evaluation';
 import { throughAllRange } from '../pocket/evaluate';
@@ -54,11 +54,15 @@ export const evaluateHole: FeatureEvaluator<HoleFeature> = (feature, ctx) => {
     return { status: issue(feature.id, 'blocked', 'SKETCH_FAILED', { blockedBy: entry.status.blockedBy ?? p.sketchId, relatedFeatureId: p.sketchId }) };
   }
   const solved = entry.evaluation.solved;
-  const centers = solved.entities.flatMap((e) => {
-    if (e.type !== 'circle' || e.reference) return [];
-    const c = pointPosition(solved, e.center);
-    return c ? [{ id: e.id, at: c }] : [];
-  });
+  // Centres : points seuls (outil Point) et centres des cercles (hors cercles repris de la pièce).
+  const centers = [
+    ...standalonePoints(solved).map((p) => ({ id: p.id, at: { x: p.x, y: p.y } })),
+    ...solved.entities.flatMap((e) => {
+      if (e.type !== 'circle' || e.reference) return [];
+      const c = pointPosition(solved, e.center);
+      return c ? [{ id: e.id, at: c }] : [];
+    }),
+  ];
   if (centers.length === 0) return { status: issue(feature.id, 'error', 'HOLE_NO_CENTER', { relatedFeatureId: p.sketchId }) };
   // Dans la matière : contre la normale de l'esquisse par défaut (comme une poche).
   const sign = p.reversed ? 1 : -1;

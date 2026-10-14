@@ -2,6 +2,7 @@
  * Disponibilité des commandes. Une commande indisponible reste visible et explique ce qu'il
  * faut faire ou sélectionner pour pouvoir l'utiliser.
  */
+import { standalonePoints } from '../sketch/model';
 import { findPart, PATTERN_SOURCE_TYPES } from '../domain/document';
 import type { FeatureType, Id, Part, SketchFeature } from '../domain/model';
 import type { FeatureDefinition } from '../features/definition';
@@ -30,17 +31,26 @@ function usedSketchIds(part: Part): Set<Id> {
   return used;
 }
 
-/** Esquisse proposée pour une extrusion ou une poche : la sélection, sinon la dernière non utilisée. */
-export function suggestedSketch(state: AppState, part: Part): SketchFeature | null {
+/** Vrai si l'esquisse donne au moins un centre de perçage : un point seul ou un cercle dessiné. */
+function hasHoleCenters(sketch: SketchFeature): boolean {
+  return standalonePoints(sketch.params).length > 0 || sketch.params.entities.some((e) => e.type === 'circle' && !e.reference);
+}
+
+/**
+ * Esquisse proposée pour une extrusion, une poche ou un perçage : la sélection, sinon la dernière
+ * non utilisée. Il lui faut un contour fermé, ou pour un perçage un point seul ou un cercle.
+ */
+export function suggestedSketch(state: AppState, part: Part, type?: FeatureType): SketchFeature | null {
   const sketches = part.features.filter((f): f is SketchFeature => f.type === 'sketch');
+  const usable = (s: SketchFeature) => (type === 'hole' ? hasHoleCenters(s) : sketchProfileOk(state, part.id, s.id) !== false);
   const sel = state.selection;
   if (sel?.kind === 'feature' && sel.partId === part.id) {
     const s = sketches.find((f) => f.id === sel.featureId);
-    if (s && sketchProfileOk(state, part.id, s.id) !== false) return s;
+    if (s && usable(s)) return s;
   }
   const used = usedSketchIds(part);
-  const closed = sketches.filter((s) => sketchProfileOk(state, part.id, s.id) !== false);
-  return [...closed].reverse().find((s) => !used.has(s.id)) ?? closed[closed.length - 1] ?? null;
+  const candidates = sketches.filter(usable);
+  return [...candidates].reverse().find((s) => !used.has(s.id)) ?? candidates[candidates.length - 1] ?? null;
 }
 
 export function partHasSolid(state: AppState, partId: Id): boolean {
@@ -79,7 +89,9 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
   }
   const sketches = part.features.filter((f) => f.type === 'sketch');
   if (sketches.length === 0) return no(`Pour créer une ${label}, dessinez d’abord une esquisse fermée (bouton « Esquisse »).`);
-  if (!suggestedSketch(state, part)) return no('Aucune esquisse n’a de contour fermé : terminez le contour avant de continuer.');
+  if (!suggestedSketch(state, part, type)) {
+    return no(type === 'hole' ? 'Aucune esquisse n’a de point ni de cercle : posez un point (outil Point) là où percer.' : 'Aucune esquisse n’a de contour fermé : terminez le contour avant de continuer.');
+  }
   return yes;
 }
 

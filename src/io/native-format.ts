@@ -665,13 +665,16 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         params: {
           sketchId: str(v, p, 'sketchId', pp),
           kind: oneOf(v, p, 'kind', pp, ['clearance', 'counterbore', 'countersink', 'tapped'] as const),
-          size: oneOf(v, p, 'size', pp, METRIC_SIZES),
-          fit: oneOf(v, p, 'fit', pp, ['fine', 'medium', 'coarse'] as const),
+          size: oneOf(v, p, 'size', pp, [...METRIC_SIZES, 'custom'] as const),
+          fit: oneOf(v, p, 'fit', pp, ['none', 'fine', 'medium', 'coarse', 'custom'] as const),
           through: bool(v, p, 'through', pp, true),
           depth: num(v, p, 'depth', pp),
           reversed: bool(v, p, 'reversed', pp, false),
           headDiameter: num(v, p, 'headDiameter', pp),
           headDepth: num(v, p, 'headDepth', pp),
+          ...(p.diameter !== undefined ? { diameter: num(v, p, 'diameter', pp, { min: 0 }) } : {}),
+          ...(p.clearance !== undefined ? { clearance: num(v, p, 'clearance', pp) } : {}),
+          ...(p.thread !== undefined ? { thread: oneOf(v, p, 'thread', pp, ['tap', 'plastic'] as const) } : {}),
         },
       };
     case 'move': {

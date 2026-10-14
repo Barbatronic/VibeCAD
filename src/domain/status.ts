@@ -141,7 +141,7 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   AXIS_EDGE_LOST: 'L’arête de cet axe n’existe plus ou n’est ni droite ni ronde : choisissez-en une autre, ou un axe par un point.',
   AXIS_LOST: 'L’axe de construction utilisé n’existe plus ou n’a pas pu être calculé : choisissez un autre axe.',
   HOLE_WITHOUT_SOLID: 'Un perçage retire de la matière : créez d’abord un volume avec une extrusion.',
-  HOLE_NO_CENTER: 'L’esquisse n’a aucun cercle : dessinez un petit cercle à l’endroit de chaque trou (sa taille ne compte pas).',
+  HOLE_NO_CENTER: 'L’esquisse n’a ni point ni cercle : posez un point (outil Point) ou un petit cercle à l’endroit de chaque trou.',
   HOLE_REMOVES_NOTHING: 'Le perçage ne touche pas la pièce : vérifiez la position des cercles et le sens (« Côté opposé »).',
   MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:

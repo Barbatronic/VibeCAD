@@ -891,7 +891,7 @@ export class AppController {
     let input: ToolInput;
     let sketchFrame = null;
     if (tool.input === 'sketch') {
-      const sketch = suggestedSketch(this.state, part)!;
+      const sketch = suggestedSketch(this.state, part, type)!;
       input = { kind: 'sketch', sketchId: sketch.id };
       sketchFrame = result?.sketches.find((x) => x.featureId === sketch.id)?.frame ?? null;
     } else if (tool.input === 'part') {
