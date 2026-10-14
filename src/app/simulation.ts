@@ -16,12 +16,14 @@ export const QUALITY_LABELS: Record<SimulationStudy['quality'], string> = { coar
 
 export const DIRECTION_LABELS: Record<LoadDirection, string> = {
   push: 'Appuie sur la face',
+  pull: 'Tire sur la face',
   '-z': 'Vers le bas (−Z)',
   '+z': 'Vers le haut (+Z)',
   '-x': 'Vers −X',
   '+x': 'Vers +X',
   '-y': 'Vers −Y',
   '+y': 'Vers +Y',
+  custom: 'Direction au choix (X, Y, Z)',
 };
 
 export function defaultStudy(partId: Id): SimulationStudy {
@@ -89,7 +91,18 @@ export function loadNewtons(study: SimulationStudy): number {
   return study.load.kind === 'mass' ? study.load.value * GRAVITY : study.load.value;
 }
 
-const AXES: Record<Exclude<LoadDirection, 'push'>, { x: number; y: number; z: number }> = {
+/** Direction unitaire de la charge (face : normale moyenne des faces chargées). */
+function loadDirection(load: SimulationStudy['load'], loaded: Float32Array): { x: number; y: number; z: number } {
+  if (load.direction === 'push' || load.direction === 'pull') return meanNormal(loaded);
+  if (load.direction === 'custom') {
+    const v = load.vector ?? { x: 0, y: 0, z: -1 };
+    const n = Math.hypot(v.x, v.y, v.z);
+    return n > 1e-12 ? { x: v.x / n, y: v.y / n, z: v.z / n } : { x: 0, y: 0, z: -1 };
+  }
+  return AXES[load.direction];
+}
+
+const AXES: Record<Exclude<LoadDirection, 'push' | 'pull' | 'custom'>, { x: number; y: number; z: number }> = {
   '-z': { x: 0, y: 0, z: -1 },
   '+z': { x: 0, y: 0, z: 1 },
   '-x': { x: -1, y: 0, z: 0 },
@@ -169,7 +182,7 @@ export function studyInput(study: SimulationStudy, source: StudySource): StudyPr
   const loaded = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.load), it.matrix)));
   const fixed = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.fixed), it.matrix)));
   const F = loadNewtons(study);
-  const dir = study.load.direction === 'push' ? meanNormal(loaded) : AXES[study.load.direction];
+  const dir = loadDirection(study.load, loaded);
   const sign = study.load.direction === 'push' ? -1 : 1;
   const material = simMaterial(study.materialId);
   return {

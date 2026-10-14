@@ -90,7 +90,11 @@ export interface ProjectParameter {
  * Sens de la charge : `push` pousse la face vers l'intérieur de la pièce ; les autres suivent un
  * axe du repère (`-z` : vers le bas, comme un poids).
  */
-export type LoadDirection = 'push' | '-z' | '+z' | '-x' | '+x' | '-y' | '+y';
+/**
+ * Sens de la charge : `push` appuie sur la face (contre sa normale), `pull` tire dessus, un axe du
+ * repère, ou `custom` : la direction `vector` de la charge.
+ */
+export type LoadDirection = 'push' | 'pull' | '-z' | '+z' | '-x' | '+x' | '-y' | '+y' | 'custom';
 
 /** Étude de l'assemblage (au lieu d'une pièce) : ses pièces qui se touchent sont collées. */
 export const ASSEMBLY_STUDY = '@assembly';
@@ -98,12 +102,14 @@ export const ASSEMBLY_STUDY = '@assembly';
 /** Face d'une étude ; dans l'étude de l'assemblage, `instanceId` dit sur quelle pièce insérée. */
 export type StudyFace = FaceRef & { instanceId?: Id };
 
-/** Charge : une masse posée (kg, son poids tire vers le bas) ou une force (N). */
+/** Charge : une masse posée (kg, son poids tire dans le sens choisi, vers le bas par défaut) ou une force (N). */
 export interface SimulationLoad {
   faces: StudyFace[];
   kind: 'mass' | 'force';
   value: number;
   direction: LoadDirection;
+  /** Direction de la charge quand `direction` vaut `custom` (pas forcément unitaire). */
+  vector?: { x: number; y: number; z: number };
 }
 
 /** Étude d'une pièce (ou de l'assemblage, `ASSEMBLY_STUDY`) : matériau, faces fixées, charge, précision. */

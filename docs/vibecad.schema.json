@@ -296,13 +296,35 @@
                       "direction": {
                         "enum": [
                           "push",
+                          "pull",
                           "-z",
                           "+z",
                           "-x",
                           "+x",
                           "-y",
-                          "+y"
+                          "+y",
+                          "custom"
                         ]
+                      },
+                      "vector": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y",
+                          "z"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "z": {
+                            "type": "number"
+                          }
+                        },
+                        "description": "Direction de la charge si direction = custom"
                       }
                     },
                     "required": [

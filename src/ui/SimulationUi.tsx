@@ -229,22 +229,52 @@ export function SimulationRightPanel() {
               />
             </label>
           </div>
-          {study.load.kind === 'mass' ? (
-            <p class="field-help">
-              Une masse de {formatNumber(study.load.value, 3)} kg pèse {formatNumber(study.load.value * 9.81, 1)} N, vers le bas (−Z).
-            </p>
-          ) : (
-            <label class="mini-field">
-              <span>Sens</span>
-              <select id="sim-load-direction" class="select" value={study.load.direction} onChange={(e) => update((s) => ({ ...s, load: { ...s.load, direction: (e.target as HTMLSelectElement).value as LoadDirection } }), 'Sens de la charge')}>
-                {(Object.keys(DIRECTION_LABELS) as LoadDirection[]).map((d) => (
-                  <option key={d} value={d}>
-                    {DIRECTION_LABELS[d]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <label class="mini-field">
+            <span>{study.load.kind === 'mass' ? 'Sens du poids' : 'Sens'}</span>
+            <select
+              id="sim-load-direction"
+              class="select"
+              value={study.load.direction}
+              onChange={(e) => {
+                const direction = (e.target as HTMLSelectElement).value as LoadDirection;
+                update((s) => ({ ...s, load: { ...s.load, direction, ...(direction === 'custom' && !s.load.vector ? { vector: { x: 0, y: 0, z: -1 } } : {}) } }), 'Sens de la charge');
+              }}
+            >
+              {(Object.keys(DIRECTION_LABELS) as LoadDirection[]).map((d) => (
+                <option key={d} value={d}>
+                  {DIRECTION_LABELS[d]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {study.load.direction === 'custom' ? (
+            <div class="limits-row three" role="group" aria-label="Direction de la charge">
+              {(['x', 'y', 'z'] as const).map((k) => (
+                <label key={k} class="mini-field">
+                  <span>{k.toUpperCase()}</span>
+                  <NumberInput
+                    id={`sim-load-vector-${k}`}
+                    value={formatNumber((study.load.vector ?? { x: 0, y: 0, z: -1 })[k], 3)}
+                    min={-1000}
+                    max={1000}
+                    ariaLabel={`Direction de la charge : composante ${k.toUpperCase()}`}
+                    onInput={(t) => {
+                      const x = num(t);
+                      if (x !== null) update((s) => ({ ...s, load: { ...s.load, vector: { ...(s.load.vector ?? { x: 0, y: 0, z: -1 }), [k]: x } } }), 'Direction de la charge');
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <p class="field-help">
+            {study.load.kind === 'mass' ? `Une masse de ${formatNumber(study.load.value, 3)} kg pèse ${formatNumber(study.load.value * 9.81, 1)} N. ` : ''}
+            {study.load.direction === 'custom'
+              ? 'Seule la direction compte (par exemple 0 ; 1 ; −1 : à 45°, vers +Y et vers le bas). La flèche dans la vue montre le sens choisi.'
+              : study.load.kind === 'mass'
+                ? 'Le poids tire vers le bas (−Z) : changez le sens si la pièce n’est pas utilisée dans la position où elle est dessinée.'
+                : 'La flèche dans la vue montre le sens choisi.'}
+          </p>
         </div>
 
         <label class="field">

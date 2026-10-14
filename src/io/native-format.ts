@@ -294,7 +294,7 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
   };
 }
 
-const LOAD_DIRECTIONS = ['push', '-z', '+z', '-x', '+x', '-y', '+y'] as const;
+const LOAD_DIRECTIONS = ['push', 'pull', '-z', '+z', '-x', '+x', '-y', '+y', 'custom'] as const;
 
 function readSimulation(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>): SimulationSettings | null {
   const o = obj(v, x, path);
@@ -324,6 +324,12 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
             kind: oneOf(v, lo, 'kind', lp, ['mass', 'force'] as const),
             value: num(v, lo, 'value', lp, { min: 0 }),
             direction: oneOf(v, lo, 'direction', lp, LOAD_DIRECTIONS),
+            ...(lo.vector !== undefined
+              ? (() => {
+                  const vo = obj(v, lo.vector, `${lp}.vector`) ?? {};
+                  return { vector: { x: num(v, vo, 'x', `${lp}.vector`), y: num(v, vo, 'y', `${lp}.vector`), z: num(v, vo, 'z', `${lp}.vector`) } };
+                })()
+              : {}),
           },
         };
       })

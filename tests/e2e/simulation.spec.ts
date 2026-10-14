@@ -107,6 +107,11 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   // TPU (impression souple).
   await page.locator('#sim-material').selectOption({ label: 'TPU imprimé (souple)' });
   await expect.poll(async () => (await study(page)).materialId).toBe('tpu');
+
+  // Le sens du poids se choisit aussi, jusqu'à une direction au choix.
+  await page.locator('#sim-load-direction').selectOption('custom');
+  await page.locator('#sim-load-vector-y').fill('1');
+  await expect.poll(async () => (await study(page)).load).toMatchObject({ direction: 'custom', vector: { x: 0, y: 1, z: -1 } });
 });
 
 /** Clique le centre d'une face d'une pièce insérée (repérée par son rang dans l'assemblage). */
