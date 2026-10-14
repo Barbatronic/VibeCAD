@@ -2047,14 +2047,15 @@
       "required": [
         "kind"
       ],
-      "description": "Repère local : centre de face (face), centre de cercle (circle), milieu d'arête droite (edge) ou sommet d'une face plane (vertex : la face et deux de ses arêtes).",
+      "description": "Repère local : centre de face (face), centre de cercle (circle), milieu d'arête droite (edge) ou sommet d'une face plane (vertex : la face et deux de ses arêtes). Ou point seul d'une esquisse de la pièce (point : sketchId et pointId ; axe Z = normale de l'esquisse).",
       "properties": {
         "kind": {
           "enum": [
             "face",
             "circle",
             "edge",
-            "vertex"
+            "vertex",
+            "point"
           ]
         },
         "face": {
@@ -2070,6 +2071,12 @@
           "items": {
             "$ref": "#/$defs/edgeRef"
           }
+        },
+        "sketchId": {
+          "$ref": "#/$defs/id"
+        },
+        "pointId": {
+          "type": "string"
         }
       }
     },

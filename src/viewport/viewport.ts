@@ -108,6 +108,8 @@ export interface ViewportInput {
   highlightMeshes?: { key: string; mesh: MeshData }[];
   /** Points remarquables (centre de gravité), avec une étiquette. */
   points?: { at: Vec3; label: string }[];
+  /** Points d'accroche cliquables (points seuls des esquisses, pendant la création d'une liaison). */
+  anchors?: { key: string; at: Vec3; title: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
   sectionFaces?: ViewSelection[];
   /** Face verrouillée (touche Maj maintenue) : le survol et le clic désignent le sommet le plus proche. */
@@ -159,6 +161,8 @@ export interface ViewportEvents {
   onPlanePick(plane: PlaneName): void;
   onSketchPointer(type: 'move' | 'down' | 'up' | 'leave', p: Vec2, mods: { shift: boolean; alt: boolean; double?: boolean }): void;
   onSketchLabel(constraintId: string, action: 'select' | 'edit', additive: boolean): void;
+  /** Clic sur un point d'accroche (points d'esquisse proposés pendant la création d'une liaison). */
+  onAnchorPick?(key: string): void;
   /** Glisser du libellé d'une cote (position en coordonnées d'esquisse). */
   onSketchLabelDrag?(constraintId: string, phase: 'move' | 'end', p: Vec2 | null): void;
   onSketchScale(pixelSize: number): void;
@@ -444,6 +448,7 @@ export class Viewport {
     this.syncMarkedFaces(input.markedFaces ?? []);
     this.syncResultMesh(input.resultMesh ?? null);
     this.syncPoints(input.points ?? []);
+    this.syncAnchors(input.anchors ?? []);
     this.syncDatumPlanes(input.datumPlanes ?? [], input.datumAxes ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
@@ -688,6 +693,31 @@ export class Viewport {
   private pointsKey = '';
 
   /** Symbole du centre de gravité : cercle à quartiers, visible à travers la pièce. */
+  private anchorObjects: Object3D[] = [];
+  private anchorsKey = '';
+
+  /** Pastilles cliquables posées sur les points d'accroche (au-dessus des pièces). */
+  private syncAnchors(anchors: NonNullable<ViewportInput['anchors']>): void {
+    const key = JSON.stringify(anchors);
+    if (key === this.anchorsKey) return;
+    this.anchorsKey = key;
+    for (const o of this.anchorObjects) this.disposeOverlay(o);
+    this.anchorObjects = [];
+    for (const a of anchors) {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'vp-joint-anchor';
+      el.dataset.anchor = a.key;
+      el.title = a.title;
+      el.setAttribute('aria-label', a.title);
+      const o = new CSS2DObject(el);
+      o.position.set(a.at.x, a.at.y, a.at.z);
+      this.overlayGroup.add(o);
+      this.anchorObjects.push(o);
+    }
+    this.requestRender();
+  }
+
   private syncPoints(points: { at: Vec3; label: string }[]): void {
     const key = JSON.stringify(points);
     if (key === this.pointsKey) return;
@@ -1099,6 +1129,13 @@ export class Viewport {
     // (deux appuis sur la même cote en moins de 400 ms) plutôt qu'avec l'événement dblclick.
     let lastLabelDown: { id: string; time: number } | null = null;
     labels.addEventListener('pointerdown', (e) => {
+      const anchor = (e.target as HTMLElement).closest<HTMLElement>('[data-anchor]');
+      if (anchor) {
+        e.stopPropagation();
+        e.preventDefault();
+        this.events.onAnchorPick?.(anchor.dataset.anchor!);
+        return;
+      }
       const el = (e.target as HTMLElement).closest<HTMLElement>('[data-constraint]');
       if (!el) return;
       e.stopPropagation();

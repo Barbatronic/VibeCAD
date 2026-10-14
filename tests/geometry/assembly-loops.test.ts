@@ -1,11 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { explodeOffsets, lcsFromPick, meshBox, solveAssembly } from '../../src/app/assembly';
-import { addFeature, addPart, createDocument, findPart, makePrimitiveFeature } from '../../src/domain/document';
+import { addFeature, addPart, createDocument, findPart, makePrimitiveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { Assembly, AssemblyJoint, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
 import { transformDirection4 } from '../../src/math/mat4';
 import { getKernel } from '../helpers/kernel';
+import { frameToWorld } from '../../src/math/frame';
+import { transformPoint4 } from '../../src/math/mat4';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -196,5 +198,39 @@ describe('assemblage : vue éclatée', () => {
     // La bielle, posée sur la manivelle, s'écarte encore plus.
     expect(Math.abs(offsets.get('bielle')!.z)).toBeGreaterThan(Math.abs(crank.z));
     expect(explodeOffsets(assembly, placed, meshOf, 0).size).toBe(0);
+  });
+});
+
+describe('assemblage : repères sur des points d’esquisse', () => {
+  it('liaison fixe entre deux points seuls : les points se superposent, axes de l’esquisse opposés', () => {
+    let doc = createDocument('Points');
+    const ids: Id[] = [];
+    for (const [name, x] of [['a', 7], ['b', 12]] as const) {
+      const r = bar(doc, name, 20);
+      doc = r.doc;
+      const sk = makeSketchFeature(doc, findPart(doc, r.partId)!, { kind: 'plane', plane: 'XY', offset: 5 });
+      doc = addFeature(doc, r.partId, { ...sk, id: `sk-${name}`, params: { ...sk.params, entities: [{ id: 'p1', type: 'point', x, y: 3 }] } });
+      ids.push(r.partId);
+    }
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const results = engine.evaluateDocument(doc);
+    const m = meshes(doc);
+    const sketchesOf = (partId: Id) => results.find((r) => r.partId === partId)?.sketches;
+    const assembly: Assembly = {
+      instances: [
+        { id: 'a', partId: ids[0]!, name: 'A', position: { x: 0, y: 0, z: 0 } },
+        { id: 'b', partId: ids[1]!, name: 'B', position: { x: 0, y: 40, z: 0 } },
+      ],
+      joints: [{ id: 'j', name: 'j', kind: 'fixed', moving: { instanceId: 'b', lcs: { kind: 'point', sketchId: 'sk-b', pointId: 'p1' } }, base: { instanceId: 'a', lcs: { kind: 'point', sketchId: 'sk-a', pointId: 'p1' } }, flip: false, angle: 0, offset: 0 }],
+    };
+    const placed = solveAssembly(assembly, (id) => m.get(id), { sketchesOf });
+    expect(placed.issues.size).toBe(0);
+    const frameA = sketchesOf(ids[0]!)!.find((k) => k.featureId === 'sk-a')!.frame!;
+    const frameB = sketchesOf(ids[1]!)!.find((k) => k.featureId === 'sk-b')!.frame!;
+    const pa = transformPoint4(placed.matrices.get('a')!, frameToWorld(frameA, { x: 7, y: 3 }));
+    const pb = transformPoint4(placed.matrices.get('b')!, frameToWorld(frameB, { x: 12, y: 3 }));
+    expect(dist(pa, pb)).toBeCloseTo(0, 6);
+    // Sans les esquisses, le repère est introuvable.
+    expect(solveAssembly(assembly, (id) => m.get(id)).issues.get('j')).toBe('LCS_LOST');
   });
 });

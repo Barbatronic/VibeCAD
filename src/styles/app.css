@@ -3147,3 +3147,22 @@ kbd {
 .explode-field input[type='range'] {
   width: 100%;
 }
+
+/* Points d'accroche (points seuls des esquisses) pendant la création d'une liaison */
+.vp-joint-anchor {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--text-muted);
+  cursor: pointer;
+}
+
+.vp-joint-anchor:hover,
+.vp-joint-anchor:focus-visible {
+  transform: scale(1.35);
+  outline: none;
+}

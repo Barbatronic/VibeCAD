@@ -381,7 +381,8 @@ function readEdgeRef(v: Validator, x: unknown, path: string): EdgeRef {
 
 function readLcs(v: Validator, x: unknown, path: string): LcsRef {
   const o = obj(v, x, path) ?? {};
-  const kind = oneOf(v, o, 'kind', path, ['face', 'circle', 'edge', 'vertex'] as const);
+  const kind = oneOf(v, o, 'kind', path, ['face', 'circle', 'edge', 'vertex', 'point'] as const);
+  if (kind === 'point') return { kind, sketchId: str(v, o, 'sketchId', path), pointId: str(v, o, 'pointId', path) };
   if (kind === 'face') return { kind, face: readFaceRef(v, o.face, `${path}.face`) };
   if (kind === 'vertex') {
     const edges = arr(v, o, 'edges', path);

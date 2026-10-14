@@ -127,14 +127,17 @@ export interface SimulationSettings {
  * - `face` : centre d'une face plane, axe Z = normale sortante ; ou centre d'une sphère (rotule) ;
  * - `circle` : centre d'un cercle ou d'un arc (bord d'un trou…), axe Z = axe du cercle ;
  * - `edge` : milieu d'une arête droite, axe Z = direction de l'arête ;
- * - `vertex` : sommet d'une face plane, axe Z = normale de la face.
+ * - `vertex` : sommet d'une face plane, axe Z = normale de la face ;
+ * - `point` : point seul d'une esquisse (outil Point), axe Z = normale de l'esquisse.
  */
 export type LcsRef =
   | { kind: 'face'; face: FaceRef }
   | { kind: 'circle'; edge: EdgeRef }
   | { kind: 'edge'; edge: EdgeRef }
   /** Sommet d'une face plane : point commun à deux de ses arêtes, axe Z = normale de la face. */
-  | { kind: 'vertex'; face: FaceRef; edges: [EdgeRef, EdgeRef] };
+  | { kind: 'vertex'; face: FaceRef; edges: [EdgeRef, EdgeRef] }
+  /** Point seul d'une esquisse de la pièce (outil Point), axe Z = normale de l'esquisse. */
+  | { kind: 'point'; sketchId: Id; pointId: string };
 
 /** Pièce insérée dans l'assemblage (une même pièce peut être insérée plusieurs fois). */
 export interface AssemblyInstance {

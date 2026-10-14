@@ -2248,7 +2248,7 @@ export class AppController {
   assemblyPlacement(): AssemblyPlacement | null {
     const assembly = this.state.doc.assembly;
     if (!assembly) return null;
-    return solveAssembly(assembly, (partId) => this.state.display[partId]?.mesh);
+    return solveAssembly(assembly, (partId) => this.state.display[partId]?.mesh, { sketchesOf: this.sketchesOf });
   }
 
   selectInAssembly(selection: AppState['assemblySelection']): void {
@@ -2299,6 +2299,9 @@ export class AppController {
     if (this.state.mode.kind === 'joint') this.set({ mode: model });
   }
 
+  /** Esquisses calculées d'une pièce (repères d'assemblage posés sur un point d'esquisse). */
+  private sketchesOf = (partId: Id) => this.state.display[partId]?.result.sketches;
+
   private assemblyPick(pick: ModelPick | null): void {
     const s = this.state;
     const mode = s.mode;
@@ -2319,9 +2322,24 @@ export class AppController {
     const local = pick.kind === 'vertex' && placed ? transformPoint4(invertRigid4(placed), pick.point) : pick.point;
     const r = lcsFromPick(mesh, pick.kind, pick.index, part, local);
     if ('reason' in r) return this.explain(r.reason);
-    const end = { instanceId: inst.id, lcs: r.ref };
+    this.jointEndChosen({ instanceId: inst.id, lcs: r.ref }, { kind: pick.kind === 'vertex' ? 'face' : pick.kind, index: pick.index });
+  }
+
+  /** Clic sur un point seul d'esquisse pendant la création d'une liaison : il devient le repère. */
+  pickJointPoint(instanceId: Id, sketchId: Id, pointId: string): void {
+    if (this.state.mode.kind !== 'joint') return;
+    this.jointEndChosen({ instanceId, lcs: { kind: 'point', sketchId, pointId } });
+  }
+
+  /** Repère choisi pendant la création d'une liaison : premier (pièce qui bouge) ou second (référence). */
+  private jointEndChosen(end: JointEnd, movingPick?: { kind: 'face' | 'edge'; index: number }): void {
+    const s = this.state;
+    const mode = s.mode;
+    if (mode.kind !== 'joint') return;
+    const inst = s.doc.assembly?.instances.find((i) => i.id === end.instanceId);
+    if (!inst) return;
     if (!mode.moving) {
-      this.set({ mode: { kind: 'joint', moving: end, movingPick: { kind: pick.kind === 'vertex' ? 'face' : pick.kind, index: pick.index }, lockedFace: null } });
+      this.set({ mode: { kind: 'joint', moving: end, ...(movingPick ? { movingPick } : {}), lockedFace: null } });
       return;
     }
     if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
@@ -2473,7 +2491,7 @@ export class AppController {
    */
   private settleLoops(doc: CadDocument, driver?: Id): CadDocument {
     if (!doc.assembly?.joints.length) return doc;
-    const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, driver ? { driver } : {});
+    const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, { sketchesOf: this.sketchesOf, ...(driver ? { driver } : {}) });
     let out = doc;
     for (const [id, v] of placement.solvedValues) {
       out = updateJoint(out, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
@@ -2537,7 +2555,7 @@ export class AppController {
     } else if (value > 180) value -= 360;
     else if (value < -180) value += 360;
     const moved = updateJoint(this.state.doc, joint.id, (j) => ({ ...j, [a.param]: value }));
-    const placement = solveAssembly(moved.assembly!, (partId) => this.state.display[partId]?.mesh, { driver: joint.id });
+    const placement = solveAssembly(moved.assembly!, (partId) => this.state.display[partId]?.mesh, { driver: joint.id, sketchesOf: this.sketchesOf });
     if ([...placement.issues.values()].includes('LOOP_UNSOLVED')) {
       // La boucle ne peut pas aller plus loin (position extrême d'un balancier) : demi-tour.
       a.dir = a.dir > 0 ? -1 : 1;

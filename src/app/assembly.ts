@@ -3,10 +3,10 @@
  * puis placement le long de l'arborescence des liaisons à partir de la pièce fixe (la première
  * insérée). Simple calcul de matrices, sans solveur itératif (voir docs/assemblage.md).
  */
-import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part } from '../domain/model';
+import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part, SketchParams } from '../domain/model';
 import { pickFaceReference } from '../features/sketch/support';
 import type { FaceTag, MeshData } from '../geometry/kernel';
-import type { Frame3D } from '../math/frame';
+import { frameToWorld, type Frame3D } from '../math/frame';
 import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationX4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
 import { cross3, dot3, length3, scale3, sub3, type Vec3 } from '../math/vec';
 import { edgeRefFromPick } from './edges';
@@ -55,7 +55,15 @@ function edgeEnds(mesh: MeshData, edgeIndex: number): Vec3[] {
 const samePoint = (a: Vec3, b: Vec3) => length3(sub3(a, b)) <= 1e-6 * Math.max(1, length3(a));
 
 /** Repère (dans les coordonnées de la pièce) désigné par une référence, ou null s'il a disparu. */
-export function lcsFrame(mesh: MeshData, ref: LcsRef): Frame3D | null {
+/** Esquisses calculées d'une pièce (repère et géométrie résolue), pour les repères posés sur un point. */
+export type PartSketches = readonly { featureId: Id; frame: Frame3D | null; solved: SketchParams }[];
+
+export function lcsFrame(mesh: MeshData, ref: LcsRef, sketches: PartSketches = []): Frame3D | null {
+  if (ref.kind === 'point') {
+    const sk = sketches.find((s) => s.featureId === ref.sketchId);
+    const p = sk?.solved.entities.find((e) => e.id === ref.pointId);
+    return sk?.frame && p?.type === 'point' ? frameFromAxis(frameToWorld(sk.frame, p), sk.frame.normal) : null;
+  }
   if (ref.kind === 'vertex') {
     const face = facesMatching(mesh, ref.face).find((i) => mesh.faces[i]!.plane);
     if (face === undefined) return null;
@@ -241,7 +249,11 @@ const CLOSURE_TOL = 1e-3;
  * enregistrées (Levenberg-Marquardt). La liaison `driver` (celle que l'on manipule) n'est pas
  * ajustée : ce sont les autres qui suivent.
  */
-export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshData | null | undefined, options: { driver?: Id } = {}): AssemblyPlacement {
+export function solveAssembly(
+  assembly: Assembly,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: { driver?: Id; sketchesOf?: (partId: Id) => PartSketches | undefined } = {},
+): AssemblyPlacement {
   const jointFrames = new Map<Id, { base: Frame3D; moving: Frame3D }>();
   const issues = new Map<Id, JointIssue>();
   const solvedValues = new Map<Id, JointValues>();
@@ -255,8 +267,8 @@ export function solveAssembly(assembly: Assembly, meshOf: (partId: Id) => MeshDa
     const m = instance.get(j.moving.instanceId);
     const bm = b && meshOf(b.partId);
     const mm = m && meshOf(m.partId);
-    const bf = bm ? lcsFrame(bm, j.base.lcs) : null;
-    const mf = mm ? lcsFrame(mm, j.moving.lcs) : null;
+    const bf = bm ? lcsFrame(bm, j.base.lcs, options.sketchesOf?.(b.partId)) : null;
+    const mf = mm ? lcsFrame(mm, j.moving.lcs, options.sketchesOf?.(m.partId)) : null;
     if (bf && mf) frames.set(j.id, { bf, mf });
     else issues.set(j.id, 'LCS_LOST');
   }

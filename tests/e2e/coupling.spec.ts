@@ -59,3 +59,24 @@ test('vue éclatée : les pièces s’écartent à l’affichage, le projet ne c
   await page.getByRole('button', { name: 'Rassembler' }).click();
   await expect(page.locator('#as-explode-amount')).toBeHidden();
 });
+
+test('liaison accrochée à des points d’esquisse : les points seuls deviennent des accroches cliquables', async ({ page }) => {
+  await openApp(page);
+  const file = JSON.parse(readFileSync('tests/fixtures/reference-schema-1.vibecad', 'utf8'));
+  const doc = file.document;
+  // Une esquisse au-dessus de la plaque, avec un seul point ; aucune liaison au départ.
+  doc.parts[0].features.push({ id: 'sk-repere', type: 'sketch', name: 'Repère', visible: true, params: { support: { kind: 'plane', plane: 'XY', offset: 5 }, entities: [{ id: 'p1', type: 'point', x: 50, y: 20 }], constraints: [] }, dependsOn: [] });
+  doc.assembly.joints = [];
+  delete doc.assembly.couplings;
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), JSON.stringify(file));
+  await page.click('#tab-assembly');
+  await page.click('#as-joint');
+  await expect(page.locator('.vp-joint-anchor')).toHaveCount(2);
+  await page.locator('.vp-joint-anchor[title*="(Plaque (2))"]').click();
+  await page.locator('.vp-joint-anchor[title*="(Plaque)"]').click();
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.joints.length)).toBe(1);
+  expect(await appState(page, (s) => s.doc.assembly.joints[0].moving.lcs)).toEqual({ kind: 'point', sketchId: 'sk-repere', pointId: 'p1' });
+  expect(await appState(page, (s) => s.doc.assembly.joints[0].kind)).toBe('fixed');
+  // Plus d'accroches une fois la liaison créée.
+  await expect(page.locator('.vp-joint-anchor')).toHaveCount(0);
+});

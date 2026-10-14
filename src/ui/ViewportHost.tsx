@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { partShown, type AppState } from '../app/state';
 import type { SketchFeature } from '../domain/model';
-import { pointPosition } from '../sketch/model';
+import { pointPosition, standalonePoints } from '../sketch/model';
+import { frameToWorld } from '../math/frame';
 import { extractProfiles } from '../sketch/profiles';
 import {
   cancelEditor,
@@ -68,7 +69,8 @@ function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderI
 /** Vue de l'onglet Assemblage : pièces insérées à leur place, repères des liaisons. */
 function buildAssemblyInput(s: AppState): ViewportInput {
   const assembly = s.doc.assembly ?? { instances: [], joints: [] };
-  const placement = solveAssembly(assembly, (partId) => s.display[partId]?.mesh);
+  const sketchesOf = (partId: string) => s.display[partId]?.result.sketches;
+  const placement = solveAssembly(assembly, (partId) => s.display[partId]?.mesh, { sketchesOf });
   // Vue éclatée : chaque pièce (et sa visserie) décalée, sans toucher au projet.
   const exploded = s.explode > 0;
   const offsets = exploded ? explodeOffsets(assembly, placement, (partId) => s.display[partId]?.mesh, s.explode) : null;
@@ -110,7 +112,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const m = s.mode.moving;
     const inst = assembly.instances.find((i) => i.id === m.instanceId);
     const mesh = inst && s.display[inst.partId]?.mesh;
-    const frame = mesh ? lcsFrame(mesh, m.lcs) : null;
+    const frame = mesh && inst ? lcsFrame(mesh, m.lcs, sketchesOf(inst.partId)) : null;
     const matrix = placement.matrices.get(m.instanceId);
     if (frame && matrix) {
       markers.push({ origin: transformPoint4(matrix, frame.origin), axis: transformDirection4(matrix, frame.normal), role: 'moving', label: 'Pièce qui bouge' });
@@ -157,9 +159,25 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     : [];
   // Collisions : la matière commune à deux pièces, en rouge.
   const highlightMeshes = s.collisionCheck && s.collisions && !exploded ? s.collisions.items.map((c, i) => ({ key: `${s.collisions!.key}:${i}`, mesh: c.mesh })) : [];
+  // Création d'une liaison : les points seuls des esquisses deviennent des accroches cliquables.
+  const anchors: NonNullable<ViewportInput['anchors']> = [];
+  if (s.mode.kind === 'joint' && !exploded) {
+    for (const inst of assembly.instances) {
+      const matrix = placement.matrices.get(inst.id);
+      const part = s.doc.parts.find((p) => p.id === inst.partId);
+      if (!matrix || !part) continue;
+      for (const sk of s.display[inst.partId]?.result.sketches ?? []) {
+        if (!sk.frame) continue;
+        const name = part.features.find((f) => f.id === sk.featureId)?.name ?? 'esquisse';
+        for (const p of standalonePoints(sk.solved)) {
+          anchors.push({ key: `${inst.id}|${sk.featureId}|${p.id}`, at: transformPoint4(matrix, frameToWorld(sk.frame, p)), title: `Point de « ${name} » (${inst.name})` });
+        }
+      }
+    }
+  }
   const lockedFace = s.mode.kind === 'joint' && s.mode.lockedFace ? { partId: s.mode.lockedFace.instanceId, index: s.mode.lockedFace.index } : null;
   if (lockedFace) selection.push({ partId: lockedFace.partId, kind: 'face', index: lockedFace.index });
-  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes };
+  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors };
 }
 
 /** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau affiché. */
@@ -649,6 +667,10 @@ export function ViewportHost() {
           else c.updateSession((s) => selectConstraint(s, id, true));
         },
         onSketchScale: (px) => c.updateSession((s) => setPixelSize(s, px)),
+        onAnchorPick: (key) => {
+          const [instanceId, sketchId, pointId] = key.split('|');
+          c.pickJointPoint(instanceId!, sketchId!, pointId!);
+        },
         onViewChange: () => {
           if (tickPending.current) return;
           tickPending.current = true;
