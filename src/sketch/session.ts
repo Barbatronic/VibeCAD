@@ -2049,7 +2049,11 @@ export interface SessionPreview {
   circles: { center: Vec2; radius: number }[];
   /** Arcs en cours (ouverture signée : négative dans le sens horaire), avec flèche de sens. */
   arcs: { center: Vec2; radius: number; startAngle: number; sweep: number; arrow?: false }[];
-  labels: { at: Vec2; text: string }[];
+  /**
+   * Valeurs affichées pendant le tracé. `along` : le trait mesuré ; l'étiquette se place alors à
+   * côté de lui (perpendiculairement) pour ne pas cacher le dessin en cours.
+   */
+  labels: { at: Vec2; text: string; along?: [Vec2, Vec2] }[];
   guides: [Vec2, Vec2][];
   /** Outil Couper : morceau qui sera retiré au clic (en rouge). */
   removed: Vec2[][];
@@ -2093,7 +2097,7 @@ export function sessionPreview(s: SketchSession): SessionPreview {
   const a = s.start.point;
   if (s.tool === 'line') {
     out.lines.push([a, end]);
-    out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)) });
+    out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)), along: [a, end] });
     if (s.snap?.kind === 'horizontal' || s.snap?.kind === 'vertical') out.guides.push([a, end]);
   } else if (s.tool === 'rectangle') {
     const b = { x: end.x, y: a.y };
@@ -2107,7 +2111,7 @@ export function sessionPreview(s: SketchSession): SessionPreview {
     const r = distance2(a, end);
     out.circles.push({ center: a, radius: r });
     out.lines.push([a, end]);
-    out.labels.push({ at: midpoint2(a, end), text: `Ø ${formatLength(2 * r)}` });
+    out.labels.push({ at: midpoint2(a, end), text: `Ø ${formatLength(2 * r)}`, along: [a, end] });
   } else if (s.tool === 'centerRectangle') {
     const hw = Math.abs(end.x - a.x);
     const hh = Math.abs(end.y - a.y);
@@ -2122,11 +2126,11 @@ export function sessionPreview(s: SketchSession): SessionPreview {
     const pts = polygonVertices(a, end, currentSides(s));
     pts.forEach((q, k) => out.lines.push([q, pts[(k + 1) % pts.length]!]));
     out.circles.push({ center: a, radius: distance2(a, end) });
-    out.labels.push({ at: midpoint2(a, end), text: `${pts.length} côtés · Ø ${formatLength(2 * distance2(a, end))}` });
+    out.labels.push({ at: midpoint2(a, end), text: `${pts.length} côtés · Ø ${formatLength(2 * distance2(a, end))}`, along: [a, end] });
   } else if (s.tool === 'slot') {
     if (!s.slot) {
       out.lines.push([a, end]);
-      out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)) });
+      out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)), along: [a, end] });
     } else {
       const c2 = s.slot.end.point;
       const r = slotHalfWidth(a, c2, end);
@@ -2139,7 +2143,7 @@ export function sessionPreview(s: SketchSession): SessionPreview {
   } else if (s.tool === 'ellipse') {
     if (!s.ellipse) {
       out.lines.push([a, end]);
-      out.labels.push({ at: midpoint2(a, end), text: `grand axe ${formatLength(2 * distance2(a, end))}` });
+      out.labels.push({ at: midpoint2(a, end), text: `grand axe ${formatLength(2 * distance2(a, end))}`, along: [a, end] });
     } else {
       const m = s.ellipse.major.point;
       const minor = ellipseMinor(a, m, end);
@@ -2161,7 +2165,7 @@ export function sessionPreview(s: SketchSession): SessionPreview {
       const r = distance2(a, end);
       out.lines.push([a, end]);
       out.guides.push(...[]);
-      out.labels.push({ at: midpoint2(a, end), text: `R ${formatLength(r)}` });
+      out.labels.push({ at: midpoint2(a, end), text: `R ${formatLength(r)}`, along: [a, end] });
     } else {
       const st = s.arc.start.point;
       const r = distance2(a, st);

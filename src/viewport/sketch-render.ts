@@ -432,7 +432,7 @@ export class SketchView {
       for (const g of preview.guides) dashed.add(g, new Color(p.sketchHover));
       // Outil Couper : le morceau qui sera retiré, en rouge.
       for (const path of preview.removed ?? []) for (let i = 0; i + 1 < path.length; i++) strong.add([path[i]!, path[i + 1]!], cErr);
-      for (const [i, l] of preview.labels.entries()) this.label(`preview:${i}`, l.text, add2(l.at, { x: 0, y: 12 * px }), 'vp-tag vp-tag-preview');
+      for (const [i, l] of preview.labels.entries()) this.label(`preview:${i}`, l.text, previewLabelAt(l, px), 'vp-tag vp-tag-preview');
     }
 
     // Repère d'accrochage : forme + texte
@@ -488,6 +488,25 @@ export class SketchView {
   dispose(): void {
     this.clear();
   }
+}
+
+/**
+ * Place d'une valeur affichée pendant le tracé. Le long d'un trait : à côté de son milieu, du côté
+ * gauche ou du dessus (l'étiquette d'accrochage est en bas à droite du curseur), assez loin pour
+ * que le texte ne recouvre jamais le trait. Sinon : un peu au-dessus du point.
+ */
+function previewLabelAt(l: { at: Vec2; text: string; along?: [Vec2, Vec2] }, px: number): Vec2 {
+  if (!l.along) return add2(l.at, { x: 0, y: 12 * px });
+  const [a, b] = l.along;
+  const len = distance2(a, b);
+  if (len < 1e-12) return add2(l.at, { x: 0, y: 18 * px });
+  const d = scale2(sub2(b, a), 1 / len);
+  let n = { x: -d.y, y: d.x };
+  if (n.x > 1e-9 || (Math.abs(n.x) <= 1e-9 && n.y < 0)) n = scale2(n, -1);
+  // Demi-largeur et demi-hauteur approximatives de l'étiquette (pixels).
+  const halfWidth = 6 + l.text.length * 3.6;
+  const offset = 10 + Math.abs(n.x) * halfWidth + Math.abs(n.y) * 9;
+  return add2(l.at, scale2(n, offset * px));
 }
 
 function sketchCentroid(sketch: SketchParams): Vec2 {
