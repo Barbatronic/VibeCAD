@@ -2,8 +2,9 @@
  * Service géométrique : exécute les requêtes du protocole avec un noyau et un moteur.
  * Utilisé dans le worker (navigateur) et directement dans les tests (Node).
  */
+import { freecadFcstd, freecadPlan, freecadScript, type FreecadLeaf, type FreecadPartInput } from '../io/freecad';
 import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '../geometry/protocol';
-import type { CadDocument, Id } from '../domain/model';
+import type { CadDocument, EdgeRef, Id } from '../domain/model';
 import type { Vec3 } from '../math/vec';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
@@ -192,6 +193,67 @@ export class GeometryService {
     const meshes = items.map((i) => this.kernel.mesh(i.shape, meshOptionsFor(i.ev.analysis?.bbox ?? null, EXPORT_MESH)));
     const name = items.length === 1 ? items[0]!.part.name : this.asDocument(doc).name;
     return { bytes: meshesToBinaryStl(meshes, name.normalize('NFD').replace(/[^\x20-\x7e]/g, '')), warnings };
+  }
+
+  /**
+   * Export FreeCAD : script Python qui reconstruit l'historique (voir io/freecad.ts) et document
+   * .FCStd des formes finales. Le worker fournit les formes (finales, figées), les repères des
+   * esquisses et des plans, et de quoi retrouver dans FreeCAD les arêtes et faces désignées.
+   */
+  async exportFreecad(docIn: DocumentForWorker, partIds: Id[], leaves: FreecadLeaf[]): Promise<{ script: string; fcstd: Uint8Array; warnings: string[] }> {
+    const doc = this.asDocument(docIn);
+    const evaluations = this.engine.evaluateDocument(doc);
+    const wanted = new Set([...partIds, ...leaves.map((l) => l.partId)]);
+    const warnings: string[] = [];
+    const parts: FreecadPartInput[] = [];
+    const k = this.kernel;
+    for (const part of doc.parts) {
+      const ev = evaluations.find((e) => e.partId === part.id);
+      if (!wanted.has(part.id) || !ev) continue;
+      const plan = freecadPlan(part, ev.failedFeatureId);
+      const before = (i: number) => this.engine.shapeAfter(part, ev, i > 0 ? part.features[i - 1]!.id : null);
+      const frozen = new Map<Id, string>();
+      const edgePoints = new Map<Id, Vec3[]>();
+      const planes = new Map<Id, { origin: Vec3; normal: Vec3 }>();
+      part.features.forEach((f, i) => {
+        if (plan.frozen.has(f.id)) {
+          const s = this.engine.shapeAfter(part, ev, f.id);
+          if (s) frozen.set(f.id, k.brep(s));
+          return;
+        }
+        if (plan.skipped.has(f.id)) return;
+        const shape = before(i);
+        if (!shape) return;
+        const mids = (ref: EdgeRef) => k.edgeCurves(shape, ref).flatMap((c) => (c.mid ? [c.mid] : []));
+        if (f.type === 'fillet' || f.type === 'chamfer') edgePoints.set(f.id, f.params.edges.flatMap(mids));
+        if (f.type === 'pattern' && f.params.axis.kind === 'edge') edgePoints.set(f.id, mids(f.params.axis.edge));
+        if (f.type === 'mirror' && f.params.plane.kind === 'face') {
+          const found = k.findFacePlane(shape, f.params.plane.ref);
+          if (found.status === 'found') planes.set(f.id, { origin: found.origin, normal: found.normal });
+        }
+      });
+      if (plan.frozen.size) warnings.push(`« ${part.name} » : ${plan.frozen.size} étape(s) sans équivalent dans FreeCAD, reprise(s) comme forme figée.`);
+      if (plan.skipped.size) warnings.push(`« ${part.name} » : l’étape en erreur et les suivantes ne sont pas reprises.`);
+      parts.push({
+        part,
+        brep: ev.shape ? k.brep(ev.shape) : null,
+        sketches: new Map(ev.sketches.flatMap((s) => (s.frame ? [[s.featureId, { frame: s.frame, solved: s.solved }] as const] : []))),
+        datums: new Map(ev.datums.map((d) => [d.featureId, d.frame])),
+        axes: new Map(ev.axes.map((a) => [a.featureId, { point: a.point, dir: a.dir }])),
+        frozen,
+        edgePoints,
+        planes,
+        failedFeatureId: ev.failedFeatureId,
+      });
+    }
+    if (parts.length === 0) throw new Error('Aucune pièce à exporter.');
+    // Formes placées de l'assemblage, pour le document .FCStd.
+    const placedLeaves = leaves.map((l) => {
+      const shape = evaluations.find((e) => e.partId === l.partId)?.shape;
+      return shape ? { ...l, brep: k.brep(shape, l.matrix) } : l;
+    });
+    const input = { name: doc.name, parts, parameters: doc.parameters ?? [], leaves: placedLeaves };
+    return { script: freecadScript(input), fcstd: await freecadFcstd(doc, input), warnings };
   }
 
   async export3mf(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[]): Promise<{ bytes: Uint8Array; warnings: string[] }> {

@@ -195,10 +195,11 @@ export type BlendResult =
   | { status: 'failed'; detail: string };
 
 /** Géométrie exacte d'une arête : segment de droite, cercle (ou arc), autre courbe. */
+/** Géométrie d'une arête ; `mid` : son point au milieu (paramètre médian), pour la retrouver ailleurs. */
 export type EdgeCurve =
-  | { kind: 'line'; start: Vec3; end: Vec3 }
-  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number }
-  | { kind: 'other' };
+  | { kind: 'line'; start: Vec3; end: Vec3; mid?: Vec3 }
+  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3 }
+  | { kind: 'other'; mid?: Vec3 };
 
 export interface DistanceResult {
   distance: number;
@@ -314,6 +315,11 @@ export interface GeometryKernel {
    * STEP d'un assemblage avec son arborescence : un nœud au nom du projet, une définition par
    * pièce (nom, couleur), une instance placée (matrice 4 × 4 par colonnes) par pièce insérée.
    */
+  /**
+   * Forme au format BREP d'OpenCASCADE (texte), lisible par FreeCAD ; `matrix` : placée à cet
+   * endroit (position portée par la forme, comme FreeCAD l'enregistre).
+   */
+  brep(shape: KernelShape, matrix?: readonly number[]): string;
   exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: StepComponent[], blocks?: StepBlock[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */
   distance(a: { shape: KernelShape; kind: 'face' | 'edge'; index: number }, b: { shape: KernelShape; kind: 'face' | 'edge'; index: number }): DistanceResult;

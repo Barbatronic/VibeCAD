@@ -20,6 +20,7 @@ import {
   type SectionPlane,
   type CollisionPlacement,
 } from './protocol';
+import type { FreecadLeaf } from '../io/freecad';
 
 type RequestType = WorkerRequest['type'];
 type RequestBody<T extends RequestType> = Omit<Extract<WorkerRequest, { type: T }>, 'id'>;
@@ -166,6 +167,11 @@ export class GeometryClient {
   async exportStl(doc: CadDocument, partIds: Id[]): Promise<WorkerResultMap['exportStl']> {
     await this.syncResources(doc);
     return this.request('exportStl', { doc: documentForWorker(doc), partIds });
+  }
+
+  async exportFreecad(doc: CadDocument, partIds: Id[], leaves: FreecadLeaf[]): Promise<WorkerResultMap['exportFreecad']> {
+    await this.syncResources(doc);
+    return this.request('exportFreecad', { doc: documentForWorker(doc), partIds, leaves });
   }
 
   async export3mf(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[]): Promise<WorkerResultMap['export3mf']> {

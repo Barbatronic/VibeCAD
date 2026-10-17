@@ -102,6 +102,22 @@ export class RecomputeEngine {
     return entry.mesh;
   }
 
+  /**
+   * Solide de la pièce juste après une étape (ou avant toute étape si `featureId` est null), tel
+   * que calculé lors du dernier `evaluateDocument` ; null s'il n'y a pas encore de volume.
+   */
+  shapeAfter(part: Part, evaluation: PartEvaluation, featureId: Id | null): KernelShape | null {
+    let shape: KernelShape | null = null;
+    if (featureId === null) return null;
+    for (const f of part.features) {
+      const key = evaluation.stepKeys.get(f.id);
+      const outcome = key ? this.records.get(key)?.outcome : undefined;
+      if (outcome?.shape) shape = outcome.shape;
+      if (f.id === featureId) return shape;
+    }
+    return shape;
+  }
+
   /** Nombre d'étapes en cache (diagnostic et tests). */
   cacheSize(): number {
     return this.records.size;

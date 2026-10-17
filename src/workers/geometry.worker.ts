@@ -44,6 +44,8 @@ async function handle(req: WorkerRequest): Promise<unknown> {
       return svc.exportStl(req.doc, req.partIds);
     case 'export3mf':
       return svc.export3mf(req.doc, req.partIds, req.placements);
+    case 'exportFreecad':
+      return svc.exportFreecad(req.doc, req.partIds, req.leaves);
     case 'inspectStep':
       return svc.inspectStep(req.bytes, req.format ?? 'step');
     case 'measure':

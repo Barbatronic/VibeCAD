@@ -927,18 +927,20 @@ export class OcctKernel implements GeometryKernel {
         this.edgesForRef(scope, shape, ref).map((edge): EdgeCurve => {
           const adaptor = scope.track(new oc.BRepAdaptor_Curve(edge));
           const type = adaptor.GetType();
+          const pm = scope.track(adaptor.Value((adaptor.FirstParameter() + adaptor.LastParameter()) / 2));
+          const mid = { x: pm.X(), y: pm.Y(), z: pm.Z() };
           if (type === oc.GeomAbs_CurveType.GeomAbs_Line) {
             const p0 = scope.track(adaptor.Value(adaptor.FirstParameter()));
             const p1 = scope.track(adaptor.Value(adaptor.LastParameter()));
-            return { kind: 'line', start: { x: p0.X(), y: p0.Y(), z: p0.Z() }, end: { x: p1.X(), y: p1.Y(), z: p1.Z() } };
+            return { kind: 'line', start: { x: p0.X(), y: p0.Y(), z: p0.Z() }, end: { x: p1.X(), y: p1.Y(), z: p1.Z() }, mid };
           }
           if (type === oc.GeomAbs_CurveType.GeomAbs_Circle) {
             const circ = scope.track(adaptor.Circle());
             const loc = scope.track(circ.Location());
             const d = scope.track(scope.track(circ.Axis()).Direction());
-            return { kind: 'circle', center: { x: loc.X(), y: loc.Y(), z: loc.Z() }, axis: { x: d.X(), y: d.Y(), z: d.Z() }, radius: circ.Radius() };
+            return { kind: 'circle', center: { x: loc.X(), y: loc.Y(), z: loc.Z() }, axis: { x: d.X(), y: d.Y(), z: d.Z() }, radius: circ.Radius(), mid };
           }
-          return { kind: 'other' };
+          return { kind: 'other', mid };
         }),
       ),
     );
@@ -1372,6 +1374,21 @@ export class OcctKernel implements GeometryKernel {
       };
       for (const inst of instances) addComponent(root, inst, 0);
     });
+  }
+
+  brep(shapeIn: KernelShape, matrix?: readonly number[]): string {
+    const shape = asOcct(shapeIn).shape;
+    const oc = this.oc;
+    return this.guard('export BREP', () =>
+      withScope((scope) => {
+        if (!matrix) return oc.BRepToolsWrapper.Write(shape);
+        const m = matrix;
+        const trsf = scope.track(new oc.gp_Trsf());
+        trsf.SetValues(m[0]!, m[4]!, m[8]!, m[12]!, m[1]!, m[5]!, m[9]!, m[13]!, m[2]!, m[6]!, m[10]!, m[14]!);
+        const moved = scope.track(shape.Moved(scope.track(new oc.TopLoc_Location(trsf)), false));
+        return oc.BRepToolsWrapper.Write(moved);
+      }),
+    );
   }
 
   private labelNameColor(scope: Scope, colorTool: XCAFDoc_ColorTool | null, label: TDF_Label, name: string, color: string | null): void {

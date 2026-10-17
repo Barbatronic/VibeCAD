@@ -145,6 +145,8 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string; title: string }[] =
   { format: '3mf', label: '3MF', title: 'Pour l’impression 3D (pièces, couleurs, unité en mm)' },
   { format: 'stl', label: 'STL', title: 'Pour l’impression 3D (le format le plus répandu)' },
   { format: 'glb', label: 'GLB', title: 'Pour montrer le modèle : page web, présentation, visionneuse 3D' },
+  { format: 'freecad', label: 'FreeCAD', title: 'Script qui reconstruit le projet dans FreeCAD avec son historique (esquisses, cotes, étapes)' },
+  { format: 'fcstd', label: 'FCStd', title: 'Document FreeCAD des formes finales (sans historique), à ouvrir d’un double-clic' },
 ];
 
 function ExportDialog() {
@@ -231,7 +233,27 @@ function ExportDialog() {
           })}
         </fieldset>
       )}
-      {isStep ? (
+      {d.format === 'freecad' ? (
+        <Callout kind="info">
+          <p>
+            Un <strong>script FreeCAD</strong> (.py) qui reconstruit le projet <strong>avec son historique</strong> : esquisses avec leurs contraintes et
+            cotes, protrusions, cavités, révolutions, congés, chanfreins, perçages, répétitions, symétries, paramètres (feuille « Parametres »). Les étapes
+            sans équivalent sont reprises comme formes figées{d.assembly ? ', et l’assemblage par des liens placés (sans les liaisons)' : ''}.
+          </p>
+          <p>
+            Dans FreeCAD : <strong>Macro → Macros…</strong>, choisissez le dossier du fichier, sélectionnez-le puis <strong>Exécuter</strong>. Le
+            projet s’ouvre et est enregistré en .FCStd à côté du script.
+          </p>
+        </Callout>
+      ) : d.format === 'fcstd' ? (
+        <Callout kind="info">
+          <p>
+            Un <strong>document FreeCAD</strong> (.FCStd) qui s’ouvre d’un double-clic, avec les formes finales, leurs noms
+            {d.assembly ? ' et l’arborescence de l’assemblage' : ''}. Pas d’historique : pour pouvoir modifier les cotes dans FreeCAD, choisissez
+            « FreeCAD ».
+          </p>
+        </Callout>
+      ) : isStep ? (
         <Callout kind="info">
           <p>
             Le fichier STEP contient les <strong>solides</strong> (formes finales, en millimètres) avec le nom et la couleur de chaque pièce. Dans FreeCAD :

@@ -1705,6 +1705,27 @@ export class AppController {
         });
         this.set({ dialog: null });
         if (target) this.toast('success', `Fichier STEP « ${target.name} » téléchargé : ${parts.length} pièce(s), en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+      } else if (d.format === 'freecad' || d.format === 'fcstd') {
+        // FreeCAD : script qui reconstruit l'historique, ou document des formes finales.
+        const blocks = new Map((s.doc.assembly?.instances ?? []).filter((i) => i.subassemblyId).map((i) => [i.id, i.name]));
+        const leaves = d.assembly && placement ? this.assemblyLeaves(placement).map((l) => ({ name: l.name, partId: l.partId, matrix: [...l.matrix], group: blocks.get(l.instanceId) ?? null })) : [];
+        const { script, fcstd, warnings } = await this.deps.client.exportFreecad(s.doc, d.assembly ? [] : d.partIds, leaves);
+        const isScript = d.format === 'freecad';
+        const target = await saveFile(
+          isScript ? new Blob([script], { type: 'text/x-python' }) : new Blob([fcstd as Uint8Array<ArrayBuffer>], { type: 'application/x-freecad' }),
+          safeFileName(baseName, isScript ? '.py' : '.FCStd'),
+          { description: isScript ? 'Script FreeCAD (Python)' : 'Document FreeCAD', mime: isScript ? 'text/x-python' : 'application/x-freecad', extension: isScript ? '.py' : '.FCStd', download: true },
+        );
+        this.set({ dialog: null });
+        if (target) {
+          this.toast(
+            'success',
+            isScript
+              ? `Script FreeCAD « ${target.name} » téléchargé. Dans FreeCAD : Macro → Macros…, choisissez son dossier puis « Exécuter » : le projet est reconstruit (et enregistré en .FCStd à côté).`
+              : `Document FreeCAD « ${target.name} » téléchargé : formes finales, sans historique.`,
+            warnings.length ? { detail: warnings.join('\n') } : {},
+          );
+        }
       } else if (d.format === 'glb') {
         const bytes = this.glbBytes(d.partIds, !!d.assembly);
         const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/gltf-binary' }), safeFileName(baseName, '.glb'), {

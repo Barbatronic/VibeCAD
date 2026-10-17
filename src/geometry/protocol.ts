@@ -4,6 +4,7 @@
  * les réponses obsolètes sont ignorées côté interface.
  */
 import type { StepBlock, StepComponent } from './kernel';
+import type { FreecadLeaf } from '../io/freecad';
 import type { CadDocument, Id, SketchParams } from '../domain/model';
 import type { FeatureIssueCode, FeatureStatus } from '../domain/status';
 import type { Frame3D } from '../math/frame';
@@ -100,6 +101,7 @@ export type WorkerRequest =
   | { id: number; type: 'exportStep'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[]; tree?: StepTree }
   | { id: number; type: 'exportStl'; doc: DocumentForWorker; partIds: Id[] }
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
+  | { id: number; type: 'exportFreecad'; doc: DocumentForWorker; partIds: Id[]; leaves: FreecadLeaf[] }
   | { id: number; type: 'inspectStep'; bytes: Uint8Array; format?: 'step' | 'stl' }
   | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
@@ -147,6 +149,7 @@ export interface WorkerResultMap {
   exportStep: { text: string; warnings: string[] };
   exportStl: { bytes: Uint8Array; warnings: string[] };
   export3mf: { bytes: Uint8Array; warnings: string[] };
+  exportFreecad: { script: string; fcstd: Uint8Array; warnings: string[] };
   inspectStep: StepInspection;
   measure: MeasureResult;
   section: { parts: SectionPart[] };

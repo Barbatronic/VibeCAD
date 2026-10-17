@@ -160,7 +160,7 @@ export async function menuItem(page: Page, name: RegExp): Promise<void> {
 }
 
 /** Fichier → Exporter…, puis choix du format dans la fenêtre d'export (renvoyée). */
-export async function openExport(page: Page, format: 'STEP' | '3MF' | 'STL' | 'GLB') {
+export async function openExport(page: Page, format: 'STEP' | '3MF' | 'STL' | 'GLB' | 'FreeCAD' | 'FCStd') {
   await openFileMenu(page);
   await page.getByRole('menuitem', { name: /Exporter…/ }).click();
   const dialog = page.getByRole('dialog', { name: /Exporter/ });
