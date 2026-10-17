@@ -15,6 +15,7 @@ import {
   type WorkerRequest,
   type WorkerResponse,
   type ExportPlacement,
+  type StepTree,
   type WorkerResultMap,
   type SectionPlane,
   type CollisionPlacement,
@@ -157,9 +158,9 @@ export class GeometryClient {
     }
   }
 
-  async exportStep(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[]): Promise<WorkerResultMap['exportStep']> {
+  async exportStep(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[], tree?: StepTree): Promise<WorkerResultMap['exportStep']> {
     await this.syncResources(doc);
-    return this.request('exportStep', { doc: documentForWorker(doc), partIds, ...(placements ? { placements } : {}) });
+    return this.request('exportStep', { doc: documentForWorker(doc), partIds, ...(placements ? { placements } : {}), ...(tree ? { tree } : {}) });
   }
 
   async exportStl(doc: CadDocument, partIds: Id[]): Promise<WorkerResultMap['exportStl']> {

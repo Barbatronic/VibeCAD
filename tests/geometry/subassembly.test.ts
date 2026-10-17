@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import Ajv2020 from 'ajv/dist/2020';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { flattenAssembly, lcsFromPick, solveAssembly } from '../../src/app/assembly';
+import { assemblyStepTree, flattenAssembly, lcsFromPick, solveAssembly } from '../../src/app/assembly';
 import { addFeature, addPart, createDocument, findPart, makePrimitiveFeature } from '../../src/domain/document';
 import type { Assembly, AssemblyJoint, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { assemblyContents, closedDocument, openSubassembly, subassemblyContent, subassemblyUses } from '../../src/domain/subassemblies';
@@ -125,6 +125,21 @@ describe('sous-assemblages', () => {
     const { doc } = robot();
     const counts = assemblyContents(doc, doc.assembly).counts;
     expect([...counts.values()].sort()).toEqual([1, 2, 2]);
+  });
+
+  it('export STEP : le bloc est défini une fois et inséré deux fois (arborescence à deux niveaux)', () => {
+    const { doc, options, meshOf } = robot();
+    const placed = solveAssembly(doc.assembly!, meshOf, options);
+    const tree = assemblyStepTree(doc.assembly!, placed, meshOf, { ...options, subassemblyNameOf: () => 'Bras' });
+    expect(tree.roots.map((r) => r.blockKey ?? r.partKey)).toEqual([doc.assembly!.instances[0]!.partId, 'sa-bras', 'sa-bras']);
+    expect(tree.blocks.map((b) => [b.key, b.components.length])).toEqual([['sa-bras', 2]]);
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const parts = engine.evaluateDocument(doc).flatMap((r) => (r.shape ? [{ key: r.partId, name: doc.parts.find((p) => p.id === r.partId)!.name, color: '#4f86c6', shape: r.shape }] : []));
+    const text = kernel.exportStepAssembly('Robot', parts, tree.roots, tree.blocks);
+    // 3 composants au premier niveau + 2 dans la définition du bras.
+    expect(text.match(/NEXT_ASSEMBLY_USAGE_OCCURRENCE/g)?.length).toBe(5);
+    expect(text.match(/PRODUCT\('Bras'/g)?.length).toBe(1);
+    expect(kernel.readStep(new TextEncoder().encode(text)).solids.length).toBe(5);
   });
 
   it('un bloc qui se contient lui-même est refusé à la lecture', () => {

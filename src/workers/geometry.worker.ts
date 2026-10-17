@@ -39,7 +39,7 @@ async function handle(req: WorkerRequest): Promise<unknown> {
     case 'evaluate':
       return svc.evaluate(req.doc, req.knownMeshKeys, req.previewFeatureId);
     case 'exportStep':
-      return svc.exportStep(req.doc, req.partIds, req.placements);
+      return svc.exportStep(req.doc, req.partIds, req.placements, req.tree);
     case 'exportStl':
       return svc.exportStl(req.doc, req.partIds);
     case 'export3mf':

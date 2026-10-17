@@ -15,6 +15,7 @@ import { meshesTo3mf } from '../io/threemf';
 import { APP_NAME, APP_VERSION } from '../meta';
 import type {
   ExportPlacement,
+  StepTree,
   DocumentForWorker,
   EvaluationResult,
   MeasureResult,
@@ -148,7 +149,23 @@ export class GeometryService {
     return { warnings, placed, shapes };
   }
 
-  exportStep(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[]): { text: string; warnings: string[] } {
+  exportStep(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[], tree?: StepTree): { text: string; warnings: string[] } {
+    if (tree) {
+      // Assemblage avec sous-assemblages : un nœud par bloc, défini une fois, inséré à chaque place.
+      const keys = new Set<Id>();
+      const collect = (cs: StepTree['roots']) => cs.forEach((c) => c.partKey && keys.add(c.partKey));
+      collect(tree.roots);
+      tree.blocks.forEach((b) => collect(b.components));
+      const { items, warnings } = this.partsToExport(doc, Array.from(keys));
+      if (items.length === 0) throw new Error(warnings[0] ?? 'Aucune pièce à exporter.');
+      const text = this.kernel.exportStepAssembly(
+        this.asDocument(doc).name,
+        items.map((i) => ({ key: i.part.id, name: i.part.name, color: i.part.color, shape: i.shape })),
+        tree.roots,
+        tree.blocks,
+      );
+      return { text, warnings };
+    }
     if (placements) {
       // Assemblage : arborescence STEP (une définition par pièce, une instance placée par insertion).
       const { items, warnings } = this.partsToExport(doc, Array.from(new Set(placements.map((p) => p.partId))));

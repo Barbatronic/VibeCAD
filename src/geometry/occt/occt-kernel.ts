@@ -39,6 +39,8 @@ import {
   type KernelShape,
   type MeshData,
   type MeshOptions,
+  type StepBlock,
+  type StepComponent,
   type LoftRequest,
   type SweepRequest,
   type PrimitiveRequest,
@@ -1328,7 +1330,7 @@ export class OcctKernel implements GeometryKernel {
     });
   }
 
-  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: { partKey: string; name: string; matrix: readonly number[] }[]): string {
+  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: StepComponent[], blocks: StepBlock[] = []): string {
     const oc = this.oc;
     if (parts.length === 0 || instances.length === 0) throw new KernelError('Aucune pièce à exporter.');
     return this.writeStep((scope, shapeTool, colorTool) => {
@@ -1344,15 +1346,31 @@ export class OcctKernel implements GeometryKernel {
         this.labelNameColor(scope, colorTool, label, p.name, p.color);
         defs.set(p.key, label);
       }
-      for (const inst of instances) {
-        const def = defs.get(inst.partKey);
-        if (!def) continue;
-        const m = inst.matrix;
+      // Sous-assemblages : un nœud d'assemblage par bloc, défini une fois (blocs imbriqués d'abord).
+      const blockDefs = new Map<string, TDF_Label>();
+      const blockOf = (key: string, depth: number): TDF_Label | undefined => {
+        const known = blockDefs.get(key);
+        if (known || depth > 8) return known;
+        const block = blocks.find((b) => b.key === key);
+        if (!block) return undefined;
+        const shell = scope.track(new oc.TopoDS_Compound());
+        scope.track(new oc.TopoDS_Builder()).MakeCompound(shell);
+        const label = scope.track(shapeTool.AddShape(shell, true, false));
+        this.labelNameColor(scope, null, label, block.name, null);
+        blockDefs.set(key, label);
+        for (const c of block.components) addComponent(label, c, depth + 1);
+        return label;
+      };
+      const addComponent = (parent: TDF_Label, c: StepComponent, depth: number) => {
+        const def = c.partKey ? defs.get(c.partKey) : c.blockKey ? blockOf(c.blockKey, depth) : undefined;
+        if (!def) return;
+        const m = c.matrix;
         const trsf = scope.track(new oc.gp_Trsf());
         trsf.SetValues(m[0]!, m[4]!, m[8]!, m[12]!, m[1]!, m[5]!, m[9]!, m[13]!, m[2]!, m[6]!, m[10]!, m[14]!);
-        const comp = scope.track(shapeTool.AddComponent(root, def, scope.track(new oc.TopLoc_Location(trsf))));
-        this.labelNameColor(scope, null, comp, inst.name, null);
-      }
+        const comp = scope.track(shapeTool.AddComponent(parent, def, scope.track(new oc.TopLoc_Location(trsf))));
+        this.labelNameColor(scope, null, comp, c.name, null);
+      };
+      for (const inst of instances) addComponent(root, inst, 0);
     });
   }
 

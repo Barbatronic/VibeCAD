@@ -62,7 +62,7 @@ import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
-import { clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
@@ -1692,7 +1692,10 @@ export class AppController {
     const placements = placement ? this.assemblyLeaves(placement).map((l) => ({ partId: l.partId, name: l.name, matrix: l.matrix })) : undefined;
     try {
       if (d.format === 'step') {
-        const { text, warnings } = await this.deps.client.exportStep(s.doc, d.partIds, placements);
+        // Avec des sous-assemblages : arborescence à plusieurs niveaux (un nœud par bloc).
+        const withBlocks = d.assembly && placement && s.doc.assembly?.instances.some((i) => i.subassemblyId);
+        const tree = withBlocks ? assemblyStepTree(s.doc.assembly!, placement, (partId) => s.display[partId]?.mesh, this.solveOptions()) : undefined;
+        const { text, warnings } = await this.deps.client.exportStep(s.doc, d.partIds, tree ? undefined : placements, tree);
         const target = await saveFile(new Blob([text], { type: 'model/step' }), safeFileName(baseName, '.step'), {
           description: 'Fichier STEP',
           mime: 'model/step',
@@ -2284,7 +2287,11 @@ export class AppController {
 
   /** Options du solveur : esquisses des pièces (repères sur un point) et contenu des sous-assemblages. */
   solveOptions(): SolveOptions {
-    return { sketchesOf: this.sketchesOf, subassemblyOf: (id) => subassemblyContent(this.state.doc, id) };
+    return {
+      sketchesOf: this.sketchesOf,
+      subassemblyOf: (id) => subassemblyContent(this.state.doc, id),
+      subassemblyNameOf: (id) => subassemblyList(this.state.doc).find((x) => x.id === id)?.name,
+    };
   }
 
   /** Pièces placées de l'assemblage, sous-assemblages dépliés (vue, exports, collisions, simulation). */

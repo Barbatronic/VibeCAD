@@ -5,7 +5,7 @@
  */
 import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part, SketchParams } from '../domain/model';
 import { pickFaceReference } from '../features/sketch/support';
-import type { FaceTag, MeshData } from '../geometry/kernel';
+import type { FaceTag, MeshData, StepBlock, StepComponent } from '../geometry/kernel';
 import { frameToWorld, type Frame3D } from '../math/frame';
 import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationX4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
 import { cross3, dot3, length3, scale3, sub3, type Vec3 } from '../math/vec';
@@ -255,6 +255,8 @@ export interface SolveOptions {
   sketchesOf?: (partId: Id) => PartSketches | undefined;
   /** Contenu d'un sous-assemblage (bloc rigide inséré avec `subassemblyId`). */
   subassemblyOf?: (id: Id) => Assembly | undefined;
+  /** Nom d'un sous-assemblage (arborescence STEP). */
+  subassemblyNameOf?: (id: Id) => string | undefined;
 }
 
 /** Profondeur maximale d'imbrication des sous-assemblages (garde-fou contre une boucle). */
@@ -643,6 +645,38 @@ export function flattenAssembly(
     }
   }
   return out;
+}
+
+/**
+ * Arborescence STEP d'un assemblage : ses pièces et ses blocs placés, et chaque sous-assemblage
+ * utilisé défini une fois (ses composants, placés dans son propre repère), imbrications comprises.
+ */
+export function assemblyStepTree(
+  assembly: Assembly,
+  placement: AssemblyPlacement,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: SolveOptions = {},
+): { roots: StepComponent[]; blocks: StepBlock[] } {
+  const blocks = new Map<Id, StepBlock>();
+  const componentsOf = (a: Assembly, placed: AssemblyPlacement, depth: number): StepComponent[] =>
+    a.instances.flatMap((inst): StepComponent[] => {
+      const matrix = placed.matrices.get(inst.id);
+      if (!matrix) return [];
+      if (!inst.subassemblyId) return [{ partKey: inst.partId, name: inst.name, matrix: [...matrix] }];
+      define(inst.subassemblyId, depth + 1);
+      return blocks.has(inst.subassemblyId) ? [{ blockKey: inst.subassemblyId, name: inst.name, matrix: [...matrix] }] : [];
+    });
+  const define = (id: Id, depth: number) => {
+    if (blocks.has(id) || depth > MAX_DEPTH) return;
+    const content = options.subassemblyOf?.(id);
+    if (!content) return;
+    const block: StepBlock = { key: id, name: options.subassemblyNameOf?.(id) ?? id, components: [] };
+    blocks.set(id, block);
+    const inner = { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) };
+    block.components = componentsOf(content, solveAssembly(content, meshOf, inner, depth), depth);
+  };
+  const roots = componentsOf(assembly, placement, 0);
+  return { roots, blocks: [...blocks.values()] };
 }
 
 /** Résout A x = b (petit système, pivot partiel) ; null si singulier. */

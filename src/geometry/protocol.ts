@@ -3,6 +3,7 @@
  * clonables (aucun objet du noyau ne traverse la frontière). Chaque requête porte un identifiant ;
  * les réponses obsolètes sont ignorées côté interface.
  */
+import type { StepBlock, StepComponent } from './kernel';
 import type { CadDocument, Id, SketchParams } from '../domain/model';
 import type { FeatureIssueCode, FeatureStatus } from '../domain/status';
 import type { Frame3D } from '../math/frame';
@@ -86,11 +87,17 @@ export interface ExportPlacement {
   matrix: number[];
 }
 
+/** Arborescence STEP d'un assemblage : composants de premier niveau et sous-assemblages (blocs). */
+export interface StepTree {
+  roots: StepComponent[];
+  blocks: StepBlock[];
+}
+
 export type WorkerRequest =
   | { id: number; type: 'init' }
   | { id: number; type: 'resources'; resources: WorkerResourcePayload[] }
   | { id: number; type: 'evaluate'; doc: DocumentForWorker; knownMeshKeys: string[]; previewFeatureId?: Id }
-  | { id: number; type: 'exportStep'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
+  | { id: number; type: 'exportStep'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[]; tree?: StepTree }
   | { id: number; type: 'exportStl'; doc: DocumentForWorker; partIds: Id[] }
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
   | { id: number; type: 'inspectStep'; bytes: Uint8Array; format?: 'step' | 'stl' }

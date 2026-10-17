@@ -226,6 +226,24 @@ export class KernelError extends Error {
   }
 }
 
+/**
+ * Composant d'un assemblage STEP : une pièce (`partKey`) ou un sous-assemblage (`blockKey`),
+ * placé par une matrice 4 × 4 (par colonnes) dans le repère de l'assemblage qui le contient.
+ */
+export interface StepComponent {
+  partKey?: string;
+  blockKey?: string;
+  name: string;
+  matrix: readonly number[];
+}
+
+/** Sous-assemblage STEP : défini une fois (ses composants), réutilisé par chaque insertion. */
+export interface StepBlock {
+  key: string;
+  name: string;
+  components: StepComponent[];
+}
+
 export interface GeometryKernel {
   /** Extrusion de régions planes entre deux positions le long de la normale du repère. */
   makePrism(request: PrismRequest): KernelShape;
@@ -296,7 +314,7 @@ export interface GeometryKernel {
    * STEP d'un assemblage avec son arborescence : un nœud au nom du projet, une définition par
    * pièce (nom, couleur), une instance placée (matrice 4 × 4 par colonnes) par pièce insérée.
    */
-  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: { partKey: string; name: string; matrix: readonly number[] }[]): string;
+  exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: StepComponent[], blocks?: StepBlock[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */
   distance(a: { shape: KernelShape; kind: 'face' | 'edge'; index: number }, b: { shape: KernelShape; kind: 'face' | 'edge'; index: number }): DistanceResult;
   dispose(shape: KernelShape): void;
