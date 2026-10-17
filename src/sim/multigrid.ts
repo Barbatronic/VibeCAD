@@ -51,6 +51,8 @@ export interface LinearSolveOptions {
   tolerance: number;
   maxIterations: number;
   onProgress?: (f: number) => void;
+  /** Point de départ (solution d'un problème voisin : optimisation topologique). */
+  initial?: Float64Array;
 }
 
 export interface LinearSolveResult {
@@ -398,13 +400,18 @@ export function solveElasticity(
   const w0 = work[0]!;
   const n3 = 3 * L0.N;
   const x = new Float64Array(n3);
+  const q = new Float64Array(n3);
   const r = Float64Array.from(f);
   for (let d = 0; d < n3; d++) if (!L0.free[d]) r[d] = 0;
   const fn = Math.sqrt(dot(r, r)) || 1;
+  if (options.initial) {
+    for (let d = 0; d < n3; d++) x[d] = L0.free[d] ? options.initial[d]! : 0;
+    multiply(L0, x, q, ue);
+    for (let d = 0; d < n3; d++) r[d] = L0.free[d] ? r[d]! - q[d]! : 0;
+  }
   const z = new Float64Array(n3);
   const zOld = new Float64Array(n3);
   const p = new Float64Array(n3);
-  const q = new Float64Array(n3);
   const precondition = () => {
     w0.b.set(r);
     vcycle(0);

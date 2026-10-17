@@ -253,9 +253,11 @@ function nearestSolidCell(g: VoxelGrid, x: number, y: number, z: number): [numbe
   return null;
 }
 
-/** Lance l'étude ; `onProgress` reçoit l'avancement du calcul (0 → 1). */
-export function runStudy(input: StudyInput, onProgress?: (f: number) => void): StudyOutput {
-  const t0 = performance.now();
+/**
+ * Grille de cubes, nœuds bloqués et forces nodales d'une étude (commun au calcul de déformation et
+ * à l'optimisation topologique). Les morceaux qui ne touchent aucune face fixée sont retirés.
+ */
+export function prepareStudy(input: StudyInput): { g: VoxelGrid; fixed: number[]; loaded: number[]; forces: Map<number, { x: number; y: number; z: number }>; ignoredCells: number } {
   const g = gridFor(input.positions, input.indices, input.targetCells, input.parts);
   if (solidCount(g) === 0) throw new StudyError('EMPTY');
   const tol = 0.75 * g.h;
@@ -265,12 +267,19 @@ export function runStudy(input: StudyInput, onProgress?: (f: number) => void): S
   const loadedBefore = nodesNearTriangles(g, input.loaded, tol, surfaceNodes(g)).filter((n) => !fixedSet.has(n));
   if (loadedBefore.length === 0) throw new StudyError('NO_LOAD');
   const ignoredCells = removeFloating(g, fixedSet);
-  const cells = solidCount(g);
   const loaded = ignoredCells ? nodesNearTriangles(g, input.loaded, tol, surfaceNodes(g)).filter((n) => !fixedSet.has(n)) : loadedBefore;
   // La charge appuie sur un morceau qui ne touche rien de tenu : il flotterait.
   if (loaded.length === 0) throw new StudyError('LOAD_FLOATING');
   const share = { x: input.force.x / loaded.length, y: input.force.y / loaded.length, z: input.force.z / loaded.length };
   const forces = new Map(loaded.map((n) => [n, share]));
+  return { g, fixed, loaded, forces, ignoredCells };
+}
+
+/** Lance l'étude ; `onProgress` reçoit l'avancement du calcul (0 → 1). */
+export function runStudy(input: StudyInput, onProgress?: (f: number) => void): StudyOutput {
+  const t0 = performance.now();
+  const { g, fixed, forces, ignoredCells } = prepareStudy(input);
+  const cells = solidCount(g);
   const result = solveFea({ grid: g, material: input.material, fixedNodes: fixed, forces }, { tolerance: 1e-6, maxIterations: 8000, ...(onProgress ? { onProgress } : {}) });
   // Contrainte aux nœuds : moyenne des cubes pleins voisins (affichage plus doux que cube par cube).
   const N = (g.nx + 1) * (g.ny + 1) * (g.nz + 1);

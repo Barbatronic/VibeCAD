@@ -1,0 +1,384 @@
+/**
+ * Optimisation topologique : où la matière de la pièce est-elle vraiment utile ? À partir des faces
+ * fixées et de la charge de l'étude, on cherche la répartition de matière la plus raide qui ne
+ * garde qu'une part donnée du volume. Méthode SIMP sur la grille de cubes de l'étude :
+ *
+ * - chaque cube de la pièce reçoit une densité ρ entre 0 (vide) et 1 (plein), de raideur
+ *   E · (Emin + (1 − Emin) ρ³) : la pénalisation (exposant 3) rend les densités moyennes peu
+ *   rentables, le résultat tend vers du plein ou du vide ;
+ * - à chaque itération : calcul de la déformation (solveur multigrille, en repartant de la
+ *   solution précédente), sensibilité de la souplesse (énergie de chaque cube), filtre de densité
+ *   (rayon 1,5 cube : pas de damier, pas de détails plus fins que la grille), puis mise à jour par
+ *   critère d'optimalité (pas limité à 0,2) en respectant le volume visé ;
+ * - les cubes qui touchent une face fixée ou chargée restent pleins (la pièce doit garder ses
+ *   appuis et l'endroit où l'on appuie).
+ *
+ * Références : Bendsøe et Sigmund, « Topology Optimization » (2003) ; Andreassen et al., « Efficient
+ * topology optimization in MATLAB using 88 lines of code » (2011). Fonctions pures : elles tournent
+ * dans le worker de simulation.
+ */
+import { boxStiffness, unitCubeStiffness, type VoxelGrid } from './fea';
+import { solveElasticity } from './multigrid';
+import { prepareStudy, removeFloating, type StudyInput } from './study';
+
+export interface TopologyInput extends StudyInput {
+  /** Part du volume de la pièce à garder (0,05 à 0,95). */
+  volumeFraction: number;
+  /** Nombre maximal d'itérations (défaut 60). */
+  maxIterations?: number;
+}
+
+export interface TopologyGrid {
+  nx: number;
+  ny: number;
+  nz: number;
+  h: number;
+  origin: { x: number; y: number; z: number };
+}
+
+export interface TopologyOutput {
+  grid: TopologyGrid;
+  /** Densité de chaque cube (0 → 1) ; −1 hors de la pièce. Rangés i + nx · (j + ny · k). */
+  density: Float32Array;
+  /** 1 : cube gardé plein (il touche une face fixée ou chargée). */
+  passive: Uint8Array;
+  /** Nœuds bloqués (pour écarter les morceaux qui ne tiennent à rien). */
+  fixedNodes: Int32Array;
+  /** Part du volume gardée (densités comprises). */
+  volumeFraction: number;
+  /** Souplesse (travail de la charge, N·mm) de la pièce pleine et de la pièce optimisée. */
+  complianceFull: number;
+  compliance: number;
+  /** Souplesse à chaque itération. */
+  history: number[];
+  iterations: number;
+  converged: boolean;
+  cells: number;
+  ignoredCells: number;
+  durationMs: number;
+}
+
+const PENAL = 3;
+const EMIN = 1e-3;
+const MOVE = 0.2;
+const RADIUS = 1.5;
+/** Arrêt quand plus aucune densité ne bouge de plus de 1 %. */
+const CHANGE_TOLERANCE = 0.01;
+const STALL = 0.002;
+/** Précision du calcul de déformation à chaque itération (il repart de la solution précédente). */
+const SOLVE_TOLERANCE = 1e-4;
+
+/** Lance l'optimisation ; `onProgress` reçoit l'avancement (0 → 1). */
+export function runTopology(input: TopologyInput, onProgress?: (f: number) => void): TopologyOutput {
+  const t0 = performance.now();
+  const vf = Math.min(0.95, Math.max(0.05, input.volumeFraction));
+  const maxIterations = input.maxIterations ?? 60;
+  const { g, fixed, loaded, forces, ignoredCells } = prepareStudy(input);
+  const { nx, ny, nz } = g;
+  const nc = nx * ny * nz;
+  const N = (nx + 1) * (ny + 1) * (nz + 1);
+  const sy = nx + 1;
+  const sz = (nx + 1) * (ny + 1);
+  // Même ordre de coins que la raideur élémentaire (voir fea.ts).
+  const offsets = [0, 1, 1 + sy, sy, sz, 1 + sz, 1 + sy + sz, sy + sz];
+  const design: number[] = [];
+  for (let c = 0; c < nc; c++) if (g.solid[c]) design.push(c);
+  const m = design.length;
+  const base = new Int32Array(m);
+  const slot = new Int32Array(nc).fill(-1);
+  design.forEach((c, e) => {
+    const i = c % nx;
+    const j = Math.floor(c / nx) % ny;
+    const k = Math.floor(c / (nx * ny));
+    base[e] = i + sy * j + sz * k;
+    slot[c] = e;
+  });
+  // Cubes gardés pleins : ceux qui touchent un nœud bloqué ou chargé.
+  const held = new Uint8Array(N);
+  for (const n of fixed) held[n] = 1;
+  for (const n of loaded) held[n] = 1;
+  const passive = new Uint8Array(m);
+  let passiveCount = 0;
+  for (let e = 0; e < m; e++)
+    if (offsets.some((o) => held[base[e]! + o])) {
+      passive[e] = 1;
+      passiveCount++;
+    }
+  // Filtre de densité : voisins à moins de RADIUS cubes, poids RADIUS − distance.
+  const fStart = new Int32Array(m + 1);
+  const fIdx: number[] = [];
+  const fW: number[] = [];
+  const Hs = new Float64Array(m);
+  const reach = Math.ceil(RADIUS) - 1;
+  for (let e = 0; e < m; e++) {
+    const c = design[e]!;
+    const i = c % nx;
+    const j = Math.floor(c / nx) % ny;
+    const k = Math.floor(c / (nx * ny));
+    for (let dk = -reach; dk <= reach; dk++)
+      for (let dj = -reach; dj <= reach; dj++)
+        for (let di = -reach; di <= reach; di++) {
+          const a = i + di, b = j + dj, d = k + dk;
+          if (a < 0 || b < 0 || d < 0 || a >= nx || b >= ny || d >= nz) continue;
+          const f = slot[a + nx * (b + ny * d)]!;
+          if (f < 0) continue;
+          const w = RADIUS - Math.sqrt(di * di + dj * dj + dk * dk);
+          if (w <= 0) continue;
+          fIdx.push(f);
+          fW.push(w);
+          Hs[e] = Hs[e]! + w;
+        }
+    fStart[e + 1] = fIdx.length;
+  }
+  const filter = (x: Float64Array, out: Float64Array) => {
+    for (let e = 0; e < m; e++) {
+      if (passive[e]) {
+        out[e] = 1;
+        continue;
+      }
+      let s = 0;
+      for (let p = fStart[e]!; p < fStart[e + 1]!; p++) s += fW[p]! * x[fIdx[p]!]!;
+      out[e] = s / Hs[e]!;
+    }
+  };
+  // Forces et nœuds bloqués.
+  const f = new Float64Array(3 * N);
+  for (const [n, v] of forces) {
+    f[3 * n] = f[3 * n]! + v.x;
+    f[3 * n + 1] = f[3 * n + 1]! + v.y;
+    f[3 * n + 2] = f[3 * n + 2]! + v.z;
+  }
+  const fixedMask = new Uint8Array(N);
+  for (const n of fixed) fixedMask[n] = 1;
+  for (let n = 0; n < N; n++) if (fixedMask[n]) f[3 * n] = f[3 * n + 1] = f[3 * n + 2] = 0;
+  const Ke = unitCubeStiffness(input.material.nu);
+  const scale = input.material.E * g.h;
+  const cellScale = new Float64Array(nc);
+  const stiffnessCache = new Map<string, Float64Array>();
+  const stiffness = (ax: number, ay: number, az: number) => {
+    const key = `${ax},${ay},${az}`;
+    let K = stiffnessCache.get(key);
+    if (!K) stiffnessCache.set(key, (K = ax === 1 && ay === 1 && az === 1 ? Ke : boxStiffness(input.material.nu, ax, ay, az)));
+    return K;
+  };
+  let u: Float64Array | undefined;
+  const ce = new Float64Array(m);
+  const ue = new Float64Array(24);
+  /** Déformation pour les raideurs `cellScale` ; énergie de chaque cube (raideur unité) dans `ce`. */
+  const solve = () => {
+    const res = solveElasticity(nx, ny, nz, cellScale, fixedMask, stiffness, f, { tolerance: u ? SOLVE_TOLERANCE : 1e-6, maxIterations: 1500, ...(u ? { initial: u } : {}) });
+    u = res.x;
+    for (let e = 0; e < m; e++) {
+      for (let a = 0; a < 8; a++) {
+        const n = 3 * (base[e]! + offsets[a]!);
+        ue[3 * a] = u[n]!;
+        ue[3 * a + 1] = u[n + 1]!;
+        ue[3 * a + 2] = u[n + 2]!;
+      }
+      let s = 0;
+      for (let p = 0; p < 24; p++) {
+        let row = 0;
+        for (let q = 0; q < 24; q++) row += Ke[p * 24 + q]! * ue[q]!;
+        s += ue[p]! * row;
+      }
+      ce[e] = s;
+    }
+    let c = 0;
+    for (let d = 0; d < f.length; d++) c += f[d]! * u[d]!;
+    return c;
+  };
+  // Référence : la pièce pleine.
+  for (const c of design) cellScale[c] = scale;
+  const complianceFull = solve();
+  // Départ : densité uniforme qui respecte le volume visé (cubes gardés pleins compris).
+  const free = m - passiveCount;
+  const start = free > 0 ? Math.min(1, Math.max(0, (vf * m - passiveCount) / free)) : 1;
+  const x = new Float64Array(m);
+  for (let e = 0; e < m; e++) x[e] = passive[e] ? 1 : start;
+  const xPhys = new Float64Array(m);
+  const xNew = new Float64Array(m);
+  const xTry = new Float64Array(m);
+  const dc = new Float64Array(m);
+  const dcx = new Float64Array(m);
+  const dvx = new Float64Array(m);
+  const history: number[] = [];
+  const target = Math.max(passiveCount, vf * m);
+  let converged = false;
+  let iterations = 0;
+  let compliance = complianceFull;
+  filter(x, xPhys);
+  for (let it = 0; it < maxIterations; it++) {
+    for (let e = 0; e < m; e++) cellScale[design[e]!] = scale * (EMIN + (1 - EMIN) * xPhys[e]! ** PENAL);
+    compliance = solve();
+    history.push(compliance);
+    iterations = it + 1;
+    for (let e = 0; e < m; e++) dc[e] = -PENAL * (1 - EMIN) * xPhys[e]! ** (PENAL - 1) * scale * ce[e]!;
+    // Sensibilités par rapport aux variables (transposée du filtre).
+    dcx.fill(0);
+    dvx.fill(0);
+    for (let e = 0; e < m; e++) {
+      if (passive[e]) continue;
+      for (let p = fStart[e]!; p < fStart[e + 1]!; p++) {
+        const n = fIdx[p]!;
+        const w = fW[p]! / Hs[e]!;
+        dcx[n] = dcx[n]! + w * dc[e]!;
+        dvx[n] = dvx[n]! + w;
+      }
+    }
+    // Critère d'optimalité : multiplicateur de Lagrange du volume par dichotomie.
+    let l1 = 0;
+    let l2 = 1e9;
+    while ((l2 - l1) / (l1 + l2) > 1e-4) {
+      const lmid = 0.5 * (l1 + l2);
+      for (let e = 0; e < m; e++) {
+        if (passive[e]) {
+          xNew[e] = 1;
+          continue;
+        }
+        const v = x[e]! * Math.sqrt(Math.max(0, -dcx[e]!) / (Math.max(dvx[e]!, 1e-12) * lmid));
+        xNew[e] = Math.max(0, Math.max(x[e]! - MOVE, Math.min(1, Math.min(x[e]! + MOVE, v))));
+      }
+      filter(xNew, xTry);
+      let vol = 0;
+      for (let e = 0; e < m; e++) vol += xTry[e]!;
+      if (vol > target) l1 = lmid;
+      else l2 = lmid;
+    }
+    let change = 0;
+    for (let e = 0; e < m; e++) change = Math.max(change, Math.abs(xNew[e]! - x[e]!));
+    x.set(xNew);
+    filter(x, xPhys);
+    onProgress?.(Math.min(0.99, iterations / maxIterations));
+    // Arrêt : plus rien ne bouge, ou la souplesse ne gagne plus 0,2 % en 5 itérations.
+    const stalled = history.length > 10 && Math.abs(history[history.length - 6]! - compliance) < STALL * compliance;
+    if (change < CHANGE_TOLERANCE || stalled) {
+      converged = true;
+      break;
+    }
+  }
+  const density = new Float32Array(nc).fill(-1);
+  const passiveCells = new Uint8Array(nc);
+  let kept = 0;
+  for (let e = 0; e < m; e++) {
+    density[design[e]!] = xPhys[e]!;
+    passiveCells[design[e]!] = passive[e]!;
+    kept += xPhys[e]!;
+  }
+  onProgress?.(1);
+  return {
+    grid: { nx, ny, nz, h: g.h, origin: g.origin },
+    density,
+    passive: passiveCells,
+    fixedNodes: Int32Array.from(fixed),
+    volumeFraction: m ? kept / m : 0,
+    complianceFull,
+    compliance,
+    history,
+    iterations,
+    converged,
+    cells: m,
+    ignoredCells,
+    durationMs: performance.now() - t0,
+  };
+}
+
+export interface TopologySurface {
+  positions: Float32Array;
+  indices: Uint32Array;
+  /** Cubes gardés au seuil choisi. */
+  cells: number;
+  /** Volume gardé (mm³). */
+  volume: number;
+}
+
+/**
+ * Forme obtenue : cubes de densité au moins `threshold` (et cubes gardés pleins), sans les morceaux
+ * qui ne tiennent à aucune face fixée ; surface des cubes lissée (Taubin : lissage sans
+ * rétrécissement) pour un aspect moins « en escalier ». Rapide : se recalcule quand on change le
+ * seuil.
+ */
+export function topologySurface(out: TopologyOutput, threshold: number, smoothing = 6): TopologySurface {
+  const { nx, ny, nz, h, origin } = out.grid;
+  const nc = nx * ny * nz;
+  const keep = new Uint8Array(nc);
+  for (let c = 0; c < nc; c++) keep[c] = out.density[c]! >= 0 && (out.passive[c] || out.density[c]! >= threshold) ? 1 : 0;
+  const grid: VoxelGrid = { nx, ny, nz, h, origin, solid: keep };
+  removeFloating(grid, new Set(out.fixedNodes));
+  const sy = nx + 1;
+  const sz = (nx + 1) * (ny + 1);
+  const at = (i: number, j: number, k: number) => i >= 0 && j >= 0 && k >= 0 && i < nx && j < ny && k < nz && keep[i + nx * (j + ny * k)] === 1;
+  const vertexOf = new Map<number, number>();
+  const pos: number[] = [];
+  const tris: number[] = [];
+  const vertex = (i: number, j: number, k: number) => {
+    const n = i + sy * j + sz * k;
+    let v = vertexOf.get(n);
+    if (v === undefined) {
+      v = pos.length / 3;
+      vertexOf.set(n, v);
+      pos.push(origin.x + i * h, origin.y + j * h, origin.z + k * h);
+    }
+    return v;
+  };
+  // Pour chaque axe, les deux autres dans l'ordre circulaire : la face (0,0), (u), (u+v), (v) a
+  // alors sa normale vers +axe.
+  const AXES: [number, number, number][] = [
+    [0, 1, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+  ];
+  let cells = 0;
+  for (let k = 0; k < nz; k++)
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++) {
+        if (!keep[i + nx * (j + ny * k)]) continue;
+        cells++;
+        const p = [i, j, k];
+        for (const [a, u, v] of AXES) {
+          for (const side of [0, 1]) {
+            const q = [...p];
+            q[a] = q[a]! + (side ? 1 : -1);
+            if (at(q[0]!, q[1]!, q[2]!)) continue;
+            const corner = (du: number, dv: number) => {
+              const r = [...p];
+              r[a] = r[a]! + side;
+              r[u] = r[u]! + du;
+              r[v] = r[v]! + dv;
+              return vertex(r[0]!, r[1]!, r[2]!);
+            };
+            const c00 = corner(0, 0), c10 = corner(1, 0), c11 = corner(1, 1), c01 = corner(0, 1);
+            if (side) tris.push(c00, c10, c11, c00, c11, c01);
+            else tris.push(c00, c11, c10, c00, c01, c11);
+          }
+        }
+      }
+  // Lissage de Taubin (λ = 0,5 ; μ = −0,53) sur les voisins par arête.
+  const nv = pos.length / 3;
+  const neighbours: Set<number>[] = Array.from({ length: nv }, () => new Set<number>());
+  for (let t = 0; t < tris.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const a = tris[t + e]!;
+      const b = tris[t + ((e + 1) % 3)]!;
+      neighbours[a]!.add(b);
+      neighbours[b]!.add(a);
+    }
+  const next = new Float64Array(pos.length);
+  for (let s = 0; s < 2 * smoothing; s++) {
+    const factor = s % 2 === 0 ? 0.5 : -0.53;
+    for (let v = 0; v < nv; v++) {
+      const nb = neighbours[v]!;
+      let mx = 0, my = 0, mz = 0;
+      for (const w of nb) {
+        mx += pos[3 * w]!;
+        my += pos[3 * w + 1]!;
+        mz += pos[3 * w + 2]!;
+      }
+      const k = nb.size || 1;
+      next[3 * v] = pos[3 * v]! + factor * (mx / k - pos[3 * v]!);
+      next[3 * v + 1] = pos[3 * v + 1]! + factor * (my / k - pos[3 * v + 1]!);
+      next[3 * v + 2] = pos[3 * v + 2]! + factor * (mz / k - pos[3 * v + 2]!);
+    }
+    for (let d = 0; d < pos.length; d++) pos[d] = next[d]!;
+  }
+  return { positions: Float32Array.from(pos), indices: Uint32Array.from(tris), cells, volume: cells * h * h * h };
+}
