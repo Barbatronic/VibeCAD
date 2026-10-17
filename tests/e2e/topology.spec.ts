@@ -27,7 +27,7 @@ async function clickFace(page: Page, normal: [number, number, number]) {
 
 const percent = async (page: Page, id: string) => Number((await page.locator(id).textContent())!.replace(/[^\d]/g, ''));
 
-test('simulation : alléger une console (optimisation topologique), régler le seuil, exporter et garder la forme', async ({ page }) => {
+test('simulation : alléger une console (optimisation topologique), régler le seuil, exporter, garder la forme en esquisse extrudée', async ({ page }) => {
   test.setTimeout(240_000);
   await openApp(page);
   // Plaque 80 × 10 × 40 mm, tenue par le bout +X, chargée sur le dessus (console).
@@ -108,13 +108,11 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   expect(symmetric).toBeLessThan(1e-6);
   await page.screenshot({ path: 'tests/output/e2e-topologie-symetrie.png' });
 
-  // Garder la forme comme nouvelle pièce (fenêtre d'import STL).
+  // Garder la forme comme nouvelle pièce : plaque, donc une esquisse (le contour) extrudée.
   await page.getByRole('button', { name: 'Nouvelle pièce' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('allégée.stl');
-  await expect(dialog.getByRole('button', { name: /Importer/ })).toBeEnabled({ timeout: 60_000 });
-  await dialog.getByRole('button', { name: /Importer/ }).click();
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.state.doc.parts.length)).toBe(2);
+  expect(await page.evaluate(() => (window as any).vibecad.controller.state.doc.parts[1].features.map((f: any) => f.type))).toEqual(['sketch', 'extrude']);
+  await expect(page.locator('.toast')).toContainText(/extrudé de 10\D{0,3}mm/);
   // La forme importée est un vrai solide, d'un volume proche de la matière gardée.
   const solid = () =>
     page.evaluate(() => {
@@ -125,10 +123,11 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await expect.poll(async () => (await solid())?.solids ?? 0, { timeout: 60_000 }).toBeGreaterThan(0);
   // D'un seul tenant (pas de contact par une arête qui couperait la forme en morceaux).
   expect((await solid())!.solids).toBe(1);
+  await page.getByRole('tab', { name: 'Pièces' }).click();
+  await page.screenshot({ path: 'tests/output/e2e-topologie-piece.png' });
   const v = (await solid())!.volume;
   expect(v).toBeGreaterThan(0.15 * 32000);
   expect(v).toBeLessThan(0.6 * 32000);
-  await page.screenshot({ path: 'tests/output/e2e-topologie-piece.png' });
 
   // Retour dans Simulation : changer de pièce étudiée referme la forme allégée.
   await page.getByRole('tab', { name: 'Simulation' }).click();

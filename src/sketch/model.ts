@@ -131,6 +131,24 @@ export function addLine(
   return { sketch: { ...r2.sketch, entities: [...r2.sketch.entities, line] }, lineId, a: r1.id, b: r2.id };
 }
 
+/** Contour fermé de segments qui partagent leurs sommets (dans l'ordre, sans répéter le premier). */
+export function addClosedPolyline(sketch: SketchParams, points: Vec2[]): { sketch: SketchParams; lineIds: string[] } {
+  const next = (prefix: string) => {
+    const re = new RegExp(`^${prefix}(\\d+)$`);
+    let max = 0;
+    for (const e of sketch.entities) {
+      const m = re.exec(e.id);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+    return max + 1;
+  };
+  const p0 = next('p');
+  const l0 = next('l');
+  const pts: SketchPoint[] = points.map((at, i) => ({ id: `p${p0 + i}`, type: 'point', x: at.x, y: at.y }));
+  const lines: SketchLine[] = points.map((_, i) => ({ id: `l${l0 + i}`, type: 'line', a: `p${p0 + i}`, b: `p${p0 + ((i + 1) % points.length)}` }));
+  return { sketch: { ...sketch, entities: [...sketch.entities, ...pts, ...lines] }, lineIds: lines.map((l) => l.id) };
+}
+
 export function addCircle(
   sketch: SketchParams,
   center: Vec2,

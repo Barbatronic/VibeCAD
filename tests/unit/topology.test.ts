@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { meshVolume } from '../../src/sim/study';
 import { closeThinContacts, keepHeldPieces, runTopology, topologySurface } from '../../src/sim/topology';
+import { topologyOutline } from '../../src/sim/topology-outline';
 
 /** Maillage fermé d'une boîte alignée sur les axes. */
 function boxMesh(sx: number, sy: number, sz: number) {
@@ -181,5 +182,38 @@ describe('optimisation topologique : symétrie imposée', () => {
         }
     expect(r.volumeFraction).toBeGreaterThan(0.37);
     expect(r.volumeFraction).toBeLessThan(0.43);
+  });
+});
+
+describe('optimisation topologique : contour d’une pièce plate', () => {
+  const m = boxMesh(L, T, H);
+  const r = runTopology({ ...m, fixed: face(0, T, 0, H), loaded: face(L, T, 0, 4), force: { x: 0, y: 0, z: -100 }, material: PLA, targetCells: 3000, volumeFraction: 0.4 });
+
+  it('contours fermés dans le plan XZ, d’une aire proche de la matière gardée', () => {
+    const o = topologyOutline(r, 0.5)!;
+    expect(o.plane).toBe('XZ');
+    expect(o.start).toBeCloseTo(0, 6);
+    expect(o.end).toBeCloseTo(T, 6);
+    expect(o.loops.length).toBeGreaterThan(1); // un contour extérieur et des trous
+    const area = (p: { x: number; y: number }[]) => Math.abs(p.reduce((s, a, i) => s + a.x * p[(i + 1) % p.length]!.y - p[(i + 1) % p.length]!.x * a.y, 0) / 2);
+    const areas = o.loops.map(area).sort((a, b) => b - a);
+    // Extérieur moins trous ≈ aire des colonnes gardées.
+    const net = areas[0]! - areas.slice(1).reduce((s, a) => s + a, 0);
+    const kept = topologySurface(r, 0.5, 0).volume / T;
+    expect(net).toBeGreaterThan(0.8 * kept);
+    expect(net).toBeLessThan(1.2 * kept);
+    // Dans la boîte de la pièce, et simplifiés (pas un point par cube).
+    for (const loop of o.loops)
+      for (const p of loop) {
+        expect(p.x).toBeGreaterThan(-0.01);
+        expect(p.x).toBeLessThan(L + 0.01);
+        expect(p.y).toBeGreaterThan(-0.01);
+        expect(p.y).toBeLessThan(H + 0.01);
+      }
+    expect(o.loops.reduce((s, l) => s + l.length, 0)).toBeLessThan(400);
+  });
+
+  it('pas de contour pour une forme libre en 3D', () => {
+    expect(topologyOutline({ ...r, extrusion: null }, 0.5)).toBeNull();
   });
 });

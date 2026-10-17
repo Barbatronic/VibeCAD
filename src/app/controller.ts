@@ -24,6 +24,7 @@ import {
   createDocument,
   findFeature,
   findPart,
+  makeExtrudeFeature,
   makeImportedSolidFeature,
   makeSketchFeature,
   newResourceId,
@@ -87,6 +88,8 @@ import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, topologyKey, with
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
 import { topologySurface } from '../sim/topology';
+import { topologyOutline } from '../sim/topology-outline';
+import { addClosedPolyline } from '../sketch/model';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
@@ -2100,11 +2103,33 @@ export class AppController {
     if (target) this.toast('success', `Fichier STL « ${target.name} » téléchargé. ${STL_UNIT_NOTE}`);
   }
 
-  /** La forme obtenue devient une nouvelle pièce du projet (import STL, avec sa fenêtre). */
+  /**
+   * La forme obtenue devient une nouvelle pièce du projet. Pièce plate : une esquisse (le contour
+   * de la forme) extrudée de l'épaisseur de la plaque, modifiable et découpable au laser ; sinon,
+   * la forme en STL, par la fenêtre d'import.
+   */
   async keepTopologyAsPart(): Promise<void> {
     const r = this.state.topologyRun;
     if (!r?.surface || r.surface.cells === 0) return this.explain('Lancez d’abord « Alléger la pièce ».');
     const part = findPart(this.state.doc, r.partId);
+    const outline = r.result ? topologyOutline(r.result, r.threshold) : null;
+    if (outline) {
+      const name = `${part?.name ?? 'Pièce'} allégée`;
+      const added = addPart(this.state.doc, name);
+      let doc = added.doc;
+      const partId = added.partId;
+      // Plan XZ : normale −Y ; l'esquisse est posée sur la face arrière et extrudée vers l'avant.
+      const offset = outline.plane === 'XZ' ? -outline.end : outline.start;
+      const sketch = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: outline.plane, offset });
+      let params = sketch.params;
+      for (const loop of outline.loops) params = addClosedPolyline(params, loop).sketch;
+      doc = addFeature(doc, partId, { ...sketch, params });
+      const thickness = Math.round((outline.end - outline.start) * 1000) / 1000;
+      doc = addFeature(doc, partId, makeExtrudeFeature(doc, findPart(doc, partId)!, sketch.id, thickness));
+      this.commit(doc, 'Garder la pièce allégée', { activePartId: partId, selection: { kind: 'part', partId } });
+      this.toast('success', `« ${name} » ajoutée : le contour de la forme, dessiné dans une esquisse et extrudé de ${formatLength(thickness)}. Elle est à la place de « ${part?.name ?? 'la pièce'} » (masquez celle-ci pour mieux la voir), se modifie comme une autre pièce et se découpe au laser.`);
+      return;
+    }
     const bytes = meshesToBinaryStl([r.surface], 'VibeCAD - piece allegee');
     await this.beginImport(new File([bytes as Uint8Array<ArrayBuffer>], `${part?.name ?? 'Pièce'} allégée.stl`, { type: 'model/stl' }));
   }

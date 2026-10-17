@@ -133,9 +133,11 @@ possible avec moins de matière.
    la forme : 37 % de la raideur avec 40 % de la matière pour une console, par exemple).
 4. **Seuil** : la forme garde les cubes « remplis » à au moins ce seuil (50 % par défaut) ; plus
    haut, seule la matière la plus utile reste. La forme se recalcule aussitôt.
-5. **Exporter en STL** (pour imprimer la forme telle quelle) ou **Nouvelle pièce** (la forme
-   rejoint le projet par la fenêtre d'import STL, comme pièce figée). « Revenir à la pièce »
-   referme la forme.
+5. **Exporter en STL** (pour imprimer la forme telle quelle) ou **Nouvelle pièce** : pour une
+   pièce plate, une esquisse (le contour de la forme, en segments) extrudée de l'épaisseur de la
+   plaque, à la place de la pièce d'origine — une vraie pièce, modifiable (congés, perçages…) et
+   découpable au laser ; sinon la forme rejoint le projet par la fenêtre d'import STL, comme pièce
+   figée. « Revenir à la pièce » referme la forme.
 
 La forme est indicative : en petits cubes lissés, elle sert surtout à **comprendre** où passer la
 matière (nervures, trous, bras en diagonale) avant de redessiner une pièce propre. La forme et
@@ -172,6 +174,10 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   sont comblés par un cube voisin, seuls les morceaux reliés par des faces et tenus par une face
   fixée sont gardés ; surface des cubes (chaque arête partagée par deux triangles exactement)
   lissée par la méthode de Taubin (lissage sans rétrécissement).
+- **Contour d'une pièce plate** (`src/sim/topology-outline.ts`) : courbes de niveau
+  (« marching squares ») des densités par colonne, au seuil, en respectant les cubes gardés et
+  écartés de la forme 3D (le contour suit les densités : biais lisses plutôt que marches) ;
+  simplification de Douglas-Peucker (0,2 cube) ; trous et îlots de moins de 1,5 cube² ignorés.
 
 ### Validation
 
