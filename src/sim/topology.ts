@@ -10,8 +10,8 @@
  *   solution précédente), sensibilité de la souplesse (énergie de chaque cube), filtre de densité
  *   (rayon 1,5 cube : pas de damier, pas de détails plus fins que la grille), puis mise à jour par
  *   critère d'optimalité (pas limité à 0,2) en respectant le volume visé ;
- * - les cubes qui touchent une face fixée ou chargée restent pleins (la pièce doit garder ses
- *   appuis et l'endroit où l'on appuie).
+ * - les cubes qui touchent une face fixée, chargée ou « à garder » restent pleins (la pièce doit
+ *   garder ses appuis, l'endroit où l'on appuie et ce que l'élève veut garder : bord d'un perçage…).
  *
  * Références : Bendsøe et Sigmund, « Topology Optimization » (2003) ; Andreassen et al., « Efficient
  * topology optimization in MATLAB using 88 lines of code » (2011). Fonctions pures : elles tournent
@@ -19,7 +19,8 @@
  */
 import { boxStiffness, unitCubeStiffness, type VoxelGrid } from './fea';
 import { solveElasticity } from './multigrid';
-import { prepareStudy, type StudyInput } from './study';
+import { prepareStudy, surfaceNodes, type StudyInput } from './study';
+import { nodesNearTriangles } from './voxelize';
 
 export interface TopologyInput extends StudyInput {
   /** Part du volume de la pièce à garder (0,05 à 0,95). */
@@ -59,7 +60,7 @@ export interface TopologyOutput {
   iterations: number;
   converged: boolean;
   cells: number;
-  /** Les cubes gardés pleins (faces fixées et chargées) font déjà la part de matière visée. */
+  /** Les cubes gardés pleins (faces fixées, chargées, à garder) font déjà la part de matière visée. */
   saturated: boolean;
   /** Axe de l'épaisseur quand la forme est la même sur toute l'épaisseur (pièce plate), sinon null. */
   extrusion: 0 | 1 | 2 | null;
@@ -132,6 +133,7 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   const held = new Uint8Array(N);
   for (const n of fixed) held[n] = 1;
   for (const n of loaded) held[n] = 1;
+  if (input.keep?.length) for (const n of nodesNearTriangles(g, input.keep, 0.75 * g.h, surfaceNodes(g))) held[n] = 1;
   const passive = new Uint8Array(m);
   for (let e = 0; e < m; e++) if (offsets.some((o) => held[base[e]! + o])) passive[e] = 1;
   // Variables de conception : une par cube ; pièce plate, une par colonne de cubes dans

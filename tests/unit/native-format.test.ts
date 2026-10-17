@@ -57,6 +57,10 @@ describe('format natif .vibecad', () => {
     const simulation = { studies: [study, { ...study, partId: 'disparue' }] };
     const parsed = parseNativeFile(serializeDocument({ ...doc, simulation }));
     expect(parsed.ok && parsed.doc.simulation).toEqual({ studies: [study] });
+    // Faces à garder de l'allègement (champ facultatif).
+    const withKeep = { ...study, keep: [face('end')] };
+    const again = parseNativeFile(serializeDocument({ ...doc, simulation: { studies: [withKeep] } }));
+    expect(again.ok && again.doc.simulation).toEqual({ studies: [withKeep] });
   });
 
   it('conserve une étape « déplacer » (rotation autour d’un axe, copie)', () => {

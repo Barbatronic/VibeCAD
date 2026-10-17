@@ -47,7 +47,9 @@ function helpText(s: AppState): string {
     case 'pick-sim-face':
       return s.mode.role === 'fixed'
         ? 'Cliquez les faces où la pièce est tenue (vissée, collée, posée). Un second clic retire une face. Échap pour terminer.'
-        : 'Cliquez les faces où appuie la charge. Un second clic retire une face. Échap pour terminer.';
+        : s.mode.role === 'keep'
+          ? 'Cliquez les faces à garder pleines quand on allège la pièce (bord d’un perçage…). Un second clic retire une face. Échap pour terminer.'
+          : 'Cliquez les faces où appuie la charge. Un second clic retire une face. Échap pour terminer.';
     case 'joint':
       if (s.mode.lockedFace) return 'Face verrouillée : visez un de ses coins, puis cliquez. Relâchez Maj pour revenir.';
       return s.mode.moving

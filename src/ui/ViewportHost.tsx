@@ -321,6 +321,7 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
     : studyFaces(study, source).flatMap((f) => [
         ...f.fixed.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'fixed' as const })),
         ...f.load.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'load' as const })),
+        ...f.keep.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'keep' as const })),
       ]);
   // Flèche de la charge : elle arrive sur le centre des faces chargées.
   const markers: ViewMarker[] = [];

@@ -50,6 +50,17 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await page.keyboard.press('Escape');
   await page.locator('#sim-quality').selectOption('coarse');
 
+  // Face avant gardée : sur une plaque, toute la matière devient « à garder », rien à alléger.
+  await page.locator('.topology').getByRole('button', { name: 'Choisir' }).click();
+  await clickFace(page, [0, -1, 0]);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.topology')).toContainText('Faces à garder : 1');
+  await run.click();
+  await expect(page.locator('.topology-result')).toContainText('rien à alléger', { timeout: 120_000 });
+  await page.locator('.topology').getByRole('button', { name: 'tout retirer' }).click();
+  await expect(page.locator('.topology')).toContainText('Faces à garder : 0');
+  await expect(page.locator('.topology-result')).toContainText('relancez l’allègement');
+
   // 40 % de la matière (réglage par défaut).
   await expect(page.locator('label[for="topo-fraction"]')).toContainText('40 %');
   await run.click();

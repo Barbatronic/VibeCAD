@@ -13,6 +13,8 @@ export interface StudyInput {
   /** Triangles (9 nombres chacun) des faces fixées et des faces chargées. */
   fixed: Float32Array;
   loaded: Float32Array;
+  /** Triangles des faces gardées pleines par l'allègement (optimisation topologique). */
+  keep?: Float32Array;
   /** Force totale (N), répartie sur les nœuds des faces chargées. */
   force: { x: number; y: number; z: number };
   material: Material;

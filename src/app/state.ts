@@ -48,7 +48,7 @@ export type Mode =
   /** Assemblage : poser de la visserie dans les trous (chaque clic sur un trou en pose un élément). */
   | { kind: 'fastener'; fastenerKind: FastenerKind }
   /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */
-  | { kind: 'pick-sim-face'; role: 'fixed' | 'load'; partId: Id };
+  | { kind: 'pick-sim-face'; role: 'fixed' | 'load' | 'keep'; partId: Id };
 
 /** Onglet de travail : modélisation des pièces, ou assemblage. */
 export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation';

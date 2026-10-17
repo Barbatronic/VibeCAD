@@ -127,6 +127,8 @@ export interface SimulationStudy {
   quality: 'coarse' | 'normal' | 'fine';
   fixed: StudyFace[];
   load: SimulationLoad;
+  /** « Alléger la pièce » : faces gardées pleines (autour des perçages, des appuis…). */
+  keep?: StudyFace[];
 }
 
 export interface SimulationSettings {

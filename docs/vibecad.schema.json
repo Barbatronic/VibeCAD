@@ -299,6 +299,13 @@
                       "$ref": "#/$defs/studyFace"
                     }
                   },
+                  "keep": {
+                    "type": "array",
+                    "description": "Faces gardées pleines par « Alléger la pièce » (facultatif).",
+                    "items": {
+                      "$ref": "#/$defs/studyFace"
+                    }
+                  },
                   "load": {
                     "type": "object",
                     "properties": {

@@ -3,7 +3,7 @@
  * matériau, les faces où elle est tenue et celles où elle est chargée, puis on lance le calcul :
  * la pièce apparaît déformée (exagérée) et colorée selon l'effort. Voir docs/simulation.md.
  */
-import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, verdict } from '../app/simulation';
+import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
 import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
@@ -384,9 +384,12 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
     (s) => {
       const run = s.topologyRun?.partId === partId ? s.topologyRun : null;
       const source = c.simulationSource(partId);
-      const key = source ? `${studyKey(studyOf(s.doc, partId), source.key)}|${s.topologyFraction}` : '';
+      const study = studyOf(s.doc, partId);
+      const key = source ? topologyKey(study, source.key, s.topologyFraction) : '';
       return {
         fraction: s.topologyFraction,
+        keep: study.keep?.length ?? 0,
+        picking: s.mode.kind === 'pick-sim-face' && s.mode.role === 'keep',
         status: run?.status ?? null,
         progress: run?.progress ?? 0,
         error: run?.error ?? null,
@@ -418,6 +421,22 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
         Avec les mêmes faces fixées et la même charge, le calcul cherche où la matière travaille vraiment, et garde seulement la part choisie : la pièce
         la plus raide possible avec moins de matière (optimisation topologique).
       </p>
+      <div class="field sim-faces">
+        <span class="field-label">
+          <span class="sim-dot keep" aria-hidden="true" /> Faces à garder : {t.keep}
+        </span>
+        <div class="sim-face-buttons">
+          <Button small icon="target" onClick={() => c.pickSimulationFaces('keep')}>
+            {t.picking ? 'Terminé' : 'Choisir'}
+          </Button>
+          {t.keep ? (
+            <button type="button" class="tl-link" onClick={() => c.clearSimulationFaces('keep')}>
+              tout retirer
+            </button>
+          ) : null}
+        </div>
+        <span class="field-help">Facultatif : le bord d’un perçage, une face d’appui… restent pleins. Les faces fixées et chargées le sont déjà.</span>
+      </div>
       <div class="field topology-field">
         <label class="field-label" for="topo-fraction">
           Matière gardée : {pct(t.fraction)}

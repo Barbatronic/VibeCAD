@@ -123,7 +123,7 @@ export interface ViewportInput {
   /** Plateau d'impression (mm) dessiné à z = 0 à partir de l'origine. */
   bed?: { x: number; y: number } | null;
   /** Simulation : faces fixées (bleu) et chargées (orange), hachurées. */
-  markedFaces?: { partId: Id; index: number; role: 'fixed' | 'load' }[];
+  markedFaces?: { partId: Id; index: number; role: 'fixed' | 'load' | 'keep' }[];
   /**
    * Simulation : pièce déformée, une couleur par sommet (rouge, vert, bleu entre 0 et 1).
    * `animation` : la pièce va et vient entre sa forme d'origine (`base`) et la déformée
@@ -866,7 +866,7 @@ export class Viewport {
     this.markedOverlays = [];
     for (const f of faces) {
       const part = this.parts.get(f.partId);
-      const overlay = part?.faceOverlay(f.index, hatchMaterial(f.role === 'fixed' ? this.palette.axisZ : this.palette.selection, 0.8));
+      const overlay = part?.faceOverlay(f.index, hatchMaterial(f.role === 'fixed' ? this.palette.axisZ : f.role === 'keep' ? this.palette.axisY : this.palette.selection, 0.8));
       if (overlay && part) {
         this.placeOverlay(overlay, part);
         this.overlayGroup.add(overlay);

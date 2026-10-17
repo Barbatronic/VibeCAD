@@ -151,12 +151,13 @@ const concat = (arrays: Float32Array[]) => {
 };
 
 /** Faces désignées de chaque pièce de la source (rangs dans son maillage), sans doublon fixé/chargé. */
-export function studyFaces(study: SimulationStudy, source: StudySource): { instanceId: Id | null; fixed: number[]; load: number[] }[] {
+export function studyFaces(study: SimulationStudy, source: StudySource): { instanceId: Id | null; fixed: number[]; load: number[]; keep: number[] }[] {
   const fixed = sourceItems(source, study.fixed);
   const load = sourceItems(source, study.load.faces);
+  const keep = sourceItems(source, study.keep ?? []);
   return fixed.map((f, i) => {
     const fixedFaces = faceIndices(f.mesh, f.refs);
-    return { instanceId: f.instanceId, fixed: fixedFaces, load: faceIndices(f.mesh, load[i]!.refs).filter((x) => !fixedFaces.includes(x)) };
+    return { instanceId: f.instanceId, fixed: fixedFaces, load: faceIndices(f.mesh, load[i]!.refs).filter((x) => !fixedFaces.includes(x)), keep: faceIndices(f.mesh, keep[i]!.refs) };
   });
 }
 
@@ -181,6 +182,7 @@ export function studyInput(study: SimulationStudy, source: StudySource): StudyPr
   }
   const loaded = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.load), it.matrix)));
   const fixed = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.fixed), it.matrix)));
+  const keep = concat(items.map((it, i) => transformed(faceTriangles(it.mesh, faces[i]!.keep), it.matrix)));
   const F = loadNewtons(study);
   const dir = loadDirection(study.load, loaded);
   const sign = study.load.direction === 'push' ? -1 : 1;
@@ -193,6 +195,7 @@ export function studyInput(study: SimulationStudy, source: StudySource): StudyPr
       ...(source.kind === 'assembly' ? { parts } : {}),
       fixed,
       loaded,
+      ...(keep.length ? { keep } : {}),
       force: { x: sign * F * dir.x, y: sign * F * dir.y, z: sign * F * dir.z },
       material: { E: material.E, nu: material.nu },
       targetCells: QUALITY_CELLS[study.quality],
@@ -213,7 +216,14 @@ export function meshSize(positions: ArrayLike<number>): number {
 
 /** Signature d'un calcul : le résultat affiché est périmé dès qu'elle change. */
 export function studyKey(study: SimulationStudy, sourceKey: string): string {
-  return `${sourceKey}|${JSON.stringify(study)}`;
+  // Les faces à garder ne servent qu'à l'allègement : elles ne périment pas le calcul de déformation.
+  const { keep: _keep, ...rest } = study;
+  return `${sourceKey}|${JSON.stringify(rest)}`;
+}
+
+/** Signature d'un allègement : celle de l'étude, les faces à garder et la part de matière gardée. */
+export function topologyKey(study: SimulationStudy, sourceKey: string, fraction: number): string {
+  return `${studyKey(study, sourceKey)}|${JSON.stringify(study.keep ?? [])}|${fraction}`;
 }
 
 export type Verdict = { level: 'ok' | 'tight' | 'fail'; margin: number; label: string };

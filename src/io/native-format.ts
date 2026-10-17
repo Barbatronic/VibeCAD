@@ -344,6 +344,7 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
           materialId: str(v, so, 'materialId', sp),
           quality: oneOf(v, so, 'quality', sp, ['coarse', 'normal', 'fine'] as const),
           fixed: faces(so, 'fixed', sp),
+          ...(so.keep !== undefined ? { keep: faces(so, 'keep', sp) } : {}),
           load: {
             faces: faces(lo, 'faces', lp),
             kind: oneOf(v, lo, 'kind', lp, ['mass', 'force'] as const),

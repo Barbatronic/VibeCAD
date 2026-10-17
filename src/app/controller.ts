@@ -83,7 +83,7 @@ import { FASTENER_COLOR, fastenerForHole, fastenerMesh, holeFromPick, holeOf, pl
 import { toGlb, type GltfMesh, type GltfNode } from '../io/gltf';
 import { APP_NAME, APP_VERSION } from '../meta';
 import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
-import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay, type StudySource } from './simulation';
+import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, topologyKey, withStudy, type ResultDisplay, type StudySource } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
 import { topologySurface } from '../sim/topology';
@@ -1923,7 +1923,7 @@ export class AppController {
   }
 
   /** Choisir à la souris les faces fixées ou chargées (un second appel termine). */
-  pickSimulationFaces(role: 'fixed' | 'load'): void {
+  pickSimulationFaces(role: 'fixed' | 'load' | 'keep'): void {
     const partId = this.simulationPartId();
     if (!partId) return;
     const m = this.state.mode;
@@ -1934,9 +1934,10 @@ export class AppController {
     if (this.state.mode.kind === 'pick-sim-face') this.set({ mode: model });
   }
 
-  clearSimulationFaces(role: 'fixed' | 'load'): void {
+  clearSimulationFaces(role: 'fixed' | 'load' | 'keep'): void {
     const partId = this.simulationPartId();
     if (!partId) return;
+    if (role === 'keep') return this.updateStudy(partId, ({ keep: _k, ...st }) => st, 'Retirer les faces à garder');
     this.updateStudy(partId, (st) => (role === 'fixed' ? { ...st, fixed: [] } : { ...st, load: { ...st.load, faces: [] } }), role === 'fixed' ? 'Retirer les faces fixées' : 'Retirer les faces chargées');
   }
 
@@ -1954,6 +1955,19 @@ export class AppController {
     if (!faceRef) return;
     const ref: StudyFace = instance ? { ...faceRef, instanceId: instance.id } : faceRef;
     const role = mode.role;
+    // Faces à garder (allègement) : indépendantes des faces fixées et chargées.
+    if (role === 'keep') {
+      return this.updateStudy(
+        mode.partId,
+        (st) => {
+          const list = st.keep ?? [];
+          const next = list.some((r) => sameFaceRef(r, ref)) ? list.filter((r) => !sameFaceRef(r, ref)) : [...list, ref];
+          const { keep: _k, ...rest } = st;
+          return next.length ? { ...rest, keep: next } : rest;
+        },
+        'Choisir les faces à garder',
+      );
+    }
     this.updateStudy(
       mode.partId,
       (st) => {
@@ -2028,7 +2042,7 @@ export class AppController {
     const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
     const volumeFraction = this.state.topologyFraction;
-    const key = `${studyKey(study, source.key)}|${volumeFraction}`;
+    const key = topologyKey(study, source.key, volumeFraction);
     if (this.state.simulationRun?.status === 'running') this.set({ simulationRun: null });
     const threshold = this.state.topologyRun?.threshold ?? 0.5;
     this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, topologyRun: { partId, key, status: 'running', progress: 0, volumeFraction, threshold } });

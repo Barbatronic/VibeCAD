@@ -3025,6 +3025,10 @@ kbd {
   --dot: var(--vp-selection);
 }
 
+.sim-dot.keep {
+  --dot: var(--vp-axis-y);
+}
+
 .sim-progress {
   display: flex;
   align-items: center;

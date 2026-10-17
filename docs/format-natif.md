@@ -503,7 +503,8 @@ avertissement).
   "studies": [
     { "partId": "part-…", "materialId": "pla", "quality": "normal",
       "fixed": [faceRef],
-      "load": { "faces": [faceRef], "kind": "mass", "value": 1, "direction": "-z" } }
+      "load": { "faces": [faceRef], "kind": "mass", "value": 1, "direction": "-z" },
+      "keep": [faceRef] }
   ]
 }
 ```
@@ -513,8 +514,9 @@ touchent collées), dont les faces portent en plus `instanceId` (la pièce insé
 `aluminium`, `steel` ; `quality` : `coarse`, `normal`, `fine` ; charge `mass` (kg) ou `force` (N),
 `direction` (pour une masse comme pour une force) : `push` (appuie sur la face), `pull` (tire
 dessus), un axe (`-z`, `+z`, `-x`, `+x`, `-y`, `+y`) ou `custom` (direction `vector` `{ x, y, z }`,
-normalisée au calcul ; `pull`, `custom` et `vector` ajoutés le 14 octobre 2026). Les
-résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).
+normalisée au calcul ; `pull`, `custom` et `vector` ajoutés le 14 octobre 2026). `keep`
+(facultatif, ajouté le 18 octobre 2026) : faces gardées pleines par « Alléger la pièce »
+(optimisation topologique). Les résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).
 
 ## Fabrication (champ facultatif `fabrication`)
 

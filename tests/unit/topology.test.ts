@@ -151,3 +151,18 @@ describe('optimisation topologique : forme d’un seul tenant', () => {
     expect([...keep]).toEqual([1, 0, 0]);
   });
 });
+
+describe('optimisation topologique : faces à garder', () => {
+  it('les cubes qui touchent une face à garder restent pleins', () => {
+    const m = boxMesh(L, T, H);
+    // Face du dessus (z = H) gardée : en temps normal, peu de matière au milieu du dessus.
+    const top = Float32Array.from([0, 0, H, L, 0, H, L, T, H, 0, 0, H, L, T, H, 0, T, H]);
+    const r = runTopology({ ...m, fixed: face(0, T, 0, H), loaded: face(L, T, 0, 4), keep: top, force: { x: 0, y: 0, z: -100 }, material: PLA, targetCells: 1500, volumeFraction: 0.4, maxIterations: 10 });
+    const { nx, ny, nz } = r.grid;
+    for (let i = 0; i < nx; i++)
+      for (let j = 0; j < ny; j++) {
+        const c = i + nx * (j + ny * (nz - 1));
+        if (r.density[c]! >= 0) expect(r.passive[c]).toBe(1);
+      }
+  });
+});
