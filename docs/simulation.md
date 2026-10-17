@@ -121,7 +121,9 @@ faces fixées, la même charge et la même précision, le calcul cherche **où l
 vraiment** et ne garde que la part choisie (10 à 90 %, 40 % par défaut) : la pièce la plus raide
 possible avec moins de matière.
 
-1. Préparer l'étude comme pour « Calculer » (faces fixées, charge, précision).
+1. Préparer l'étude comme pour « Calculer » (faces fixées, charge, précision). Facultatif :
+   **Faces à garder** (en vert) : le bord d'un perçage, une face d'appui… restent pleins. Elles
+   sont enregistrées dans le projet avec l'étude, sans périmer le calcul de déformation.
 2. Choisir la **matière gardée**, puis **Alléger la pièce** : une barre montre l'avancement
    (« Annuler » l'arrête). Environ 10 s en précision Rapide, 20 s en Normale, une minute en Fine.
 3. La forme obtenue s'affiche en **orange** devant la pièce d'origine (transparente). Le panneau
@@ -134,9 +136,10 @@ possible avec moins de matière.
    referme la forme.
 
 La forme est indicative : en petits cubes lissés, elle sert surtout à **comprendre** où passer la
-matière (nervures, trous, bras en diagonale) avant de redessiner une pièce propre. Rien n'est
-enregistré dans le projet (la part gardée non plus) : comme le résultat de la simulation, elle se
-recalcule. Si les réglages ou la pièce changent, elle est signalée comme périmée.
+matière (nervures, trous, bras en diagonale) avant de redessiner une pièce propre. La forme et
+la part gardée ne sont pas enregistrées dans le projet (seules les faces à garder le sont) :
+comme le résultat de la simulation, la forme se recalcule. Si les réglages ou la pièce changent,
+elle est signalée comme périmée.
 
 **Pièce plate** (épaisseur au plus 35 % de sa dimension moyenne) : la forme est la même dans toute
 l'épaisseur et les trous la traversent, comme pour une découpe laser. Sans cela, le calcul
@@ -157,8 +160,9 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   **critère d'optimalité** (pas limité à 0,2, multiplicateur du volume par dichotomie). Arrêt
   quand aucune densité ne bouge de plus de 1 %, ou que la souplesse gagne moins de 0,2 % en
   5 itérations (60 au plus).
-- Les cubes qui touchent une face fixée ou chargée restent pleins : la pièce garde ses appuis et
-  l'endroit où l'on appuie. S'ils font déjà la part demandée, un avertissement le dit.
+- Les cubes qui touchent une face fixée, chargée ou à garder restent pleins : la pièce garde ses
+  appuis, l'endroit où l'on appuie et ce que l'élève a choisi. S'ils font déjà la part demandée
+  (une grande face d'une plaque, par exemple), un avertissement le dit.
 - Pièce plate : une variable par colonne de cubes dans l'épaisseur (sensibilités et volume
   additionnés sur la colonne, filtre dans le plan).
 - **Forme** (`topologySurface`) : cubes au-dessus du seuil ; les contacts par une arête ou un coin
@@ -182,8 +186,7 @@ export STL, résultat périmé quand on change la part gardée, nouvelle pièce 
 
 ## Suite possible
 
-- Optimisation topologique : zones à garder ou à laisser vides choisies par l'élève (faces,
-  perçages), symétrie imposée, contrainte de fabrication (impression sans support) ; forme lissée
+- Optimisation topologique : zones à laisser vides choisies par l'élève, symétrie imposée, contrainte de fabrication (impression sans support) ; forme lissée
   par « marching cubes » plutôt que par cubes lissés.
 - mesurer sur un ordinateur d'école ; si besoin, réduire encore le coût d'une itération (produit
   matrice-vecteur par nœud plutôt que par cube).
