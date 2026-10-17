@@ -19,7 +19,7 @@
  */
 import { boxStiffness, unitCubeStiffness, type VoxelGrid } from './fea';
 import { solveElasticity } from './multigrid';
-import { prepareStudy, removeFloating, type StudyInput } from './study';
+import { prepareStudy, type StudyInput } from './study';
 
 export interface TopologyInput extends StudyInput {
   /** Part du volume de la pièce à garder (0,05 à 0,95). */
@@ -367,8 +367,8 @@ export function topologySurface(out: TopologyOutput, threshold: number, smoothin
   const nc = nx * ny * nz;
   const keep = new Uint8Array(nc);
   for (let c = 0; c < nc; c++) keep[c] = out.density[c]! >= 0 && (out.passive[c] || out.density[c]! >= threshold) ? 1 : 0;
-  const grid: VoxelGrid = { nx, ny, nz, h, origin, solid: keep };
-  removeFloating(grid, new Set(out.fixedNodes));
+  closeThinContacts(keep, nx, ny, nz);
+  keepHeldPieces(keep, nx, ny, nz, out.fixedNodes);
   const sy = nx + 1;
   const sz = (nx + 1) * (ny + 1);
   const at = (i: number, j: number, k: number) => i >= 0 && j >= 0 && k >= 0 && i < nx && j < ny && k < nz && keep[i + nx * (j + ny * k)] === 1;
@@ -446,4 +446,86 @@ export function topologySurface(out: TopologyOutput, threshold: number, smoothin
     for (let d = 0; d < pos.length; d++) pos[d] = next[d]!;
   }
   return { positions: Float32Array.from(pos), indices: Uint32Array.from(tris), cells, volume: cells * h * h * h };
+}
+
+/**
+ * Deux cubes qui ne se touchent que par une arête ou un coin donnent une surface « pincée » (non
+ * manifold), qu'un logiciel d'impression ou l'import STL coupe en morceaux : on comble le contact
+ * en ajoutant un cube voisin (un peu de matière, une pièce d'un seul tenant).
+ */
+export function closeThinContacts(keep: Uint8Array, nx: number, ny: number, nz: number): void {
+  const at = (i: number, j: number, k: number) => keep[i + nx * (j + ny * k)] === 1;
+  const set = (i: number, j: number, k: number) => (keep[i + nx * (j + ny * k)] = 1);
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    for (let k = 0; k < nz; k++)
+      for (let j = 0; j < ny; j++)
+        for (let i = 0; i < nx; i++) {
+          // Contacts par une arête : carrés 2 × 2 dans les trois orientations.
+          const squares: [number, number, number][][] = [];
+          if (i + 1 < nx && j + 1 < ny) squares.push([[i, j, k], [i + 1, j, k], [i, j + 1, k], [i + 1, j + 1, k]]);
+          if (i + 1 < nx && k + 1 < nz) squares.push([[i, j, k], [i + 1, j, k], [i, j, k + 1], [i + 1, j, k + 1]]);
+          if (j + 1 < ny && k + 1 < nz) squares.push([[i, j, k], [i, j + 1, k], [i, j, k + 1], [i, j + 1, k + 1]]);
+          for (const [a, b, c, d] of squares) {
+            const A = at(...a!), B = at(...b!), C = at(...c!), D = at(...d!);
+            if (A && D && !B && !C) {
+              set(...b!);
+              changed = true;
+            } else if (B && C && !A && !D) {
+              set(...a!);
+              changed = true;
+            }
+          }
+          // Contacts par un coin : cube 2 × 2 × 2 dont seuls deux coins opposés sont pleins.
+          if (i + 1 < nx && j + 1 < ny && k + 1 < nz) {
+            let n = 0;
+            for (let c = 0; c < 8; c++) if (at(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1))) n++;
+            if (n === 2)
+              for (let c = 0; c < 4; c++) {
+                const o = 7 - c;
+                if (at(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1)) && at(i + (o & 1), j + ((o >> 1) & 1), k + ((o >> 2) & 1))) {
+                  // Deux cubes ajoutés : un chemin par faces entre les deux coins.
+                  set(i + (o & 1), j + (c & 2 ? 1 : 0), k + (c & 4 ? 1 : 0));
+                  set(i + (o & 1), j + ((o >> 1) & 1), k + (c & 4 ? 1 : 0));
+                  changed = true;
+                }
+              }
+          }
+        }
+    if (!changed) break;
+  }
+}
+
+/**
+ * Ne garde que les morceaux (cubes reliés par une face) qui touchent un nœud bloqué : les autres
+ * ne tiendraient à rien.
+ */
+export function keepHeldPieces(keep: Uint8Array, nx: number, ny: number, nz: number, fixedNodes: ArrayLike<number>): void {
+  const sy = nx + 1;
+  const sz = (nx + 1) * (ny + 1);
+  const fixed = new Set<number>(Array.from(fixedNodes));
+  const seen = new Uint8Array(keep.length);
+  const stack: number[] = [];
+  for (let start = 0; start < keep.length; start++) {
+    if (!keep[start] || seen[start]) continue;
+    const members: number[] = [];
+    let held = false;
+    seen[start] = 1;
+    stack.push(start);
+    while (stack.length) {
+      const c = stack.pop()!;
+      members.push(c);
+      const i = c % nx;
+      const j = Math.floor(c / nx) % ny;
+      const k = Math.floor(c / (nx * ny));
+      if (!held) for (let q = 0; q < 8 && !held; q++) held = fixed.has(i + (q & 1) + sy * (j + ((q >> 1) & 1)) + sz * (k + ((q >> 2) & 1)));
+      const next = [i > 0 ? c - 1 : -1, i + 1 < nx ? c + 1 : -1, j > 0 ? c - nx : -1, j + 1 < ny ? c + nx : -1, k > 0 ? c - nx * ny : -1, k + 1 < nz ? c + nx * ny : -1];
+      for (const f of next)
+        if (f >= 0 && keep[f] && !seen[f]) {
+          seen[f] = 1;
+          stack.push(f);
+        }
+    }
+    if (!held) for (const c of members) keep[c] = 0;
+  }
 }

@@ -61,6 +61,8 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   expect(await percent(page, '#topo-stiffness')).toBeGreaterThan(20);
   await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.resultObject)).toBe(true);
   await page.screenshot({ path: 'tests/output/e2e-topologie.png' });
+  await page.locator('.topology').scrollIntoViewIfNeeded();
+  await page.locator('.right-panel').screenshot({ path: 'tests/output/e2e-topologie-panneau.png' });
 
   // Seuil plus haut : moins de matière montrée.
   await page.locator('#topo-threshold').fill('0.8');
@@ -81,8 +83,23 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await expect(dialog.getByRole('button', { name: /Importer/ })).toBeEnabled({ timeout: 60_000 });
   await dialog.getByRole('button', { name: /Importer/ }).click();
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.state.doc.parts.length)).toBe(2);
+  // La forme importée est un vrai solide, d'un volume proche de la matière gardée.
+  const solid = () =>
+    page.evaluate(() => {
+      const s = (window as any).vibecad.controller.state;
+      const a = s.display[s.doc.parts[1].id]?.result.analysis;
+      return a ? { solids: a.solidCount, volume: a.volume } : null;
+    });
+  await expect.poll(async () => (await solid())?.solids ?? 0, { timeout: 60_000 }).toBeGreaterThan(0);
+  // D'un seul tenant (pas de contact par une arête qui couperait la forme en morceaux).
+  expect((await solid())!.solids).toBe(1);
+  const v = (await solid())!.volume;
+  expect(v).toBeGreaterThan(0.15 * 32000);
+  expect(v).toBeLessThan(0.6 * 32000);
+  await page.screenshot({ path: 'tests/output/e2e-topologie-piece.png' });
 
-  // Revenir à la pièce.
+  // Retour dans Simulation : changer de pièce étudiée referme la forme allégée.
   await page.getByRole('tab', { name: 'Simulation' }).click();
-  await page.getByRole('radio', { name: 'Pièce 1' }).click();
+  await page.getByRole('radio', { name: 'Pièce 1', exact: true }).click();
+  await expect(page.locator('.topology-result')).toHaveCount(0);
 });

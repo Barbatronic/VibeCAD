@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { meshVolume } from '../../src/sim/study';
-import { runTopology, topologySurface } from '../../src/sim/topology';
+import { closeThinContacts, keepHeldPieces, runTopology, topologySurface } from '../../src/sim/topology';
 
 /** Maillage fermé d'une boîte alignée sur les axes. */
 function boxMesh(sx: number, sy: number, sz: number) {
@@ -82,7 +82,8 @@ describe('optimisation topologique', () => {
         const key = a < b ? `${a}:${b}` : `${b}:${a}`;
         edges.set(key, (edges.get(key) ?? 0) + 1);
       }
-    expect([...edges.values()].every((c) => c % 2 === 0)).toBe(true);
+    // Exactement deux : pas de contact par une arête (surface « pincée »).
+    expect([...edges.values()].every((c) => c === 2)).toBe(true);
     // Lissée : le volume reste proche.
     const smooth = topologySurface(r, 0.5);
     expect(meshVolume(smooth.positions, smooth.indices)).toBeGreaterThan(0.85 * s.volume);
@@ -113,5 +114,40 @@ describe('optimisation topologique', () => {
 
   it('durée raisonnable (3 200 cubes : environ 9 s, 40 itérations)', () => {
     expect(r.durationMs).toBeLessThan(60_000);
+  });
+});
+
+describe('optimisation topologique : forme d’un seul tenant', () => {
+  it('comble un contact par une arête et par un coin', () => {
+    // 2 × 2 × 1 : deux cubes en diagonale.
+    const edge = Uint8Array.from([1, 0, 0, 1]);
+    closeThinContacts(edge, 2, 2, 1);
+    expect(edge.reduce((a, v) => a + v, 0)).toBe(3);
+    // 2 × 2 × 2 : deux coins opposés.
+    const corner = new Uint8Array(8);
+    corner[0] = corner[7] = 1;
+    closeThinContacts(corner, 2, 2, 2);
+    expect(corner.reduce((a, v) => a + v, 0)).toBeGreaterThanOrEqual(4);
+    // Chemin par faces de 0 à 7.
+    const seen = new Set([0]);
+    const stack = [0];
+    while (stack.length) {
+      const c = stack.pop()!;
+      for (const d of [1, 2, 4]) {
+        const f = c ^ d;
+        if (corner[f] && !seen.has(f)) {
+          seen.add(f);
+          stack.push(f);
+        }
+      }
+    }
+    expect(seen.has(7)).toBe(true);
+  });
+
+  it('écarte les morceaux qui ne tiennent à aucune face fixée', () => {
+    // 3 × 1 × 1 : cubes 0 et 2 pleins, séparés ; seul le cube 0 touche le nœud bloqué 0.
+    const keep = Uint8Array.from([1, 0, 1]);
+    keepHeldPieces(keep, 3, 1, 1, [0]);
+    expect([...keep]).toEqual([1, 0, 0]);
   });
 });
