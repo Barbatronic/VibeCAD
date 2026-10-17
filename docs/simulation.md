@@ -166,7 +166,9 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   5 itérations (60 au plus).
 - Les cubes qui touchent une face fixée, chargée ou à garder restent pleins : la pièce garde ses
   appuis, l'endroit où l'on appuie et ce que l'élève a choisi. S'ils font déjà la part demandée
-  (une grande face d'une plaque, par exemple), un avertissement le dit.
+  (une grande face d'une plaque, par exemple), un avertissement le dit. Sur une pièce en 3D, une
+  grande face fixée ou chargée reste comme un mur qui cache l'intérieur : le panneau conseille de
+  choisir de petites faces (bord d'un trou, plot).
 - Pièce plate : une variable par colonne de cubes dans l'épaisseur (sensibilités et volume
   additionnés sur la colonne, filtre dans le plan). Symétrie : un cube et son reflet partagent
   leur variable (le filtre voit les voisins de l'autre côté du plan comme des reflets).

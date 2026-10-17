@@ -420,7 +420,8 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
       </h3>
       <p class="field-help">
         Avec les mêmes faces fixées et la même charge, le calcul cherche où la matière travaille vraiment, et garde seulement la part choisie : la pièce
-        la plus raide possible avec moins de matière (optimisation topologique).
+        la plus raide possible avec moins de matière (optimisation topologique). Astuce : les faces fixées et chargées restent pleines ; choisissez de
+        petites faces (le bord d’un trou, un plot) plutôt que de grandes faces, qui resteraient comme des murs.
       </p>
       <div class="field sim-faces">
         <span class="field-label">
