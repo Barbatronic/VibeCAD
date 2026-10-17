@@ -180,6 +180,29 @@ arrête la pose. Le filetage n'est pas dessiné.
 - La visserie n'est pas encore incluse dans les exports STEP et 3MF ni dans la recherche de
   collisions.
 
+## Sous-assemblages (niveau Expert)
+
+Un sous-assemblage est un **bloc** assemblé une fois (une roue sur son axe avec ses roulements, une
+pince…) puis inséré une ou plusieurs fois dans l'assemblage principal ou dans un autre bloc.
+
+- En haut du panneau Assemblage, « Assemblage : Principal ▾ » choisit ce que l'on modifie ; « + »
+  crée un sous-assemblage vide et l'ouvre. Dans un sous-assemblage, tous les outils de l'onglet
+  servent (Insérer, Liaison, Visserie, engrenages, vue éclatée…) ; un bandeau rappelle lequel est
+  ouvert, permet de le renommer, de le supprimer (refusé tant qu'il est inséré quelque part) et de
+  revenir à l'assemblage principal. Quitter l'onglet Assemblage revient aussi au principal.
+- « Insérer ▾ » propose les sous-assemblages après les pièces. Un bloc ne peut pas s'insérer en
+  lui-même, ni dans un bloc qu'il contient.
+- Inséré, un bloc est **rigide** : ses liaisons internes gardent leurs réglages. On le relie par
+  une liaison posée sur une de ses pièces (le repère est pris sur cette pièce, placée dans le
+  bloc) ; un clic sur une de ses pièces sélectionne le bloc entier, l'outil Main l'attrape d'un
+  seul tenant et la vue éclatée l'écarte d'un bloc.
+- Partout ailleurs, l'assemblage est **déplié** en pièces placées (`flattenAssembly`) : vue,
+  collisions (« Bloc › Pièce »), exports STEP, 3MF et GLB, étude de simulation de l'assemblage.
+  La nomenclature compte les pièces et la visserie des blocs autant de fois que le bloc est
+  inséré. L'export STEP écrit les pièces dépliées sous l'assemblage (un niveau d'arborescence).
+- Techniquement, ouvrir un sous-assemblage échange son contenu avec l'assemblage principal dans
+  le document (`domain/subassemblies.ts`) ; le fichier est toujours enregistré refermé.
+
 ## Hors périmètre (pour l'instant)
 
 Contact entre les dents (le couplage impose le rapport), ressorts, efforts et vitesses (cinématique automatique), limites de course prises en

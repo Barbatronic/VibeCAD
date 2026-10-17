@@ -1,6 +1,6 @@
 # Sous-assemblages (conception)
 
-Statut : **proposition**, à valider avant tout développement (point 19 g, 14 octobre 2026).
+Statut : **réalisé** le 17 octobre 2026 (bloc rigide, blocs du projet, niveau Expert), selon les choix ci-dessous. La variante souple et l’import depuis un autre fichier restent à faire.
 
 ## Le besoin
 

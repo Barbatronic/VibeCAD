@@ -469,6 +469,15 @@ vis seulement) ; `flip` facultatif. Une taille absente de la norme ou une longue
 rend le fichier invalide ; un élément posé sur une pièce retirée est supprimé à la lecture (avec un
 avertissement).
 
+`subassemblies` (champ facultatif du document, ajouté le 17 octobre 2026) : sous-assemblages,
+chacun avec `id`, `name` et le même contenu qu'un assemblage (`instances`, `joints`,
+`fasteners`, `couplings`). Une pièce insérée peut désigner un bloc au lieu d'une pièce :
+`{ "id": "in-4", "partId": "", "subassemblyId": "sa-1", "name": "Roue avant", "position": … }` ;
+une liaison vers un bloc inséré précise la pièce du bloc où elle s'accroche :
+`{ "instanceId": "in-4", "member": ["in-2"], "lcs": … }` (un identifiant par niveau
+d'imbrication). Un bloc qui se contient lui-même rend le fichier invalide ; une insertion d'un
+bloc absent est retirée avec un avertissement.
+
 `couplings` (facultatif, ajouté le 13 octobre 2026) : engrenages et crémaillères entre liaisons.
 
 ```json
