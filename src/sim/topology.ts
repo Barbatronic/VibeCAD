@@ -74,8 +74,12 @@ const RADIUS = 1.5;
 /** Arrêt quand plus aucune densité ne bouge de plus de 1 %. */
 const CHANGE_TOLERANCE = 0.01;
 const STALL = 0.002;
-/** Précision du calcul de déformation à chaque itération (il repart de la solution précédente). */
-const SOLVE_TOLERANCE = 1e-4;
+/**
+ * Précision du calcul de déformation à chaque itération : il repart de la solution précédente, et la
+ * souplesse finale est la même (4 chiffres) qu'avec 10⁻⁴, en 30 % de temps en moins (plaque et
+ * bloc de 8 000 cubes).
+ */
+const SOLVE_TOLERANCE = 3e-3;
 
 /**
  * Pièce plate : axe de son épaisseur, quand celle-ci vaut au plus 35 % de la dimension moyenne

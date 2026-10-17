@@ -123,7 +123,7 @@ possible avec moins de matière.
 
 1. Préparer l'étude comme pour « Calculer » (faces fixées, charge, précision).
 2. Choisir la **matière gardée**, puis **Alléger la pièce** : une barre montre l'avancement
-   (« Annuler » l'arrête). Quelques secondes en précision Rapide, une à deux minutes en Fine.
+   (« Annuler » l'arrête). Environ 10 s en précision Rapide, 20 s en Normale, une minute en Fine.
 3. La forme obtenue s'affiche en **orange** devant la pièce d'origine (transparente). Le panneau
    indique la matière gardée et la **raideur gardée** (souplesse de la pièce pleine / souplesse de
    la forme : 37 % de la raideur avec 40 % de la matière pour une console, par exemple).
@@ -151,7 +151,8 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   (exposant 3) rend les densités moyennes peu rentables : le résultat tend vers du plein ou du vide.
 - On minimise la **souplesse** (travail de la charge) à volume donné. À chaque itération : calcul
   de la déformation (solveur multigrille du calcul de déformation, raideur par cube, en repartant
-  de la solution précédente, précision 10⁻⁴), sensibilité = énergie de chaque cube, **filtre de
+  de la solution précédente, précision 3 · 10⁻³ : même résultat qu'à 10⁻⁴, 30 % plus vite),
+  sensibilité = énergie de chaque cube, **filtre de
   densité** (rayon 1,5 cube : ni damier ni détails plus fins que la grille), mise à jour par
   **critère d'optimalité** (pas limité à 0,2, multiplicateur du volume par dichotomie). Arrêt
   quand aucune densité ne bouge de plus de 1 %, ou que la souplesse gagne moins de 0,2 % en
@@ -170,7 +171,12 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
 `tests/unit/topology.test.ts` — console 60 × 6 × 30 mm encastrée, chargée au bout : volume visé
 respecté (40 % ± 3), souplesse décroissante, matière sur les fibres haute et basse près de
 l'encastrement (là où la flexion tire et pousse), densités presque toutes tranchées, forme fermée
-d'un seul tenant ; environ 9 s pour 3 200 cubes. `tests/e2e/topology.spec.ts` — dans
+d'un seul tenant ; environ 9 s pour 3 200 cubes.
+
+Durées mesurées (part gardée 40 %, machine de développement) : plaque 80 × 10 × 40 mm, ~7 000 cubes
+(Normale) : 22 s, 57 itérations, 39 % de la raideur ; ~23 000 cubes (Fine) : 82 s avant le
+réglage de précision ; bloc 60 × 40 × 30 mm en 3D, ~7 500 cubes : 20 s, 42 itérations, 34 % de la
+raideur. Le maillage de la forme (seuil) prend moins de 50 ms. `tests/e2e/topology.spec.ts` — dans
 l'application : plaque 80 × 10 × 40 mm tenue par un bout et chargée dessus, allègement, seuil,
 export STL, résultat périmé quand on change la part gardée, nouvelle pièce d'un seul solide.
 
