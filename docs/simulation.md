@@ -114,7 +114,70 @@ avant → après le multigrille :
 Une plaque mince demandait plus de 1 400 itérations ; elle en demande moins de 70. Un bloc de
 72 000 cubes se calcule en environ 4 s.
 
+## Alléger la pièce (optimisation topologique)
+
+Section « Alléger la pièce » du panneau de droite (pièce seule, pas l'assemblage) : avec les mêmes
+faces fixées, la même charge et la même précision, le calcul cherche **où la matière travaille
+vraiment** et ne garde que la part choisie (10 à 90 %, 40 % par défaut) : la pièce la plus raide
+possible avec moins de matière.
+
+1. Préparer l'étude comme pour « Calculer » (faces fixées, charge, précision).
+2. Choisir la **matière gardée**, puis **Alléger la pièce** : une barre montre l'avancement
+   (« Annuler » l'arrête). Quelques secondes en précision Rapide, une à deux minutes en Fine.
+3. La forme obtenue s'affiche en **orange** devant la pièce d'origine (transparente). Le panneau
+   indique la matière gardée et la **raideur gardée** (souplesse de la pièce pleine / souplesse de
+   la forme : 37 % de la raideur avec 40 % de la matière pour une console, par exemple).
+4. **Seuil** : la forme garde les cubes « remplis » à au moins ce seuil (50 % par défaut) ; plus
+   haut, seule la matière la plus utile reste. La forme se recalcule aussitôt.
+5. **Exporter en STL** (pour imprimer la forme telle quelle) ou **Nouvelle pièce** (la forme
+   rejoint le projet par la fenêtre d'import STL, comme pièce figée). « Revenir à la pièce »
+   referme la forme.
+
+La forme est indicative : en petits cubes lissés, elle sert surtout à **comprendre** où passer la
+matière (nervures, trous, bras en diagonale) avant de redessiner une pièce propre. Rien n'est
+enregistré dans le projet (la part gardée non plus) : comme le résultat de la simulation, elle se
+recalcule. Si les réglages ou la pièce changent, elle est signalée comme périmée.
+
+**Pièce plate** (épaisseur au plus 35 % de sa dimension moyenne) : la forme est la même dans toute
+l'épaisseur et les trous la traversent, comme pour une découpe laser. Sans cela, le calcul
+amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
+
+### Méthode
+
+`src/sim/topology.ts`, dans le worker de simulation :
+
+- **SIMP** (Bendsøe et Sigmund) sur la grille de cubes de l'étude : chaque cube de la pièce reçoit
+  une densité ρ ∈ [0, 1] et la raideur E · (Emin + (1 − Emin) ρ³), Emin = 10⁻³. La pénalisation
+  (exposant 3) rend les densités moyennes peu rentables : le résultat tend vers du plein ou du vide.
+- On minimise la **souplesse** (travail de la charge) à volume donné. À chaque itération : calcul
+  de la déformation (solveur multigrille du calcul de déformation, raideur par cube, en repartant
+  de la solution précédente, précision 10⁻⁴), sensibilité = énergie de chaque cube, **filtre de
+  densité** (rayon 1,5 cube : ni damier ni détails plus fins que la grille), mise à jour par
+  **critère d'optimalité** (pas limité à 0,2, multiplicateur du volume par dichotomie). Arrêt
+  quand aucune densité ne bouge de plus de 1 %, ou que la souplesse gagne moins de 0,2 % en
+  5 itérations (60 au plus).
+- Les cubes qui touchent une face fixée ou chargée restent pleins : la pièce garde ses appuis et
+  l'endroit où l'on appuie. S'ils font déjà la part demandée, un avertissement le dit.
+- Pièce plate : une variable par colonne de cubes dans l'épaisseur (sensibilités et volume
+  additionnés sur la colonne, filtre dans le plan).
+- **Forme** (`topologySurface`) : cubes au-dessus du seuil ; les contacts par une arête ou un coin
+  sont comblés par un cube voisin, seuls les morceaux reliés par des faces et tenus par une face
+  fixée sont gardés ; surface des cubes (chaque arête partagée par deux triangles exactement)
+  lissée par la méthode de Taubin (lissage sans rétrécissement).
+
+### Validation
+
+`tests/unit/topology.test.ts` — console 60 × 6 × 30 mm encastrée, chargée au bout : volume visé
+respecté (40 % ± 3), souplesse décroissante, matière sur les fibres haute et basse près de
+l'encastrement (là où la flexion tire et pousse), densités presque toutes tranchées, forme fermée
+d'un seul tenant ; environ 9 s pour 3 200 cubes. `tests/e2e/topology.spec.ts` — dans
+l'application : plaque 80 × 10 × 40 mm tenue par un bout et chargée dessus, allègement, seuil,
+export STL, résultat périmé quand on change la part gardée, nouvelle pièce d'un seul solide.
+
 ## Suite possible
 
+- Optimisation topologique : zones à garder ou à laisser vides choisies par l'élève (faces,
+  perçages), symétrie imposée, contrainte de fabrication (impression sans support) ; forme lissée
+  par « marching cubes » plutôt que par cubes lissés.
 - mesurer sur un ordinateur d'école ; si besoin, réduire encore le coût d'une itération (produit
   matrice-vecteur par nœud plutôt que par cube).

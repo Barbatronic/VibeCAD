@@ -147,7 +147,9 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   ou tirer sur la face, un axe, ou une direction au choix), puis calculer : la pièce
   apparaît déformée (exagérée) et colorée du bleu au rouge selon l'effort, avec un verdict
   (« La pièce tient », « C'est juste », « Risque de casser »). Résultat indicatif, calculé par
-  éléments finis dans un worker. Voir [docs/simulation.md](docs/simulation.md).
+  éléments finis dans un worker. **Alléger la pièce** (optimisation topologique) : avec les mêmes
+  appuis et la même charge, le calcul ne garde que la matière utile (part choisie) ; la forme
+  obtenue s'exporte en STL ou devient une nouvelle pièce. Voir [docs/simulation.md](docs/simulation.md).
 - **Volume, masse et centre de gravité** de la pièce sous l'historique (masse estimée en PLA
   plein) ; le centre de gravité peut être montré dans la vue (symbole des plans).
 - **Vue en coupe** (bouton « Coupe » de la vue) : la pièce est coupée par un plan XY, XZ ou YZ
