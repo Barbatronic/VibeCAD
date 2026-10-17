@@ -192,6 +192,12 @@ pince…) puis inséré une ou plusieurs fois dans l'assemblage principal ou dan
   revenir à l'assemblage principal. Quitter l'onglet Assemblage revient aussi au principal.
 - « Insérer ▾ » propose les sous-assemblages après les pièces. Un bloc ne peut pas s'insérer en
   lui-même, ni dans un bloc qu'il contient.
+- « Insérer ▾ → Importer un projet comme sous-assemblage… » reprend un autre fichier `.vibecad` :
+  ses pièces rejoignent le projet (renommées si le nom est déjà pris), son assemblage devient un
+  sous-assemblage au nom du projet (ses propres blocs aussi), prêt à être inséré. Ses
+  identifiants sont renommés pour éviter toute collision ; ses équations sont figées à leur
+  valeur (ses paramètres ne sont pas repris). Un projet sans assemblage est refusé avec une
+  explication.
 - Inséré, un bloc est **rigide** : ses liaisons internes gardent leurs réglages. Coché
   « **Bloc souple** » (panneau du bloc inséré), ses liaisons qui bougent ont ici leurs propres
   curseurs : chaque insertion a ses réglages (quatre roues à des angles différents), le

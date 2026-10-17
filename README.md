@@ -125,8 +125,9 @@ millimètres, avec le nom et la couleur de chaque pièce).
   nombre de dents (sens opposé, ou même sens pour une courroie), ou un pivot qui fait avancer une
   glissière ; la roue menée suit quand on tourne ou anime la menante, et inversement.
   **Sous-assemblages** (niveau Expert) : un bloc assemblé une fois (roue sur son axe…) et inséré
-  plusieurs fois comme un ensemble rigide, relié par une de ses pièces ; vue, collisions, exports
-  et nomenclature le déplient. **Vue éclatée** (bouton « Éclater ») : les pièces s'écartent le long de l'axe de leur liaison,
+  plusieurs fois comme un ensemble rigide (ou souple, réglé à chaque insertion), relié par une de
+  ses pièces, ou importé d'un autre projet ; vue, collisions, exports et nomenclature le
+  déplient, l'export STEP garde l'arborescence. **Vue éclatée** (bouton « Éclater ») : les pièces s'écartent le long de l'axe de leur liaison,
   avec un curseur d'écartement, sans rien changer au projet. Export STEP / 3MF de l'assemblage. Recherche des **collisions** (volume en
   commun en rouge). **Visserie** normalisée (vis CHC, BHC, FHC, H, écrous, rondelles, de M2 à
   M12, sans filetage) posée d'un clic dans les trous : la taille vient du trou (passage ISO 273
