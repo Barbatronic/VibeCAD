@@ -199,7 +199,9 @@ pince…) puis inséré une ou plusieurs fois dans l'assemblage principal ou dan
 - Partout ailleurs, l'assemblage est **déplié** en pièces placées (`flattenAssembly`) : vue,
   collisions (« Bloc › Pièce »), exports STEP, 3MF et GLB, étude de simulation de l'assemblage.
   La nomenclature compte les pièces et la visserie des blocs autant de fois que le bloc est
-  inséré. L'export STEP écrit les pièces dépliées sous l'assemblage (un niveau d'arborescence).
+  inséré. L'export STEP garde l'**arborescence** : chaque sous-assemblage utilisé y est défini une
+  fois (ses pièces placées dans son repère, ses blocs imbriqués), puis inséré à chacune de ses
+  places ; FreeCAD montre « Robot > Bras gauche > Barre 2 ».
 - Techniquement, ouvrir un sous-assemblage échange son contenu avec l'assemblage principal dans
   le document (`domain/subassemblies.ts`) ; le fichier est toujours enregistré refermé.
 

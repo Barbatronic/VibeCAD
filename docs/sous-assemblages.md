@@ -1,6 +1,6 @@
 # Sous-assemblages (conception)
 
-Statut : **réalisé** le 17 octobre 2026 (bloc rigide, blocs du projet, niveau Expert), selon les choix ci-dessous. La variante souple et l’import depuis un autre fichier restent à faire.
+Statut : **réalisé** le 17 octobre 2026 (bloc rigide, blocs du projet, niveau Expert), selon les choix ci-dessous. La variante souple et l’import depuis un autre fichier restent à faire ; l’export STEP hiérarchique est fait.
 
 ## Le besoin
 
