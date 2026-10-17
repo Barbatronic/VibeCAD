@@ -13,3 +13,5 @@ tests/output/
 /*.step
 /*.stp
 /*.vibecad
+# Caches Python (scripts de vérification FreeCAD).
+__pycache__/
