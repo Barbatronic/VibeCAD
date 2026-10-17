@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { expectVolume, openApp, worldToScreen } from './helpers';
 
@@ -128,6 +129,17 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   const v = (await solid())!.volume;
   expect(v).toBeGreaterThan(0.15 * 32000);
   expect(v).toBeLessThan(0.6 * 32000);
+
+  // La pièce allégée passe à la découpe laser : contour extérieur et trous.
+  await page.click('#tab-fabrication');
+  await page.click('#fab-laser');
+  await page.getByLabel('Exemplaires à découper de « Pièce 1 allégée »').fill('1');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.laserLayout().placed.length)).toBeGreaterThan(0);
+  await page.screenshot({ path: 'tests/output/e2e-topologie-laser.png' });
+  const [svg] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);
+  await svg.saveAs('tests/output/e2e-topologie-laser.svg');
+  const text = readFileSync('tests/output/e2e-topologie-laser.svg', 'utf8');
+  expect((text.match(/<polygon /g) ?? []).length).toBeGreaterThan(1);
 
   // Retour dans Simulation : changer de pièce étudiée referme la forme allégée.
   await page.getByRole('tab', { name: 'Simulation' }).click();
