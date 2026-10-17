@@ -645,7 +645,7 @@ function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTM
 
 export function TopBar() {
   const c = useController();
-  const barRef = useRef<HTMLElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<{ width: number } | null>(null);
   useToolbarFit(barRef, navRef, !!expanded);
@@ -672,21 +672,31 @@ export function TopBar() {
   const level = useAppState((s) => s.level);
   const leftShown = useAppState((s) => (window.matchMedia('(max-width: 980px)').matches ? s.leftPanelOpen : !s.leftPanelHidden));
   return (
-    <header class="topbar" ref={barRef}>
-      <IconButton
-        icon="panel"
-        label="Afficher ou masquer le panneau des pièces"
-        pressed={leftShown}
-        onClick={() => c.toggleLeftPanel(undefined, window.matchMedia('(max-width: 980px)').matches)}
-      />
-      <div class="brand">
-        {/* Logo provisoire (cube) : le chat n'est plus le logo, seulement une mascotte facultative. */}
-        <img class="brand-mark" src="icons/icon.svg" alt="" width={30} height={30} />
-        <span>{APP_NAME}</span>
+    <header class="app-header">
+      {/* Rang du haut : projet et onglets des ateliers ; rang du dessous : les outils de l'atelier. */}
+      <div class="header-row">
+        <IconButton
+          icon="panel"
+          label="Afficher ou masquer le panneau des pièces"
+          pressed={leftShown}
+          onClick={() => c.toggleLeftPanel(undefined, window.matchMedia('(max-width: 980px)').matches)}
+        />
+        <div class="brand">
+          {/* Logo provisoire (cube) : le chat n'est plus le logo, seulement une mascotte facultative. */}
+          <img class="brand-mark" src="icons/icon.svg" alt="" width={26} height={26} />
+          <span>{APP_NAME}</span>
+        </div>
+        <FileMenu />
+        <ProjectName />
+        <WorkspaceTabs />
+        <div class="spacer" />
+        {/* Raccourcis pour débuter : Parcours (Débutant) et Aide (Débutant, Intermédiaire) ; tous deux restent dans le menu Fichier. */}
+        {level === 'debutant' ? (
+          <IconButton icon="graduation" label="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
+        ) : null}
+        {level !== 'expert' ? <IconButton icon="help" label="Aide (F1) : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} /> : null}
       </div>
-      <FileMenu />
-      <ProjectName />
-      {mode === 'model' || mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? <WorkspaceTabs /> : null}
+      <div class="topbar" ref={barRef}>
       {expanded ? <div class="toolbar-placeholder" style={{ width: `${expanded.width}px` }} /> : null}
       <nav
         class={`toolbar${expanded ? ' is-expanded' : ''}`}
@@ -712,12 +722,7 @@ export function TopBar() {
         <Icon name="more" />
         <span>Plus</span>
       </button>
-      <div class="spacer" />
-      {/* Raccourcis pour débuter : Parcours (Débutant) et Aide (Débutant, Intermédiaire) ; tous deux restent dans le menu Fichier. */}
-      {level === 'debutant' ? (
-        <ToolButton icon="graduation" label="Parcours" hint="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
-      ) : null}
-      {level !== 'expert' ? <ToolButton icon="help" label="Aide" shortcut="F1" hint="Aide : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} /> : null}
+      </div>
     </header>
   );
 }

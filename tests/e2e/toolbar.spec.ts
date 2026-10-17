@@ -26,10 +26,13 @@ for (const width of [1850, 1440, 1280]) {
 }
 
 test('barre d’outils : écran étroit, les derniers outils passent dans le tiroir « Plus », qui fonctionne', async ({ page }) => {
-  await page.setViewportSize({ width: 820, height: 800 });
+  await page.setViewportSize({ width: 420, height: 800 });
   await openApp(page);
   await expect.poll(async () => (await fits(page)).fits).toBe(true);
   expect(await fits(page)).toMatchObject({ compact: '4', overflow: true });
+  // Le rang des onglets tient aussi (onglets en icônes).
+  expect(await page.evaluate(() => { const r = document.querySelector('.header-row') as HTMLElement; return r.scrollWidth <= r.clientWidth + 1; })).toBe(true);
+  await expect(page.locator('#tab-assembly')).toBeVisible();
   const more = page.getByRole('button', { name: 'Plus d’outils' });
   await expect(more).toBeVisible();
   // Un outil masqué dans la barre est accessible dans le tiroir, avec son nom.
@@ -51,7 +54,7 @@ test('barre d’outils : écran étroit, les derniers outils passent dans le tir
 test('barre d’outils : la pièce construite, la barre suit la fenêtre qu’on rétrécit puis agrandit', async ({ page }) => {
   await openApp(page);
   await buildPlateViaUi(page);
-  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.setViewportSize({ width: 680, height: 900 });
   await expect.poll(async () => (await fits(page)).fits).toBe(true);
   expect(Number((await fits(page)).compact)).toBeGreaterThan(0);
   await page.setViewportSize({ width: 1900, height: 900 });

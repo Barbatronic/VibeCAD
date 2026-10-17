@@ -17,29 +17,45 @@ import { CouplingList, CouplingPanel } from './CouplingUi';
 import { SubassemblyBar } from './SubassemblyUi';
 import { subassemblyContains, subassemblyContent, subassemblyList } from '../domain/subassemblies';
 
-/** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
+/**
+ * Onglets des ateliers « Pièces / Assemblage / Fabrication / Simulation », dans un bandeau sous la
+ * barre d'outils ; grisés pendant une opération (esquisse, étape en cours…).
+ */
 export function WorkspaceTabs() {
   const c = useController();
   const workspace = useAppState((s) => s.workspace);
   const assembly = useAppState((s) => allows(s.level, 'workspace:assembly'));
   const simulation = useAppState((s) => allows(s.level, 'workspace:simulation'));
+  const busy = useAppState((s) => !['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(s.mode.kind));
   return (
-    <div class="workspace-tabs" role="tablist" aria-label="Espace de travail">
-      {(
-        [
-          ['parts', 'Pièces', 'Modéliser les pièces'],
-          ['assembly', 'Assemblage', 'Assembler les pièces et les faire bouger'],
-          ['fabrication', 'Fabrication', 'Préparer l’impression 3D et la découpe laser'],
-          ['simulation', 'Simulation', 'Voir comment une pièce se déforme sous une charge'],
-        ] as const
-      )
-        .filter(([id]) => (id !== 'assembly' || assembly) && (id !== 'simulation' || simulation))
-        .map(([id, label, title]) => (
-        <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={workspace === id} title={title} onClick={() => c.setWorkspace(id)}>
-          {label}
-        </button>
-      ))}
-    </div>
+    <nav class="workspace-bar" aria-label="Ateliers">
+      <div class="workspace-tabs" role="tablist" aria-label="Espace de travail">
+        {(
+          [
+            ['parts', 'Pièces', 'part', 'Modéliser les pièces'],
+            ['assembly', 'Assemblage', 'pivot', 'Assembler les pièces et les faire bouger'],
+            ['fabrication', 'Fabrication', 'print3d', 'Préparer l’impression 3D et la découpe laser'],
+            ['simulation', 'Simulation', 'simulate', 'Voir comment une pièce se déforme sous une charge'],
+          ] as const
+        )
+          .filter(([id]) => (id !== 'assembly' || assembly) && (id !== 'simulation' || simulation))
+          .map(([id, label, icon, title]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={workspace === id}
+              disabled={busy && workspace !== id}
+              title={busy && workspace !== id ? `${title} — terminez d’abord l’opération en cours` : title}
+              onClick={() => c.setWorkspace(id)}
+            >
+              <Icon name={icon} />
+              <span>{label}</span>
+            </button>
+          ))}
+      </div>
+    </nav>
   );
 }
 

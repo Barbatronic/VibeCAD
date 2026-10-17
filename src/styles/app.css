@@ -1970,10 +1970,6 @@ kbd {
 .topbar[data-compact] .project-name {
   width: 104px;
 }
-.topbar[data-compact] .workspace-tabs button {
-  padding: 5px 6px;
-  font-size: 12.5px;
-}
 /* Palier 1 : Annuler, Rétablir, Parcours, Aide et Préférences en icônes seules. */
 .topbar[data-compact] .history-group .tool-btn,
 .topbar[data-compact] > .tool-btn {
@@ -2023,10 +2019,6 @@ kbd {
 }
 .topbar[data-compact='4'] .toolbar .tool-btn {
   min-width: 34px;
-}
-.topbar[data-compact='4'] .workspace-tabs button {
-  padding: 4px 5px;
-  font-size: 12px;
 }
 /* Dernier recours : groupes renvoyés dans le tiroir « Plus ». */
 .toolbar-group.is-overflow {
@@ -2297,30 +2289,79 @@ kbd {
 
 /* ------------------------------------------------------------------ Assemblage */
 
+/* En-tête : rang du projet et des onglets d'ateliers, puis rang des outils (.topbar). */
+.app-header {
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-row .brand span {
+  font-size: 15px;
+}
+
+.workspace-bar {
+  display: flex;
+  align-self: flex-end;
+  min-width: 0;
+  margin-left: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* Onglets de classeur : l'atelier actif se raccorde à la zone de travail. */
 .workspace-tabs {
   display: flex;
-  align-self: center;
-  padding: 3px;
   gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
 }
 
 .workspace-tabs button {
-  padding: 6px 10px;
-  border: none;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  padding: 5px 14px 6px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
   background: transparent;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.workspace-tabs button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.workspace-tabs button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface);
 }
 
 .workspace-tabs button[aria-selected='true'] {
   background: var(--surface);
   color: var(--accent);
-  box-shadow: var(--shadow-1, 0 1px 2px rgba(0, 0, 0, 0.12));
+  border-color: var(--border);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.workspace-tabs button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .motion-field input[type='range'] {
@@ -3231,4 +3272,31 @@ kbd {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border);
+}
+
+/* En-tête étroit : le nom du logiciel puis les libellés des onglets disparaissent (icônes, nom en infobulle). */
+@media (max-width: 1000px) {
+  .header-row .brand span {
+    display: none;
+  }
+  .header-row .project-name {
+    width: 140px;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace-tabs button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .workspace-tabs button {
+    padding: 5px 10px 6px;
+  }
+  .header-row .project-name {
+    width: 100px;
+  }
 }
