@@ -473,6 +473,8 @@ avertissement).
 chacun avec `id`, `name` et le même contenu qu'un assemblage (`instances`, `joints`,
 `fasteners`, `couplings`). Une pièce insérée peut désigner un bloc au lieu d'une pièce :
 `{ "id": "in-4", "partId": "", "subassemblyId": "sa-1", "name": "Roue avant", "position": … }` ;
+un bloc inséré peut être souple : `"flexible": true` et `"jointValues": { "jt-1": { "angle": 75,
+"offset": 0 } }` (réglages propres à cette insertion de ses liaisons internes) ;
 une liaison vers un bloc inséré précise la pièce du bloc où elle s'accroche :
 `{ "instanceId": "in-4", "member": ["in-2"], "lcs": … }` (un identifiant par niveau
 d'imbrication). Un bloc qui se contient lui-même rend le fichier invalide ; une insertion d'un

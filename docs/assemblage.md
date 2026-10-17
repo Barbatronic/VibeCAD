@@ -192,7 +192,11 @@ pince…) puis inséré une ou plusieurs fois dans l'assemblage principal ou dan
   revenir à l'assemblage principal. Quitter l'onglet Assemblage revient aussi au principal.
 - « Insérer ▾ » propose les sous-assemblages après les pièces. Un bloc ne peut pas s'insérer en
   lui-même, ni dans un bloc qu'il contient.
-- Inséré, un bloc est **rigide** : ses liaisons internes gardent leurs réglages. On le relie par
+- Inséré, un bloc est **rigide** : ses liaisons internes gardent leurs réglages. Coché
+  « **Bloc souple** » (panneau du bloc inséré), ses liaisons qui bougent ont ici leurs propres
+  curseurs : chaque insertion a ses réglages (quatre roues à des angles différents), le
+  sous-assemblage n'est pas modifié, et ses engrenages internes suivent. Une boucle fermée qui
+  passerait à la fois par le bloc et par l'assemblage parent n'est pas résolue. On le relie par
   une liaison posée sur une de ses pièces (le repère est pris sur cette pièce, placée dans le
   bloc) ; un clic sur une de ses pièces sélectionne le bloc entier, l'outil Main l'attrape d'un
   seul tenant et la vue éclatée l'écarte d'un bloc.
