@@ -451,6 +451,16 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
       position: { x: num(v, pos, 'x', `${ip}.position`), y: num(v, pos, 'y', `${ip}.position`), z: num(v, pos, 'z', `${ip}.position`) },
     };
     if (subassemblyId) {
+      if (io.flexible === true) instance.flexible = true;
+      if (io.jointValues !== undefined) {
+        const jo = obj(v, io.jointValues, `${ip}.jointValues`) ?? {};
+        const values: Record<string, { angle: number; offset: number }> = {};
+        for (const [k, raw] of Object.entries(jo)) {
+          const vo = obj(v, raw, `${ip}.jointValues.${k}`) ?? {};
+          values[k] = { angle: num(v, vo, 'angle', `${ip}.jointValues.${k}`), offset: num(v, vo, 'offset', `${ip}.jointValues.${k}`) };
+        }
+        if (Object.keys(values).length) instance.jointValues = values;
+      }
       if (!subIds.has(subassemblyId)) {
         v.warnings.push(`Assemblage : « ${instance.name} » vise un sous-assemblage absent ; il est retiré.`);
         return;

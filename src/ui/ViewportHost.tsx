@@ -32,7 +32,7 @@ import {
 } from '../sketch/session';
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
-import { explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
+import { blockContent, explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
 import { subassemblyContent } from '../domain/subassemblies';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
@@ -81,7 +81,7 @@ function blockFasteners(
   if (depth > 8) return out;
   for (const inst of assembly.instances) {
     const m = placement.matrices.get(inst.id);
-    const content = inst.subassemblyId ? options.subassemblyOf?.(inst.subassemblyId) : undefined;
+    const content = blockContent(inst, options);
     if (!m || !content) continue;
     const sub = solveAssembly(content, meshOf, options);
     const placed = content.fasteners?.length ? placeFasteners(content, meshOf, (id) => sub.matrices.get(id)) : null;

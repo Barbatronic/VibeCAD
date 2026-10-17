@@ -3226,3 +3226,9 @@ kbd {
   flex: 1;
   min-width: 0;
 }
+
+.block-joint {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}

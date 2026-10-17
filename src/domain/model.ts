@@ -161,6 +161,12 @@ export interface AssemblyInstance {
   id: Id;
   partId: Id;
   subassemblyId?: Id;
+  /**
+   * Bloc souple : ses liaisons internes prennent ici les réglages `jointValues` (par identifiant
+   * de liaison du bloc) au lieu de ceux du bloc ; chaque insertion a les siens.
+   */
+  flexible?: boolean;
+  jointValues?: Record<Id, { angle: number; offset: number }>;
   name: string;
   /** Position (mm) tant que la pièce n'est tenue par aucune liaison. */
   position: { x: number; y: number; z: number };

@@ -142,6 +142,31 @@ describe('sous-assemblages', () => {
     expect(kernel.readStep(new TextEncoder().encode(text)).solids.length).toBe(5);
   });
 
+  it('bloc souple : chaque insertion règle ses liaisons internes ; un bloc rigide garde celles du bloc', () => {
+    const base = robot();
+    const doc: CadDocument = {
+      ...base.doc,
+      assembly: { ...base.doc.assembly!, instances: base.doc.assembly!.instances.map((i) => (i.id === 'brasG' ? { ...i, flexible: true, jointValues: { ja: { angle: 0, offset: 0 } } } : i)) },
+    };
+    const options = { subassemblyOf: (id: Id) => subassemblyContent(doc, id), subassemblyNameOf: () => 'Bras' };
+    const placed = solveAssembly(doc.assembly!, base.meshOf, options);
+    const leaves = flattenAssembly(doc.assembly!, placed, base.meshOf, options);
+    // Angle de la barre 2 par rapport à la barre 1 dans chaque bras (axe X de la barre 2 vu dans le repère de la barre 1).
+    const relative = (side: string) => {
+      const one = leaves.find((l) => l.key === `${side}/a1`)!.matrix;
+      const two = leaves.find((l) => l.key === `${side}/a2`)!.matrix;
+      const x1 = { x: one[0]!, y: one[1]! };
+      const x2 = { x: two[0]!, y: two[1]! };
+      return Math.round((Math.atan2(x1.x * x2.y - x1.y * x2.x, x1.x * x2.x + x1.y * x2.y) * 180) / Math.PI);
+    };
+    expect(Math.abs(relative('brasD'))).toBe(90);
+    expect(relative('brasG')).toBe(0);
+    // Fichier : réglages conservés ; STEP : une définition par réglage.
+    const parsed = parseNativeFile(serializeDocument(doc));
+    expect(parsed.ok && parsed.doc.assembly!.instances[1]).toMatchObject({ flexible: true, jointValues: { ja: { angle: 0, offset: 0 } } });
+    expect(assemblyStepTree(doc.assembly!, placed, base.meshOf, options).blocks.map((b) => b.key)).toEqual(['sa-bras@brasG', 'sa-bras']);
+  });
+
   it('un bloc qui se contient lui-même est refusé à la lecture', () => {
     const { doc } = robot();
     const looped = { ...doc, subassemblies: doc.subassemblies!.map((s) => ({ ...s, instances: [...s.instances, { id: 'x', partId: '', subassemblyId: 'sa-bras', name: 'Boucle', position: { x: 0, y: 0, z: 0 } }] })) };

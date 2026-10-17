@@ -15,7 +15,7 @@ import { Icon } from './icons';
 import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
 import { CouplingList, CouplingPanel } from './CouplingUi';
 import { SubassemblyBar } from './SubassemblyUi';
-import { subassemblyContains, subassemblyList } from '../domain/subassemblies';
+import { subassemblyContains, subassemblyContent, subassemblyList } from '../domain/subassemblies';
 
 /** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
 export function WorkspaceTabs() {
@@ -592,10 +592,12 @@ function InstancePanel({ id }: { id: string }) {
     const inst = a?.instances.find((i) => i.id === id);
     if (!inst) return null;
     const held = a!.joints.some((j) => j.moving.instanceId === id);
-    return { inst, fixed: a!.instances[0]!.id === id, held };
+    // Bloc : ses liaisons internes qui bougent (réglables ici s'il est souple).
+    const inner = inst.subassemblyId ? (subassemblyContent(s.doc, inst.subassemblyId)?.joints ?? []).filter((j) => j.kind !== 'fixed' && j.kind !== 'spherical') : [];
+    return { inst, fixed: a!.instances[0]!.id === id, held, inner };
   });
   if (!data) return null;
-  const { inst, fixed, held } = data;
+  const { inst, fixed, held, inner } = data;
   const axis = (k: 'x' | 'y' | 'z') => (
     <label class="mini-field" key={k}>
     <span>{k.toUpperCase()}</span>
@@ -629,6 +631,51 @@ function InstancePanel({ id }: { id: string }) {
         <div class="field">
           <span class="field-label">Position (X, Y, Z)</span>
           <div class="limits-row three">{(['x', 'y', 'z'] as const).map(axis)}</div>
+        </div>
+      ) : null}
+      {inst.subassemblyId && inner.length ? (
+        <div class="field">
+          <label class="checkbox-row">
+            <input id="as-block-flexible" type="checkbox" checked={!!inst.flexible} onChange={() => c.setBlockFlexible(id, !inst.flexible)} />
+            <span>Bloc souple : ses liaisons bougent ici (chaque insertion a ses propres réglages)</span>
+          </label>
+          {inst.flexible
+            ? inner.map((j) => {
+                const v = inst.jointValues?.[j.id] ?? { angle: j.angle, offset: j.offset };
+                const free = jointFreedoms(j.kind);
+                return (
+                  <div key={j.id} class="block-joint">
+                    <span class="field-label">{j.name}</span>
+                    {free.angle ? (
+                      <MotionField
+                        id={`as-block-${j.id}-angle`}
+                        label="Angle"
+                        unit="°"
+                        value={v.angle}
+                        limits={j.angleLimits}
+                        range={[-180, 180]}
+                        onLive={(angle) => c.setBlockJoint(id, j.id, { angle }, true)}
+                        onCommit={() => c.commitLive(`Régler « ${j.name} » dans « ${inst.name} »`)}
+                        onExact={(angle) => c.setBlockJoint(id, j.id, { angle })}
+                      />
+                    ) : null}
+                    {free.offset ? (
+                      <MotionField
+                        id={`as-block-${j.id}-offset`}
+                        label="Décalage"
+                        unit="mm"
+                        value={v.offset}
+                        limits={j.offsetLimits}
+                        range={[-50, 50]}
+                        onLive={(offset) => c.setBlockJoint(id, j.id, { offset }, true)}
+                        onCommit={() => c.commitLive(`Régler « ${j.name} » dans « ${inst.name} »`)}
+                        onExact={(offset) => c.setBlockJoint(id, j.id, { offset })}
+                      />
+                    ) : null}
+                  </div>
+                );
+              })
+            : <p class="field-help">Rigide : le bloc garde les réglages de ses liaisons tels qu’ils sont dans le sous-assemblage.</p>}
         </div>
       ) : null}
       </div>

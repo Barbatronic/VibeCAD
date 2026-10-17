@@ -2682,6 +2682,31 @@ export class AppController {
     this.commit(this.settleLoops(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), jointId), label);
   }
 
+  /** Bloc souple (ou rigide à nouveau) : ses liaisons internes deviennent réglables à cette insertion. */
+  setBlockFlexible(instanceId: Id, on: boolean): void {
+    this.commit(
+      updateInstance(this.state.doc, instanceId, (i) => {
+        if (on) return { ...i, flexible: true };
+        const { flexible: _f, jointValues: _v, ...rest } = i;
+        return rest;
+      }),
+      on ? 'Rendre un bloc souple' : 'Rendre un bloc rigide',
+    );
+  }
+
+  /** Réglage d'une liaison interne d'un bloc souple, à cette insertion ; `live` : pendant un glisser. */
+  setBlockJoint(instanceId: Id, jointId: Id, patch: Partial<{ angle: number; offset: number }>, live = false): void {
+    const inst = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
+    const joint = inst?.subassemblyId ? subassemblyContent(this.state.doc, inst.subassemblyId)?.joints.find((j) => j.id === jointId) : undefined;
+    if (!inst || !joint) return;
+    const current = inst.jointValues?.[jointId] ?? { angle: joint.angle, offset: joint.offset };
+    const doc = updateInstance(this.state.doc, instanceId, (i) => ({ ...i, flexible: true, jointValues: { ...i.jointValues, [jointId]: { ...current, ...patch } } }));
+    if (live) {
+      if (!this.liveStart) this.liveStart = this.state.doc;
+      this.set({ doc });
+    } else this.commit(doc, `Régler « ${joint.name} » dans « ${inst.name} »`);
+  }
+
   /** Réglage en continu (curseur, glisser) : le modèle suit sans remplir l'historique. */
   setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset' | 'tilt' | 'tiltDirection'>>): void {
     if (!this.liveStart) this.liveStart = this.state.doc;

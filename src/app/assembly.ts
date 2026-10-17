@@ -3,7 +3,7 @@
  * puis placement le long de l'arborescence des liaisons à partir de la pièce fixe (la première
  * insérée). Simple calcul de matrices, sans solveur itératif (voir docs/assemblage.md).
  */
-import type { Assembly, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part, SketchParams } from '../domain/model';
+import type { Assembly, AssemblyInstance, AssemblyJoint, EdgeRef, FaceRef, Id, JointCoupling, JointKind, LcsRef, Part, SketchParams } from '../domain/model';
 import { pickFaceReference } from '../features/sketch/support';
 import type { FaceTag, MeshData, StepBlock, StepComponent } from '../geometry/kernel';
 import { frameToWorld, type Frame3D } from '../math/frame';
@@ -268,25 +268,45 @@ function transformFrame(m: Mat4, f: Frame3D): Frame3D {
 }
 
 /**
- * Pièce d'un sous-assemblage désignée par un chemin (identifiants d'insertion, un par niveau) :
- * sa pièce du projet et sa matrice dans le repère du bloc. Null si le chemin ne mène à rien.
+ * Contenu d'un bloc inséré, tel qu'il est placé à cette insertion : pour un bloc souple, ses
+ * liaisons internes prennent les réglages propres à l'insertion.
+ */
+export function blockContent(inst: AssemblyInstance, options: SolveOptions): Assembly | undefined {
+  const content = inst.subassemblyId ? options.subassemblyOf?.(inst.subassemblyId) : undefined;
+  if (!content || !inst.flexible || !inst.jointValues) return content;
+  const values = inst.jointValues;
+  return { ...content, joints: content.joints.map((j) => (values[j.id] ? { ...j, angle: values[j.id]!.angle, offset: values[j.id]!.offset } : j)) };
+}
+
+/**
+ * Pièce d'un bloc inséré désignée par un chemin (identifiants d'insertion, un par niveau) : sa
+ * pièce du projet et sa matrice dans le repère du bloc. Null si le chemin ne mène à rien.
  */
 export function resolveMember(
-  subId: Id,
+  block: AssemblyInstance,
   path: readonly Id[],
   meshOf: (partId: Id) => MeshData | null | undefined,
   options: SolveOptions,
   depth = 0,
 ): { partId: Id; matrix: Mat4 } | null {
-  const content = options.subassemblyOf?.(subId);
+  const content = blockContent(block, options);
   if (!content || path.length === 0 || depth > MAX_DEPTH) return null;
-  const placed = solveAssembly(content, meshOf, { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) }, depth + 1);
+  const placed = solveAssembly(content, meshOf, innerOptions(options), depth + 1);
   const inst = content.instances.find((i) => i.id === path[0]);
   const m = inst && placed.matrices.get(inst.id);
   if (!inst || !m) return null;
   if (!inst.subassemblyId) return path.length === 1 ? { partId: inst.partId, matrix: m } : null;
-  const inner = resolveMember(inst.subassemblyId, path.slice(1), meshOf, options, depth + 1);
+  const inner = resolveMember(inst, path.slice(1), meshOf, options, depth + 1);
   return inner ? { partId: inner.partId, matrix: multiply4(m, inner.matrix) } : null;
+}
+
+/** Options transmises au calcul d'un bloc (sans la liaison manipulée de l'assemblage parent). */
+function innerOptions(options: SolveOptions): SolveOptions {
+  return {
+    ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}),
+    ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}),
+    ...(options.subassemblyNameOf ? { subassemblyNameOf: options.subassemblyNameOf } : {}),
+  };
 }
 
 /** Pièce désignée par l'extrémité d'une liaison (pièce insérée, ou pièce d'un bloc inséré) et sa matrice dans le repère de l'insertion. */
@@ -300,7 +320,7 @@ export function endPart(
   const inst = assembly.instances.find((i) => i.id === end.instanceId);
   if (!inst) return null;
   if (!inst.subassemblyId) return { partId: inst.partId, matrix: null };
-  const r = resolveMember(inst.subassemblyId, end.member ?? [], meshOf, options, depth);
+  const r = resolveMember(inst, end.member ?? [], meshOf, options, depth);
   return r ? { partId: r.partId, matrix: r.matrix } : null;
 }
 
@@ -636,9 +656,9 @@ export function flattenAssembly(
       out.push({ key: inst.id, instanceId: inst.id, member: [], partId: inst.partId, matrix: m, name: inst.name });
       continue;
     }
-    const content = options.subassemblyOf?.(inst.subassemblyId);
+    const content = blockContent(inst, options);
     if (!content || depth >= MAX_DEPTH) continue;
-    const inner = { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) };
+    const inner = innerOptions(options);
     const sub = solveAssembly(content, meshOf, inner, depth + 1);
     for (const leaf of flattenAssembly(content, sub, meshOf, inner, depth + 1)) {
       out.push({ key: `${inst.id}/${leaf.key}`, instanceId: inst.id, member: [leaf.instanceId, ...leaf.member], partId: leaf.partId, matrix: multiply4(m, leaf.matrix), name: `${inst.name} › ${leaf.name}` });
@@ -663,17 +683,18 @@ export function assemblyStepTree(
       const matrix = placed.matrices.get(inst.id);
       if (!matrix) return [];
       if (!inst.subassemblyId) return [{ partKey: inst.partId, name: inst.name, matrix: [...matrix] }];
-      define(inst.subassemblyId, depth + 1);
-      return blocks.has(inst.subassemblyId) ? [{ blockKey: inst.subassemblyId, name: inst.name, matrix: [...matrix] }] : [];
+      // Bloc souple réglé : sa propre définition (ses pièces n'y sont pas à la même place).
+      const key = inst.flexible && inst.jointValues ? `${inst.subassemblyId}@${inst.id}` : inst.subassemblyId;
+      define(key, inst, depth + 1);
+      return blocks.has(key) ? [{ blockKey: key, name: inst.name, matrix: [...matrix] }] : [];
     });
-  const define = (id: Id, depth: number) => {
-    if (blocks.has(id) || depth > MAX_DEPTH) return;
-    const content = options.subassemblyOf?.(id);
+  const define = (key: string, inst: AssemblyInstance, depth: number) => {
+    if (blocks.has(key) || depth > MAX_DEPTH) return;
+    const content = blockContent(inst, options);
     if (!content) return;
-    const block: StepBlock = { key: id, name: options.subassemblyNameOf?.(id) ?? id, components: [] };
-    blocks.set(id, block);
-    const inner = { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) };
-    block.components = componentsOf(content, solveAssembly(content, meshOf, inner, depth), depth);
+    const block: StepBlock = { key, name: options.subassemblyNameOf?.(inst.subassemblyId!) ?? inst.subassemblyId!, components: [] };
+    blocks.set(key, block);
+    block.components = componentsOf(content, solveAssembly(content, meshOf, innerOptions(options), depth), depth);
   };
   const roots = componentsOf(assembly, placement, 0);
   return { roots, blocks: [...blocks.values()] };

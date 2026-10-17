@@ -36,3 +36,25 @@ test('sous-assemblage : créé, rempli, puis inséré comme un bloc dans l’ass
   await expect.poll(() => appState(page, (s) => s.doc.subassemblies.length)).toBe(1);
   await page.screenshot({ path: 'tests/output/e2e-sous-assemblage.png' });
 });
+
+test('bloc souple : le pivot du bloc se règle à cette insertion, sans changer le sous-assemblage', async ({ page }) => {
+  await openApp(page);
+  const file = JSON.parse(readFileSync('tests/fixtures/reference-schema-1.vibecad', 'utf8'));
+  const doc = file.document;
+  // Le sous-assemblage reprend l'assemblage de référence (deux plaques en pivot à 30°), inséré une fois.
+  doc.subassemblies = [{ ...doc.assembly, id: 'sa-1', name: 'Charnière', fasteners: [] }];
+  doc.assembly = { instances: [{ id: 'in-b', partId: '', subassemblyId: 'sa-1', name: 'Charnière', position: { x: 0, y: 0, z: 0 } }], joints: [] };
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), JSON.stringify(file));
+  await page.click('#tab-assembly');
+  await page.getByRole('list', { name: 'Pièces de l’assemblage' }).getByText('Charnière').click();
+  await page.locator('#as-block-flexible').check();
+  const angle = page.getByLabel('Angle exact');
+  await expect(angle).toHaveValue('30');
+  await angle.fill('75');
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.instances[0].jointValues)).toEqual({ 'jt-1': { angle: 75, offset: 0 } });
+  // Le sous-assemblage lui-même garde son réglage.
+  expect(await appState(page, (s) => s.doc.subassemblies[0].joints[0].angle)).toBe(30);
+  // Rigide à nouveau : les réglages propres sont oubliés.
+  await page.locator('#as-block-flexible').uncheck();
+  await expect.poll(() => appState(page, (s) => s.doc.assembly.instances[0].jointValues ?? null)).toBe(null);
+});

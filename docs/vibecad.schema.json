@@ -2177,6 +2177,29 @@
               "subassemblyId": {
                 "$ref": "#/$defs/id",
                 "description": "Sous-assemblage inséré (bloc rigide) au lieu d'une pièce"
+              },
+              "flexible": {
+                "type": "boolean",
+                "description": "Bloc souple : ses liaisons internes prennent les réglages jointValues de cette insertion"
+              },
+              "jointValues": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": [
+                    "angle",
+                    "offset"
+                  ],
+                  "properties": {
+                    "angle": {
+                      "type": "number"
+                    },
+                    "offset": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "description": "Réglages propres à cette insertion des liaisons internes du bloc (par identifiant de liaison)"
               }
             }
           }
