@@ -8,6 +8,8 @@ import { assemblyContents, closedDocument, openSubassembly, subassemblyContent, 
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
+import { importProjectAsSubassembly } from '../../src/io/import-subassembly';
+import { addSubassemblyInstance } from '../../src/domain/subassemblies';
 import { transformPoint4 } from '../../src/math/mat4';
 import { getKernel } from '../helpers/kernel';
 
@@ -172,5 +174,39 @@ describe('sous-assemblages', () => {
     const looped = { ...doc, subassemblies: doc.subassemblies!.map((s) => ({ ...s, instances: [...s.instances, { id: 'x', partId: '', subassemblyId: 'sa-bras', name: 'Boucle', position: { x: 0, y: 0, z: 0 } }] })) };
     const parsed = parseNativeFile(serializeDocument(looped));
     expect(parsed.ok).toBe(false);
+  });
+
+  it('importer un projet comme sous-assemblage (ici le projet de référence dans lui-même)', () => {
+    const text = readFileSync('tests/fixtures/reference-schema-1.vibecad', 'utf8');
+    const parsed = parseNativeFile(text);
+    if (!parsed.ok) throw new Error(parsed.error);
+    const r = importProjectAsSubassembly(parsed.doc, text, 'reference.vibecad');
+    if (!r.ok) throw new Error(r.error);
+    const doc = r.doc;
+    expect(doc.parts).toHaveLength(parsed.doc.parts.length * 2);
+    // Identifiants tous différents, et le bloc vise les pièces importées (renommées).
+    const ids = doc.parts.flatMap((p) => [p.id, ...p.features.map((f) => f.id)]);
+    expect(new Set(ids).size).toBe(ids.length);
+    const sub = doc.subassemblies!.find((x) => x.id === r.subassemblyId)!;
+    const importedPartIds = new Set(doc.parts.slice(parsed.doc.parts.length).map((p) => p.id));
+    expect(sub.instances.every((i) => importedPartIds.has(i.partId))).toBe(true);
+    expect(sub.joints).toHaveLength(parsed.doc.assembly!.joints.length);
+    // Les pièces importées se calculent, et le bloc inséré se place.
+    const withBlock = addSubassemblyInstance(doc, r.subassemblyId, { x: 0, y: 100, z: 0 }).doc;
+    const m = meshes(withBlock);
+    expect(m.size).toBe(withBlock.parts.length);
+    const options = { subassemblyOf: (id: Id) => subassemblyContent(withBlock, id) };
+    const placed = solveAssembly(withBlock.assembly!, (id) => m.get(id), options);
+    expect(placed.issues.size).toBe(0);
+    expect(flattenAssembly(withBlock.assembly!, placed, (id) => m.get(id), options)).toHaveLength(parsed.doc.assembly!.instances.length * 2);
+    // Relu à l'identique.
+    const again = parseNativeFile(serializeDocument(withBlock));
+    expect(again.ok && again.doc.subassemblies).toEqual(withBlock.subassemblies);
+  });
+
+  it('un projet sans assemblage ne peut pas devenir un sous-assemblage', () => {
+    const empty = createDocument('Vide');
+    const r = importProjectAsSubassembly(empty, serializeDocument(createDocument('Sans assemblage')), 'x.vibecad');
+    expect(r.ok).toBe(false);
   });
 });

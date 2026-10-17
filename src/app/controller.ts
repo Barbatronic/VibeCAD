@@ -66,6 +66,7 @@ import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembl
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
+import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
@@ -2360,6 +2361,21 @@ export class AppController {
     const name = subassemblyList(this.state.doc).find((s) => s.id === id)?.name ?? 'Ce sous-assemblage';
     if (uses.length) return this.explain(`« ${name} » est inséré dans ${uses.join(', ')} : retirez-le d’abord de ${uses.length > 1 ? 'ces assemblages' : 'cet assemblage'}.`);
     this.commit(removeSubassembly(this.state.doc, id), `Supprimer le sous-assemblage « ${name} »`, { assemblySelection: null, explode: 0 });
+  }
+
+  /**
+   * Importe un autre projet `.vibecad` comme sous-assemblage : ses pièces rejoignent le projet,
+   * son assemblage devient un bloc à insérer (« Insérer ▾ »).
+   */
+  async importSubassemblyFile(): Promise<void> {
+    if (!this.can('assembly:subassemblies')) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const file = await pickFile(`${NATIVE_EXTENSION},application/json`);
+    if (!file) return;
+    const r = importProjectAsSubassembly(this.state.doc, await file.text(), file.name);
+    if (!r.ok) return this.set({ dialog: { kind: 'problem', title: 'Import impossible', message: r.error, details: [] } });
+    this.commit(r.doc, `Importer « ${r.name} » comme sous-assemblage`);
+    this.toast('success', `« ${r.name} » est maintenant un sous-assemblage (${r.parts} pièce${r.parts > 1 ? 's' : ''} ajoutée${r.parts > 1 ? 's' : ''}) : insérez-le avec « Insérer ▾ ».`, r.warnings.length ? { detail: r.warnings.join('\n') } : {});
   }
 
   /** Insère un sous-assemblage comme un bloc rigide dans l'assemblage ouvert. */

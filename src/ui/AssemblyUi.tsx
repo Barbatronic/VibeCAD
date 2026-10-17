@@ -49,6 +49,7 @@ function InsertMenu() {
     (s) => s.doc.parts.map((p) => ({ id: p.id, name: p.name, color: p.color, ok: (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0 })),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
+  const canBlocks = useAppState((s) => allows(s.level, 'assembly:subassemblies'));
   // Sous-assemblages insérables : pas celui qu'on modifie, ni un bloc qui le contient.
   const blocks = useAppState(
     (s) => {
@@ -99,7 +100,7 @@ function InsertMenu() {
               {!p.ok ? <span class="shortcut">sans volume</span> : null}
             </button>
           ))}
-          {blocks.length ? <div class="menu-sep" role="separator" /> : null}
+          {canBlocks ? <div class="menu-sep" role="separator" /> : null}
           {blocks.map((b) => (
             <button
               key={b.id}
@@ -118,6 +119,21 @@ function InsertMenu() {
               {b.empty ? <span class="shortcut">vide</span> : null}
             </button>
           ))}
+          {canBlocks ? (
+            <button
+              type="button"
+              role="menuitem"
+              class="menu-item"
+              title="Les pièces et l’assemblage d’un autre projet deviennent un sous-assemblage de celui-ci"
+              onClick={() => {
+                setOpen(false);
+                void c.importSubassemblyFile();
+              }}
+            >
+              <Icon name="import" />
+              <span>Importer un projet comme sous-assemblage…</span>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

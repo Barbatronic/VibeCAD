@@ -58,3 +58,18 @@ test('bloc souple : le pivot du bloc se règle à cette insertion, sans changer 
   await page.locator('#as-block-flexible').uncheck();
   await expect.poll(() => appState(page, (s) => s.doc.assembly.instances[0].jointValues ?? null)).toBe(null);
 });
+
+test('importer un autre projet comme sous-assemblage, puis l’insérer', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), readFileSync('tests/fixtures/reference-schema-1.vibecad', 'utf8'));
+  await page.click('#tab-assembly');
+  await page.click('#as-insert');
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: /Importer un projet comme sous-assemblage/ }).click()]);
+  await chooser.setFiles('tests/fixtures/reference-schema-1.vibecad');
+  await expect(page.getByText(/est maintenant un sous-assemblage/)).toBeVisible();
+  expect(await appState(page, (s) => s.doc.parts.length)).toBe(2);
+  const name = await appState(page, (s) => s.doc.subassemblies.at(-1).name);
+  await page.click('#as-insert');
+  await page.getByRole('menuitem', { name: `Sous-assemblage : ${name}` }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.assemblyLeaves().length)).toBe(4);
+});
