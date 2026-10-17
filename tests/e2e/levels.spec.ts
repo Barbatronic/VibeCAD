@@ -23,9 +23,10 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   await expect(page.locator('#sk-line')).toBeVisible();
   await expect(page.locator('#sk-coincident')).toBeVisible();
   await expect(page.locator('#sk-trim')).toHaveCount(0);
-  await expect(page.locator('#sk-more-constraints')).toHaveCount(0);
-  // Rectangle et cercle seuls : boutons simples, sans menu de variantes.
-  await expect(page.locator('#sk-rectangle + .split-toggle')).toHaveCount(0);
+  await expect(page.locator('#sk-parallel')).toHaveCount(0);
+  // Rectangle et cercle seuls : sans leurs variantes.
+  await expect(page.locator('#sk-centerRectangle')).toHaveCount(0);
+  await expect(page.locator('#sk-arc')).toHaveCount(0);
   await page.screenshot({ path: 'tests/output/e2e-niveau-debutant.png' });
   // Raccourci d'un outil masqué : ignoré.
   await page.keyboard.press('t');
@@ -34,7 +35,7 @@ test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expe
   // Intermédiaire : les outils apparaissent, même en pleine esquisse.
   await level.selectOption('intermediaire');
   await expect(page.locator('#sk-trim')).toBeVisible();
-  await expect(page.locator('#sk-more-constraints')).toBeVisible();
+  await expect(page.locator('#sk-parallel')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Annuler/ }).last().click();
   await expect(page.locator('#tool-revolve')).toBeVisible();

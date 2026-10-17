@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, expectVolume, openApp, PLATE_VOLUME, worldToScreen } from './helpers';
+import { appState, buildPlateViaUi, expectVolume, openApp, PLATE_VOLUME, worldToScreen, clickTool } from './helpers';
 
 test('découpe : couper la plaque à mi-épaisseur, puis par une face, garder les deux morceaux', async ({ page }) => {
   await openApp(page);
@@ -7,8 +7,7 @@ test('découpe : couper la plaque à mi-épaisseur, puis par une face, garder le
   await expectVolume(page, PLATE_VOLUME);
 
   // Plan XY proposé à mi-hauteur : on garde le bas.
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-split');
+  await clickTool(page, 'tool-split');
   await expect(page.locator('#draft-offset')).toHaveValue('2,5');
   await expect(page.getByRole('group', { name: 'Garder' }).getByRole('button', { name: 'Le bas' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

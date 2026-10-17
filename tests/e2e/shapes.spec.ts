@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
+import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 test('polygone régulier et oblong tapés au clavier, puis extrudés au volume exact', async ({ page }) => {
   await openApp(page);
@@ -9,8 +9,7 @@ test('polygone régulier et oblong tapés au clavier, puis extrudés au volume e
   await page.waitForTimeout(450);
 
   // Hexagone : centre (20, 20), cercle des sommets Ø 30.
-  await page.click('#sk-rectangle + .split-toggle');
-  await page.getByRole('menuitem', { name: /Polygone régulier/ }).click();
+  await clickTool(page, 'sk-polygon');
   await expect.poll(async () => (await session(page))?.tool).toBe('polygon');
   await clickSketch(page, 20, 20);
   await moveSketch(page, 20, 33);
@@ -22,8 +21,7 @@ test('polygone régulier et oblong tapés au clavier, puis extrudés au volume e
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'line').length).toBe(6);
 
   // Oblong : centres (50, 10) et 30 mm plus loin, largeur 10.
-  await page.click('#sk-circle + .split-toggle');
-  await page.getByRole('menuitem', { name: /Oblong/ }).click();
+  await clickTool(page, 'sk-slot');
   await expect.poll(async () => (await session(page))?.tool).toBe('slot');
   await clickSketch(page, 50, 10);
   await moveSketch(page, 70, 10);

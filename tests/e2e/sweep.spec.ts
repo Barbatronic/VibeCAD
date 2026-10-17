@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectVolume, openApp } from './helpers';
+import { expectVolume, openApp, clickTool } from './helpers';
 
 test('balayage : un cercle qui suit un chemin droit donne un cylindre', async ({ page }) => {
   await openApp(page);
@@ -18,8 +18,7 @@ test('balayage : un cercle qui suit un chemin droit donne un cylindre', async ({
     doc = d.addFeature(doc, partId, { ...prof, params: so.solveSketch(m.addCircle(prof.params, { x: 0, y: 0 }, 3).sketch).sketch });
     c.commit(doc, 'Chemin et profil');
   });
-  await page.getByRole('button', { name: 'Autres outils : révolutions, lissages et balayages' }).click();
-  await page.click('#tool-menu-sweep');
+  await clickTool(page, 'tool-sweep');
   await expect(page.locator('#draft-profile option:checked')).toHaveText('Esquisse 2');
   await expect(page.locator('#draft-path option:checked')).toHaveText('Esquisse 1');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();

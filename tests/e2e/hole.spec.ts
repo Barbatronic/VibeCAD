@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, PLATE_VOLUME, session, worldToScreen } from './helpers';
+import { buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, PLATE_VOLUME, session, worldToScreen, clickTool } from './helpers';
 
 const cylinder = (d: number, h: number) => Math.PI * (d / 2) ** 2 * h;
 
@@ -20,8 +20,7 @@ test('perçage : un trou lamé M4 au centre d’un cercle dessiné sur la face d
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'circle').length).toBe(1);
   await finishSketch(page);
 
-  await page.getByRole('button', { name: /Autres outils : poches et perçages/ }).click();
-  await page.click('#tool-menu-hole');
+  await clickTool(page, 'tool-hole');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   // Passage M3 par défaut (Ø 3,4).
   await expect(page.locator('#draft-hole-figures')).toContainText('Ø 3,4 mm');
@@ -51,8 +50,7 @@ test('perçage : un point posé avec l’outil Point, percé à un diamètre lib
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'point').length).toBe(1);
   await finishSketch(page);
 
-  await page.getByRole('button', { name: /Autres outils : poches et perçages/ }).click();
-  await page.click('#tool-menu-hole');
+  await clickTool(page, 'tool-hole');
   await page.locator('#draft-size').selectOption('custom');
   await page.locator('#draft-diameter').fill('8');
   await expect(page.locator('#draft-hole-figures')).toContainText('Ø 8 mm');

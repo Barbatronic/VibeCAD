@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, clickSketch, finishSketch, moveSketch, openApp, session } from './helpers';
+import { appState, clickSketch, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 test('ellipse et spline tracées à la souris, puis extrudées', async ({ page }) => {
   await openApp(page);
@@ -9,8 +9,7 @@ test('ellipse et spline tracées à la souris, puis extrudées', async ({ page }
   await page.waitForTimeout(450);
 
   // Ellipse : centre (15, 10), grand axe jusqu'à (30, 10), largeur à 6 mm de l'axe.
-  await page.getByRole('button', { name: 'Autres façons de tracer : cercles, arcs et courbes' }).click();
-  await page.click('#sk-menu-ellipse');
+  await clickTool(page, 'sk-ellipse');
   await clickSketch(page, 15, 10);
   await clickSketch(page, 30, 10);
   await moveSketch(page, 16, 16);
@@ -20,8 +19,7 @@ test('ellipse et spline tracées à la souris, puis extrudées', async ({ page }
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'ellipse').length).toBe(1);
 
   // Spline fermée par quatre points, refermée en cliquant le premier.
-  await page.getByRole('button', { name: 'Autres façons de tracer : cercles, arcs et courbes' }).click();
-  await page.click('#sk-menu-spline');
+  await clickTool(page, 'sk-spline');
   for (const [x, y] of [[40, 0], [60, 0], [60, 15], [40, 15]] as const) await clickSketch(page, x, y);
   await moveSketch(page, 40, 0);
   await expect(page.getByText('fermer la courbe', { exact: true })).toBeVisible();

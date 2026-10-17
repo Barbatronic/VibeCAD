@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, openApp } from './helpers';
+import { appState, openApp, clickTool } from './helpers';
 
 const lastFeature = (page: import('@playwright/test').Page) =>
   appState(page, (s) => {
@@ -11,8 +11,7 @@ const lastFeature = (page: import('@playwright/test').Page) =>
 test('générateurs : roue dentée puis poulie GT2 depuis le menu « Forme »', async ({ page }) => {
   await openApp(page);
   const openGenerator = async () => {
-    await page.getByRole('button', { name: /Autres outils : formes et générateurs/ }).click();
-    await page.click('#tool-menu-gear');
+    await clickTool(page, 'tool-gear');
   };
   await openGenerator();
   await expect(page.getByRole('group', { name: 'Pièce à générer' })).toBeVisible();
@@ -41,5 +40,5 @@ test('générateurs : roue dentée puis poulie GT2 depuis le menu « Forme »', 
 test('générateurs : réservés à partir du niveau Intermédiaire', async ({ page }) => {
   await openApp(page, 'http://localhost:5174/?niveau=debutant');
   await expect(page.locator('#tool-primitive')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Autres outils : formes et générateurs/ })).toHaveCount(0);
+  await expect(page.locator('#tool-gear')).toHaveCount(0);
 });

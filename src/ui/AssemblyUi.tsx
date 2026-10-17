@@ -15,6 +15,7 @@ import { Icon } from './icons';
 import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
 import { CouplingList, CouplingPanel } from './CouplingUi';
 import { SubassemblyBar } from './SubassemblyUi';
+import { ToolGroup } from './ToolSectors';
 import { subassemblyContains, subassemblyContent, subassemblyList } from '../domain/subassemblies';
 
 /**
@@ -210,8 +211,11 @@ export function AssemblyTools() {
   );
   return (
     <>
-      <div class="toolbar-group" role="group" aria-label="Assembler">
+      <ToolGroup name="Insérer">
         <InsertMenu />
+        <FastenerMenu />
+      </ToolGroup>
+      <ToolGroup name="Assembler">
         <ToolButton
           id="as-hand"
           icon="hand"
@@ -220,6 +224,21 @@ export function AssemblyTools() {
           pressed={s.hand}
           onClick={() => c.toggleAssemblyHand()}
         />
+        <ToolButton
+          id="as-joint"
+          icon="pivot"
+          label="Liaison"
+          hint="Relier deux pièces : cliquez un repère sur la pièce qui bouge, puis sur la pièce de référence"
+          pressed={s.joint}
+          availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
+          onClick={() => {
+            c.toggleAssemblyHand(false);
+            if (s.joint) c.cancelJoint();
+            else c.startJoint();
+          }}
+        />
+      </ToolGroup>
+      <ToolGroup name="Vérifier">
         <ToolButton
           id="as-collisions"
           icon="collision"
@@ -238,22 +257,8 @@ export function AssemblyTools() {
           availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
           onClick={() => c.setExplode(s.exploded ? 0 : 0.6)}
         />
-        <ToolButton
-          id="as-joint"
-          icon="pivot"
-          label="Liaison"
-          hint="Relier deux pièces : cliquez un repère sur la pièce qui bouge, puis sur la pièce de référence"
-          pressed={s.joint}
-          availability={s.count >= 2 ? { ok: true } : { ok: false, reason: 'Insérez d’abord au moins deux pièces.' }}
-          onClick={() => {
-            c.toggleAssemblyHand(false);
-            if (s.joint) c.cancelJoint();
-            else c.startJoint();
-          }}
-        />
-        <FastenerMenu />
-      </div>
-      <div class="toolbar-group" role="group" aria-label="Édition">
+      </ToolGroup>
+      <ToolGroup name="Modifier">
         <ToolButton
           icon="trash"
           label="Supprimer"
@@ -271,8 +276,8 @@ export function AssemblyTools() {
                     : undefined
           }
         />
-      </div>
-      <div class="toolbar-group" role="group" aria-label="Exporter">
+      </ToolGroup>
+      <ToolGroup name="Exporter">
         <ToolButton
           id="as-export"
           icon="export"
@@ -281,7 +286,7 @@ export function AssemblyTools() {
           availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }}
           onClick={() => c.showExportDialog()}
         />
-      </div>
+      </ToolGroup>
     </>
   );
 }

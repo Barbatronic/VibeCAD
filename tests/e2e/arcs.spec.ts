@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
+import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 test('contour en « D » avec un arc tracé à la souris, puis extrusion au volume exact', async ({ page }) => {
   await openApp(page);
@@ -15,8 +15,7 @@ test('contour en « D » avec un arc tracé à la souris, puis extrusion au volu
   await page.keyboard.press('Escape');
 
   // Arc : centre (30,10), départ sur l'extrémité du segment, on tourne vers le haut.
-  await page.click('#sk-circle + .split-toggle');
-  await page.getByRole('menuitem', { name: /Arc de cercle/ }).click();
+  await clickTool(page, 'sk-arc');
   await expect.poll(async () => (await session(page))?.tool).toBe('arc');
   await clickSketch(page, 30, 10);
   await clickSketch(page, 30, 0);

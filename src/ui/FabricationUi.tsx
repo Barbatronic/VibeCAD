@@ -9,6 +9,7 @@ import { allows } from '../app/levels';
 import { PLA_DENSITY } from '../app/fabrication';
 import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
+import { ToolGroup } from './ToolSectors';
 import { useEffect, useState } from 'preact/hooks';
 import type { LaserItem } from '../domain/model';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
@@ -25,14 +26,14 @@ export function FabricationTools() {
   const docs = useAppState((s) => allows(s.level, 'fabrication:docs'));
   return (
     <>
-      <div class="toolbar-group" role="group" aria-label="Type de fabrication">
+      <ToolGroup name="Fabriquer">
         <ToolButton id="fab-print" icon="print3d" label="Impression 3D" pressed={tab === 'print'} onClick={() => c.setFabricationTab('print')} />
         {laser ? <ToolButton id="fab-laser" icon="laser" label="Découpe laser" pressed={tab === 'laser'} onClick={() => c.setFabricationTab('laser')} /> : null}
         {docs ? (
           <ToolButton id="fab-docs" icon="drawing" label="Documents" hint="Mise en plan cotée, gabarit 1:1, nomenclature" pressed={tab === 'docs'} onClick={() => c.setFabricationTab('docs')} />
         ) : null}
-      </div>
-      <div class="toolbar-group" role="group" aria-label="Exporter">
+      </ToolGroup>
+      <ToolGroup name="Exporter">
         {tab === 'print' ? <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} /> : null}
         {tab === 'laser' ? (
           <>
@@ -47,7 +48,7 @@ export function FabricationTools() {
             <ToolButton id="fab-export-bom" icon="export" label="Nomenclature" hint="Exporter la nomenclature (CSV, pour un tableur)" onClick={() => void c.exportBom()} />
           </>
         ) : null}
-      </div>
+      </ToolGroup>
     </>
   );
 }

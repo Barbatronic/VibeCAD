@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, expectVolume, openApp, PLATE_VOLUME, worldToScreen } from './helpers';
+import { appState, buildPlateViaUi, expectVolume, openApp, PLATE_VOLUME, worldToScreen, clickTool } from './helpers';
 
 test('frise de l’historique : revenir après l’extrusion, y insérer un chanfrein, revenir à la fin', async ({ page }) => {
   await openApp(page);
@@ -20,8 +20,7 @@ test('frise de l’historique : revenir après l’extrusion, y insérer un chan
   const edge = await worldToScreen(page, 30, 0, 5);
   await page.mouse.click(edge.x, edge.y);
   await expect.poll(() => appState(page, (s) => s.selection?.kind)).toBe('edge');
-  await page.getByRole('button', { name: 'Autres outils : arrondis, coques et retouches' }).click();
-  await page.click('#tool-menu-chamfer');
+  await clickTool(page, 'tool-chamfer');
   await page.locator('#draft-size').fill('2');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();

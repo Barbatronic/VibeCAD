@@ -1,13 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session } from './helpers';
+import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session, clickTool } from './helpers';
 
 test('plan de construction : un plan au-dessus de la plaque sert de support à une esquisse, puis de miroir', async ({ page }) => {
   await openApp(page);
   await buildPlateViaUi(page);
 
   // Plan XY décalé de 20 mm.
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-plane');
+  await clickTool(page, 'tool-plane');
   await page.locator('#draft-offset').fill('20');
   await expect(page.locator('.vp-tag-datum', { hasText: 'Plan 1' })).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
@@ -36,8 +35,7 @@ test('plan de construction : un plan au-dessus de la plaque sert de support à u
   expect(await appState(page, (s) => Math.round(s.display[s.doc.parts[0].id].result.analysis.bbox.max.z))).toBe(22);
 
   // Symétrie par rapport au plan : le bloc se retrouve aussi sous la plaque (z de 18 à 20 → 20 à 22 reflétés en 18 à 20).
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-mirror');
+  await clickTool(page, 'tool-mirror');
   await page.getByRole('button', { name: 'Plan…' }).click();
   await expect(page.locator('#draft-datum')).toHaveValue(await appState(page, (s) => s.doc.parts[0].features.find((f: any) => f.type === 'plane').id));
   await expect.poll(() => appState(page, (s) => Math.round(s.preview?.parts[s.doc.parts[0].id]?.analysis?.bbox?.max.z ?? 0))).toBe(40);
@@ -51,16 +49,14 @@ test('axe de construction : le trou refait en cercle autour d’un axe vertical 
   await openApp(page);
   await buildPlateViaUi(page);
 
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-axis');
+  await clickTool(page, 'tool-axis');
   await page.locator('#draft-pos-x').fill('30');
   await page.locator('#draft-pos-y').fill('15');
   await expect(page.locator('.vp-tag-datum', { hasText: 'Axe 1' })).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('selon Z, par (30 ; 15 ; 0 mm)');
 
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-pattern');
+  await clickTool(page, 'tool-pattern');
   await page.getByRole('button', { name: 'En cercle' }).click();
   await page.getByRole('button', { name: 'Axe…' }).click();
   await page.locator('#draft-count').fill('2');

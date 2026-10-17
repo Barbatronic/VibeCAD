@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session, worldToScreen } from './helpers';
+import { buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session, worldToScreen, clickTool } from './helpers';
 
 test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arête reprise, construction', async ({ page }) => {
   await openApp(page);
@@ -52,16 +52,9 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   await editor.getByLabel('Valeur de l’angle en degrés').press('Enter');
   await expect.poll(async () => (await session(page))?.sketch.constraints.some((c: any) => c.type === 'angle' && c.value === 30)).toBe(true);
 
-  // Menu « Autres » : toutes les contraintes, y compris celles de la barre (coïncidence…).
-  await expect(page.locator('#sk-more-constraints')).toContainText('Autres');
-  await page.click('#sk-more-constraints');
-  const menu = page.getByRole('menu', { name: 'Toutes les contraintes' });
-  await expect(menu).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: /Coïncidence/ })).toBeVisible();
-  await expect(menu.getByRole('menuitem')).toHaveCount(12);
-  await page.screenshot({ path: 'tests/output/e2e-menu-contraintes.png' });
-  await page.getByRole('menuitem', { name: /Parallèle/ }).click();
-  await expect(page.locator('#sk-more-constraints')).toHaveAttribute('aria-pressed', 'true');
+  // Contraintes moins courantes : sorties sur grand écran, sinon dans le menu du secteur.
+  await clickTool(page, 'sk-parallel');
+  await expect.poll(async () => (await session(page))?.tool).toBe('parallel');
   await page.keyboard.press('Escape');
 
   // Extrusion : seul le disque Ø 10 compte (le segment de construction et les arêtes reprises non).

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { exportAvailability, measureAvailability, sketchAvailability, toolAvailability, toolFeatureTypes, type Availability } from '../app/availability';
+import { exportAvailability, measureAvailability, sketchAvailability, toolAvailability, toolFeatureTypes } from '../app/availability';
 import { FEATURE_DEFINITIONS } from '../features/registry';
 import { allows } from '../app/levels';
 import type { FeatureType } from '../domain/model';
@@ -22,6 +22,7 @@ import { Icon } from './icons';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
 import { FabricationTools } from './FabricationUi';
 import { SimulationTools } from './SimulationUi';
+import { Sector, type SectorTool } from './ToolSectors';
 
 function FileMenu() {
   const c = useController();
@@ -155,6 +156,18 @@ function UndoRedo() {
   );
 }
 
+/**
+ * Secteurs de l'onglet Pièces. `main` : outils qui restent sortis quand le secteur se regroupe ;
+ * `fold` : ordre de regroupement quand la place manque (le plus petit d'abord).
+ */
+const PART_SECTORS: { name: string; title: string; fold: number; types: FeatureType[]; main: FeatureType[] }[] = [
+  { name: 'Esquisse', title: 'esquisse, plans et axes de construction', fold: 3, types: ['plane', 'axis'], main: [] },
+  { name: 'Ajouter', title: 'ajouter de la matière', fold: 5, types: ['extrude', 'revolve', 'loft', 'sweep', 'thicken', 'primitive', 'gear'], main: ['extrude', 'primitive'] },
+  { name: 'Enlever', title: 'enlever de la matière', fold: 4, types: ['pocket', 'hole', 'split'], main: ['pocket', 'hole'] },
+  { name: 'Modifier', title: 'arrondis, chanfreins, coques et dépouilles', fold: 2, types: ['fillet', 'chamfer', 'shell', 'draft'], main: ['fillet', 'chamfer'] },
+  { name: 'Répéter', title: 'répétitions, symétries et déplacements', fold: 1, types: ['pattern', 'mirror', 'move'], main: ['pattern', 'mirror'] },
+];
+
 function ModelTools() {
   const c = useController();
   const level = useAppState((s) => s.level);
@@ -169,262 +182,95 @@ function ModelTools() {
     }),
     (x, y) => JSON.stringify(x) === JSON.stringify(y),
   );
+  const tool = (t: FeatureType, main: boolean): SectorTool => {
+    const def = FEATURE_DEFINITIONS[t];
+    const availability = a.tools[types.indexOf(t)]!;
+    return {
+      key: t,
+      id: `tool-${t}`,
+      menuId: `tool-menu-${t}`,
+      icon: def.icon,
+      label: def.label,
+      hint: def.explanation,
+      availability,
+      suggested: t === types[0] && a.selectedSketch && availability.ok,
+      main,
+      onClick: () => c.startFeature(t),
+    };
+  };
+  // Un outil absent des secteurs (fonction ajoutée depuis) va dans « Modifier ».
+  const placed = new Set(PART_SECTORS.flatMap((s) => s.types));
+  const sectors = PART_SECTORS.map((s) => ({
+    ...s,
+    types: [...s.types, ...(s.name === 'Modifier' ? types.filter((t) => t !== 'sketch' && !placed.has(t)) : [])].filter((t) => types.includes(t)),
+  }));
+  const sketch: SectorTool = {
+    key: 'sketch',
+    id: 'tool-sketch',
+    menuId: 'tool-menu-sketch',
+    icon: 'sketch',
+    label: 'Esquisse',
+    hint: a.planarFace ? 'Nouvelle esquisse sur la face sélectionnée' : 'Nouvelle esquisse : choisir un plan puis dessiner',
+    availability: a.sketch,
+    main: true,
+    onClick: () => c.startSketch(),
+  };
   return (
     <>
-      <div class="toolbar-group" role="group" aria-label="Créer">
-        <ToolButton
-          id="tool-sketch"
-          icon="sketch"
-          label="Esquisse"
-          hint={a.planarFace ? 'Nouvelle esquisse sur la face sélectionnée' : 'Nouvelle esquisse : choisir un plan puis dessiner'}
-          availability={a.sketch}
-          onClick={() => c.startSketch()}
-        />
-        {types.map((t, i) => {
-          const def = FEATURE_DEFINITIONS[t];
-          const group = FEATURE_GROUPS.find((g) => g.types.includes(t));
-          if (group) {
-            // Un seul bouton par groupe, à la place du premier de ses membres.
-            if (types.find((x) => group.types.includes(x)) !== t) return null;
-            // Dans l'ordre du groupe : le premier outil est celui montré par défaut.
-            const members = group.types.flatMap((x) => {
-              const k = types.indexOf(x);
-              return k >= 0 ? [{ type: x, availability: a.tools[k]! }] : [];
-            });
-            return <FeatureSplit key={group.name} name={group.name} members={members} />;
-          }
-          return (
-            <ToolButton
-              key={t}
-              id={`tool-${t}`}
-              icon={def.icon}
-              label={def.label}
-              hint={def.explanation}
-              availability={a.tools[i]}
-              suggested={i === 0 && a.selectedSketch && a.tools[i]!.ok}
-              onClick={() => c.startFeature(t)}
-            />
-          );
-        })}
-      </div>
-      <div class="toolbar-group secondary" role="group" aria-label="Outils">
-        <ToolButton id="tool-measure" icon="measure" label="Mesurer" hint="Mesurer une arête, une face ou une distance" availability={a.measure} onClick={() => c.startMeasure()} />
+      {sectors.map((s) => (
+        <Sector key={s.name} name={s.name} title={s.title} fold={s.fold} tools={[...(s.name === 'Esquisse' ? [sketch] : []), ...s.types.map((t) => tool(t, s.main.includes(t)))]} />
+      ))}
+      <div class="toolbar-group secondary" role="group" aria-label="Mesurer">
+        <div class="sector-tools">
+          <ToolButton id="tool-measure" icon="measure" label="Mesurer" hint="Mesurer une arête, une face ou une distance" availability={a.measure} onClick={() => c.startMeasure()} />
+        </div>
+        <div class="sector-name" aria-hidden="true">
+          Contrôler
+        </div>
       </div>
     </>
   );
 }
 
-const SKETCH_TOOLS: { tool: SketchTool; icon: string; key?: string }[] = [
-  { tool: 'select', icon: 'select', key: 'Échap' },
-  { tool: 'point', icon: 'point' },
-  { tool: 'line', icon: 'line', key: 'L' },
-];
-
-type ToolVariant = { tool: SketchTool; icon: string; key: string; label: string };
-
-/** Variantes regroupées sous un même bouton (le bouton garde la dernière variante choisie). */
-const RECTANGLE_VARIANTS: ToolVariant[] = [
-  { tool: 'rectangle', icon: 'rectangle', key: 'R', label: 'Rectangle par deux coins' },
-  { tool: 'centerRectangle', icon: 'center-rectangle', key: 'Maj+R', label: 'Rectangle par le centre' },
-  { tool: 'polygon', icon: 'polygon', key: '', label: 'Polygone régulier (centre et sommet)' },
-];
-const CIRCLE_VARIANTS: ToolVariant[] = [
-  { tool: 'circle', icon: 'circle', key: 'C', label: 'Cercle (centre et bord)' },
-  { tool: 'arc', icon: 'arc', key: 'A', label: 'Arc de cercle (centre, départ, arrivée)' },
-  { tool: 'slot', icon: 'slot', key: '', label: 'Oblong (rainure arrondie aux deux bouts)' },
-  { tool: 'ellipse', icon: 'ellipse', key: '', label: 'Ellipse (centre, grand axe, largeur)' },
-  { tool: 'spline', icon: 'spline', key: '', label: 'Spline (courbe lisse passant par des points)' },
-];
-
-const EDIT_VARIANTS: ToolVariant[] = [
-  { tool: 'trim', icon: 'trim', key: 'T', label: 'Couper (retirer un morceau de trait)' },
-  { tool: 'offset', icon: 'offset', key: '', label: 'Décalage (recopier un contour à distance)' },
-];
-
-/** Fonctions voisines regroupées sous un bouton à menu (la barre reste sur une ligne). */
-const FEATURE_GROUPS: { name: string; types: FeatureType[] }[] = [
-  { name: 'poches et perçages (trous de vis)', types: ['pocket', 'hole'] },
-  { name: 'formes et générateurs (engrenages, poulies)', types: ['primitive', 'gear'] },
-  { name: 'révolutions, lissages et balayages', types: ['revolve', 'loft', 'sweep'] },
-  { name: 'arrondis, coques et retouches', types: ['fillet', 'chamfer', 'shell', 'draft', 'thicken'] },
-  { name: 'répétitions, symétries, découpes, déplacements, plans et axes de construction', types: ['pattern', 'mirror', 'split', 'move', 'plane', 'axis'] },
-];
-
-/** Bouton d'une fonction du groupe (la dernière utilisée) et menu des autres. */
-function FeatureSplit({ name, members }: { name: string; members: { type: FeatureType; availability: Availability }[] }) {
-  const c = useController();
-  const [open, setOpen] = useState(false);
-  const [last, setLast] = useState(members[0]!.type);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey, true);
-    root.current?.querySelector<HTMLButtonElement>('.menu-item')?.focus();
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [open]);
-  const shown = members.find((m) => m.type === last) ?? members[0]!;
-  const def = FEATURE_DEFINITIONS[shown.type];
-  if (members.length === 1) {
-    return <ToolButton id={`tool-${shown.type}`} icon={def.icon} label={def.label} hint={def.explanation} availability={shown.availability} onClick={() => c.startFeature(shown.type)} />;
-  }
-  return (
-    <div class="anchor tool-split" ref={root}>
-      <ToolButton id={`tool-${shown.type}`} icon={def.icon} label={def.label} hint={def.explanation} availability={shown.availability} onClick={() => c.startFeature(shown.type)} />
-      <button type="button" class="split-toggle" aria-haspopup="menu" aria-expanded={open} aria-label={`Autres outils : ${name}`} title={`Autres outils : ${name}`} onClick={() => setOpen(!open)}>
-        <Icon name="chevron-down" />
-      </button>
-      {open ? (
-        <div class="menu menu-wide" role="menu" aria-label={name}>
-          {members.map((m) => {
-            const d = FEATURE_DEFINITIONS[m.type];
-            return (
-              <button
-                key={m.type}
-                type="button"
-                role="menuitem"
-                id={`tool-menu-${m.type}`}
-                class="menu-item"
-                aria-disabled={m.availability.ok ? undefined : 'true'}
-                title={m.availability.ok ? d.explanation : m.availability.reason}
-                onClick={() => {
-                  setOpen(false);
-                  setLast(m.type);
-                  c.startFeature(m.type);
-                }}
-              >
-                <Icon name={d.icon} />
-                <span class="menu-text">
-                  <strong>{d.label}</strong>
-                  <span class="desc">{m.availability.ok ? d.explanation : m.availability.reason}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ToolVariants({ variants: all, tool, name, menuLabel = 'Autres façons de tracer' }: { variants: ToolVariant[]; tool: SketchTool; name: string; menuLabel?: string }) {
-  const c = useController();
-  const level = useAppState((s) => s.level);
-  const variants = all.filter((v) => allows(level, `sketch:${v.tool}`));
-  const [open, setOpen] = useState(false);
-  const [last, setLast] = useState(variants[0]?.tool ?? all[0]!.tool);
-  const root = useRef<HTMLDivElement>(null);
-  const activeVariant = variants.find((v) => v.tool === tool);
-  useEffect(() => {
-    if (activeVariant) setLast(activeVariant.tool);
-  }, [activeVariant?.tool]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey, true);
-    root.current?.querySelector<HTMLButtonElement>('.menu-item')?.focus();
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [open]);
-  if (variants.length === 0) return null;
-  if (variants.length === 1) {
-    const v = variants[0]!;
-    return (
-      <ToolButton id={`sk-${v.tool}`} icon={v.icon} label={TOOL_LABELS[v.tool]} shortcut={v.key} pressed={tool === v.tool} onClick={() => c.updateSession((x) => setTool(x, v.tool))} />
-    );
-  }
-  const shown = activeVariant ?? variants.find((v) => v.tool === last) ?? variants[0]!;
-  return (
-    <div class="anchor tool-split" ref={root}>
-      <ToolButton
-        id={`sk-${shown.tool}`}
-        icon={shown.icon}
-        label={TOOL_LABELS[shown.tool]}
-        shortcut={shown.key}
-        pressed={!!activeVariant}
-        onClick={() => c.updateSession((x) => setTool(x, shown.tool))}
-      />
-      <button
-        type="button"
-        class="split-toggle"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`${menuLabel} : ${name}`}
-        title={`${menuLabel} : ${name}`}
-        onClick={() => setOpen(!open)}
-      >
-        <Icon name="chevron-down" />
-      </button>
-      {open ? (
-        <div class="menu menu-wide" role="menu" aria-label={name}>
-          {variants.map((v) => (
-            <button
-              key={v.tool}
-              type="button"
-              role="menuitem"
-              id={`sk-menu-${v.tool}`}
-              class="menu-item"
-              aria-current={v.tool === tool ? 'true' : undefined}
-              onClick={() => {
-                setOpen(false);
-                setLast(v.tool);
-                c.updateSession((x) => setTool(x, v.tool));
-              }}
-            >
-              <Icon name={v.icon} />
-              <span class="menu-text">
-                <strong>{v.label}</strong>
-                <span class="desc">{shortHelp(v.tool)}</span>
-              </span>
-              <span class="shortcut">{v.key}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-const MAIN_CONSTRAINT_TOOLS: { tool: SketchTool; icon: string; key?: string }[] = [
-  { tool: 'dimension', icon: 'dimension', key: 'D' },
-  { tool: 'coincident', icon: 'coincident', key: 'O' },
-  { tool: 'horizontal', icon: 'horizontal', key: 'H' },
-  { tool: 'vertical', icon: 'vertical', key: 'V' },
-];
-
-/** Contraintes moins fréquentes, regroupées dans le menu « Contraintes ». */
-const MORE_CONSTRAINTS: { tool: SketchTool; icon: string }[] = [
-  { tool: 'parallel', icon: 'parallel' },
-  { tool: 'perpendicular', icon: 'perpendicular' },
-  { tool: 'equal', icon: 'equal' },
-  { tool: 'collinear', icon: 'collinear' },
-  { tool: 'tangent', icon: 'tangent' },
-  { tool: 'pointOn', icon: 'point-on' },
-  { tool: 'midpoint', icon: 'midpoint' },
-  { tool: 'concentric', icon: 'concentric' },
+/** Outils de l'esquisse, par secteur (`main` : restent sortis quand le secteur se regroupe). */
+const SKETCH_SECTORS: { name: string; title: string; fold: number; tools: { tool: SketchTool; icon: string; key?: string; main?: boolean }[] }[] = [
+  {
+    name: 'Dessiner',
+    title: 'tracer des points, traits, rectangles, cercles et courbes',
+    fold: 3,
+    tools: [
+      { tool: 'select', icon: 'select', key: 'Échap', main: true },
+      { tool: 'point', icon: 'point' },
+      { tool: 'line', icon: 'line', key: 'L', main: true },
+      { tool: 'rectangle', icon: 'rectangle', key: 'R', main: true },
+      { tool: 'centerRectangle', icon: 'center-rectangle', key: 'Maj+R' },
+      { tool: 'polygon', icon: 'polygon' },
+      { tool: 'circle', icon: 'circle', key: 'C', main: true },
+      { tool: 'arc', icon: 'arc', key: 'A' },
+      { tool: 'slot', icon: 'slot' },
+      { tool: 'ellipse', icon: 'ellipse' },
+      { tool: 'spline', icon: 'spline' },
+    ],
+  },
+  {
+    name: 'Contraindre',
+    title: 'cotes et contraintes',
+    fold: 1,
+    tools: [
+      { tool: 'dimension', icon: 'dimension', key: 'D', main: true },
+      { tool: 'coincident', icon: 'coincident', key: 'O', main: true },
+      { tool: 'horizontal', icon: 'horizontal', key: 'H', main: true },
+      { tool: 'vertical', icon: 'vertical', key: 'V', main: true },
+      { tool: 'parallel', icon: 'parallel' },
+      { tool: 'perpendicular', icon: 'perpendicular' },
+      { tool: 'equal', icon: 'equal' },
+      { tool: 'collinear', icon: 'collinear' },
+      { tool: 'tangent', icon: 'tangent' },
+      { tool: 'pointOn', icon: 'point-on' },
+      { tool: 'midpoint', icon: 'midpoint' },
+      { tool: 'concentric', icon: 'concentric' },
+    ],
+  },
 ];
 
 /** Aide courte d'un outil (la partie après « Nom : »). */
@@ -432,93 +278,6 @@ const shortHelp = (tool: SketchTool) => {
   const text = TOOL_HELP[tool].split(' : ').slice(1).join(' : ');
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
-
-function ConstraintMenu({ tool }: { tool: SketchTool }) {
-  const c = useController();
-  const level = useAppState((s) => s.level);
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey, true);
-    root.current?.querySelector<HTMLButtonElement>('.menu-item')?.focus();
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [open]);
-  const active = MORE_CONSTRAINTS.find((t) => t.tool === tool);
-  const item = (t: { tool: SketchTool; icon: string; key?: string }, id: string) => (
-    <button
-      key={id}
-      type="button"
-      role="menuitem"
-      id={id}
-      class="menu-item"
-      aria-current={t.tool === tool ? 'true' : undefined}
-      onClick={() => {
-        setOpen(false);
-        c.updateSession((x) => setTool(x, t.tool));
-      }}
-    >
-      <Icon name={t.icon} />
-      <span class="menu-text">
-        <strong>{TOOL_LABELS[t.tool]}</strong>
-        <span class="desc">{shortHelp(t.tool)}</span>
-      </span>
-      {t.key ? <span class="shortcut">{t.key}</span> : null}
-    </button>
-  );
-  const onMenuKey = (e: KeyboardEvent) => {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    const items = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('.menu-item') ?? []);
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
-  };
-  return (
-    <div class="anchor" ref={root}>
-      <button
-        type="button"
-        id="sk-more-constraints"
-        class="tool-btn"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-pressed={!!active}
-        title="Toutes les contraintes : celles de la barre (cote, coïncidence, horizontal, vertical) et les autres (parallèle, perpendiculaire, égalité, colinéaire, tangence, point sur, milieu, concentrique)"
-        onClick={() => setOpen(!open)}
-      >
-        <Icon name={active?.icon ?? 'constraints'} />
-        <span>
-          {active ? TOOL_LABELS[active.tool] : 'Autres'} <span aria-hidden="true">▾</span>
-        </span>
-      </button>
-      {open ? (
-        <div class="menu menu-wide menu-end" role="menu" aria-label="Toutes les contraintes" onKeyDown={onMenuKey}>
-          {/* Les contraintes de la barre sont reprises ici : on les trouve aussi en cherchant dans le menu. */}
-          <div class="menu-section" role="presentation">
-            Aussi dans la barre
-          </div>
-          {MAIN_CONSTRAINT_TOOLS.map((t) => item(t, `sk-menu-${t.tool}`))}
-          <div class="menu-section" role="presentation">
-            Autres contraintes
-          </div>
-          {MORE_CONSTRAINTS.filter((t) => allows(level, `sketch:${t.tool}`)).map((t) => item(t, `sk-${t.tool}`))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 function SketchTools() {
   const c = useController();
@@ -536,61 +295,63 @@ function SketchTools() {
     (x, y) => JSON.stringify(x) === JSON.stringify(y),
   );
   if (!s) return null;
-  const btn = (t: { tool: SketchTool; icon: string; key?: string }) => (
-    <ToolButton
-      key={t.tool}
-      id={`sk-${t.tool}`}
-      icon={t.icon}
-      label={TOOL_LABELS[t.tool]}
-      {...(t.key ? { shortcut: t.key } : {})}
-      pressed={s.tool === t.tool}
-      onClick={() => c.updateSession((x) => setTool(x, t.tool))}
-    />
-  );
+  const sketchTool = (t: { tool: SketchTool; icon: string; key?: string; main?: boolean }): SectorTool => ({
+    key: t.tool,
+    id: `sk-${t.tool}`,
+    menuId: `sk-menu-${t.tool}`,
+    icon: t.icon,
+    label: TOOL_LABELS[t.tool],
+    hint: TOOL_HELP[t.tool],
+    desc: shortHelp(t.tool),
+    ...(t.key ? { shortcut: t.key } : {}),
+    pressed: s.tool === t.tool,
+    main: !!t.main,
+    onClick: () => c.updateSession((x) => setTool(x, t.tool)),
+  });
+  const edit = ([
+    { ...sketchTool({ tool: 'trim', icon: 'trim', key: 'T', main: true }) },
+    { ...sketchTool({ tool: 'offset', icon: 'offset' }) },
+    ...(allows(level, 'sketch-construction')
+      ? [
+          {
+            key: 'construction',
+            id: 'sk-construction',
+            menuId: 'sk-menu-construction',
+            icon: 'construction',
+            label: 'Construction',
+            shortcut: 'G',
+            hint: 'Traits de construction (pointillés) : des repères pour coter, ignorés pour le volume. Avec des éléments sélectionnés : les convertit.',
+            pressed: s.construction,
+            main: true,
+            onClick: () => c.updateSession(toggleConstruction),
+          },
+        ]
+      : []),
+    {
+      ...sketchTool({ tool: 'project', icon: 'project', key: 'P' }),
+      hint: 'Reprendre une arête de la pièce (bord, trou…) dans l’esquisse comme repère',
+      desc: 'Reprendre une arête de la pièce dans l’esquisse comme repère',
+      availability: s.canProject ? { ok: true } : { ok: false, reason: 'Aucune arête de la pièce à reprendre : il faut un volume construit avant cette esquisse.' },
+    },
+    {
+      key: 'delete',
+      id: 'sk-delete',
+      menuId: 'sk-menu-delete',
+      icon: 'trash',
+      label: 'Supprimer',
+      shortcut: 'Suppr',
+      hint: 'Supprimer les éléments sélectionnés',
+      availability: s.selection ? { ok: true } : { ok: false, reason: 'Sélectionnez d’abord un élément ou une cote (outil Sélection).' },
+      main: true,
+      onClick: () => c.updateSession(deleteSelection),
+    },
+  ] as SectorTool[]).filter((t) => t.key === 'construction' || t.key === 'delete' || allows(level, `sketch:${t.key as SketchTool}`));
   return (
     <>
-      <div class="toolbar-group" role="group" aria-label="Dessiner">
-        {SKETCH_TOOLS.map(btn)}
-        <ToolVariants variants={RECTANGLE_VARIANTS} tool={s.tool} name="rectangles" />
-        <ToolVariants variants={CIRCLE_VARIANTS} tool={s.tool} name="cercles, arcs et courbes" />
-        <ToolVariants variants={EDIT_VARIANTS} tool={s.tool} name="couper et décaler" menuLabel="Autres outils" />
-        {allows(level, 'sketch-construction') ? (
-          <ToolButton
-            id="sk-construction"
-            icon="construction"
-            label="Construction"
-            shortcut="G"
-            hint="Traits de construction (pointillés) : des repères pour coter, ignorés pour le volume. Avec des éléments sélectionnés : les convertit."
-            pressed={s.construction}
-            onClick={() => c.updateSession(toggleConstruction)}
-          />
-        ) : null}
-        {allows(level, 'sketch:project') ? (
-          <ToolButton
-            id="sk-project"
-            icon="project"
-            label="Projeter"
-            shortcut="P"
-            hint="Reprendre une arête de la pièce (bord, trou…) dans l’esquisse comme repère"
-            pressed={s.tool === 'project'}
-            availability={s.canProject ? { ok: true } : { ok: false, reason: 'Aucune arête de la pièce à reprendre : il faut un volume construit avant cette esquisse.' }}
-            onClick={() => c.updateSession((x) => setTool(x, 'project'))}
-          />
-        ) : null}
-      </div>
-      <div class="toolbar-group" role="group" aria-label="Coter et contraindre">
-        {MAIN_CONSTRAINT_TOOLS.map(btn)}
-        {MORE_CONSTRAINTS.some((t) => allows(level, `sketch:${t.tool}`)) ? <ConstraintMenu tool={s.tool} /> : null}
-      </div>
-      <div class="toolbar-group" role="group" aria-label="Édition">
-        <ToolButton
-          icon="trash"
-          label="Supprimer"
-          shortcut="Suppr"
-          availability={s.selection ? { ok: true } : { ok: false, reason: 'Sélectionnez d’abord un élément ou une cote (outil Sélection).' }}
-          onClick={() => c.updateSession(deleteSelection)}
-        />
-      </div>
+      {SKETCH_SECTORS.map((sec) => (
+        <Sector key={sec.name} name={sec.name} title={sec.title} fold={sec.fold} tools={sec.tools.filter((t) => allows(level, `sketch:${t.tool}`)).map(sketchTool)} />
+      ))}
+      <Sector name="Modifier" title="couper, décaler, construction, projeter et supprimer" fold={2} tools={edit} />
     </>
   );
 }
@@ -598,8 +359,10 @@ function SketchTools() {
 /**
  * Compactage automatique de la barre (voir app.css, « Barre d'outils : compactage automatique ») :
  * la barre est mesurée à chaque changement de taille ou de contenu ; tant qu'elle déborde, on
- * passe au palier suivant ; en dernier recours, les derniers groupes d'outils vont dans le tiroir
- * « Plus ». Les mesures modifient directement les attributs (pas d'état Preact : pas de boucle).
+ * passe à l'étape suivante : Annuler et Rétablir en icônes, puis les secteurs se regroupent un à
+ * un (outils secondaires dans leur menu), puis se replient un à un en un bouton, puis les outils
+ * passent en icônes seules (les noms restent tant que possible) ; en dernier recours, les derniers groupes vont dans le tiroir « Plus ».
+ * Les mesures modifient directement les attributs (pas d'état Preact : pas de boucle).
  */
 function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTMLElement | null }, expanded: boolean) {
   useLayoutEffect(() => {
@@ -612,12 +375,21 @@ function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTM
       cancelAnimationFrame(frame);
       frame = 0;
       const groups = Array.from(tools.querySelectorAll<HTMLElement>(':scope > .toolbar-group'));
-      groups.forEach((g) => g.classList.remove('is-overflow'));
+      groups.forEach((g) => g.classList.remove('is-overflow', 'is-grouped', 'is-folded'));
       delete el.dataset.overflow;
       delete el.dataset.compact;
       if (!overflowing()) return;
-      for (const level of ['1', '2', '3', '4']) {
-        el.dataset.compact = level;
+      const sectors = groups.filter((g) => g.dataset.fold).sort((x, y) => Number(x.dataset.fold) - Number(y.dataset.fold));
+      const steps: (() => void)[] = [
+        () => (el.dataset.compact = '1'),
+        ...sectors.filter((g) => g.querySelector('.sector-extra')).map((g) => () => g.classList.add('is-grouped')),
+        ...sectors.filter((g) => g.querySelector('.sector-split')).map((g) => () => g.classList.add('is-folded')),
+        () => (el.dataset.compact = '2'),
+        () => (el.dataset.compact = '3'),
+        () => (el.dataset.compact = '4'),
+      ];
+      for (const step of steps) {
+        step();
         if (!overflowing()) return;
       }
       // Toujours trop large : les derniers groupes passent dans le tiroir « Plus » (le premier reste).

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { appState, expectVolume, openApp } from './helpers';
+import { appState, expectVolume, openApp, clickTool } from './helpers';
 
 async function partPointOnScreen(page: Page, p: { x: number; y: number; z: number }) {
   const box = (await page.locator('.vp-canvas').boundingBox())!;
@@ -26,8 +26,7 @@ test('dépouille : deux côtés d’une boîte inclinés d’un clic, puis plan 
   await page.evaluate(() => (window as any).vibecad.controller.fitAll());
   await page.waitForTimeout(700);
 
-  await page.getByRole('button', { name: 'Autres outils : arrondis, coques et retouches' }).click();
-  await page.click('#tool-menu-draft');
+  await clickTool(page, 'tool-draft');
   await expect(page.locator('#draft-angle')).toHaveValue('5');
   await expect(page.getByText(/Cliquez dans la vue 3D les faces à incliner/)).toBeVisible();
   for (const p of [{ x: 10, y: 0, z: 10 }, { x: 20, y: 10, z: 10 }]) {

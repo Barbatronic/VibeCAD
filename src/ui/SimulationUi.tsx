@@ -9,6 +9,7 @@ import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
 import { exaggerationFor } from '../sim/study';
 import { useAppState, useController } from './context';
+import { ToolGroup } from './ToolSectors';
 import { Button, Callout, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
@@ -21,11 +22,15 @@ export function SimulationTools() {
   const picking = useAppState((s) => (s.mode.kind === 'pick-sim-face' ? s.mode.role : null));
   const running = useAppState((s) => s.simulationRun?.status === 'running');
   return (
-    <div class="toolbar-group" role="group" aria-label="Simulation">
-      <ToolButton id="sim-pick-fixed" icon="anchor" label="Faces fixées" hint="Cliquer les faces où la pièce est tenue" pressed={picking === 'fixed'} onClick={() => c.pickSimulationFaces('fixed')} />
-      <ToolButton id="sim-pick-load" icon="load" label="Charge" hint="Cliquer les faces où appuie la charge" pressed={picking === 'load'} onClick={() => c.pickSimulationFaces('load')} />
-      <ToolButton id="sim-run" icon="simulate" label="Calculer" hint="Calculer la déformation de la pièce" pressed={running} onClick={() => void c.runSimulation()} />
-    </div>
+    <>
+      <ToolGroup name="Préparer">
+        <ToolButton id="sim-pick-fixed" icon="anchor" label="Faces fixées" hint="Cliquer les faces où la pièce est tenue" pressed={picking === 'fixed'} onClick={() => c.pickSimulationFaces('fixed')} />
+        <ToolButton id="sim-pick-load" icon="load" label="Charge" hint="Cliquer les faces où appuie la charge" pressed={picking === 'load'} onClick={() => c.pickSimulationFaces('load')} />
+      </ToolGroup>
+      <ToolGroup name="Résultat">
+        <ToolButton id="sim-run" icon="simulate" label="Calculer" hint="Calculer la déformation de la pièce" pressed={running} onClick={() => void c.runSimulation()} />
+      </ToolGroup>
+    </>
   );
 }
 

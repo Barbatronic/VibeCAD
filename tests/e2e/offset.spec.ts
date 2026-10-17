@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
+import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 test('décalage : un rectangle recopié 3 mm à l’extérieur à la souris, puis le cadre extrudé', async ({ page }) => {
   await openApp(page);
@@ -17,8 +17,7 @@ test('décalage : un rectangle recopié 3 mm à l’extérieur à la souris, pui
 
   // Outil Décalage (menu de « Couper ») : clic sur le bord du haut, puis la souris 3 mm plus haut
   // (loin du champ de saisie, en bas de la vue).
-  await page.getByRole('button', { name: 'Autres outils : couper et décaler' }).click();
-  await page.click('#sk-menu-offset');
+  await clickTool(page, 'sk-offset');
   await expect.poll(async () => (await session(page))?.tool).toBe('offset');
   await clickSketch(page, 20, 20);
   await expect.poll(async () => (await session(page))?.picks.length).toBe(1);

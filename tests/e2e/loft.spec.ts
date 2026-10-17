@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, expectVolume, openApp } from './helpers';
+import { appState, expectVolume, openApp, clickTool } from './helpers';
 
 test('lissage : deux carrés reliés en tronc de pyramide, choisis dans le panneau', async ({ page }) => {
   await openApp(page);
@@ -22,8 +22,7 @@ test('lissage : deux carrés reliés en tronc de pyramide, choisis dans le panne
     }
     c.commit(doc, 'Deux esquisses');
   });
-  await page.getByRole('button', { name: 'Autres outils : révolutions, lissages et balayages' }).click();
-  await page.click('#tool-menu-loft');
+  await clickTool(page, 'tool-loft');
   await expect(page.getByRole('checkbox', { name: /Esquisse 1/ })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: /Esquisse 2/ })).toBeChecked();
   await page.getByRole('checkbox', { name: /Raccords droits/ }).check();

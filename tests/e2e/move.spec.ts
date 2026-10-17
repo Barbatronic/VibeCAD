@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, expectVolume, openApp } from './helpers';
+import { appState, expectVolume, openApp, clickTool } from './helpers';
 
 const bbox = (page: import('@playwright/test').Page) => appState(page, (s) => s.display[s.doc.parts[0].id]?.result.analysis?.bbox);
 
@@ -12,8 +12,7 @@ test('déplacer : décaler puis faire pivoter la pièce d’un quart de tour', a
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, 8000 * 2);
 
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-move');
+  await clickTool(page, 'tool-move');
   await page.locator('#draft-tx').fill('5');
   await page.getByRole('button', { name: 'Axe Z' }).click();
   await page.locator('#draft-angle').fill('90');

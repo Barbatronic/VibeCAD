@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, expectVolume, openApp } from './helpers';
+import { appState, buildPlateViaUi, expectVolume, openApp, clickTool } from './helpers';
 
 const PLATE = 9000 - Math.PI * 9 * 5;
 
@@ -8,8 +8,7 @@ test('symétrie : reflet de toute la pièce par rapport à YZ, puis à XY', asyn
   await buildPlateViaUi(page);
   await expectVolume(page, PLATE);
 
-  await page.getByRole('button', { name: /Autres outils : répétitions, symétries/ }).click();
-  await page.click('#tool-menu-mirror');
+  await clickTool(page, 'tool-mirror');
   await expect(page.getByRole('group', { name: 'Copier' }).getByRole('button', { name: 'Toute la pièce' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();

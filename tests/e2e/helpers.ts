@@ -149,6 +149,17 @@ export async function buildPlateViaUi(page: Page): Promise<void> {
   await expectVolume(page, PLATE_VOLUME);
 }
 
+/**
+ * Clique un outil de la barre (`tool-…` ou `sk-…`), qu'il soit sorti ou rangé dans le menu de son
+ * secteur quand la barre manque de place.
+ */
+export async function clickTool(page: Page, id: string): Promise<void> {
+  const button = page.locator(`#${id}`);
+  if (await button.isVisible()) return button.click();
+  await page.locator('.sector', { has: button }).locator('.split-toggle').click();
+  await page.click(`#${id.replace(/^(tool|sk)-/, '$1-menu-')}`);
+}
+
 export async function openFileMenu(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Fichier' }).click();
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { buildPlateViaUi, openApp } from './helpers';
+import { buildPlateViaUi, clickTool, openApp } from './helpers';
 
 /** La barre tient sur une ligne, sans rien qui dépasse. */
 const fits = (page: Page) =>
@@ -26,7 +26,7 @@ for (const width of [1850, 1440, 1280]) {
 }
 
 test('barre d’outils : écran étroit, les derniers outils passent dans le tiroir « Plus », qui fonctionne', async ({ page }) => {
-  await page.setViewportSize({ width: 420, height: 800 });
+  await page.setViewportSize({ width: 360, height: 800 });
   await openApp(page);
   await expect.poll(async () => (await fits(page)).fits).toBe(true);
   expect(await fits(page)).toMatchObject({ compact: '4', overflow: true });
@@ -60,4 +60,25 @@ test('barre d’outils : la pièce construite, la barre suit la fenêtre qu’on
   await page.setViewportSize({ width: 1900, height: 900 });
   await expect.poll(async () => (await fits(page)).compact).toBe('0');
   await expect.poll(async () => (await fits(page)).fits).toBe(true);
+});
+
+test('barre d’outils : secteurs encadrés, tous sortis sur grand écran, regroupés puis repliés quand la place manque', async ({ page }) => {
+  await openApp(page);
+  const sectors = page.locator('.toolbar .sector[data-fold]');
+  await expect(sectors.locator('.sector-name')).toHaveText(['Esquisse', 'Ajouter', 'Enlever', 'Modifier', 'Répéter']);
+  await expect(page.locator('#tool-draft')).toBeVisible();
+  await expect(page.locator('.sector .split-toggle:visible')).toHaveCount(0);
+  await page.screenshot({ path: 'tests/output/e2e-barre-secteurs.png' });
+
+  // Plus étroit : « Répéter » se regroupe en premier, ses outils rares passent dans son menu.
+  await page.setViewportSize({ width: 1150, height: 900 });
+  await expect(page.getByRole('group', { name: 'Répéter' })).toHaveClass(/is-grouped|is-folded/);
+  await expect(page.locator('#tool-move')).toBeHidden();
+  await page.getByRole('button', { name: 'Autres outils : répétitions, symétries et déplacements' }).click();
+  await expect(page.getByRole('menuitem', { name: /Déplacer/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Les outils gardent leur nom tant que les secteurs peuvent se replier.
+  expect(Number((await fits(page)).compact)).toBeLessThan(2);
+  await clickTool(page, 'tool-plane');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.store.get().mode.kind)).not.toBe('model');
 });

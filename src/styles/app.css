@@ -86,7 +86,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   min-height: 64px;
@@ -139,7 +139,7 @@ textarea {
 .toolbar {
   display: flex;
   align-items: stretch;
-  gap: 2px;
+  gap: 4px;
   flex-wrap: nowrap;
 }
 
@@ -147,11 +147,67 @@ textarea {
   display: flex;
   gap: 1px;
   padding: 0 4px;
-  border-left: 1px solid var(--border);
 }
 
-.toolbar-group:first-child {
-  border-left: none;
+/* Secteurs : un cadre par famille d'outils, son nom dessous (voir ToolSectors.tsx). */
+.toolbar-group.sector,
+.toolbar-group.secondary {
+  flex-direction: column;
+  padding: 2px 3px 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+.sector-tools {
+  display: flex;
+  flex: 1;
+  gap: 1px;
+}
+
+.sector .tool-btn,
+.toolbar-group.secondary .tool-btn {
+  min-height: 44px;
+  padding-block: 3px;
+  gap: 1px;
+}
+
+.sector-name {
+  /* N'élargit pas le secteur : le nom se coupe s'il est plus long que ses outils. */
+  contain: inline-size;
+  overflow: hidden;
+  padding: 0 2px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sector-main,
+.sector-extra,
+.sector-pick-extra,
+.sector-pick-all {
+  display: contents;
+}
+
+/* Regroupé : les outils secondaires passent dans le menu ▾ (le bouton montre le dernier utilisé). */
+.sector:not(.is-grouped, .is-folded) .sector-split {
+  display: none;
+}
+.sector.is-grouped .sector-extra,
+.sector.is-grouped .sector-pick-all {
+  display: none;
+}
+/* Replié : un seul bouton pour tout le secteur. */
+.sector.is-folded .sector-main,
+.sector.is-folded .sector-extra,
+.sector.is-folded .sector-pick-extra {
+  display: none;
+}
+.sector.is-folded .sector-pick-all {
+  display: contents;
 }
 
 .spacer {
@@ -1946,11 +2002,12 @@ kbd {
 
 /* ------------------------------------------------------------------ Écrans étroits */
 
-/* Barre d'outils : compactage automatique. `TopBar` mesure la place disponible et pose
-   data-compact (1 à 4) sur la barre tant que son contenu ne tient pas sur une ligne : outils
-   secondaires, puis les groupes Pièces et Outils, puis tous les outils en icônes seules (le nom reste dans l'infobulle et pour les
-   lecteurs d'écran), puis espacements réduits. En dernier recours (data-overflow), les derniers
-   groupes d'outils passent dans le tiroir « Plus ». */
+/* Barre d'outils : compactage automatique. `TopBar` mesure la place disponible et, tant que
+   son contenu ne tient pas sur une ligne : data-compact 1 (Annuler, Rétablir en icônes), puis
+   les secteurs se regroupent (is-grouped) et se replient (is-folded) un à un (plus haut), puis
+   data-compact 2 (outils secondaires en icônes), 3 (tous les outils en icônes seules ; le nom
+   reste dans l'infobulle et pour les lecteurs d'écran) et 4 (espacements réduits). En
+   dernier recours (data-overflow), les derniers groupes passent dans le tiroir « Plus ». */
 .topbar[data-compact='2'] .brand span,
 .topbar[data-compact='3'] .brand span,
 .topbar[data-compact='4'] .brand span {
@@ -1965,7 +2022,7 @@ kbd {
   font-size: 12px;
 }
 .topbar[data-compact] .toolbar-group {
-  padding: 0 3px;
+  padding-inline: 2px;
 }
 .topbar[data-compact] .project-name {
   width: 104px;
@@ -2015,7 +2072,7 @@ kbd {
   width: 80px;
 }
 .topbar[data-compact='4'] .toolbar-group {
-  padding: 0 2px;
+  padding-inline: 1px;
 }
 .topbar[data-compact='4'] .toolbar .tool-btn {
   min-width: 34px;
