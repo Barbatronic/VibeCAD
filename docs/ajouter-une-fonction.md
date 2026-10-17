@@ -49,7 +49,10 @@ Une fonction = un dossier `src/features/<type>/` contenant trois fichiers :
    validité du solide ; un test d'aller-retour du format.
 
 Le bouton apparaît automatiquement dans la barre d'outils (les fonctions ayant un `tool`), avec
-son explication quand il est indisponible, et l'aperçu fonctionne sans autre code.
+son explication quand il est indisponible, et l'aperçu fonctionne sans autre code. Pour le ranger
+dans le bon secteur (Esquisse, Ajouter, Enlever, Modifier, Répéter), l'ajouter à `PART_SECTORS`
+(`src/ui/TopBar.tsx`) ; à défaut il va dans « Modifier ». Les outils de `main` restent sortis
+quand la barre manque de place ; les autres passent alors dans le menu ▾ du secteur.
 
 ## 2. Ajouter un outil d'esquisse (ex. « Arc »)
 
@@ -62,8 +65,8 @@ son explication quand il est indisponible, et l'aperçu fonctionne sans autre co
 4. Ajouter l'outil dans la session (`SketchTool`, `TOOL_LABELS`, `TOOL_HELP`, gestion des clics
    et de la saisie au clavier dans `src/sketch/session.ts`), son aperçu (`sessionPreview`) et sa
    détection sous le curseur (`src/sketch/hit-test.ts`).
-5. Ajouter son rendu (`src/viewport/sketch-render.ts`), son bouton (`SKETCH_TOOLS` dans
-   `src/ui/TopBar.tsx`) et son raccourci (`src/app/keyboard.ts`).
+5. Ajouter son rendu (`src/viewport/sketch-render.ts`), son bouton (son secteur dans
+   `SKETCH_SECTORS`, `src/ui/TopBar.tsx`) et son raccourci (`src/app/keyboard.ts`).
 6. Tester la session sans navigateur (`tests/unit/sketch-session.test.ts`).
 
 ## 3. Ajouter un format d'export

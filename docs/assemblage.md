@@ -7,7 +7,8 @@ pièce fixe, chaque liaison ayant au plus deux mouvements simples.
 ## Ce que voit l'utilisateur
 
 - Deux onglets en haut : **Pièces** (la modélisation actuelle) et **Assemblage**.
-- Dans Assemblage, la barre d'outils propose : **Insérer une pièce**, **Liaison**, **Exporter**.
+- Dans Assemblage, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),
+  **Assembler** (Main, Liaison), **Vérifier** (Collisions, Éclater), **Modifier**, **Exporter**.
 - Panneau de gauche : les pièces insérées (la première est **fixe**, marquée d'une punaise) et les
   liaisons. Panneau de droite : les réglages de la liaison choisie.
 
