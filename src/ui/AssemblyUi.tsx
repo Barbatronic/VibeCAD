@@ -14,6 +14,8 @@ import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
 import { CouplingList, CouplingPanel } from './CouplingUi';
+import { SubassemblyBar } from './SubassemblyUi';
+import { subassemblyContains, subassemblyList } from '../domain/subassemblies';
 
 /** Onglets « Pièces / Assemblage / Fabrication / Simulation » (visibles hors des opérations en cours). */
 export function WorkspaceTabs() {
@@ -45,6 +47,17 @@ function InsertMenu() {
   const c = useController();
   const parts = useAppState(
     (s) => s.doc.parts.map((p) => ({ id: p.id, name: p.name, color: p.color, ok: (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0 })),
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  // Sous-assemblages insérables : pas celui qu'on modifie, ni un bloc qui le contient.
+  const blocks = useAppState(
+    (s) => {
+      if (!allows(s.level, 'assembly:subassemblies')) return [];
+      const editing = s.doc.editingSubassembly;
+      return subassemblyList(s.doc)
+        .filter((x) => !editing || !subassemblyContains(s.doc, x.id, editing))
+        .map((x) => ({ id: x.id, name: x.name, empty: x.instances.length === 0 }));
+    },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const [open, setOpen] = useState(false);
@@ -86,6 +99,25 @@ function InsertMenu() {
               {!p.ok ? <span class="shortcut">sans volume</span> : null}
             </button>
           ))}
+          {blocks.length ? <div class="menu-sep" role="separator" /> : null}
+          {blocks.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              role="menuitem"
+              class="menu-item"
+              aria-disabled={b.empty ? 'true' : undefined}
+              title={b.empty ? 'Ce sous-assemblage est vide.' : 'Inséré comme un bloc rigide'}
+              onClick={() => {
+                setOpen(false);
+                c.insertSubassembly(b.id);
+              }}
+            >
+              <Icon name="explode" />
+              <span>Sous-assemblage : {b.name}</span>
+              {b.empty ? <span class="shortcut">vide</span> : null}
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
@@ -94,15 +126,17 @@ function InsertMenu() {
 
 /** Résultat de la recherche de collisions (quand elle est activée). */
 function CollisionReport() {
+  const ctl = useController();
   const data = useAppState(
     (s) =>
       s.collisionCheck
         ? {
             ready: !!s.collisions,
-            items: (s.collisions?.items ?? []).map((c) => {
-              const name = (id: string) => s.doc.assembly?.instances.find((i) => i.id === id)?.name ?? '?';
-              return { a: name(c.a), b: name(c.b), volume: c.volume };
-            }),
+            items: (() => {
+              // Pièces dépliées : celles d'un sous-assemblage sont nommées « Bloc › Pièce ».
+              const names = new Map(ctl.assemblyLeaves().map((l) => [l.key, l.name]));
+              return (s.collisions?.items ?? []).map((c) => ({ a: names.get(c.a) ?? '?', b: names.get(c.b) ?? '?', volume: c.volume }));
+            })(),
           }
         : null,
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -247,7 +281,12 @@ export function AssemblySection() {
       const a = s.doc.assembly ?? { instances: [], joints: [] };
       const placement = c.assemblyPlacement();
       return {
-        instances: a.instances.map((i) => ({ id: i.id, name: i.name, color: s.doc.parts.find((p) => p.id === i.partId)?.color ?? '#888' })),
+        instances: a.instances.map((i) => ({
+          id: i.id,
+          name: i.name,
+          block: i.subassemblyId ? (subassemblyList(s.doc).find((x) => x.id === i.subassemblyId)?.name ?? '?') : null,
+          color: s.doc.parts.find((p) => p.id === i.partId)?.color ?? '#888',
+        })),
         joints: a.joints.map((j) => ({
           id: j.id,
           name: j.name,
@@ -267,6 +306,7 @@ export function AssemblySection() {
         <span id="assembly-title">Assemblage</span>
       </div>
       <div class="panel-body">
+        <SubassemblyBar />
         {data.instances.length === 0 ? (
           <p class="empty-hint">
             L’assemblage est vide. Bouton <strong>Insérer</strong> en haut : choisissez une pièce. La première insérée reste <strong>fixe</strong>.
@@ -280,7 +320,9 @@ export function AssemblySection() {
                   <span class="color-swatch" style={{ background: i.color, width: '16px', height: '16px' }} />
                   <span class="feature-texts">
                     <span class="name">{i.name}</span>
-                    <span class="summary">{index === 0 ? '📌 fixe (référence de l’assemblage)' : 'pièce insérée'}</span>
+                    <span class="summary">
+                      {index === 0 ? '📌 fixe (référence de l’assemblage)' : i.block ? `bloc : sous-assemblage « ${i.block} »` : 'pièce insérée'}
+                    </span>
                   </span>
                 </button>
                 <span class="row-actions">

@@ -160,6 +160,17 @@ export function removePart(doc: CadDocument, partId: Id): CadDocument {
   // Les insertions de cette pièce dans l'assemblage (et leurs liaisons) disparaissent avec elle.
   const gone = (doc.assembly?.instances ?? []).filter((i) => i.partId === partId).map((i) => i.id);
   for (const id of gone) next = removeInstance(next, id);
+  // De même dans les sous-assemblages (une liaison qui visait cette pièce dans un bloc est signalée).
+  if (next.subassemblies) {
+    next = {
+      ...next,
+      subassemblies: next.subassemblies.map((sub) => {
+        let inner: CadDocument = { ...next, assembly: sub };
+        for (const i of sub.instances) if (i.partId === partId && !i.subassemblyId) inner = removeInstance(inner, i.id);
+        return { ...inner.assembly!, id: sub.id, name: sub.name };
+      }),
+    };
+  }
   return collectUnusedResources(next);
 }
 

@@ -3,6 +3,7 @@
  * dessus et de gauche en projection européenne), gabarit papier à l'échelle 1:1 et nomenclature.
  * Les pages sont écrites en PDF ou en SVG par `io/drawing.ts`.
  */
+import { assemblyContents } from '../domain/subassemblies';
 import type { CadDocument, Id } from '../domain/model';
 import { formatLength, formatNumber } from '../domain/units';
 import type { DrawingPage, LineStyle } from '../io/drawing';
@@ -470,8 +471,9 @@ export function billOfMaterials(
   meshOf: (partId: Id) => MeshData | null | undefined,
   volumeOf: (partId: Id) => number | null | undefined,
 ): Bom {
-  const counts = new Map<Id, number>();
-  for (const inst of doc.assembly?.instances ?? []) counts.set(inst.partId, (counts.get(inst.partId) ?? 0) + 1);
+  // Pièces insérées, y compris celles des sous-assemblages (un bloc inséré deux fois compte double).
+  const contents = assemblyContents(doc, doc.assembly);
+  const counts = contents.counts;
   const source = counts.size > 0 ? 'assembly' : 'parts';
   if (source === 'parts') for (const p of doc.parts) if (hasSolid(p.id)) counts.set(p.id, 1);
   const rows: BomRow[] = [];
@@ -483,7 +485,7 @@ export function billOfMaterials(
   }
   // Visserie normalisée : une ligne par désignation (« Vis CHC ISO 4762 M3 × 12 »).
   if (source === 'assembly') {
-    for (const g of fastenerGroups(doc.assembly)) rows.push({ mark: rows.length + 1, partId: null, name: g.name, quantity: g.ids.length, size: null, volume: null });
+    for (const g of fastenerGroups({ instances: [], joints: [], fasteners: contents.fasteners })) rows.push({ mark: rows.length + 1, partId: null, name: g.name, quantity: g.ids.length, size: null, volume: null });
   }
   return { rows, source };
 }

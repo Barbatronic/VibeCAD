@@ -6,6 +6,7 @@
  * Aucun objet du noyau n'est sérialisé : la géométrie est reconstruite à l'ouverture.
  */
 import type {
+  SubAssembly,
   MirrorPlane,
   JointCoupling,
   Assembly,
@@ -34,6 +35,7 @@ import { PARAMETER_NAME } from '../domain/units';
 import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
 import { ASSEMBLY_STUDY, constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
 import { featureDependencies } from '../features/registry';
+import { closedDocument, subassemblyContains } from '../domain/subassemblies';
 import { APP_NAME, APP_VERSION } from '../meta';
 
 export const FORMAT_ID = 'vibecad';
@@ -53,7 +55,9 @@ type SerializedFeature = Feature & { dependsOn: string[] };
 type SerializedPart = Omit<Part, 'features'> & { features: SerializedFeature[] };
 type SerializedDocument = Omit<CadDocument, 'parts'> & { parts: SerializedPart[] };
 
-export function serializeDocument(doc: CadDocument, savedAt = new Date().toISOString()): string {
+export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISOString()): string {
+  // Toujours enregistré « refermé » : l'assemblage principal à sa place.
+  const doc = closedDocument(docIn);
   const file: NativeFile = {
     format: FORMAT_ID,
     schemaVersion: SCHEMA_VERSION,
@@ -74,6 +78,7 @@ export function serializeDocument(doc: CadDocument, savedAt = new Date().toISOSt
       })),
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
+      ...(doc.subassemblies?.length ? { subassemblies: doc.subassemblies } : {}),
       ...(doc.fabrication ? { fabrication: doc.fabrication } : {}),
       ...(doc.parameters?.length ? { parameters: doc.parameters } : {}),
       ...(doc.simulation ? { simulation: doc.simulation } : {}),
@@ -214,7 +219,7 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
 }
 
 /** Champs connus du document (schéma 1). */
-const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'fabrication', 'simulation', 'parameters']);
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
 
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
@@ -264,8 +269,28 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     const simulation = readSimulation(v, o.simulation, `${path}.simulation`, new Set(doc.parts.map((p) => p.id)));
     if (simulation) doc.simulation = simulation;
   }
+  // Sous-assemblages : identifiants connus d'abord (un bloc peut en insérer un autre).
+  const subIds = new Set(
+    (Array.isArray(o.subassemblies) ? o.subassemblies : []).flatMap((s) => (s && typeof s === 'object' && typeof (s as { id?: unknown }).id === 'string' ? [(s as { id: string }).id] : [])),
+  );
+  const partIdSet = new Set(doc.parts.map((p) => p.id));
+  if (o.subassemblies !== undefined) {
+    const subs: SubAssembly[] = [];
+    arr(v, o, 'subassemblies', path).forEach((raw, i) => {
+      const sp = `${path}.subassemblies[${i}]`;
+      const so = obj(v, raw, sp);
+      if (!so) return;
+      const content = readAssembly(v, so, sp, partIdSet, subIds) ?? { instances: [], joints: [] };
+      subs.push({ ...content, id: str(v, so, 'id', sp), name: str(v, so, 'name', sp) });
+    });
+    if (subs.length) doc.subassemblies = subs;
+    // Un bloc ne peut pas se contenir lui-même (directement ou par d'autres blocs).
+    for (const s of subs) {
+      if (s.instances.some((i) => i.subassemblyId && subassemblyContains(doc, i.subassemblyId, s.id))) v.error(`${path}.subassemblies`, `« ${s.name} » se contient lui-même`);
+    }
+  }
   if (o.assembly !== undefined) {
-    const assembly = readAssembly(v, o.assembly, `${path}.assembly`, new Set(doc.parts.map((p) => p.id)));
+    const assembly = readAssembly(v, o.assembly, `${path}.assembly`, partIdSet, subIds);
     if (assembly) doc.assembly = assembly;
   }
   return doc;
@@ -408,7 +433,7 @@ function readLimits(v: Validator, o: Record<string, unknown>, key: string, path:
   return [a[0] as number, a[1] as number];
 }
 
-function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>): Assembly | null {
+function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlySet<string>, subIds: ReadonlySet<string> = new Set()): Assembly | null {
   const o = obj(v, x, path);
   if (!o) return null;
   const instances: AssemblyInstance[] = [];
@@ -417,12 +442,22 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     const io = obj(v, raw, ip);
     if (!io) return;
     const pos = obj(v, io.position, `${ip}.position`) ?? {};
+    const subassemblyId = io.subassemblyId !== undefined ? str(v, io, 'subassemblyId', ip) : null;
     const instance: AssemblyInstance = {
       id: str(v, io, 'id', ip),
-      partId: str(v, io, 'partId', ip),
+      partId: subassemblyId ? (typeof io.partId === 'string' ? io.partId : '') : str(v, io, 'partId', ip),
+      ...(subassemblyId ? { subassemblyId } : {}),
       name: str(v, io, 'name', ip),
       position: { x: num(v, pos, 'x', `${ip}.position`), y: num(v, pos, 'y', `${ip}.position`), z: num(v, pos, 'z', `${ip}.position`) },
     };
+    if (subassemblyId) {
+      if (!subIds.has(subassemblyId)) {
+        v.warnings.push(`Assemblage : « ${instance.name} » vise un sous-assemblage absent ; il est retiré.`);
+        return;
+      }
+      instances.push(instance);
+      return;
+    }
     if (!partIds.has(instance.partId)) {
       v.warnings.push(`Assemblage : « ${instance.name} » vise une pièce absente ; elle est retirée de l’assemblage.`);
       return;
@@ -437,7 +472,8 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     if (!jo) return;
     const end = (key: 'moving' | 'base') => {
       const eo = obj(v, jo[key], `${jp}.${key}`) ?? {};
-      return { instanceId: str(v, eo, 'instanceId', `${jp}.${key}`), lcs: readLcs(v, eo.lcs, `${jp}.${key}.lcs`) };
+      const member = eo.member !== undefined ? arr(v, eo, 'member', `${jp}.${key}`).map((m, k) => str(v, { m }, 'm', `${jp}.${key}.member[${k}]`)) : null;
+      return { instanceId: str(v, eo, 'instanceId', `${jp}.${key}`), ...(member?.length ? { member } : {}), lcs: readLcs(v, eo.lcs, `${jp}.${key}.lcs`) };
     };
     const joint: AssemblyJoint = {
       id: str(v, jo, 'id', jp),

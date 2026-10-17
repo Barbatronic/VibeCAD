@@ -93,6 +93,32 @@
         "assembly": {
           "$ref": "#/$defs/assembly"
         },
+        "subassemblies": {
+          "type": "array",
+          "description": "Sous-assemblages réutilisables, insérés comme des blocs rigides (pièce insérée avec subassemblyId).",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/assembly"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "id": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        },
         "fabrication": {
           "type": "object",
           "description": "Réglages de l'onglet Fabrication (impression 3D, découpe laser).",
@@ -2115,7 +2141,6 @@
             "type": "object",
             "required": [
               "id",
-              "partId",
               "name",
               "position"
             ],
@@ -2124,7 +2149,8 @@
                 "$ref": "#/$defs/id"
               },
               "partId": {
-                "$ref": "#/$defs/id"
+                "type": "string",
+                "description": "Pièce insérée (vide pour un sous-assemblage)"
               },
               "name": {
                 "type": "string"
@@ -2147,6 +2173,10 @@
                     "type": "number"
                   }
                 }
+              },
+              "subassemblyId": {
+                "$ref": "#/$defs/id",
+                "description": "Sous-assemblage inséré (bloc rigide) au lieu d'une pièce"
               }
             }
           }
@@ -2366,6 +2396,14 @@
         },
         "lcs": {
           "$ref": "#/$defs/lcs"
+        },
+        "member": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "description": "Sous-assemblage inséré : chemin de la pièce du bloc où s'accroche la liaison"
         }
       }
     },

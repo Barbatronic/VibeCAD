@@ -33,7 +33,8 @@ export type Capability =
   | 'view-centroid'
   | 'parameters'
   | 'tutorial:assembly'
-  | 'tutorial:fabrication';
+  | 'tutorial:fabrication'
+  | 'assembly:subassemblies';
 
 /**
  * Niveau minimal de chaque outil (absent : Débutant). Pour déplacer un outil d'un niveau à
@@ -72,6 +73,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'workspace:assembly': 'intermediaire',
   'workspace:simulation': 'intermediaire',
   'simulation:assembly': 'expert',
+  'assembly:subassemblies': 'expert',
   'fabrication:laser': 'intermediaire',
   'fabrication:docs': 'intermediaire',
   'tutorial:assembly': 'intermediaire',

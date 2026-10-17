@@ -249,10 +249,64 @@ const CLOSURE_TOL = 1e-3;
  * enregistrées (Levenberg-Marquardt). La liaison `driver` (celle que l'on manipule) n'est pas
  * ajustée : ce sont les autres qui suivent.
  */
+/** Ce dont le solveur a besoin pour les pièces et les sous-assemblages insérés. */
+export interface SolveOptions {
+  driver?: Id;
+  sketchesOf?: (partId: Id) => PartSketches | undefined;
+  /** Contenu d'un sous-assemblage (bloc rigide inséré avec `subassemblyId`). */
+  subassemblyOf?: (id: Id) => Assembly | undefined;
+}
+
+/** Profondeur maximale d'imbrication des sous-assemblages (garde-fou contre une boucle). */
+const MAX_DEPTH = 8;
+
+/** Repère (dans le monde) d'une matrice appliquée à un repère local. */
+function transformFrame(m: Mat4, f: Frame3D): Frame3D {
+  return worldFrame(m, f);
+}
+
+/**
+ * Pièce d'un sous-assemblage désignée par un chemin (identifiants d'insertion, un par niveau) :
+ * sa pièce du projet et sa matrice dans le repère du bloc. Null si le chemin ne mène à rien.
+ */
+export function resolveMember(
+  subId: Id,
+  path: readonly Id[],
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: SolveOptions,
+  depth = 0,
+): { partId: Id; matrix: Mat4 } | null {
+  const content = options.subassemblyOf?.(subId);
+  if (!content || path.length === 0 || depth > MAX_DEPTH) return null;
+  const placed = solveAssembly(content, meshOf, { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) }, depth + 1);
+  const inst = content.instances.find((i) => i.id === path[0]);
+  const m = inst && placed.matrices.get(inst.id);
+  if (!inst || !m) return null;
+  if (!inst.subassemblyId) return path.length === 1 ? { partId: inst.partId, matrix: m } : null;
+  const inner = resolveMember(inst.subassemblyId, path.slice(1), meshOf, options, depth + 1);
+  return inner ? { partId: inner.partId, matrix: multiply4(m, inner.matrix) } : null;
+}
+
+/** Pièce désignée par l'extrémité d'une liaison (pièce insérée, ou pièce d'un bloc inséré) et sa matrice dans le repère de l'insertion. */
+export function endPart(
+  assembly: Assembly,
+  end: { instanceId: Id; member?: Id[] },
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: SolveOptions = {},
+  depth = 0,
+): { partId: Id; matrix: Mat4 | null } | null {
+  const inst = assembly.instances.find((i) => i.id === end.instanceId);
+  if (!inst) return null;
+  if (!inst.subassemblyId) return { partId: inst.partId, matrix: null };
+  const r = resolveMember(inst.subassemblyId, end.member ?? [], meshOf, options, depth);
+  return r ? { partId: r.partId, matrix: r.matrix } : null;
+}
+
 export function solveAssembly(
   assembly: Assembly,
   meshOf: (partId: Id) => MeshData | null | undefined,
-  options: { driver?: Id; sketchesOf?: (partId: Id) => PartSketches | undefined } = {},
+  options: SolveOptions = {},
+  depth = 0,
 ): AssemblyPlacement {
   const jointFrames = new Map<Id, { base: Frame3D; moving: Frame3D }>();
   const issues = new Map<Id, JointIssue>();
@@ -262,13 +316,17 @@ export function solveAssembly(
 
   // Repères locaux de chaque liaison (calculés une fois).
   const frames = new Map<Id, { bf: Frame3D; mf: Frame3D }>();
+  // Repère d'une extrémité dans le repère de sa pièce insérée (pour un bloc : celui de la pièce
+  // du bloc où s'accroche la liaison, placée dans le bloc).
+  const endFrame = (end: AssemblyJoint['base']): Frame3D | null => {
+    const part = endPart(assembly, end, meshOf, options, depth);
+    const mesh = part && meshOf(part.partId);
+    const f = mesh ? lcsFrame(mesh, end.lcs, options.sketchesOf?.(part.partId)) : null;
+    return f && part?.matrix ? transformFrame(part.matrix, f) : f;
+  };
   for (const j of assembly.joints) {
-    const b = instance.get(j.base.instanceId);
-    const m = instance.get(j.moving.instanceId);
-    const bm = b && meshOf(b.partId);
-    const mm = m && meshOf(m.partId);
-    const bf = bm ? lcsFrame(bm, j.base.lcs, options.sketchesOf?.(b.partId)) : null;
-    const mf = mm ? lcsFrame(mm, j.moving.lcs, options.sketchesOf?.(m.partId)) : null;
+    const bf = instance.has(j.base.instanceId) ? endFrame(j.base) : null;
+    const mf = instance.has(j.moving.instanceId) ? endFrame(j.moving) : null;
     if (bf && mf) frames.set(j.id, { bf, mf });
     else issues.set(j.id, 'LCS_LOST');
   }
@@ -463,20 +521,51 @@ export function meshBox(mesh: MeshData): { center: Vec3; size: number } {
  * taille, en plus du décalage de sa pièce de référence. Les pièces libres s'écartent du centre de
  * l'assemblage ; la pièce fixe ne bouge pas.
  */
-export function explodeOffsets(assembly: Assembly, placement: AssemblyPlacement, meshOf: (partId: Id) => MeshData | null | undefined, factor: number): Map<Id, Vec3> {
+export function explodeOffsets(
+  assembly: Assembly,
+  placement: AssemblyPlacement,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  factor: number,
+  leaves: readonly PlacedLeaf[] = [],
+): Map<Id, Vec3> {
   const offsets = new Map<Id, Vec3>();
   const zero = { x: 0, y: 0, z: 0 };
   if (factor <= 0) return offsets;
   const fixed = assembly.instances[0]?.id;
   const holder = new Map<Id, AssemblyJoint>();
   for (const j of assembly.joints) if (!holder.has(j.moving.instanceId) && placement.jointFrames.has(j.id)) holder.set(j.moving.instanceId, j);
+  // Bloc (sous-assemblage) : boîte de ses pièces, dans le monde.
+  const blockBox = (id: Id): { center: Vec3; size: number } | null => {
+    const own = leaves.filter((l) => l.instanceId === id);
+    if (own.length === 0) return null;
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (const l of own) {
+      const mesh = meshOf(l.partId);
+      if (!mesh) continue;
+      const b = meshBox(mesh);
+      const c = { x: l.matrix[0]! * b.center.x + l.matrix[4]! * b.center.y + l.matrix[8]! * b.center.z + l.matrix[12]!, y: l.matrix[1]! * b.center.x + l.matrix[5]! * b.center.y + l.matrix[9]! * b.center.z + l.matrix[13]!, z: l.matrix[2]! * b.center.x + l.matrix[6]! * b.center.y + l.matrix[10]! * b.center.z + l.matrix[14]! };
+      const r = b.size / 2;
+      [c.x, c.y, c.z].forEach((v, k) => {
+        lo[k] = Math.min(lo[k]!, v - r);
+        hi[k] = Math.max(hi[k]!, v + r);
+      });
+    }
+    if (!Number.isFinite(lo[0]!)) return null;
+    return { center: { x: (lo[0]! + hi[0]!) / 2, y: (lo[1]! + hi[1]!) / 2, z: (lo[2]! + hi[2]!) / 2 }, size: Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / Math.sqrt(3) };
+  };
   const box = (id: Id) => {
     const inst = assembly.instances.find((i) => i.id === id);
+    if (inst?.subassemblyId) {
+      const b = blockBox(id);
+      return b ? { center: b.center, size: b.size, world: true } : null;
+    }
     const mesh = inst && meshOf(inst.partId);
-    return mesh ? meshBox(mesh) : null;
+    return mesh ? { ...meshBox(mesh), world: false } : null;
   };
   const worldCenter = (id: Id): Vec3 | null => {
     const b = box(id);
+    if (b?.world) return b.center;
     const m = placement.matrices.get(id);
     return b && m ? { x: m[0]! * b.center.x + m[4]! * b.center.y + m[8]! * b.center.z + m[12]!, y: m[1]! * b.center.x + m[5]! * b.center.y + m[9]! * b.center.z + m[13]!, z: m[2]! * b.center.x + m[6]! * b.center.y + m[10]! * b.center.z + m[14]! } : null;
   };
@@ -509,6 +598,51 @@ export function explodeOffsets(assembly: Assembly, placement: AssemblyPlacement,
   };
   for (const i of assembly.instances) offsetOf(i.id);
   return offsets;
+}
+
+/** Pièce placée d'un assemblage déplié (pièce insérée, ou pièce d'un bloc inséré). */
+export interface PlacedLeaf {
+  /** Clé unique : identifiant d'insertion, suivi pour un bloc du chemin de la pièce (« in-4/in-2 »). */
+  key: string;
+  /** Pièce insérée (ou bloc) de premier niveau qui la contient. */
+  instanceId: Id;
+  /** Chemin de la pièce dans le bloc (vide pour une pièce insérée directement). */
+  member: Id[];
+  partId: Id;
+  matrix: Mat4;
+  /** Nom affiché : « Roue avant › Axe ». */
+  name: string;
+}
+
+/**
+ * Assemblage déplié en pièces placées : les blocs (sous-assemblages insérés) sont remplacés par
+ * leurs pièces, placées par le calcul du bloc puis par la place du bloc. Vue, exports,
+ * collisions et simulation lisent cette liste.
+ */
+export function flattenAssembly(
+  assembly: Assembly,
+  placement: AssemblyPlacement,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: SolveOptions = {},
+  depth = 0,
+): PlacedLeaf[] {
+  const out: PlacedLeaf[] = [];
+  for (const inst of assembly.instances) {
+    const m = placement.matrices.get(inst.id);
+    if (!m) continue;
+    if (!inst.subassemblyId) {
+      out.push({ key: inst.id, instanceId: inst.id, member: [], partId: inst.partId, matrix: m, name: inst.name });
+      continue;
+    }
+    const content = options.subassemblyOf?.(inst.subassemblyId);
+    if (!content || depth >= MAX_DEPTH) continue;
+    const inner = { ...(options.sketchesOf ? { sketchesOf: options.sketchesOf } : {}), ...(options.subassemblyOf ? { subassemblyOf: options.subassemblyOf } : {}) };
+    const sub = solveAssembly(content, meshOf, inner, depth + 1);
+    for (const leaf of flattenAssembly(content, sub, meshOf, inner, depth + 1)) {
+      out.push({ key: `${inst.id}/${leaf.key}`, instanceId: inst.id, member: [leaf.instanceId, ...leaf.member], partId: leaf.partId, matrix: multiply4(m, leaf.matrix), name: `${inst.name} › ${leaf.name}` });
+    }
+  }
+  return out;
 }
 
 /** Résout A x = b (petit système, pivot partiel) ; null si singulier. */

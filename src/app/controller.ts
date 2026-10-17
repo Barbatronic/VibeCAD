@@ -62,10 +62,11 @@ import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { invertRigid4, transformPoint4 } from '../math/mat4';
-import { clampToLimits, couplingPhase, isSphereLcs, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
+import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
@@ -196,15 +197,12 @@ export class AppController {
       return;
     }
     const placement = this.assemblyPlacement();
-    const instances = this.state.doc.assembly?.instances ?? [];
     if (!this.state.collisionCheck || !placement || this.state.kernel.status !== 'ready') return;
+    const leaves = this.assemblyLeaves(placement);
     this.collisionBusy = true;
     const revision = this.state.revision;
     try {
-      const placements = instances.flatMap((i) => {
-        const matrix = placement.matrices.get(i.id);
-        return matrix ? [{ instanceId: i.id, partId: i.partId, matrix: [...matrix] }] : [];
-      });
+      const placements = leaves.map((l) => ({ instanceId: l.key, partId: l.partId, matrix: [...l.matrix] }));
       const { collisions } = await this.deps.client.collisions(this.state.doc, placements);
       if (this.state.collisionCheck) this.set({ collisions: { key: `${revision}`, items: collisions } });
     } catch (err) {
@@ -336,6 +334,8 @@ export class AppController {
   setLevel(level: Level, persist = true): void {
     const s = this.state;
     const patch: Partial<AppState> = { level };
+    // Les sous-assemblages ne sont plus montrés : on revient à l'assemblage principal.
+    if (s.doc.editingSubassembly && !allows(level, 'assembly:subassemblies')) Object.assign(patch, { doc: closedDocument(s.doc), assemblySelection: null });
     if (s.workspace === 'assembly' && !allows(level, 'workspace:assembly')) Object.assign(patch, { workspace: 'parts', assemblySelection: null });
     if ((s.fabricationTab === 'laser' && !allows(level, 'fabrication:laser')) || (s.fabricationTab === 'docs' && !allows(level, 'fabrication:docs'))) {
       patch.fabricationTab = 'print';
@@ -1580,7 +1580,7 @@ export class AppController {
     }
     if (s.workspace === 'assembly') {
       if (!s.doc.assembly?.instances.length) return this.explain('L’assemblage est vide : insérez d’abord des pièces.');
-      this.set({ dialog: { kind: 'export', format, partIds: s.doc.assembly.instances.map((i) => i.partId), busy: false, assembly: true } });
+      this.set({ dialog: { kind: 'export', format, partIds: Array.from(new Set(this.assemblyLeaves().map((l) => l.partId))), busy: false, assembly: true } });
       return;
     }
     // Impression : la pièce active par défaut ; STEP et GLB : toutes les pièces.
@@ -1651,10 +1651,9 @@ export class AppController {
       meshes.push({ key: partId, name: part.name, color: part.color, positions: mesh.positions, normals: mesh.normals, indices: mesh.indices });
     };
     if (assembly && s.doc.assembly) {
-      const placement = this.assemblyPlacement();
-      for (const inst of s.doc.assembly.instances) {
-        addPart(inst.partId);
-        nodes.push({ name: inst.name, mesh: inst.partId, ...(placement?.matrices.get(inst.id) ? { matrix: placement.matrices.get(inst.id)! } : {}) });
+      for (const leaf of this.assemblyLeaves()) {
+        addPart(leaf.partId);
+        nodes.push({ name: leaf.name, mesh: leaf.partId, matrix: leaf.matrix });
       }
       const fasteners = this.fastenerPlacement();
       for (const f of s.doc.assembly.fasteners ?? []) {
@@ -1690,9 +1689,7 @@ export class AppController {
     const baseName = d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
     // Assemblage : chaque pièce insérée est exportée à sa place.
     const placement = d.assembly ? this.assemblyPlacement() : null;
-    const placements = placement
-        ? (s.doc.assembly?.instances ?? []).map((i) => ({ partId: i.partId, name: i.name, matrix: placement.matrices.get(i.id) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }))
-        : undefined;
+    const placements = placement ? this.assemblyLeaves(placement).map((l) => ({ partId: l.partId, name: l.name, matrix: l.matrix })) : undefined;
     try {
       if (d.format === 'step') {
         const { text, warnings } = await this.deps.client.exportStep(s.doc, d.partIds, placements);
@@ -1808,7 +1805,9 @@ export class AppController {
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
-    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1 });
+    // Les autres onglets (fabrication, simulation…) travaillent sur l'assemblage principal.
+    const closed = workspace !== 'assembly' && this.state.doc.editingSubassembly ? { doc: closedDocument(this.state.doc), explode: 0 } : {};
+    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed });
   }
 
   // ----- Paramètres du projet
@@ -1877,11 +1876,9 @@ export class AppController {
     }
     const assembly = s.doc.assembly;
     if (!assembly || !this.can('simulation:assembly')) return null;
-    const placement = this.assemblyPlacement();
-    const items = assembly.instances.flatMap((inst) => {
-      const d = s.display[inst.partId];
-      const matrix = placement?.matrices.get(inst.id);
-      return d?.mesh && d.meshKey && matrix ? [{ instanceId: inst.id, mesh: d.mesh, matrix, meshKey: d.meshKey }] : [];
+    const items = this.assemblyLeaves().flatMap((leaf) => {
+      const d = s.display[leaf.partId];
+      return d?.mesh && d.meshKey ? [{ instanceId: leaf.key, mesh: d.mesh, matrix: leaf.matrix, meshKey: d.meshKey }] : [];
     });
     if (items.length === 0) return null;
     const key = items.map((i) => `${i.instanceId}:${i.meshKey}:${i.matrix.map((v) => v.toFixed(4)).join(',')}`).join('|');
@@ -2282,7 +2279,19 @@ export class AppController {
   assemblyPlacement(): AssemblyPlacement | null {
     const assembly = this.state.doc.assembly;
     if (!assembly) return null;
-    return solveAssembly(assembly, (partId) => this.state.display[partId]?.mesh, { sketchesOf: this.sketchesOf });
+    return solveAssembly(assembly, (partId) => this.state.display[partId]?.mesh, this.solveOptions());
+  }
+
+  /** Options du solveur : esquisses des pièces (repères sur un point) et contenu des sous-assemblages. */
+  solveOptions(): SolveOptions {
+    return { sketchesOf: this.sketchesOf, subassemblyOf: (id) => subassemblyContent(this.state.doc, id) };
+  }
+
+  /** Pièces placées de l'assemblage, sous-assemblages dépliés (vue, exports, collisions, simulation). */
+  assemblyLeaves(placement = this.assemblyPlacement()): PlacedLeaf[] {
+    const assembly = this.state.doc.assembly;
+    if (!assembly || !placement) return [];
+    return flattenAssembly(assembly, placement, (partId) => this.state.display[partId]?.mesh, this.solveOptions());
   }
 
   selectInAssembly(selection: AppState['assemblySelection']): void {
@@ -2314,6 +2323,57 @@ export class AppController {
     if (first) this.toast('info', `« ${part.name} » est la pièce fixe de l’assemblage (punaise). Insérez une autre pièce, puis reliez-les avec « Liaison ».`);
   }
 
+  // ----- Sous-assemblages
+
+  /** Crée un sous-assemblage vide et l'ouvre pour le construire. */
+  createSubassembly(): void {
+    if (!this.can('assembly:subassemblies')) return;
+    const r = addSubassembly(closedDocument(this.state.doc));
+    this.commit(openSubassembly(r.doc, r.id), 'Créer un sous-assemblage', { assemblySelection: null, mode: model, explode: 0, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  /** Ouvre un sous-assemblage pour le modifier, ou revient à l'assemblage principal (`null`). */
+  editSubassembly(id: Id | null): void {
+    if (this.animation) this.stopJointAnimation();
+    const doc = id ? openSubassembly(this.state.doc, id) : closedDocument(this.state.doc);
+    if (doc === this.state.doc) return;
+    // Simple changement de vue : ni action dans l'historique, ni modification du projet.
+    this.set({ doc, assemblySelection: null, mode: model, explode: 0, collisions: null, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  renameSubassemblyTo(id: Id, name: string): void {
+    const clean = name.trim();
+    if (!clean) return;
+    this.commit(renameSubassembly(this.state.doc, id, clean), 'Renommer un sous-assemblage');
+  }
+
+  /** Supprime un sous-assemblage, s'il n'est inséré nulle part. */
+  deleteSubassembly(id: Id): void {
+    const uses = subassemblyUses(this.state.doc, id);
+    const name = subassemblyList(this.state.doc).find((s) => s.id === id)?.name ?? 'Ce sous-assemblage';
+    if (uses.length) return this.explain(`« ${name} » est inséré dans ${uses.join(', ')} : retirez-le d’abord de ${uses.length > 1 ? 'ces assemblages' : 'cet assemblage'}.`);
+    this.commit(removeSubassembly(this.state.doc, id), `Supprimer le sous-assemblage « ${name} »`, { assemblySelection: null, explode: 0 });
+  }
+
+  /** Insère un sous-assemblage comme un bloc rigide dans l'assemblage ouvert. */
+  insertSubassembly(id: Id): void {
+    const s = this.state;
+    const editing = s.doc.editingSubassembly;
+    if (editing && subassemblyContains(s.doc, id, editing)) return this.explain('Un sous-assemblage ne peut pas s’insérer dans lui-même, ni dans un bloc qu’il contient.');
+    const content = subassemblyContent(s.doc, id);
+    if (!content?.instances.length) return this.explain('Ce sous-assemblage est vide : ouvrez-le et insérez-y des pièces d’abord.');
+    // Posé à droite de ce qui est déjà inséré, en attendant une liaison.
+    let x = 0;
+    for (const leaf of this.assemblyLeaves()) {
+      const bbox = s.display[leaf.partId]?.result.analysis?.bbox;
+      if (bbox) x = Math.max(x, leaf.matrix[12]! + bbox.max.x + 20);
+    }
+    const first = !s.doc.assembly?.instances.length;
+    const r = addSubassemblyInstance(s.doc, id, first ? { x: 0, y: 0, z: 0 } : { x, y: 0, z: 0 });
+    const name = r.doc.assembly!.instances.find((i) => i.id === r.instanceId)!.name;
+    this.commit(r.doc, `Insérer « ${name} » dans l’assemblage`, { assemblySelection: { kind: 'instance', id: r.instanceId }, fitRequest: s.fitRequest + 1 });
+  }
+
   removeInstance(instanceId: Id): void {
     const inst = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
     if (!inst) return;
@@ -2341,28 +2401,32 @@ export class AppController {
     const mode = s.mode;
     if (mode.kind === 'fastener') return this.fastenerPick(pick, mode.fastenerKind);
     if (mode.kind !== 'joint') {
+      // Une pièce (ou une vis) d'un sous-assemblage désigne le bloc entier (clé « bloc/… »).
       const fastener = pick?.partId.startsWith('fs:') ? pick.partId.slice(3) : null;
-      this.set({ assemblySelection: fastener ? { kind: 'fasteners', ids: [fastener] } : pick ? { kind: 'instance', id: pick.partId } : null });
+      if (fastener && !fastener.includes('/')) return this.set({ assemblySelection: { kind: 'fasteners', ids: [fastener] } });
+      const key = fastener ?? pick?.partId;
+      this.set({ assemblySelection: key ? { kind: 'instance', id: key.split('/')[0]! } : null });
       return;
     }
     if (pick?.partId.startsWith('fs:')) return this.explain('Choisissez un repère sur une pièce, pas sur une vis.');
     if (!pick) return;
-    const inst = s.doc.assembly?.instances.find((i) => i.id === pick.partId);
-    const part = inst && findPart(s.doc, inst.partId);
-    const mesh = inst && s.display[inst.partId]?.mesh;
-    if (!inst || !part || !mesh) return;
+    const leaf = this.assemblyLeaves().find((l) => l.key === pick.partId);
+    const part = leaf && findPart(s.doc, leaf.partId);
+    const mesh = leaf && s.display[leaf.partId]?.mesh;
+    if (!leaf || !part || !mesh) return;
     // Un sommet est désigné dans le monde : on le ramène dans les coordonnées de la pièce.
-    const placed = this.assemblyPlacement()?.matrices.get(inst.id);
-    const local = pick.kind === 'vertex' && placed ? transformPoint4(invertRigid4(placed), pick.point) : pick.point;
+    const local = pick.kind === 'vertex' ? transformPoint4(invertRigid4(leaf.matrix), pick.point) : pick.point;
     const r = lcsFromPick(mesh, pick.kind, pick.index, part, local);
     if ('reason' in r) return this.explain(r.reason);
-    this.jointEndChosen({ instanceId: inst.id, lcs: r.ref }, { kind: pick.kind === 'vertex' ? 'face' : pick.kind, index: pick.index });
+    this.jointEndChosen({ instanceId: leaf.instanceId, ...(leaf.member.length ? { member: leaf.member } : {}), lcs: r.ref }, { kind: pick.kind === 'vertex' ? 'face' : pick.kind, index: pick.index });
   }
 
   /** Clic sur un point seul d'esquisse pendant la création d'une liaison : il devient le repère. */
-  pickJointPoint(instanceId: Id, sketchId: Id, pointId: string): void {
+  pickJointPoint(leafKey: string, sketchId: Id, pointId: string): void {
     if (this.state.mode.kind !== 'joint') return;
-    this.jointEndChosen({ instanceId, lcs: { kind: 'point', sketchId, pointId } });
+    const leaf = this.assemblyLeaves().find((l) => l.key === leafKey);
+    if (!leaf) return;
+    this.jointEndChosen({ instanceId: leaf.instanceId, ...(leaf.member.length ? { member: leaf.member } : {}), lcs: { kind: 'point', sketchId, pointId } });
   }
 
   /** Repère choisi pendant la création d'une liaison : premier (pièce qui bouge) ou second (référence). */
@@ -2376,7 +2440,9 @@ export class AppController {
       this.set({ mode: { kind: 'joint', moving: end, ...(movingPick ? { movingPick } : {}), lockedFace: null } });
       return;
     }
-    if (mode.moving.instanceId === inst.id) return this.explain('Choisissez un repère sur une autre pièce : la pièce de référence.');
+    if (mode.moving.instanceId === inst.id) {
+      return this.explain(inst.subassemblyId ? 'Ce sous-assemblage est un seul bloc : choisissez un repère sur une autre pièce ou un autre bloc.' : 'Choisissez un repère sur une autre pièce : la pièce de référence.');
+    }
     // La pièce fixe ne bouge jamais : si elle a été choisie en premier, les rôles sont échangés.
     const fixedId = s.doc.assembly!.instances[0]!.id;
     // Pièces déjà tenues (la fixe, et celles placées par une liaison). Si la pièce choisie en
@@ -2387,8 +2453,8 @@ export class AppController {
     const [moving, base] = swap ? [end, mode.moving] : [mode.moving, end];
     const closesLoop = held.has(moving.instanceId);
     const meshOf = (end: JointEnd) => {
-      const i = s.doc.assembly!.instances.find((x) => x.id === end.instanceId);
-      return i ? s.display[i.partId]?.mesh : undefined;
+      const part = endPart(s.doc.assembly!, end, (partId) => s.display[partId]?.mesh, this.solveOptions());
+      return part ? s.display[part.partId]?.mesh : undefined;
     };
     const sphere = [moving, base].some((e) => {
       const m = meshOf(e);
@@ -2433,6 +2499,7 @@ export class AppController {
       return this.commit(added.doc, `Poser ${designation(spec.kind, spec.size, spec.length)}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
     }
     if (pick.partId.startsWith('fs:')) return;
+    if (pick.partId.includes('/')) return this.explain('Cette pièce fait partie d’un sous-assemblage : ouvrez-le (en haut du panneau de gauche) pour y poser de la visserie.');
     const inst = s.doc.assembly?.instances.find((i) => i.id === pick.partId);
     const part = inst && findPart(s.doc, inst.partId);
     const mesh = inst && s.display[inst.partId]?.mesh;
@@ -2525,7 +2592,7 @@ export class AppController {
    */
   private settleLoops(doc: CadDocument, driver?: Id): CadDocument {
     if (!doc.assembly?.joints.length) return doc;
-    const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, { sketchesOf: this.sketchesOf, ...(driver ? { driver } : {}) });
+    const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, { ...this.solveOptions(), subassemblyOf: (id) => subassemblyContent(doc, id), ...(driver ? { driver } : {}) });
     let out = doc;
     for (const [id, v] of placement.solvedValues) {
       out = updateJoint(out, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
@@ -2589,7 +2656,7 @@ export class AppController {
     } else if (value > 180) value -= 360;
     else if (value < -180) value += 360;
     const moved = updateJoint(this.state.doc, joint.id, (j) => ({ ...j, [a.param]: value }));
-    const placement = solveAssembly(moved.assembly!, (partId) => this.state.display[partId]?.mesh, { driver: joint.id, sketchesOf: this.sketchesOf });
+    const placement = solveAssembly(moved.assembly!, (partId) => this.state.display[partId]?.mesh, { ...this.solveOptions(), driver: joint.id });
     if ([...placement.issues.values()].includes('LOOP_UNSOLVED')) {
       // La boucle ne peut pas aller plus loin (position extrême d'un balancier) : demi-tour.
       a.dir = a.dir > 0 ? -1 : 1;
@@ -2674,7 +2741,7 @@ export class AppController {
   assemblyDrag(event: AssemblyDragEvent): void {
     const s = this.state;
     if (event.phase === 'start') {
-      const joint = s.doc.assembly?.joints.find((j) => j.moving.instanceId === event.key);
+      const joint = s.doc.assembly?.joints.find((j) => j.moving.instanceId === event.key.split('/')[0]);
       const frames = joint && this.assemblyPlacement()?.jointFrames.get(joint.id);
       if (!joint || !frames) return;
       const free = jointFreedoms(joint.kind);

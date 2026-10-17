@@ -22,6 +22,14 @@ export interface CadDocument {
   resources: Record<Id, Resource>;
   /** Assemblage des pièces (facultatif : absent tant qu'on n'utilise pas l'onglet Assemblage). */
   assembly?: Assembly;
+  /** Sous-assemblages réutilisables, insérés comme un bloc rigide (facultatif). */
+  subassemblies?: SubAssembly[];
+  /**
+   * Sous-assemblage en cours de modification (non enregistré) : son contenu est alors dans
+   * `assembly` et l'assemblage principal est rangé à sa place dans `subassemblies`, pour que tous
+   * les outils de l'onglet Assemblage s'appliquent à lui. Voir `domain/subassemblies.ts`.
+   */
+  editingSubassembly?: Id;
   /** Préparation de la fabrication (facultatif : réglages de l'onglet Fabrication). */
   fabrication?: FabricationSettings;
   /** Paramètres du projet (variables utilisables dans les cotes et les champs numériques). */
@@ -145,10 +153,14 @@ export type LcsRef =
   /** Point seul d'une esquisse de la pièce (outil Point), axe Z = normale de l'esquisse. */
   | { kind: 'point'; sketchId: Id; pointId: string };
 
-/** Pièce insérée dans l'assemblage (une même pièce peut être insérée plusieurs fois). */
+/**
+ * Pièce insérée dans l'assemblage (une même pièce peut être insérée plusieurs fois), ou
+ * sous-assemblage inséré (`subassemblyId` ; `partId` est alors vide) : un bloc rigide.
+ */
 export interface AssemblyInstance {
   id: Id;
   partId: Id;
+  subassemblyId?: Id;
   name: string;
   /** Position (mm) tant que la pièce n'est tenue par aucune liaison. */
   position: { x: number; y: number; z: number };
@@ -156,6 +168,11 @@ export interface AssemblyInstance {
 
 export interface JointEnd {
   instanceId: Id;
+  /**
+   * Sous-assemblage inséré : chemin de la pièce du bloc où s'accroche la liaison (identifiants
+   * des pièces insérées, du bloc vers la pièce, un par niveau d'imbrication).
+   */
+  member?: Id[];
   lcs: LcsRef;
 }
 
@@ -221,6 +238,12 @@ export interface JointCoupling {
   pitchDiameter: number;
   reversed: boolean;
   phase: number;
+}
+
+/** Sous-assemblage : un assemblage nommé, inséré dans d'autres comme un bloc rigide. */
+export interface SubAssembly extends Assembly {
+  id: Id;
+  name: string;
 }
 
 export interface Assembly {

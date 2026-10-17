@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { partShown, type AppState } from '../app/state';
-import type { SketchFeature } from '../domain/model';
+import type { Assembly, AssemblyFastener, SketchFeature } from '../domain/model';
+import type { MeshData } from '../geometry/kernel';
 import { pointPosition, standalonePoints } from '../sketch/model';
 import { frameToWorld } from '../math/frame';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
@@ -31,7 +32,8 @@ import {
 } from '../sketch/session';
 import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
-import { explodeOffsets, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly } from '../app/assembly';
+import { explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
+import { subassemblyContent } from '../domain/subassemblies';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
@@ -67,31 +69,68 @@ function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderI
   };
 }
 
+/** Visserie des sous-assemblages insérés (récursivement), placée dans le monde. */
+function blockFasteners(
+  assembly: Assembly,
+  placement: AssemblyPlacement,
+  meshOf: (partId: string) => MeshData | null | undefined,
+  options: SolveOptions,
+  depth = 0,
+): { key: string; instanceId: string; fastener: AssemblyFastener; matrix: Mat4 }[] {
+  const out: { key: string; instanceId: string; fastener: AssemblyFastener; matrix: Mat4 }[] = [];
+  if (depth > 8) return out;
+  for (const inst of assembly.instances) {
+    const m = placement.matrices.get(inst.id);
+    const content = inst.subassemblyId ? options.subassemblyOf?.(inst.subassemblyId) : undefined;
+    if (!m || !content) continue;
+    const sub = solveAssembly(content, meshOf, options);
+    const placed = content.fasteners?.length ? placeFasteners(content, meshOf, (id) => sub.matrices.get(id)) : null;
+    for (const f of content.fasteners ?? []) {
+      const fm = placed?.matrices.get(f.id);
+      if (fm) out.push({ key: `${inst.id}/${f.id}`, instanceId: inst.id, fastener: f, matrix: multiply4(m, fm) });
+    }
+    for (const inner of blockFasteners(content, sub, meshOf, options, depth + 1)) out.push({ ...inner, key: `${inst.id}/${inner.key}`, instanceId: inst.id, matrix: multiply4(m, inner.matrix) });
+  }
+  return out;
+}
+
 /** Vue de l'onglet Assemblage : pièces insérées à leur place, repères des liaisons. */
 function buildAssemblyInput(s: AppState): ViewportInput {
   const assembly = s.doc.assembly ?? { instances: [], joints: [] };
   const sketchesOf = (partId: string) => s.display[partId]?.result.sketches;
-  const placement = solveAssembly(assembly, (partId) => s.display[partId]?.mesh, { sketchesOf });
-  // Vue éclatée : chaque pièce (et sa visserie) décalée, sans toucher au projet.
+  const meshOf = (partId: string) => s.display[partId]?.mesh;
+  const options = { sketchesOf, subassemblyOf: (id: string) => subassemblyContent(s.doc, id) };
+  const placement = solveAssembly(assembly, meshOf, options);
+  // Pièces placées : les sous-assemblages insérés sont dépliés en leurs pièces.
+  const leaves = flattenAssembly(assembly, placement, meshOf, options);
+  const leafByKey = new Map(leaves.map((l) => [l.key, l]));
+  // Vue éclatée : chaque pièce (et sa visserie) décalée, sans toucher au projet ; un bloc s'écarte d'un seul tenant.
   const exploded = s.explode > 0;
-  const offsets = exploded ? explodeOffsets(assembly, placement, (partId) => s.display[partId]?.mesh, s.explode) : null;
+  const offsets = exploded ? explodeOffsets(assembly, placement, meshOf, s.explode, leaves) : null;
   const shifted = (id: string, m: Mat4 | undefined): Mat4 | undefined => {
     const o = offsets?.get(id);
     return m && o ? multiply4(translation4(o), m) : m;
   };
-  const parts: ViewPartInput[] = assembly.instances.map((inst) => {
-    const part = s.doc.parts.find((p) => p.id === inst.partId);
-    const d = s.display[inst.partId];
+  const parts: ViewPartInput[] = leaves.map((leaf) => {
+    const part = s.doc.parts.find((p) => p.id === leaf.partId);
+    const d = s.display[leaf.partId];
     return {
-      partId: inst.id,
+      partId: leaf.key,
       color: part?.color ?? '#888888',
       visible: true,
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
       appearance: 'normal',
-      matrix: shifted(inst.id, placement.matrices.get(inst.id)) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      matrix: shifted(leaf.instanceId, leaf.matrix) ?? leaf.matrix,
     };
   });
+  // Visserie posée à l'intérieur des sous-assemblages : placée dans le bloc, puis avec lui.
+  for (const block of blockFasteners(assembly, placement, meshOf, options)) {
+    const matrix = shifted(block.instanceId, block.matrix);
+    if (!matrix) continue;
+    const { key, mesh } = fastenerMesh(block.fastener.kind, block.fastener.size, block.fastener.length);
+    parts.push({ partId: `fs:${block.key}`, color: FASTENER_COLOR, visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+  }
   // Visserie : un objet par élément, placé sur son bord de trou (maillages partagés).
   const fasteners = assembly.fasteners?.length
     ? placeFasteners(assembly, (partId) => s.display[partId]?.mesh, (id) => placement.matrices.get(id))
@@ -111,23 +150,23 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   const selection: ViewportInput['selection'] = [];
   if (s.mode.kind === 'joint' && s.mode.moving) {
     const m = s.mode.moving;
-    const inst = assembly.instances.find((i) => i.id === m.instanceId);
-    const mesh = inst && s.display[inst.partId]?.mesh;
-    const frame = mesh && inst ? lcsFrame(mesh, m.lcs, sketchesOf(inst.partId)) : null;
-    const matrix = placement.matrices.get(m.instanceId);
-    if (frame && matrix) {
-      markers.push({ origin: transformPoint4(matrix, frame.origin), axis: transformDirection4(matrix, frame.normal), role: 'moving', label: 'Pièce qui bouge' });
+    // La pièce (dépliée) du repère choisi : pièce insérée, ou pièce d'un bloc.
+    const leaf = leafByKey.get([m.instanceId, ...(m.member ?? [])].join('/'));
+    const mesh = leaf && s.display[leaf.partId]?.mesh;
+    const frame = mesh && leaf ? lcsFrame(mesh, m.lcs, sketchesOf(leaf.partId)) : null;
+    if (frame && leaf) {
+      markers.push({ origin: transformPoint4(leaf.matrix, frame.origin), axis: transformDirection4(leaf.matrix, frame.normal), role: 'moving', label: 'Pièce qui bouge' });
     }
     // L'élément cliqué reste en surbrillance pendant le choix du second repère.
-    if (s.mode.movingPick) selection.push({ partId: m.instanceId, kind: s.mode.movingPick.kind, index: s.mode.movingPick.index });
+    if (s.mode.movingPick && leaf) selection.push({ partId: leaf.key, kind: s.mode.movingPick.kind, index: s.mode.movingPick.index });
   }
   if (s.mode.kind === 'joint' && s.hover) {
     // Aperçu du repère qui servira d'accroche sous la souris (centre de face, de cercle, milieu d'arête).
     const h = s.hover;
-    const inst = assembly.instances.find((i) => i.id === h.partId);
-    const part = inst && s.doc.parts.find((p) => p.id === inst.partId);
-    const mesh = inst && s.display[inst.partId]?.mesh;
-    const matrix = inst && placement.matrices.get(inst.id);
+    const leaf = leafByKey.get(h.partId);
+    const part = leaf && s.doc.parts.find((p) => p.id === leaf.partId);
+    const mesh = leaf && s.display[leaf.partId]?.mesh;
+    const matrix = leaf?.matrix;
     const local = h.kind === 'vertex' && matrix ? transformPoint4(invertRigid4(matrix), h.point) : h.point;
     const r = mesh && part ? lcsFromPick(mesh, h.kind, h.index, part, local) : null;
     const frame = r && !('reason' in r) && mesh ? lcsFrame(mesh, r.ref) : null;
@@ -149,29 +188,33 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     }
   }
   if (s.mode.kind === 'model' && sel?.kind === 'instance') {
-    const inst = assembly.instances.find((i) => i.id === sel.id);
-    const mesh = inst && s.display[inst.partId]?.mesh;
-    // La pièce sélectionnée : toutes ses arêtes en surbrillance.
-    if (mesh) mesh.edges.forEach((_e, index) => selection.push({ partId: sel.id, kind: 'edge', index }));
+    // La pièce (ou le bloc) sélectionnée : toutes ses arêtes en surbrillance.
+    for (const leaf of leaves.filter((l) => l.instanceId === sel.id)) {
+      const mesh = s.display[leaf.partId]?.mesh;
+      if (mesh) mesh.edges.forEach((_e, index) => selection.push({ partId: leaf.key, kind: 'edge', index }));
+    }
   }
   // Outil Main : seules les pièces tenues par une liaison mobile peuvent être attrapées.
   const dragTargets = s.assemblyHand && s.mode.kind === 'model' && !exploded
-    ? assembly.joints.filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset)).map((j) => j.moving.instanceId)
+    ? (() => {
+        const movable = new Set(assembly.joints.filter((j) => !placement.issues.has(j.id) && (jointFreedoms(j.kind).angle || jointFreedoms(j.kind).offset)).map((j) => j.moving.instanceId));
+        // Un bloc s'attrape par n'importe laquelle de ses pièces.
+        return leaves.filter((l) => movable.has(l.instanceId)).map((l) => l.key);
+      })()
     : [];
   // Collisions : la matière commune à deux pièces, en rouge.
   const highlightMeshes = s.collisionCheck && s.collisions && !exploded ? s.collisions.items.map((c, i) => ({ key: `${s.collisions!.key}:${i}`, mesh: c.mesh })) : [];
   // Création d'une liaison : les points seuls des esquisses deviennent des accroches cliquables.
   const anchors: NonNullable<ViewportInput['anchors']> = [];
   if (s.mode.kind === 'joint' && !exploded) {
-    for (const inst of assembly.instances) {
-      const matrix = placement.matrices.get(inst.id);
-      const part = s.doc.parts.find((p) => p.id === inst.partId);
-      if (!matrix || !part) continue;
-      for (const sk of s.display[inst.partId]?.result.sketches ?? []) {
+    for (const leaf of leaves) {
+      const part = s.doc.parts.find((p) => p.id === leaf.partId);
+      if (!part) continue;
+      for (const sk of s.display[leaf.partId]?.result.sketches ?? []) {
         if (!sk.frame) continue;
         const name = part.features.find((f) => f.id === sk.featureId)?.name ?? 'esquisse';
         for (const p of standalonePoints(sk.solved)) {
-          anchors.push({ key: `${inst.id}|${sk.featureId}|${p.id}`, at: transformPoint4(matrix, frameToWorld(sk.frame, p)), title: `Point de « ${name} » (${inst.name})` });
+          anchors.push({ key: `${leaf.key}|${sk.featureId}|${p.id}`, at: transformPoint4(leaf.matrix, frameToWorld(sk.frame, p)), title: `Point de « ${name} » (${leaf.name})` });
         }
       }
     }
@@ -739,8 +782,8 @@ export function ViewportHost() {
         },
         onSketchScale: (px) => c.updateSession((s) => setPixelSize(s, px)),
         onAnchorPick: (key) => {
-          const [instanceId, sketchId, pointId] = key.split('|');
-          c.pickJointPoint(instanceId!, sketchId!, pointId!);
+          const [leafKey, sketchId, pointId] = key.split('|');
+          c.pickJointPoint(leafKey!, sketchId!, pointId!);
         },
         onViewChange: () => {
           if (tickPending.current) return;
