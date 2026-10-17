@@ -5,8 +5,10 @@ navigateur. Il est conçu pour apprendre les bases réelles de la conception mé
 plan, dessiner une esquisse cotée, créer un volume, retirer de la matière, modifier une étape
 antérieure — avec une interface sérieuse mais rassurante, en français.
 
-Le résultat se reprend dans **FreeCAD** grâce à l'export **STEP** (solides exacts, en
-millimètres, avec le nom et la couleur de chaque pièce).
+Le résultat se reprend dans **FreeCAD** : export **STEP** (solides exacts, en millimètres, avec
+le nom et la couleur de chaque pièce), document **.FCStd**, ou **script FreeCAD** qui reconstruit
+le projet avec son historique (esquisses cotées, étapes Part Design, paramètres) ; voir
+[docs/export-freecad.md](docs/export-freecad.md).
 
 > Les fichiers de projet gardent l'extension `.vibecad` (nom de développement de l'application) :
 > les projets déjà enregistrés s'ouvrent sans conversion ([décision 0007](docs/decisions/0007-nom-application.md)).
@@ -156,7 +158,8 @@ millimètres, avec le nom et la couleur de chaque pièce).
   d'affichage** (bouton « Affichage ») : ombré avec ou sans arêtes, arêtes cachées en pointillés
   (comme un dessin technique), transparent, fil de fer, noir et blanc, et épaisseur des arêtes
   (0,5 à 4 px) ; les choix sont retenus sur l'appareil.
-- **Échanges** : export STEP (une ou plusieurs pièces), import STEP et **STL** (niveau Expert)
+- **Échanges** : export STEP (une ou plusieurs pièces), **export FreeCAD** (script qui reconstruit
+  l'historique modifiable, ou document .FCStd des formes), import STEP et **STL** (niveau Expert)
   comme « Solide importé » (contenu conservé dans le projet ; les petits défauts de précision d'un
   STEP sont réparés à la lecture, et un STEP surfacique fait de coques fermées est reconstitué en
   volume ; un STL est cousu en volume, ses faces
@@ -290,7 +293,9 @@ Le choix de la licence MIT est provisoire et peut être revu
   rouvert montre toutes les étapes.
 - Assemblage : pas de contact entre pièces ni d'engrenages ; la visserie n'est pas encore
   incluse dans les exports STEP et 3MF.
-- L'export STEP contient les formes finales, pas l'historique : ce n'est pas un arbre Part
-  Design de FreeCAD. L'historique complet reste dans le fichier `.vibecad`.
+- L'export STEP contient les formes finales, pas l'historique. Pour retrouver l'historique dans
+  FreeCAD, utiliser l'export « FreeCAD » (script) : les étapes sans équivalent Part Design y sont
+  reprises comme formes figées et les liaisons d'assemblage ne sont pas traduites. L'historique
+  complet reste dans le fichier `.vibecad`.
 - Un STEP importé n'apporte pas les esquisses ni les étapes de construction d'origine.
 - Le STL ne contient pas d'unité : le fichier est en millimètres (préférer le 3MF).
