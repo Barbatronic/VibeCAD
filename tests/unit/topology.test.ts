@@ -91,6 +91,26 @@ describe('optimisation topologique', () => {
     expect(topologySurface(r, 0.8, 0).cells).toBeLessThanOrEqual(s.cells);
   });
 
+  it('pièce plate : même forme sur toute l’épaisseur (trous traversants)', () => {
+    expect(r.extrusion).toBe(1);
+    const { nx, ny, nz } = r.grid;
+    for (let k = 0; k < nz; k++)
+      for (let i = 0; i < nx; i++) {
+        const first = r.density[i + nx * nz * 0 + nx * ny * k]!;
+        for (let j = 1; j < ny; j++) {
+          const d = r.density[i + nx * (j + ny * k)]!;
+          if (d >= 0 && first >= 0) expect(d).toBe(first);
+        }
+      }
+  });
+
+  it('forme libre en 3D quand on la demande', () => {
+    const free = runTopology({ ...m, fixed: face(0, T, 0, H), loaded: face(L, T, 0, 4), force: { x: 0, y: 0, z: -100 }, material: PLA, targetCells: 1500, volumeFraction: 0.4, extrusion: null, maxIterations: 15 });
+    expect(free.extrusion).toBeNull();
+    expect(free.volumeFraction).toBeGreaterThan(0.37);
+    expect(free.volumeFraction).toBeLessThan(0.43);
+  });
+
   it('durée raisonnable (3 200 cubes : environ 9 s, 40 itérations)', () => {
     expect(r.durationMs).toBeLessThan(60_000);
   });

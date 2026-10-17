@@ -26,6 +26,11 @@ export interface TopologyInput extends StudyInput {
   volumeFraction: number;
   /** Nombre maximal d'itérations (défaut 60). */
   maxIterations?: number;
+  /**
+   * Même forme sur toute l'épaisseur selon cet axe (0 : x, 1 : y, 2 : z), ou `null` : forme libre.
+   * Par défaut : l'axe de l'épaisseur d'une pièce plate (voir `flatAxis`), sinon forme libre.
+   */
+  extrusion?: 0 | 1 | 2 | null;
 }
 
 export interface TopologyGrid {
@@ -54,6 +59,10 @@ export interface TopologyOutput {
   iterations: number;
   converged: boolean;
   cells: number;
+  /** Les cubes gardés pleins (faces fixées et chargées) font déjà la part de matière visée. */
+  saturated: boolean;
+  /** Axe de l'épaisseur quand la forme est la même sur toute l'épaisseur (pièce plate), sinon null. */
+  extrusion: 0 | 1 | 2 | null;
   ignoredCells: number;
   durationMs: number;
 }
@@ -67,6 +76,28 @@ const CHANGE_TOLERANCE = 0.01;
 const STALL = 0.002;
 /** Précision du calcul de déformation à chaque itération (il repart de la solution précédente). */
 const SOLVE_TOLERANCE = 1e-4;
+
+/**
+ * Pièce plate : axe de son épaisseur, quand celle-ci vaut au plus 35 % de la dimension moyenne
+ * (étendue des cubes pleins). Optimiser une plaque en 3D l'amincirait par l'intérieur, ce qui ne
+ * se fabrique pas ; à forme constante dans l'épaisseur, on obtient des trous traversants.
+ */
+export function flatAxis(g: VoxelGrid, cells: number[]): 0 | 1 | 2 | null {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const c of cells) {
+    const p = [c % g.nx, Math.floor(c / g.nx) % g.ny, Math.floor(c / (g.nx * g.ny))];
+    for (let a = 0; a < 3; a++) {
+      lo[a] = Math.min(lo[a]!, p[a]!);
+      hi[a] = Math.max(hi[a]!, p[a]! + 1);
+    }
+  }
+  const size = [0, 1, 2].map((a) => Math.max(0, hi[a]! - lo[a]!));
+  const order = [0, 1, 2].sort((a, b) => size[a]! - size[b]!) as (0 | 1 | 2)[];
+  const thin = size[order[0]!]!;
+  const mid = size[order[1]!]!;
+  return thin > 0 && thin <= 0.35 * mid ? order[0]! : null;
+}
 
 /** Lance l'optimisation ; `onProgress` reçoit l'avancement (0 → 1). */
 export function runTopology(input: TopologyInput, onProgress?: (f: number) => void): TopologyOutput {
@@ -98,47 +129,74 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   for (const n of fixed) held[n] = 1;
   for (const n of loaded) held[n] = 1;
   const passive = new Uint8Array(m);
-  let passiveCount = 0;
-  for (let e = 0; e < m; e++)
-    if (offsets.some((o) => held[base[e]! + o])) {
-      passive[e] = 1;
-      passiveCount++;
-    }
-  // Filtre de densité : voisins à moins de RADIUS cubes, poids RADIUS − distance.
-  const fStart = new Int32Array(m + 1);
-  const fIdx: number[] = [];
-  const fW: number[] = [];
-  const Hs = new Float64Array(m);
-  const reach = Math.ceil(RADIUS) - 1;
+  for (let e = 0; e < m; e++) if (offsets.some((o) => held[base[e]! + o])) passive[e] = 1;
+  // Variables de conception : une par cube ; pièce plate, une par colonne de cubes dans
+  // l'épaisseur (même forme sur toute l'épaisseur : des trous qui traversent, comme à la découpe).
+  const axis = input.extrusion === undefined ? flatAxis(g, design) : input.extrusion;
+  const keyOf = (i: number, j: number, k: number) => (axis === 0 ? 0 : i) + nx * ((axis === 1 ? 0 : j) + ny * (axis === 2 ? 0 : k));
+  const varSlot = new Int32Array(nc).fill(-1);
+  const varOf = new Int32Array(m);
+  const vI: number[] = [];
+  const vJ: number[] = [];
+  const vK: number[] = [];
   for (let e = 0; e < m; e++) {
     const c = design[e]!;
     const i = c % nx;
     const j = Math.floor(c / nx) % ny;
     const k = Math.floor(c / (nx * ny));
-    for (let dk = -reach; dk <= reach; dk++)
-      for (let dj = -reach; dj <= reach; dj++)
-        for (let di = -reach; di <= reach; di++) {
+    const key = keyOf(i, j, k);
+    let v = varSlot[key]!;
+    if (v < 0) {
+      v = varSlot[key] = vI.length;
+      vI.push(axis === 0 ? 0 : i);
+      vJ.push(axis === 1 ? 0 : j);
+      vK.push(axis === 2 ? 0 : k);
+    }
+    varOf[e] = v;
+  }
+  const nv = vI.length;
+  const count = new Float64Array(nv);
+  const fixedVar = new Uint8Array(nv);
+  for (let e = 0; e < m; e++) {
+    count[varOf[e]!] = count[varOf[e]!]! + 1;
+    if (passive[e]) fixedVar[varOf[e]!] = 1;
+  }
+  let passiveCount = 0;
+  for (let v = 0; v < nv; v++) if (fixedVar[v]) passiveCount += count[v]!;
+  // Filtre de densité : voisins à moins de RADIUS cubes, poids RADIUS − distance.
+  const fStart = new Int32Array(nv + 1);
+  const fIdx: number[] = [];
+  const fW: number[] = [];
+  const Hs = new Float64Array(nv);
+  const reach = Math.ceil(RADIUS) - 1;
+  for (let v = 0; v < nv; v++) {
+    const i = vI[v]!;
+    const j = vJ[v]!;
+    const k = vK[v]!;
+    for (let dk = axis === 2 ? 0 : -reach; dk <= (axis === 2 ? 0 : reach); dk++)
+      for (let dj = axis === 1 ? 0 : -reach; dj <= (axis === 1 ? 0 : reach); dj++)
+        for (let di = axis === 0 ? 0 : -reach; di <= (axis === 0 ? 0 : reach); di++) {
           const a = i + di, b = j + dj, d = k + dk;
           if (a < 0 || b < 0 || d < 0 || a >= nx || b >= ny || d >= nz) continue;
-          const f = slot[a + nx * (b + ny * d)]!;
-          if (f < 0) continue;
+          const w2 = varSlot[a + nx * (b + ny * d)]!;
+          if (w2 < 0) continue;
           const w = RADIUS - Math.sqrt(di * di + dj * dj + dk * dk);
           if (w <= 0) continue;
-          fIdx.push(f);
+          fIdx.push(w2);
           fW.push(w);
-          Hs[e] = Hs[e]! + w;
+          Hs[v] = Hs[v]! + w;
         }
-    fStart[e + 1] = fIdx.length;
+    fStart[v + 1] = fIdx.length;
   }
   const filter = (x: Float64Array, out: Float64Array) => {
-    for (let e = 0; e < m; e++) {
-      if (passive[e]) {
-        out[e] = 1;
+    for (let v = 0; v < nv; v++) {
+      if (fixedVar[v]) {
+        out[v] = 1;
         continue;
       }
       let s = 0;
-      for (let p = fStart[e]!; p < fStart[e + 1]!; p++) s += fW[p]! * x[fIdx[p]!]!;
-      out[e] = s / Hs[e]!;
+      for (let p = fStart[v]!; p < fStart[v + 1]!; p++) s += fW[p]! * x[fIdx[p]!]!;
+      out[v] = s / Hs[v]!;
     }
   };
   // Forces et nœuds bloqués.
@@ -193,14 +251,14 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   // Départ : densité uniforme qui respecte le volume visé (cubes gardés pleins compris).
   const free = m - passiveCount;
   const start = free > 0 ? Math.min(1, Math.max(0, (vf * m - passiveCount) / free)) : 1;
-  const x = new Float64Array(m);
-  for (let e = 0; e < m; e++) x[e] = passive[e] ? 1 : start;
-  const xPhys = new Float64Array(m);
-  const xNew = new Float64Array(m);
-  const xTry = new Float64Array(m);
-  const dc = new Float64Array(m);
-  const dcx = new Float64Array(m);
-  const dvx = new Float64Array(m);
+  const x = new Float64Array(nv);
+  for (let v = 0; v < nv; v++) x[v] = fixedVar[v] ? 1 : start;
+  const xPhys = new Float64Array(nv);
+  const xNew = new Float64Array(nv);
+  const xTry = new Float64Array(nv);
+  const dc = new Float64Array(nv);
+  const dcx = new Float64Array(nv);
+  const dvx = new Float64Array(nv);
   const history: number[] = [];
   const target = Math.max(passiveCount, vf * m);
   let converged = false;
@@ -208,21 +266,25 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   let compliance = complianceFull;
   filter(x, xPhys);
   for (let it = 0; it < maxIterations; it++) {
-    for (let e = 0; e < m; e++) cellScale[design[e]!] = scale * (EMIN + (1 - EMIN) * xPhys[e]! ** PENAL);
+    for (let e = 0; e < m; e++) cellScale[design[e]!] = scale * (EMIN + (1 - EMIN) * xPhys[varOf[e]!]! ** PENAL);
     compliance = solve();
     history.push(compliance);
     iterations = it + 1;
-    for (let e = 0; e < m; e++) dc[e] = -PENAL * (1 - EMIN) * xPhys[e]! ** (PENAL - 1) * scale * ce[e]!;
-    // Sensibilités par rapport aux variables (transposée du filtre).
+    dc.fill(0);
+    for (let e = 0; e < m; e++) {
+      const v = varOf[e]!;
+      dc[v] = dc[v]! - PENAL * (1 - EMIN) * xPhys[v]! ** (PENAL - 1) * scale * ce[e]!;
+    }
+    // Sensibilités par rapport aux variables (transposée du filtre) ; volume : nombre de cubes.
     dcx.fill(0);
     dvx.fill(0);
-    for (let e = 0; e < m; e++) {
-      if (passive[e]) continue;
-      for (let p = fStart[e]!; p < fStart[e + 1]!; p++) {
+    for (let v = 0; v < nv; v++) {
+      if (fixedVar[v]) continue;
+      for (let p = fStart[v]!; p < fStart[v + 1]!; p++) {
         const n = fIdx[p]!;
-        const w = fW[p]! / Hs[e]!;
-        dcx[n] = dcx[n]! + w * dc[e]!;
-        dvx[n] = dvx[n]! + w;
+        const w = fW[p]! / Hs[v]!;
+        dcx[n] = dcx[n]! + w * dc[v]!;
+        dvx[n] = dvx[n]! + w * count[v]!;
       }
     }
     // Critère d'optimalité : multiplicateur de Lagrange du volume par dichotomie.
@@ -230,22 +292,22 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
     let l2 = 1e9;
     while ((l2 - l1) / (l1 + l2) > 1e-4) {
       const lmid = 0.5 * (l1 + l2);
-      for (let e = 0; e < m; e++) {
-        if (passive[e]) {
-          xNew[e] = 1;
+      for (let v = 0; v < nv; v++) {
+        if (fixedVar[v]) {
+          xNew[v] = 1;
           continue;
         }
-        const v = x[e]! * Math.sqrt(Math.max(0, -dcx[e]!) / (Math.max(dvx[e]!, 1e-12) * lmid));
-        xNew[e] = Math.max(0, Math.max(x[e]! - MOVE, Math.min(1, Math.min(x[e]! + MOVE, v))));
+        const val = x[v]! * Math.sqrt(Math.max(0, -dcx[v]!) / (Math.max(dvx[v]!, 1e-12) * lmid));
+        xNew[v] = Math.max(0, Math.max(x[v]! - MOVE, Math.min(1, Math.min(x[v]! + MOVE, val))));
       }
       filter(xNew, xTry);
       let vol = 0;
-      for (let e = 0; e < m; e++) vol += xTry[e]!;
+      for (let v = 0; v < nv; v++) vol += count[v]! * xTry[v]!;
       if (vol > target) l1 = lmid;
       else l2 = lmid;
     }
     let change = 0;
-    for (let e = 0; e < m; e++) change = Math.max(change, Math.abs(xNew[e]! - x[e]!));
+    for (let v = 0; v < nv; v++) change = Math.max(change, Math.abs(xNew[v]! - x[v]!));
     x.set(xNew);
     filter(x, xPhys);
     onProgress?.(Math.min(0.99, iterations / maxIterations));
@@ -260,9 +322,10 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   const passiveCells = new Uint8Array(nc);
   let kept = 0;
   for (let e = 0; e < m; e++) {
-    density[design[e]!] = xPhys[e]!;
-    passiveCells[design[e]!] = passive[e]!;
-    kept += xPhys[e]!;
+    const v = varOf[e]!;
+    density[design[e]!] = xPhys[v]!;
+    passiveCells[design[e]!] = fixedVar[v]!;
+    kept += xPhys[v]!;
   }
   onProgress?.(1);
   return {
@@ -277,6 +340,8 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
     iterations,
     converged,
     cells: m,
+    saturated: passiveCount >= vf * m,
+    extrusion: axis,
     ignoredCells,
     durationMs: performance.now() - t0,
   };
