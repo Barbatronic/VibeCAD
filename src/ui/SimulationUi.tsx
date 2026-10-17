@@ -367,7 +367,116 @@ export function SimulationRightPanel() {
             {!result.converged ? <Callout kind="warning">Le calcul n’a pas tout à fait abouti : le résultat est approximatif.</Callout> : null}
           </div>
         ) : null}
+        {!info.assembly ? <TopologySection partId={partId} missing={info.missing} /> : null}
       </div>
     </aside>
+  );
+}
+
+/**
+ * « Alléger la pièce » (optimisation topologique) : avec les mêmes faces fixées et la même charge,
+ * le calcul garde la matière qui travaille. La forme obtenue s'affiche à la place de la pièce ;
+ * on peut l'exporter en STL ou la garder comme nouvelle pièce.
+ */
+function TopologySection({ partId, missing }: { partId: string; missing: string | null }) {
+  const c = useController();
+  const t = useAppState(
+    (s) => {
+      const run = s.topologyRun?.partId === partId ? s.topologyRun : null;
+      const source = c.simulationSource(partId);
+      const key = source ? `${studyKey(studyOf(s.doc, partId), source.key)}|${s.topologyFraction}` : '';
+      return {
+        fraction: s.topologyFraction,
+        status: run?.status ?? null,
+        progress: run?.progress ?? 0,
+        error: run?.error ?? null,
+        current: !!run && run.key === key,
+        threshold: run?.threshold ?? 0.5,
+        figures: run?.result
+          ? {
+              kept: run.surface ? run.surface.cells / run.result.cells : run.result.volumeFraction,
+              stiffness: run.result.complianceFull / run.result.compliance,
+              cells: run.result.cells,
+              iterations: run.result.iterations,
+              seconds: run.result.durationMs / 1000,
+              flat: run.result.extrusion !== null,
+              saturated: run.result.saturated,
+              empty: !run.surface || run.surface.cells === 0,
+            }
+          : null,
+      };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  const pct = (x: number) => `${formatNumber(100 * x, 0)} %`;
+  return (
+    <section class="topology" aria-labelledby="topo-title">
+      <h3 id="topo-title" class="list-title">
+        Alléger la pièce
+      </h3>
+      <p class="field-help">
+        Avec les mêmes faces fixées et la même charge, le calcul cherche où la matière travaille vraiment, et garde seulement la part choisie : la pièce
+        la plus raide possible avec moins de matière (optimisation topologique).
+      </p>
+      <div class="field topology-field">
+        <label class="field-label" for="topo-fraction">
+          Matière gardée : {pct(t.fraction)}
+        </label>
+        <input id="topo-fraction" type="range" min={0.1} max={0.9} step={0.05} value={t.fraction} onInput={(e) => c.setTopologyFraction(Number((e.target as HTMLInputElement).value))} />
+      </div>
+      {t.status === 'running' ? (
+        <div class="sim-progress" role="status">
+          <progress max={1} value={t.progress} aria-label="Avancement de l’allègement" />
+          <Button small onClick={() => c.closeTopology()}>
+            Annuler
+          </Button>
+        </div>
+      ) : (
+        <Button icon="simulate" disabled={!!missing} disabledReason={missing} onClick={() => void c.runTopology()}>
+          Alléger la pièce
+        </Button>
+      )}
+      {t.status === 'error' ? <Callout kind="error">{t.error}</Callout> : null}
+      {t.status === 'done' && t.figures ? (
+        <div class="topology-result" aria-label="Pièce allégée">
+          {!t.current ? <Callout kind="warning">Les réglages ou la pièce ont changé : relancez l’allègement.</Callout> : null}
+          <dl class="sim-figures">
+            <dt>Matière gardée</dt>
+            <dd id="topo-kept">{pct(t.figures.kept)}</dd>
+            <dt>Raideur gardée</dt>
+            <dd id="topo-stiffness">{pct(t.figures.stiffness)}</dd>
+          </dl>
+          <div class="field topology-field">
+            <label class="field-label" for="topo-threshold">
+              Seuil : garder les cubes remplis à au moins {pct(t.threshold)}
+            </label>
+            <input id="topo-threshold" type="range" min={0.2} max={0.8} step={0.05} value={t.threshold} onInput={(e) => c.setTopologyThreshold(Number((e.target as HTMLInputElement).value))} />
+          </div>
+          {t.figures.saturated ? (
+            <Callout kind="warning">
+              Les faces fixées et chargées occupent déjà toute la matière à garder : il n’y a rien à alléger. Choisissez des faces plus petites, ou gardez plus
+              de matière.
+            </Callout>
+          ) : null}
+          {t.figures.empty ? <Callout kind="warning">À ce seuil, il ne reste rien : baissez le seuil ou gardez plus de matière.</Callout> : null}
+          <div class="topology-actions">
+            <Button small icon="export" disabled={t.figures.empty} onClick={() => void c.exportTopologyStl()}>
+              Exporter en STL
+            </Button>
+            <Button small icon="plus" disabled={t.figures.empty} onClick={() => void c.keepTopologyAsPart()}>
+              Nouvelle pièce
+            </Button>
+            <Button small icon="close" onClick={() => c.closeTopology()}>
+              Revenir à la pièce
+            </Button>
+          </div>
+          <p class="field-help">
+            En orange, la matière utile ({formatNumber(t.figures.cells, 0)} cubes, {t.figures.iterations} étapes de calcul, {formatNumber(t.figures.seconds, 0)} s). C’est une
+            forme indicative, en petits cubes lissés : inspirez-vous-en pour redessiner la pièce (trous, nervures), ou imprimez-la telle quelle.
+            {t.figures.flat ? ' Pièce plate : la forme est la même dans toute l’épaisseur, les trous la traversent (comme à la découpe laser).' : ''}
+          </p>
+        </div>
+      ) : null}
+    </section>
   );
 }

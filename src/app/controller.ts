@@ -48,7 +48,7 @@ import type { GeometryClient } from '../geometry/client';
 import type { PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
 import { createStepResource, verifyResources } from '../io/resources';
-import { STL_UNIT_NOTE } from '../io/stl';
+import { meshesToBinaryStl, STL_UNIT_NOTE } from '../io/stl';
 import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
 import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
@@ -86,6 +86,7 @@ import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
 import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, withStudy, type ResultDisplay, type StudySource } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
+import { topologySurface } from '../sim/topology';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
@@ -1913,6 +1914,7 @@ export class AppController {
   setSimulationPart(partId: Id): void {
     if (this.simulationPartId() === partId) return;
     this.cancelSimulation();
+    this.closeTopology();
     this.set({ simulationPart: partId, mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
   }
 
@@ -1978,7 +1980,9 @@ export class AppController {
     const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
     const key = studyKey(study, source.key);
-    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, size: meshSize(problem.input.positions) } });
+    // Un seul calcul à la fois dans le worker : une optimisation en cours est abandonnée.
+    if (this.state.topologyRun?.status === 'running') this.set({ topologyRun: null });
+    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, size: meshSize(problem.input.positions) }, topologyRun: null });
     const runner = this.deps.simulation ?? inlineSimRunner;
     const current = () => {
       const r = this.state.simulationRun;
@@ -2001,6 +2005,88 @@ export class AppController {
   cancelSimulation(): void {
     if (this.state.simulationRun?.status === 'running') this.deps.simulation?.cancel();
     if (this.state.simulationRun) this.set({ simulationRun: null });
+  }
+
+  // ----- Optimisation topologique (« Alléger la pièce »)
+
+  /** Part de la matière à garder (10 à 90 %). */
+  setTopologyFraction(fraction: number): void {
+    this.set({ topologyFraction: Math.min(0.9, Math.max(0.1, fraction)) });
+  }
+
+  /**
+   * Cherche où la matière de la pièce étudiée est utile, avec ses faces fixées et sa charge (dans
+   * le worker de simulation ; une étude de déformation en cours est abandonnée).
+   */
+  async runTopology(): Promise<void> {
+    const partId = this.simulationPartId();
+    const source = partId ? this.simulationSource(partId) : null;
+    if (!partId || !source) return this.explain('Choisissez une pièce qui a un volume.');
+    if (partId === ASSEMBLY_STUDY) return this.explain('L’allègement se fait sur une pièce à la fois : choisissez une pièce dans la liste.');
+    if (this.state.display[partId]?.stale) return this.explain('La pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
+    const study = studyOf(this.state.doc, partId);
+    const problem = studyInput(study, source);
+    if (!problem.ok) return this.explain(problem.message);
+    const volumeFraction = this.state.topologyFraction;
+    const key = `${studyKey(study, source.key)}|${volumeFraction}`;
+    if (this.state.simulationRun?.status === 'running') this.set({ simulationRun: null });
+    const threshold = this.state.topologyRun?.threshold ?? 0.5;
+    this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, topologyRun: { partId, key, status: 'running', progress: 0, volumeFraction, threshold } });
+    const runner = this.deps.simulation ?? inlineSimRunner;
+    const current = () => {
+      const r = this.state.topologyRun;
+      return r?.key === key ? r : null;
+    };
+    try {
+      const result = await runner.optimize({ ...problem.input, volumeFraction }, (progress) => {
+        const r = current();
+        if (r?.status === 'running') this.set({ topologyRun: { ...r, progress } });
+      });
+      const r = current();
+      if (r) this.set({ topologyRun: { ...r, status: 'done', progress: 1, result, surface: topologySurface(result, r.threshold) } });
+    } catch (err) {
+      if (err instanceof AbortedStudy) return;
+      const r = current();
+      if (r) this.set({ topologyRun: { ...r, status: 'error', error: err instanceof StudyError ? STUDY_ERRORS[err.code] : 'Le calcul a échoué.' } });
+    }
+  }
+
+  /** Seuil de densité de la forme montrée : plus haut, seule la matière la plus utile reste. */
+  setTopologyThreshold(threshold: number): void {
+    const r = this.state.topologyRun;
+    if (!r) return;
+    const t = Math.min(0.8, Math.max(0.2, threshold));
+    this.set({ topologyRun: { ...r, threshold: t, ...(r.result ? { surface: topologySurface(r.result, t) } : {}) } });
+  }
+
+  /** Arrête le calcul, ou referme la forme obtenue (retour à la pièce). */
+  closeTopology(): void {
+    if (this.state.topologyRun?.status === 'running') this.deps.simulation?.cancel();
+    if (this.state.topologyRun) this.set({ topologyRun: null });
+  }
+
+  /** La forme obtenue, en STL (à redessiner proprement ou à imprimer telle quelle). */
+  async exportTopologyStl(): Promise<void> {
+    const r = this.state.topologyRun;
+    if (!r?.surface || r.surface.cells === 0) return this.explain('Lancez d’abord « Alléger la pièce ».');
+    const part = findPart(this.state.doc, r.partId);
+    const bytes = meshesToBinaryStl([r.surface], 'VibeCAD - piece allegee');
+    const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/stl' }), safeFileName(`${part?.name ?? 'Pièce'} allégée`, '.stl'), {
+      description: 'Fichier STL',
+      mime: 'model/stl',
+      extension: '.stl',
+      download: true,
+    });
+    if (target) this.toast('success', `Fichier STL « ${target.name} » téléchargé. ${STL_UNIT_NOTE}`);
+  }
+
+  /** La forme obtenue devient une nouvelle pièce du projet (import STL, avec sa fenêtre). */
+  async keepTopologyAsPart(): Promise<void> {
+    const r = this.state.topologyRun;
+    if (!r?.surface || r.surface.cells === 0) return this.explain('Lancez d’abord « Alléger la pièce ».');
+    const part = findPart(this.state.doc, r.partId);
+    const bytes = meshesToBinaryStl([r.surface], 'VibeCAD - piece allegee');
+    await this.beginImport(new File([bytes as Uint8Array<ArrayBuffer>], `${part?.name ?? 'Pièce'} allégée.stl`, { type: 'model/stl' }));
   }
 
   setSimulationDisplay(display: ResultDisplay): void {

@@ -263,6 +263,9 @@ function reducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** Couleur de la pièce allégée (orangé, bien distinct du dégradé des contraintes et de la pièce). */
+const TOPOLOGY_COLOR = [0.93, 0.55, 0.2];
+
 /** Dernier résultat mis en forme (pièce déformée, couleurs) : recalculé seulement s'il change. */
 let resultCache: { key: string; value: NonNullable<ViewportInput['resultMesh']> } | null = null;
 
@@ -274,7 +277,19 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
   const run = s.simulationRun;
   const done = run?.status === 'done' && run.result && run.partId === partId && run.key === studyKey(study, source.key) && s.mode.kind !== 'pick-sim-face' ? run : null;
   let resultMesh: ViewportInput['resultMesh'] = null;
-  if (done?.result) {
+  // Pièce allégée (optimisation topologique) : elle passe devant le résultat de déformation.
+  const topo = s.topologyRun;
+  const shape = topo?.status === 'done' && topo.partId === partId && topo.surface && topo.surface.cells > 0 && s.mode.kind !== 'pick-sim-face' ? topo : null;
+  if (shape?.surface) {
+    const key = `topologie|${shape.key}|${shape.threshold}`;
+    if (resultCache?.key !== key) {
+      const n = shape.surface.positions.length / 3;
+      const colors = new Float32Array(3 * n);
+      for (let v = 0; v < n; v++) colors.set(TOPOLOGY_COLOR, 3 * v);
+      resultCache = { key, value: { key, positions: shape.surface.positions, colors, indices: shape.surface.indices } };
+    }
+    resultMesh = resultCache.value;
+  } else if (done?.result) {
     const scale = s.simulationDeformed ? exaggerationFor(done.result.maxDisplacement, done.size) : 0;
     const animate = scale > 0 && s.simulationAnimate && !reducedMotion();
     const key = `${done.key}|${s.simulationDisplay}|${scale}|${animate}`;
@@ -755,7 +770,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

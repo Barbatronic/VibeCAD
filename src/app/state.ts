@@ -19,6 +19,7 @@ import type { Projection } from '../viewport/camera-rig';
 import type { DisplayStyle } from '../viewport/part-meshes';
 import type { ModelPick } from '../viewport/viewport';
 import type { StudyOutput } from '../sim/study';
+import type { TopologyOutput, TopologySurface } from '../sim/topology';
 import type { ResultDisplay } from './simulation';
 
 export interface MeasureInfo {
@@ -61,6 +62,24 @@ export interface SimulationRun {
   /** Taille (diagonale, mm) de ce qui est étudié : règle l'exagération de la déformée. */
   size: number;
   result?: StudyOutput;
+  error?: string;
+}
+
+/**
+ * Optimisation topologique (« Alléger la pièce ») de la pièce étudiée : densités calculées, et la
+ * forme obtenue au seuil choisi. Affichage seulement : rien n'est enregistré dans le projet.
+ */
+export interface TopologyRun {
+  partId: Id;
+  key: string;
+  status: 'running' | 'done' | 'error';
+  progress: number;
+  /** Part de la matière gardée demandée. */
+  volumeFraction: number;
+  result?: TopologyOutput;
+  /** Seuil de densité (0,2 à 0,8) et forme obtenue à ce seuil. */
+  threshold: number;
+  surface?: TopologySurface;
   error?: string;
 }
 
@@ -193,6 +212,9 @@ export interface AppState {
   simulationDeformed: boolean;
   /** Déformée animée (aller-retour), sauf si le système demande moins d'animations. */
   simulationAnimate: boolean;
+  /** Optimisation topologique en cours ou affichée ; part de matière gardée choisie. */
+  topologyRun: TopologyRun | null;
+  topologyFraction: number;
   assemblySelection: AssemblySelection;
   /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
   assemblyHand: boolean;
@@ -262,6 +284,8 @@ export function initialState(): AppState {
     simulationDisplay: 'stress',
     simulationDeformed: true,
     simulationAnimate: true,
+    topologyRun: null,
+    topologyFraction: 0.4,
     assemblySelection: null,
     // Le chat (Java) est un réglage de l'environnement des jeunes : masqué tant qu'on ne l'a pas coché.
     mascot: { hidden: true, collapsed: false, dismissed: null },

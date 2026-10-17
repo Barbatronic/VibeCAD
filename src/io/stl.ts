@@ -7,7 +7,7 @@ import type { MeshData } from '../geometry/kernel';
 export const STL_UNIT_NOTE =
   "Le format STL n’enregistre pas d’unité : ce fichier est en millimètres. Dans le logiciel d’impression, vérifiez que l’unité choisie est le millimètre.";
 
-export function meshesToBinaryStl(meshes: MeshData[], label = 'VibeCAD'): Uint8Array {
+export function meshesToBinaryStl(meshes: Pick<MeshData, 'positions' | 'indices'>[], label = 'VibeCAD'): Uint8Array {
   let triangles = 0;
   for (const m of meshes) triangles += m.indices.length / 3;
   const buffer = new ArrayBuffer(84 + triangles * 50);

@@ -3266,6 +3266,25 @@ kbd {
   width: 100%;
 }
 
+/* Simulation : « Alléger la pièce » (optimisation topologique). */
+.topology {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.topology-field input[type='range'] {
+  width: 100%;
+}
+.topology-result {
+  margin-top: 8px;
+}
+.topology-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
 /* Points d'accroche (points seuls des esquisses) pendant la création d'une liaison */
 .vp-joint-anchor {
   pointer-events: auto;
