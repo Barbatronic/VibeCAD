@@ -42,6 +42,8 @@ const GLOSSARY: [string, string][] = [
   ['Solide', 'Un volume fermé, avec un intérieur et un extérieur, comme une vraie pièce.'],
   ['STEP', 'Format d’échange entre logiciels de CAO (FreeCAD…) : il contient les formes exactes, pas l’historique.'],
   ['STL', 'Format de maillage (triangles) pour l’impression 3D, sans unité ni historique.'],
+  ['Raideur', 'Ce qui fait qu’une pièce plie peu sous une charge. Une pièce deux fois plus raide plie deux fois moins.'],
+  ['Alléger la pièce', 'Dans Simulation : garder seulement la matière qui travaille vraiment (optimisation topologique). Le calcul enlève la matière inutile et montre en orange une forme plus légère, souvent en forme de treillis, comme une grue ou un pont.'],
 ];
 
 export function HelpDrawer() {
