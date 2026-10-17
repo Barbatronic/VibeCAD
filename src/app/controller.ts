@@ -2028,6 +2028,11 @@ export class AppController {
     this.set({ topologyFraction: Math.min(0.9, Math.max(0.1, fraction)) });
   }
 
+  /** Forme symétrique (plan médian de la pièce normal à cet axe), ou forme libre. */
+  setTopologySymmetry(axis: 0 | 1 | 2 | null): void {
+    this.set({ topologySymmetry: axis });
+  }
+
   /**
    * Cherche où la matière de la pièce étudiée est utile, avec ses faces fixées et sa charge (dans
    * le worker de simulation ; une étude de déformation en cours est abandonnée).
@@ -2042,7 +2047,8 @@ export class AppController {
     const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
     const volumeFraction = this.state.topologyFraction;
-    const key = topologyKey(study, source.key, volumeFraction);
+    const symmetry = this.state.topologySymmetry;
+    const key = topologyKey(study, source.key, volumeFraction, symmetry);
     if (this.state.simulationRun?.status === 'running') this.set({ simulationRun: null });
     const threshold = this.state.topologyRun?.threshold ?? 0.5;
     this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, topologyRun: { partId, key, status: 'running', progress: 0, volumeFraction, threshold } });
@@ -2052,7 +2058,7 @@ export class AppController {
       return r?.key === key ? r : null;
     };
     try {
-      const result = await runner.optimize({ ...problem.input, volumeFraction }, (progress) => {
+      const result = await runner.optimize({ ...problem.input, volumeFraction, ...(symmetry !== null ? { symmetry: [symmetry] } : {}) }, (progress) => {
         const r = current();
         if (r?.status === 'running') this.set({ topologyRun: { ...r, progress } });
       });

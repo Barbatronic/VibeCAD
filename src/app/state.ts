@@ -215,6 +215,8 @@ export interface AppState {
   /** Optimisation topologique en cours ou affichée ; part de matière gardée choisie. */
   topologyRun: TopologyRun | null;
   topologyFraction: number;
+  /** Forme symétrique imposée : axe normal au plan de symétrie (0 : x, 1 : y, 2 : z), ou null. */
+  topologySymmetry: 0 | 1 | 2 | null;
   assemblySelection: AssemblySelection;
   /** Outil Main de l'assemblage : glisser attrape les pièces (sinon glisser tourne la vue). */
   assemblyHand: boolean;
@@ -286,6 +288,7 @@ export function initialState(): AppState {
     simulationAnimate: true,
     topologyRun: null,
     topologyFraction: 0.4,
+    topologySymmetry: null,
     assemblySelection: null,
     // Le chat (Java) est un réglage de l'environnement des jeunes : masqué tant qu'on ne l'a pas coché.
     mascot: { hidden: true, collapsed: false, dismissed: null },

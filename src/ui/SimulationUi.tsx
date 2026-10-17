@@ -385,9 +385,10 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
       const run = s.topologyRun?.partId === partId ? s.topologyRun : null;
       const source = c.simulationSource(partId);
       const study = studyOf(s.doc, partId);
-      const key = source ? topologyKey(study, source.key, s.topologyFraction) : '';
+      const key = source ? topologyKey(study, source.key, s.topologyFraction, s.topologySymmetry) : '';
       return {
         fraction: s.topologyFraction,
+        symmetry: s.topologySymmetry,
         keep: study.keep?.length ?? 0,
         picking: s.mode.kind === 'pick-sim-face' && s.mode.role === 'keep',
         status: run?.status ?? null,
@@ -443,6 +444,23 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
         </label>
         <input id="topo-fraction" type="range" min={0.1} max={0.9} step={0.05} value={t.fraction} onInput={(e) => c.setTopologyFraction(Number((e.target as HTMLInputElement).value))} />
       </div>
+      <label class="field">
+        <span class="field-label">Forme symétrique</span>
+        <select
+          id="topo-symmetry"
+          class="select"
+          value={t.symmetry === null ? 'none' : String(t.symmetry)}
+          onChange={(e) => {
+            const v = (e.target as HTMLSelectElement).value;
+            c.setTopologySymmetry(v === 'none' ? null : (Number(v) as 0 | 1 | 2));
+          }}
+        >
+          <option value="none">Non : forme libre</option>
+          <option value="0">Gauche-droite (miroir selon X)</option>
+          <option value="1">Avant-arrière (miroir selon Y)</option>
+          <option value="2">Haut-bas (miroir selon Z)</option>
+        </select>
+      </label>
       {t.status === 'running' ? (
         <div class="sim-progress" role="status">
           <progress max={1} value={t.progress} aria-label="Avancement de l’allègement" />

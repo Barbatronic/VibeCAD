@@ -221,9 +221,9 @@ export function studyKey(study: SimulationStudy, sourceKey: string): string {
   return `${sourceKey}|${JSON.stringify(rest)}`;
 }
 
-/** Signature d'un allègement : celle de l'étude, les faces à garder et la part de matière gardée. */
-export function topologyKey(study: SimulationStudy, sourceKey: string, fraction: number): string {
-  return `${studyKey(study, sourceKey)}|${JSON.stringify(study.keep ?? [])}|${fraction}`;
+/** Signature d'un allègement : celle de l'étude, les faces à garder, la part gardée et la symétrie. */
+export function topologyKey(study: SimulationStudy, sourceKey: string, fraction: number, symmetry: 0 | 1 | 2 | null): string {
+  return `${studyKey(study, sourceKey)}|${JSON.stringify(study.keep ?? [])}|${fraction}|${symmetry ?? '-'}`;
 }
 
 export type Verdict = { level: 'ok' | 'tight' | 'fail'; margin: number; label: string };

@@ -166,3 +166,20 @@ describe('optimisation topologique : faces à garder', () => {
       }
   });
 });
+
+describe('optimisation topologique : symétrie imposée', () => {
+  it('forme symétrique haut-bas même si la charge ne l’est pas', () => {
+    const m = boxMesh(L, T, H);
+    const r = runTopology({ ...m, fixed: face(0, T, 0, H), loaded: face(L, T, 0, 4), force: { x: 0, y: 0, z: -100 }, material: PLA, targetCells: 1500, volumeFraction: 0.4, symmetry: [2], maxIterations: 15 });
+    const { nx, ny, nz } = r.grid;
+    for (let k = 0; k < nz; k++)
+      for (let j = 0; j < ny; j++)
+        for (let i = 0; i < nx; i++) {
+          const a = r.density[i + nx * (j + ny * k)]!;
+          const b = r.density[i + nx * (j + ny * (nz - 1 - k))]!;
+          if (a >= 0 && b >= 0) expect(a).toBeCloseTo(b, 6);
+        }
+    expect(r.volumeFraction).toBeGreaterThan(0.37);
+    expect(r.volumeFraction).toBeLessThan(0.43);
+  });
+});

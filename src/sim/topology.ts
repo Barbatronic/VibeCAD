@@ -32,6 +32,8 @@ export interface TopologyInput extends StudyInput {
    * Par défaut : l'axe de l'épaisseur d'une pièce plate (voir `flatAxis`), sinon forme libre.
    */
   extrusion?: 0 | 1 | 2 | null;
+  /** Forme symétrique par rapport au plan médian de la pièce, normal à ces axes. */
+  symmetry?: (0 | 1 | 2)[];
 }
 
 export interface TopologyGrid {
@@ -139,7 +141,19 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
   // Variables de conception : une par cube ; pièce plate, une par colonne de cubes dans
   // l'épaisseur (même forme sur toute l'épaisseur : des trous qui traversent, comme à la découpe).
   const axis = input.extrusion === undefined ? flatAxis(g, design) : input.extrusion;
-  const keyOf = (i: number, j: number, k: number) => (axis === 0 ? 0 : i) + nx * ((axis === 1 ? 0 : j) + ny * (axis === 2 ? 0 : k));
+  // Symétrie imposée : un cube et son reflet (plan au milieu de la pièce) partagent leur variable.
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const c of design) {
+    const p = [c % nx, Math.floor(c / nx) % ny, Math.floor(c / (nx * ny))];
+    for (let a = 0; a < 3; a++) {
+      lo[a] = Math.min(lo[a]!, p[a]!);
+      hi[a] = Math.max(hi[a]!, p[a]!);
+    }
+  }
+  const mirrored = [0, 1, 2].map((a) => (input.symmetry ?? []).includes(a as 0 | 1 | 2) && a !== axis);
+  const canon = (p: number, a: number) => (mirrored[a] ? Math.min(p, lo[a]! + hi[a]! - p) : p);
+  const keyOf = (i: number, j: number, k: number) => (axis === 0 ? 0 : canon(i, 0)) + nx * ((axis === 1 ? 0 : canon(j, 1)) + ny * (axis === 2 ? 0 : canon(k, 2)));
   const varSlot = new Int32Array(nc).fill(-1);
   const varOf = new Int32Array(m);
   const vI: number[] = [];
@@ -154,9 +168,9 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
     let v = varSlot[key]!;
     if (v < 0) {
       v = varSlot[key] = vI.length;
-      vI.push(axis === 0 ? 0 : i);
-      vJ.push(axis === 1 ? 0 : j);
-      vK.push(axis === 2 ? 0 : k);
+      vI.push(axis === 0 ? 0 : canon(i, 0));
+      vJ.push(axis === 1 ? 0 : canon(j, 1));
+      vK.push(axis === 2 ? 0 : canon(k, 2));
     }
     varOf[e] = v;
   }
@@ -184,7 +198,8 @@ export function runTopology(input: TopologyInput, onProgress?: (f: number) => vo
         for (let di = axis === 0 ? 0 : -reach; di <= (axis === 0 ? 0 : reach); di++) {
           const a = i + di, b = j + dj, d = k + dk;
           if (a < 0 || b < 0 || d < 0 || a >= nx || b >= ny || d >= nz) continue;
-          const w2 = varSlot[a + nx * (b + ny * d)]!;
+          // Voisin de l'autre côté du plan de symétrie : c'est le reflet d'un voisin.
+          const w2 = varSlot[keyOf(a, b, d)]!;
           if (w2 < 0) continue;
           const w = RADIUS - Math.sqrt(di * di + dj * dj + dk * dk);
           if (w <= 0) continue;

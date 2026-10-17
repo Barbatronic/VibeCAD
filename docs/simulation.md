@@ -124,7 +124,9 @@ possible avec moins de matière.
 1. Préparer l'étude comme pour « Calculer » (faces fixées, charge, précision). Facultatif :
    **Faces à garder** (en vert) : le bord d'un perçage, une face d'appui… restent pleins. Elles
    sont enregistrées dans le projet avec l'étude, sans périmer le calcul de déformation.
-2. Choisir la **matière gardée**, puis **Alléger la pièce** : une barre montre l'avancement
+2. Choisir la **matière gardée** et, si besoin, une **forme symétrique** (gauche-droite,
+   avant-arrière ou haut-bas : la forme se reflète par le plan médian de la pièce, même si la
+   charge n'est pas symétrique), puis **Alléger la pièce** : une barre montre l'avancement
    (« Annuler » l'arrête). Environ 10 s en précision Rapide, 20 s en Normale, une minute en Fine.
 3. La forme obtenue s'affiche en **orange** devant la pièce d'origine (transparente). Le panneau
    indique la matière gardée et la **raideur gardée** (souplesse de la pièce pleine / souplesse de
@@ -164,7 +166,8 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   appuis, l'endroit où l'on appuie et ce que l'élève a choisi. S'ils font déjà la part demandée
   (une grande face d'une plaque, par exemple), un avertissement le dit.
 - Pièce plate : une variable par colonne de cubes dans l'épaisseur (sensibilités et volume
-  additionnés sur la colonne, filtre dans le plan).
+  additionnés sur la colonne, filtre dans le plan). Symétrie : un cube et son reflet partagent
+  leur variable (le filtre voit les voisins de l'autre côté du plan comme des reflets).
 - **Forme** (`topologySurface`) : cubes au-dessus du seuil ; les contacts par une arête ou un coin
   sont comblés par un cube voisin, seuls les morceaux reliés par des faces et tenus par une face
   fixée sont gardés ; surface des cubes (chaque arête partagée par deux triangles exactement)
@@ -186,7 +189,7 @@ export STL, résultat périmé quand on change la part gardée, nouvelle pièce 
 
 ## Suite possible
 
-- Optimisation topologique : zones à laisser vides choisies par l'élève, symétrie imposée, contrainte de fabrication (impression sans support) ; forme lissée
+- Optimisation topologique : zones à laisser vides choisies par l'élève, contrainte de fabrication (impression sans support) ; forme lissée
   par « marching cubes » plutôt que par cubes lissés.
 - mesurer sur un ordinateur d'école ; si besoin, réduire encore le coût d'une itération (produit
   matrice-vecteur par nœud plutôt que par cube).

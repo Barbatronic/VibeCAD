@@ -87,6 +87,27 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await page.locator('#topo-fraction').fill('0.5');
   await expect(page.locator('.topology-result')).toContainText('relancez l’allègement');
 
+  // Forme symétrique gauche-droite : les densités se répondent de part et d'autre du milieu.
+  await page.locator('#topo-symmetry').selectOption({ label: 'Gauche-droite (miroir selon X)' });
+  await run.click();
+  await expect(page.locator('.topology-result')).not.toContainText('relancez', { timeout: 120_000 });
+  await expect(page.locator('#topo-kept')).toBeVisible();
+  const symmetric = await page.evaluate(() => {
+    const r = (window as any).vibecad.controller.state.topologyRun.result;
+    const { nx, ny, nz } = r.grid;
+    let worst = 0;
+    for (let k = 0; k < nz; k++)
+      for (let j = 0; j < ny; j++)
+        for (let i = 0; i < nx; i++) {
+          const a = r.density[i + nx * (j + ny * k)];
+          const b = r.density[nx - 1 - i + nx * (j + ny * k)];
+          if (a >= 0 && b >= 0) worst = Math.max(worst, Math.abs(a - b));
+        }
+    return worst;
+  });
+  expect(symmetric).toBeLessThan(1e-6);
+  await page.screenshot({ path: 'tests/output/e2e-topologie-symetrie.png' });
+
   // Garder la forme comme nouvelle pièce (fenêtre d'import STL).
   await page.getByRole('button', { name: 'Nouvelle pièce' }).click();
   const dialog = page.getByRole('dialog');
