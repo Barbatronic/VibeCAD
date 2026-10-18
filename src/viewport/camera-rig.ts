@@ -178,6 +178,12 @@ export class CameraRig {
     this.look(new Vector3(...v.dir), new Vector3(...v.up), center, distance, animate);
   }
 
+  /** Vue depuis une direction quelconque (cube de navigation : face, arête, coin), cadrée sur la boîte. */
+  setViewDirection(direction: Vector3, up: Vector3, bounds: Box3 | null, animate = true): void {
+    const { center, distance } = this.framing(bounds);
+    this.look(direction, up, center, distance, animate);
+  }
+
   /** Cadre la boîte donnée en conservant l'orientation actuelle. */
   fit(bounds: Box3 | null, animate = true): void {
     const dir = this.camera.position.clone().sub(this.controls.target).normalize();

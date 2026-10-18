@@ -7,8 +7,6 @@ import {
   AmbientLight,
   Box3,
   BufferGeometry,
-  CanvasTexture,
-  Color,
   DirectionalLight,
   DoubleSide,
   Float32BufferAttribute,
@@ -21,13 +19,10 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  OrthographicCamera,
   PlaneGeometry,
   Plane,
   Raycaster,
   Scene,
-  Sprite,
-  SpriteMaterial,
   TOUCH,
   Sphere,
   Vector2,
@@ -50,6 +45,7 @@ import { AxesView, frameMatrix, PlaneGrid } from './grid';
 import { fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type PartAppearance } from './part-meshes';
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
+import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
 
 /** Durée d'un aller-retour de la déformée animée (ms). */
 const RESULT_PERIOD_MS = 1600;
@@ -177,6 +173,9 @@ export interface ViewportEvents {
 }
 
 const EDGE_PICK_PX = 6;
+/** Cube de navigation : côté (px) et marge depuis le coin inférieur gauche. */
+const VIEW_CUBE_SIZE = 156;
+const VIEW_CUBE_MARGIN = 8;
 const CLICK_MOVE_PX = 5;
 
 function emptyInput(): ViewportInput {
@@ -224,7 +223,9 @@ export class Viewport {
   private lastPixelSize = 0;
   private lastFitRequest = 0;
   private savedCamera: { position: Vector3; target: Vector3; up: Vector3; projection: Projection } | null = null;
-  private readonly gizmo: { scene: Scene; camera: OrthographicCamera };
+  private readonly viewCube: ViewCube;
+  /** Morceau du cube de navigation appuyé (clic en cours). */
+  private cubeDown: ViewCubePiece | null = null;
   private readonly resizeObserver: ResizeObserver;
   private disposed = false;
 
@@ -258,7 +259,7 @@ export class Viewport {
     this.scene.add(this.headlight, this.headlight.target);
     this.scene.add(this.grid.group, this.axes.group, this.partsGroup, this.planesGroup, this.overlayGroup, this.sessionView.group);
     this.buildOriginPlanes();
-    this.gizmo = this.buildGizmo();
+    this.viewCube = new ViewCube(this.palette);
 
     this.bindEvents();
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -300,18 +301,14 @@ export class Viewport {
     this.renderer.setViewport(0, 0, this.width, this.height);
     this.renderer.setScissorTest(false);
     this.renderer.render(this.scene, camera);
-    // Repère d'orientation dans le coin inférieur gauche.
-    const size = 92;
-    const g = this.gizmo;
-    const dir = camera.position.clone().sub(this.rig.target).normalize();
-    g.camera.position.copy(dir.multiplyScalar(4));
-    g.camera.up.copy(camera.up);
-    g.camera.lookAt(0, 0, 0);
+    // Cube de navigation dans le coin inférieur gauche.
+    const size = VIEW_CUBE_SIZE;
+    this.viewCube.sync(camera.position.clone().sub(this.rig.target), camera.up);
     this.renderer.setScissorTest(true);
-    this.renderer.setScissor(8, 8, size, size);
-    this.renderer.setViewport(8, 8, size, size);
+    this.renderer.setScissor(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
+    this.renderer.setViewport(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
     this.renderer.clearDepth();
-    this.renderer.render(g.scene, g.camera);
+    this.renderer.render(this.viewCube.scene, this.viewCube.camera);
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, this.width, this.height);
     this.labelRenderer.render(this.scene, camera);
@@ -414,29 +411,6 @@ export class Viewport {
       const at = frameToWorld(frame, { x: size * 0.5, y: size * 0.5 });
       label.position.set(at.x, at.y, at.z);
     }
-  }
-
-  private buildGizmo(): { scene: Scene; camera: OrthographicCamera } {
-    const scene = new Scene();
-    const camera = new OrthographicCamera(-1.6, 1.6, 1.6, -1.6, 0.1, 10);
-    const colors = [this.palette.axisX, this.palette.axisY, this.palette.axisZ];
-    const dirs = [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)];
-    const positions: number[] = [];
-    const cols: number[] = [];
-    dirs.forEach((d, i) => {
-      positions.push(0, 0, 0, d.x, d.y, d.z);
-      const c = new Color(colors[i]!);
-      cols.push(c.r, c.g, c.b, c.r, c.g, c.b);
-      const sprite = new Sprite(new SpriteMaterial({ map: letterTexture('XYZ'[i]!, colors[i]!), depthTest: false }));
-      sprite.position.copy(d.clone().multiplyScalar(1.32));
-      sprite.scale.set(0.62, 0.62, 1);
-      scene.add(sprite);
-    });
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new Float32BufferAttribute(cols, 3));
-    scene.add(new LineSegments(geometry, new LineBasicMaterial({ vertexColors: true })));
-    return { scene, camera };
   }
 
   // -------------------------------------------------------------------------
@@ -1122,8 +1096,55 @@ export class Viewport {
     window.addEventListener('pointercancel', finish);
   }
 
+  /** Position d'un événement dans le carré du cube de navigation (−1 → 1), ou null en dehors. */
+  private cubePoint(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const x = e.clientX - rect.left - VIEW_CUBE_MARGIN;
+    const y = rect.height - (e.clientY - rect.top) - VIEW_CUBE_MARGIN;
+    if (x < 0 || y < 0 || x > VIEW_CUBE_SIZE || y > VIEW_CUBE_SIZE) return null;
+    return { x: (2 * x) / VIEW_CUBE_SIZE - 1, y: (2 * y) / VIEW_CUBE_SIZE - 1 };
+  }
+
+  /** Cube de navigation : survol (surligné), clic (oriente la vue). Passe avant la rotation de la vue. */
+  private bindViewCube(): void {
+    this.container.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.button !== 0 || e.target !== this.renderer.domElement) return;
+        const at = this.cubePoint(e);
+        const piece = at ? this.viewCube.pick(at) : null;
+        if (!piece) return;
+        e.stopPropagation();
+        e.preventDefault();
+        this.cubeDown = piece;
+      },
+      { capture: true },
+    );
+    window.addEventListener('pointerup', (e) => {
+      const down = this.cubeDown;
+      if (!down) return;
+      this.cubeDown = null;
+      const at = this.cubePoint(e);
+      if (at && this.viewCube.pick(at) === down) this.orientTo(down.dir);
+    });
+  }
+
+  /** Oriente la vue selon une direction du cube de navigation (face, arête ou coin). */
+  orientTo(dir: [number, number, number]): void {
+    this.rig.setViewDirection(new Vector3(...dir).normalize(), viewUp(dir), this.contentBounds());
+    this.needsRender = true;
+  }
+
+  /** Coordonnées écran du centre d'un morceau du cube de navigation (tests). */
+  viewCubeClientPoint(dir: [number, number, number]): { x: number; y: number } {
+    const p = this.viewCube.project(dir);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + VIEW_CUBE_MARGIN + ((p.x + 1) / 2) * VIEW_CUBE_SIZE, y: rect.top + rect.height - VIEW_CUBE_MARGIN - ((p.y + 1) / 2) * VIEW_CUBE_SIZE };
+  }
+
   private bindEvents(): void {
     this.bindAssemblyDrag();
+    this.bindViewCube();
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
@@ -1219,6 +1240,22 @@ export class Viewport {
   };
 
   private onPointerMove = (e: PointerEvent): void => {
+    // Survol du cube de navigation (hors glisser) : morceau surligné, nom de la vue en infobulle.
+    if (e.buttons === 0) {
+      const at = this.cubePoint(e);
+      const piece = at ? this.viewCube.pick(at) : null;
+      if (this.viewCube.hover(piece)) this.needsRender = true;
+      const canvas = this.renderer.domElement;
+      if (piece) {
+        canvas.title = `Orienter la vue : ${piece.label}`;
+        canvas.style.cursor = 'pointer';
+        return;
+      }
+      if (canvas.title) {
+        canvas.title = '';
+        canvas.style.cursor = '';
+      }
+    }
     if (this.input.mode === 'sketch') {
       if (e.buttons !== 0 && e.buttons !== 1) return;
       const p = this.sketchPoint(e);
@@ -1449,6 +1486,7 @@ export class Viewport {
 
   setPalette(): void {
     this.palette = readPalette(this.container);
+    this.viewCube.setPalette(this.palette);
     this.grid.setPalette(this.palette);
     this.axes.setPalette(this.palette);
     this.sessionView.setPalette(this.palette);
@@ -1471,22 +1509,6 @@ export class Viewport {
     this.renderer.domElement.remove();
     this.labelRenderer.domElement.remove();
   }
-}
-
-function letterTexture(letter: string, color: string): CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 64;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(32, 32, 26, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 34px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(letter, 32, 34);
-  return new CanvasTexture(canvas);
 }
 
 export function measureLabel(distance: number): string {
