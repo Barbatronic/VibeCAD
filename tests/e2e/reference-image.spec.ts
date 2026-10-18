@@ -40,10 +40,17 @@ function testPng(): Buffer {
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-/** Clique un point (normalisé, y vers le haut) du dessin de la fenêtre de réglage. */
-async function clickImage(page: Page, x: number, y: number) {
+/**
+ * Clique un point (normalisé, y vers le haut) de l'image dans la fenêtre de réglage : l'image est
+ * centrée et ajustée au cadre de 860 × 520 (proportions gardées).
+ */
+async function clickImage(page: Page, x: number, y: number, image = { w: 200, h: 100 }) {
   const box = (await page.locator('.image-calibration canvas').boundingBox())!;
-  await page.mouse.click(box.x + x * box.width, box.y + (1 - y) * box.height);
+  const k = Math.min(860 / image.w, 520 / image.h);
+  const ox = (860 - image.w * k) / 2;
+  const oy = (520 - image.h * k) / 2;
+  const s = box.width / 860;
+  await page.mouse.click(box.x + (ox + x * image.w * k) * s, box.y + (oy + (1 - y) * image.h * k) * s);
 }
 
 const imageParams = (page: Page) => appState(page, (s) => (s.mode.kind === 'feature' ? s.mode.draft.feature.params : null));
@@ -77,6 +84,14 @@ test('image de référence : import, mise à l’échelle par 2 points, redresse
   await page.getByRole('button', { name: 'Appliquer' }).click();
   await expect.poll(async () => (await imageParams(page))!.width).toBeCloseTo(80, 6);
   expect((await imageParams(page))!.perspective.aspect).toBeCloseTo(1, 6);
+  // Zoom à la molette dans la fenêtre de réglage, puis « Tout voir ».
+  await page.getByRole('button', { name: /Mettre à l’échelle/ }).click();
+  const canvasBox = (await page.locator('.image-calibration canvas').boundingBox())!;
+  await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
+  await page.mouse.wheel(0, -300);
+  await page.screenshot({ path: 'tests/output/e2e-image-loupe.png' });
+  await page.getByRole('button', { name: 'Tout voir' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler', exact: true }).click();
   await page.locator('#draft-image-opacity').fill('0.8');
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
 

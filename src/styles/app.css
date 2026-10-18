@@ -3284,8 +3284,14 @@ kbd {
   justify-content: center;
   margin: 8px 0;
 }
+/* Fenêtre de réglage d'une image : plus large pour cliquer précisément. */
+.modal:has(.image-calibration) {
+  width: min(940px, 100%);
+}
 .image-calibration canvas {
+  width: 100%;
   max-width: 100%;
+  touch-action: none;
   border: 1px solid var(--border);
   cursor: crosshair;
   background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 50% / 16px 16px;
