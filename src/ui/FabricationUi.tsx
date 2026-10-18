@@ -289,6 +289,12 @@ function LaserRightPanel() {
             </p>
             <SheetPreview materialId={page.id} />
             <div class="mat-actions">
+              <Button small icon="fit" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => c.openLaserEditor(page.id)}>
+                Plaques en grand…
+              </Button>
+              <Button small icon="target" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => c.optimizeLaser(page.id)}>
+                Optimiser
+              </Button>
               <Button small icon="export" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => void c.exportLaser('svg', page.id)}>
                 SVG
               </Button>

@@ -70,6 +70,21 @@ export interface LaserMaterial {
   sheet: { w: number; h: number };
   /** Largeur du trait de coupe (mm). */
   kerf: number;
+  /**
+   * Placements choisis (plaques en grand, « Optimiser ») : exemplaire d'une pièce, plaque, centre
+   * (mm) et angle (degrés). Absent : rangement automatique par rangées.
+   */
+  placements?: LaserPlacement[];
+}
+
+export interface LaserPlacement {
+  partId: Id;
+  /** Rang de l'exemplaire (0, 1, 2…). */
+  copy: number;
+  sheet: number;
+  x: number;
+  y: number;
+  angle: number;
 }
 
 export interface FabricationSettings {

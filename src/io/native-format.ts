@@ -376,7 +376,17 @@ function readLaser(v: Validator, la: Record<string, unknown>, path: string, part
       const mo = obj(v, raw, mp) ?? {};
       const id = str(v, mo, 'id', mp);
       if (materials.some((m) => m.id === id)) v.error(`${mp}.id`, `identifiant en double : ${id}`);
-      materials.push({ id, name: str(v, mo, 'name', mp), thickness: num(v, mo, 'thickness', mp, { min: 0 }), sheet: sheetOf(mo, mp), kerf: num(v, mo, 'kerf', mp, { min: 0 }) });
+      const placements =
+        mo.placements !== undefined
+          ? arr(v, mo, 'placements', mp)
+              .map((pr, k) => {
+                const pp = `${mp}.placements[${k}]`;
+                const po = obj(v, pr, pp) ?? {};
+                return { partId: str(v, po, 'partId', pp), copy: num(v, po, 'copy', pp, { min: 0, integer: true }), sheet: num(v, po, 'sheet', pp, { min: 0, integer: true }), x: num(v, po, 'x', pp), y: num(v, po, 'y', pp), angle: num(v, po, 'angle', pp) };
+              })
+              .filter((pl) => partIds.has(pl.partId))
+          : null;
+      materials.push({ id, name: str(v, mo, 'name', mp), thickness: num(v, mo, 'thickness', mp, { min: 0 }), sheet: sheetOf(mo, mp), kerf: num(v, mo, 'kerf', mp, { min: 0 }), ...(placements ? { placements } : {}) });
     });
   } else {
     // Format des premières versions : une seule plaque, une seule épaisseur.

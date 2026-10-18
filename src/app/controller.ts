@@ -38,7 +38,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -72,7 +72,7 @@ import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
 import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
-import { findPlanarFace, laserLayout, type LaserLayout } from './laser';
+import { findPlanarFace, laserLayout, optimizedPlacements, type LaserLayout } from './laser';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
 import { billOfMaterials, bomCsv, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type ProjectedView, type ViewName } from './drawings';
 import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
@@ -2261,6 +2261,55 @@ export class AppController {
       (id) => s.display[id]?.result.flat?.mesh ?? s.display[id]?.mesh,
       (id) => s.display[id]?.result.flat?.bends.flatMap((b) => b.lines.map((l) => ({ point: l.point, dir: l.dir, angle: b.angle }))),
     );
+  }
+
+  /** Plaques en grand (édition du placement des pièces d'un matériau), ou fermeture. */
+  openLaserEditor(materialId: Id | null): void {
+    this.set({ laserEditor: materialId ? { materialId } : null });
+  }
+
+  private setLaserPlacements(materialId: Id, placements: LaserPlacement[] | null, label: string): void {
+    this.updateFabrication(
+      (f) => ({
+        ...f,
+        laser: {
+          ...f.laser,
+          materials: f.laser.materials.map((m) => {
+            if (m.id !== materialId) return m;
+            const { placements: _old, ...rest } = m;
+            return placements ? { ...rest, placements } : rest;
+          }),
+        },
+      }),
+      label,
+    );
+  }
+
+  /**
+   * Déplace ou tourne un exemplaire de pièce sur les plaques d'un matériau. La première fois, la
+   * disposition actuelle de toutes les pièces est figée (elles ne bougent plus d'elles-mêmes).
+   */
+  placeLaserPiece(materialId: Id, partId: Id, copy: number, placement: { sheet: number; x: number; y: number; angle: number }, label = 'Déplacer une pièce sur la plaque'): void {
+    const group = this.laserLayout().materials.find((g) => g.material.id === materialId);
+    if (!group) return;
+    const current: LaserPlacement[] = group.placed.map((p) => ({ partId: p.partId, copy: p.copy, sheet: p.sheet, ...p.placement }));
+    const next = current.map((p) => (p.partId === partId && p.copy === copy ? { partId, copy, ...placement, angle: ((placement.angle % 360) + 360) % 360 } : p));
+    this.setLaserPlacements(materialId, next, label);
+  }
+
+  /** Imbrication serrée de toutes les pièces d'un matériau (rotations par quart de tour). */
+  optimizeLaser(materialId: Id): void {
+    const placements = optimizedPlacements(this.laserLayout(), materialId, this.fabrication().laser.spacing);
+    if (!placements.length) return this.explain('Aucune pièce à placer pour ce matériau.');
+    const before = this.laserLayout().materials.find((g) => g.material.id === materialId)?.sheets ?? 0;
+    this.setLaserPlacements(materialId, placements, 'Optimiser le placement');
+    const after = this.laserLayout().materials.find((g) => g.material.id === materialId)?.sheets ?? 0;
+    this.toast('success', `Pièces imbriquées au plus serré : ${after} plaque${after > 1 ? 's' : ''}${before !== after ? ` (au lieu de ${before})` : ''}.`);
+  }
+
+  /** Retour au rangement automatique par rangées. */
+  resetLaserPlacements(materialId: Id): void {
+    this.setLaserPlacements(materialId, null, 'Ranger automatiquement les pièces');
   }
 
   /** Fichier de découpe laser (SVG ou DXF) des plaques d'un matériau. */

@@ -3279,6 +3279,103 @@ kbd {
 }
 
 /* Simulation : « Alléger la pièce » (optimisation topologique). */
+/* Plaques en grand (découpe laser) : la plaque à la taille de la fenêtre. */
+.laser-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-app);
+}
+.laser-editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.laser-editor-bar > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.laser-editor-bar.secondary {
+  background: var(--surface-2);
+}
+.laser-editor-bar .mini-field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.laser-editor-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: var(--vp-bg-bottom);
+}
+.laser-editor-view svg {
+  /* Hors du flux : le dessin suit la zone, sans l'agrandir. */
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.laser-sheet {
+  fill: #fdfbf5;
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.laser-sheet-margin {
+  fill: none;
+  stroke: #9aa3ad;
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+}
+.laser-piece {
+  cursor: move;
+}
+.laser-piece path {
+  fill: rgba(224, 49, 49, 0.08);
+  stroke: #e03131;
+  stroke-width: 1.5;
+}
+.laser-piece.is-selected path {
+  fill: rgba(31, 95, 191, 0.18);
+  stroke: #1f5fbf;
+  stroke-width: 2.5;
+}
+.laser-piece.is-bad path {
+  fill: rgba(224, 49, 49, 0.35);
+  stroke: #c92a2a;
+  stroke-width: 2.5;
+}
+.laser-piece text {
+  font-size: 12px;
+  fill: #2b3442;
+  pointer-events: none;
+  user-select: none;
+}
+.laser-bend {
+  stroke: #2f9e44;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 3;
+}
+.laser-editor-status {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13.5px;
+}
+.laser-warn {
+  color: var(--danger, #c92a2a);
+  font-weight: 600;
+}
+
 .image-calibration {
   display: flex;
   justify-content: center;

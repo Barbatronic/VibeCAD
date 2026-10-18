@@ -4,7 +4,8 @@
  * matériau, placement des pièces sur une ou plusieurs plaques de chaque matériau. Les écrivains
  * SVG et DXF sont dans `io/vector.ts`.
  */
-import type { FabricationSettings, FaceRef, Id, LaserItem, LaserMaterial } from '../domain/model';
+import type { FabricationSettings, FaceRef, Id, LaserItem, LaserMaterial, LaserPlacement } from '../domain/model';
+import { centered, loopBounds, nest, placeLoops, type Placement } from './nesting';
 import { formatLength } from '../domain/units';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { worldToFrame } from '../math/frame';
@@ -218,6 +219,10 @@ export interface PlacedOutline {
   labelAt: Vec2;
   /** Tôle : lignes de pli (repères à graver), en coordonnées de la plaque. */
   bends?: { a: Vec2; b: Vec2; angle: number }[];
+  /** Exemplaire (0, 1, 2…), placement (centre, angle) et contours centrés non tournés (plaques en grand). */
+  copy: number;
+  placement: { x: number; y: number; angle: number };
+  local: Loop[];
 }
 
 /** Une « page » de découpe : un matériau, ses plaques et les pièces posées dessus. */
@@ -262,7 +267,8 @@ export function laserLayout(
   const warnings: string[] = [];
   const thickness: Record<Id, number> = {};
   const materialOf: Record<Id, Id> = {};
-  const groups = settings.materials.map((material) => ({ material, sheets: 0, placed: [] as PlacedOutline[], cursor: { sheet: 0, x: settings.spacing, y: settings.spacing, row: 0 } }));
+  type Entry = { partId: Id; name: string; copy: number; local: Loop[]; bends: { a: Vec2; b: Vec2; angle: number }[]; bw: number; bh: number };
+  const entries = new Map<Id, Entry[]>(settings.materials.map((m) => [m.id, []]));
   for (const item of settings.items as LaserItem[]) {
     const part = parts.find((p) => p.id === item.partId);
     const mesh = meshOf(item.partId);
@@ -285,49 +291,101 @@ export function laserLayout(
     if (Math.abs(outline.thickness - material.thickness) > 0.05) {
       warnings.push(`« ${part.name} » fait ${formatLength(outline.thickness)} d’épaisseur et le matériau « ${material.name} » ${formatLength(material.thickness)} : vérifiez.`);
     }
-    const group = groups.find((g) => g.material.id === material.id)!;
     const { w, h } = material.sheet;
     const half = material.kerf / 2;
-    const loops = [offsetLoop(outline.outer, half), ...outline.holes.map((hole) => offsetLoop(hole, half))];
-    const xs = loops[0]!.map((p) => p.x);
-    const ys = loops[0]!.map((p) => p.y);
-    const minX = Math.min(...xs);
-    const minY = Math.min(...ys);
-    const bw = Math.max(...xs) - minX;
-    const bh = Math.max(...ys) - minY;
-    if (bw + 2 * settings.spacing > w || bh + 2 * settings.spacing > h) {
+    const { loops: local, center } = centered([offsetLoop(outline.outer, half), ...outline.holes.map((hole) => offsetLoop(hole, half))]);
+    const b = loopBounds(local);
+    const bw = b.maxX - b.minX;
+    const bh = b.maxY - b.minY;
+    if (Math.min(bw, bh) + 2 * settings.spacing > Math.min(w, h) || Math.max(bw, bh) + 2 * settings.spacing > Math.max(w, h)) {
       warnings.push(`« ${part.name} » (${Math.ceil(bw)} × ${Math.ceil(bh)} mm) est plus grande que les plaques de « ${material.name} » (${w} × ${h} mm).`);
       continue;
     }
-    const bendSegments = (bendsOf(part.id) ?? []).flatMap((b) => clipLineToOutline(outline, b.point, b.dir).map(([a, e]) => ({ a, b: e, angle: b.angle })));
-    const c = group.cursor;
+    const bends = (bendsOf(part.id) ?? []).flatMap((bl) =>
+      clipLineToOutline(outline, bl.point, bl.dir).map(([a, e]) => ({ a: { x: a.x - center.x, y: a.y - center.y }, b: { x: e.x - center.x, y: e.y - center.y }, angle: bl.angle })),
+    );
     for (let copy = 0; copy < item.copies; copy++) {
-      if (c.x + bw + settings.spacing > w) {
-        c.x = settings.spacing;
-        c.y += c.row + settings.spacing;
-        c.row = 0;
-      }
-      if (c.y + bh + settings.spacing > h) {
-        c.sheet++;
-        c.x = settings.spacing;
-        c.y = settings.spacing;
-        c.row = 0;
-      }
-      const dx = c.x - minX;
-      const dy = c.y - minY;
-      group.placed.push({
-        partId: part.id,
-        name: item.copies > 1 ? `${part.name} ${copy + 1}` : part.name,
-        materialId: material.id,
-        sheet: c.sheet,
-        loops: loops.map((l) => l.map((p) => ({ x: p.x + dx, y: p.y + dy }))),
-        labelAt: { x: c.x + bw / 2, y: c.y + bh / 2 },
-        ...(bendSegments.length ? { bends: bendSegments.map((s) => ({ a: { x: s.a.x + dx, y: s.a.y + dy }, b: { x: s.b.x + dx, y: s.b.y + dy }, angle: s.angle })) } : {}),
-      });
-      c.x += bw + settings.spacing;
-      c.row = Math.max(c.row, bh);
+      entries.get(material.id)!.push({ partId: part.id, name: item.copies > 1 ? `${part.name} ${copy + 1}` : part.name, copy, local, bends, bw, bh });
     }
   }
-  const materials = groups.map((g) => ({ material: g.material, sheets: g.placed.length ? g.cursor.sheet + 1 : 0, placed: g.placed }));
+  const keyOf = (e: { partId: Id; copy: number }) => `${e.partId}#${e.copy}`;
+  const materials = settings.materials.map((material) => {
+    const list = entries.get(material.id) ?? [];
+    const { w, h } = material.sheet;
+    const placements = new Map<string, Placement>();
+    const manual = new Map((material.placements ?? []).map((p) => [keyOf(p), p]));
+    if (manual.size) {
+      // Placements enregistrés (plaques en grand) ; les autres pièces se logent autour.
+      const fixed: (Placement & { loops: Loop[] })[] = [];
+      for (const e of list) {
+        const m = manual.get(keyOf(e));
+        if (!m) continue;
+        const pl = { key: keyOf(e), sheet: m.sheet, x: m.x, y: m.y, angle: m.angle };
+        placements.set(pl.key, pl);
+        fixed.push({ ...pl, loops: e.local });
+      }
+      const rest = list.filter((e) => !placements.has(keyOf(e)));
+      for (const pl of nest(rest.map((e) => ({ key: keyOf(e), loops: e.local })), material.sheet, settings.spacing, fixed)) placements.set(pl.key, pl);
+    } else {
+      // Rangement simple par rangées, dans l'ordre des pièces.
+      const c = { sheet: 0, x: settings.spacing, y: settings.spacing, row: 0 };
+      for (const e of list) {
+        const rot = e.bw + 2 * settings.spacing > w ? 90 : 0;
+        const bw = rot ? e.bh : e.bw;
+        const bh = rot ? e.bw : e.bh;
+        if (c.x + bw + settings.spacing > w) {
+          c.x = settings.spacing;
+          c.y += c.row + settings.spacing;
+          c.row = 0;
+        }
+        if (c.y + bh + settings.spacing > h) {
+          c.sheet++;
+          c.x = settings.spacing;
+          c.y = settings.spacing;
+          c.row = 0;
+        }
+        placements.set(keyOf(e), { key: keyOf(e), sheet: c.sheet, x: c.x + bw / 2, y: c.y + bh / 2, angle: rot });
+        c.x += bw + settings.spacing;
+        c.row = Math.max(c.row, bh);
+      }
+    }
+    const placed: PlacedOutline[] = list.flatMap((e) => {
+      const p = placements.get(keyOf(e));
+      if (!p) return [];
+      const at = (q: Vec2) => placeLoops([[q]], p)[0]![0]!;
+      return [
+        {
+          partId: e.partId,
+          copy: e.copy,
+          name: e.name,
+          materialId: material.id,
+          sheet: p.sheet,
+          placement: { x: p.x, y: p.y, angle: p.angle },
+          local: e.local,
+          loops: placeLoops(e.local, p),
+          labelAt: { x: p.x, y: p.y },
+          ...(e.bends.length ? { bends: e.bends.map((bd) => ({ a: at(bd.a), b: at(bd.b), angle: bd.angle })) } : {}),
+        },
+      ];
+    });
+    if (placed.length < list.length) warnings.push(`« ${material.name} » : certaines pièces n’ont pas trouvé de place sur les plaques.`);
+    const sheets = placed.length ? Math.max(...placed.map((x) => x.sheet)) + 1 : 0;
+    return { material, sheets, placed };
+  });
   return { materials, placed: materials.flatMap((g) => g.placed), warnings: [...new Set(warnings)], thickness, materialOf };
+}
+
+/** Placements « optimisés » de toutes les pièces d'un matériau (imbrication serrée, rotations). */
+export function optimizedPlacements(layout: LaserLayout, materialId: Id, spacing: number): LaserPlacement[] {
+  const g = layout.materials.find((m) => m.material.id === materialId);
+  if (!g) return [];
+  const byKey = new Map(g.placed.map((p) => [`${p.partId}#${p.copy}`, p]));
+  return nest(
+    g.placed.map((p) => ({ key: `${p.partId}#${p.copy}`, loops: p.local })),
+    g.material.sheet,
+    spacing,
+  ).map((pl) => {
+    const p = byKey.get(pl.key)!;
+    return { partId: p.partId, copy: p.copy, sheet: pl.sheet, x: pl.x, y: pl.y, angle: pl.angle };
+  });
 }

@@ -191,6 +191,8 @@ export interface AppState {
   collisions: { key: string; items: { a: Id; b: Id; volume: number; mesh: MeshData }[] } | null;
   /** Repère du centre de gravité de la pièce active dans la vue. */
   showCentroid: boolean;
+  /** Plaques en grand (découpe laser) : matériau dont on édite le placement des pièces. */
+  laserEditor: { materialId: Id } | null;
   /** Image en cours d'ajout (calque) : sa ressource n'entre dans le projet qu'à la validation. */
   pendingImage: StepResource | null;
   /** Incrémenté quand une image finit de se charger (nouveau rendu de la vue). */
@@ -278,6 +280,7 @@ export function initialState(): AppState {
     showCentroid: false,
     unfolded: false,
     pendingImage: null,
+    laserEditor: null,
     imageVersion: 0,
     isolatedPartId: null,
     drawingRevision: 0,

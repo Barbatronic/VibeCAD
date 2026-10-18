@@ -1,4 +1,5 @@
 import { Dialogs, Toasts } from './Dialogs';
+import { LaserEditor } from './LaserEditor';
 import { HelpDrawer } from './HelpDrawer';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
@@ -24,6 +25,7 @@ export function App() {
         <RightPanel />
       </main>
       <StatusBar />
+      <LaserEditor />
       <HelpDrawer />
       <Dialogs />
       <Toasts />

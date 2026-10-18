@@ -212,6 +212,43 @@
                       "kerf": {
                         "type": "number",
                         "minimum": 0
+                      },
+                      "placements": {
+                        "type": "array",
+                        "description": "Placements choisis (plaques en grand, « Optimiser ») : exemplaire d'une pièce, plaque, centre (mm), angle (degrés).",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "partId",
+                            "copy",
+                            "sheet",
+                            "x",
+                            "y",
+                            "angle"
+                          ],
+                          "properties": {
+                            "partId": {
+                              "$ref": "#/$defs/id"
+                            },
+                            "copy": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "sheet": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "angle": {
+                              "type": "number"
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -263,6 +300,43 @@
                 },
                 "kerf": {
                   "type": "number"
+                },
+                "placements": {
+                  "type": "array",
+                  "description": "Placements choisis (plaques en grand, « Optimiser ») : exemplaire d'une pièce, plaque, centre (mm), angle (degrés).",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "partId",
+                      "copy",
+                      "sheet",
+                      "x",
+                      "y",
+                      "angle"
+                    ],
+                    "properties": {
+                      "partId": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "copy": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "sheet": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "angle": {
+                        "type": "number"
+                      }
+                    }
+                  }
                 }
               },
               "description": "Découpe laser : une « page » par matériau. Les champs sheet, thickness et kerf (une seule plaque) viennent des premières versions et sont convertis en un matériau à la lecture."
