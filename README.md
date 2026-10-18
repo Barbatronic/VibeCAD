@@ -150,6 +150,10 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   éléments finis dans un worker. **Alléger la pièce** (optimisation topologique) : avec les mêmes
   appuis et la même charge, le calcul ne garde que la matière utile (part choisie) ; la forme
   obtenue s'exporte en STL ou devient une nouvelle pièce. Voir [docs/simulation.md](docs/simulation.md).
+- **Images de référence** (secteur Esquisse) : poser une photo ou un plan scanné sur un plan, la
+  redresser (perspective, d'après un rectangle connu) et la mettre à l'échelle (deux points d'une
+  distance connue), puis redessiner la pièce par-dessus dans une esquisse. Voir
+  [docs/images-reference.md](docs/images-reference.md).
 - **Tôlerie et pliage** (secteur « Tôle », niveau Intermédiaire) : une tôle dans un matériau
   pliable (acier, inox, aluminium, laiton, acrylique, PETG, polypropylène, carton), des bords
   pliés sur ses bords et des plis sur des traits, avec les limites du matériau (rayon minimal,
