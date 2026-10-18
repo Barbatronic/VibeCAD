@@ -50,7 +50,7 @@ Une fonction = un dossier `src/features/<type>/` contenant trois fichiers :
 
 Le bouton apparaît automatiquement dans la barre d'outils (les fonctions ayant un `tool`), avec
 son explication quand il est indisponible, et l'aperçu fonctionne sans autre code. Pour le ranger
-dans le bon secteur (Esquisse, Ajouter, Enlever, Modifier, Répéter), l'ajouter à `PART_SECTORS`
+dans le bon secteur (Esquisse, Ajouter, Enlever, Modifier, Répéter, Tôle), l'ajouter à `PART_SECTORS`
 (`src/ui/TopBar.tsx`) ; à défaut il va dans « Modifier ». Les outils de `main` restent sortis
 quand la barre manque de place ; les autres passent alors dans le menu ▾ du secteur.
 

@@ -150,6 +150,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   éléments finis dans un worker. **Alléger la pièce** (optimisation topologique) : avec les mêmes
   appuis et la même charge, le calcul ne garde que la matière utile (part choisie) ; la forme
   obtenue s'exporte en STL ou devient une nouvelle pièce. Voir [docs/simulation.md](docs/simulation.md).
+- **Tôlerie et pliage** (secteur « Tôle », niveau Intermédiaire) : une tôle dans un matériau
+  pliable (acier, inox, aluminium, laiton, acrylique, PETG, polypropylène, carton), des bords
+  pliés sur ses bords et des plis sur des traits, avec les limites du matériau (rayon minimal,
+  angle maximal) ; « Déplier » montre la forme à plat et ses lignes de pli, et la découpe laser
+  part du développé. Voir [docs/tolerie.md](docs/tolerie.md).
 - **Volume, masse et centre de gravité** de la pièce sous l'historique (masse estimée en PLA
   plein) ; le centre de gravité peut être montré dans la vue (symbole des plans).
 - **Vue en coupe** (bouton « Coupe » de la vue) : la pièce est coupée par un plan XY, XZ ou YZ
