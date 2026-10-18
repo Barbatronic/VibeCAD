@@ -40,8 +40,21 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
 - **Trait de coupe (kerf)** : le contour extérieur est décalé vers l'extérieur et les trous vers
   l'intérieur de la moitié du trait, pour que les pièces découpées aient la bonne taille.
 - **Plaques** : les pièces de chaque matériau sont rangées en lignes sur ses plaques, espacées de
-  4 mm ; quand une plaque est pleine, on passe à la suivante. Aperçu de chaque plaque sur la page
-  du matériau.
+  4 mm (une pièce trop longue est tournée d'un quart de tour) ; quand une plaque est pleine, on
+  passe à la suivante. Aperçu de chaque plaque sur la page du matériau.
+- **Optimiser** : imbrication serrée de toutes les pièces du matériau. Chaque pièce, élargie de la
+  moitié de l'espacement, est tracée sur une grille (environ 400 cases sur le grand côté de la
+  plaque) pour 4 orientations ; des plus grandes aux plus petites, elle est posée là où son haut
+  reste le plus bas, puis le plus à gauche, sur la première plaque où elle tient. Une petite pièce
+  peut se loger dans le trou d'une grande (`src/app/nesting.ts`).
+- **Plaques en grand…** : la plaque à la taille de la fenêtre. Glisser une pièce la déplace ;
+  **R** la tourne d'un quart de tour (Maj + R dans l'autre sens), l'angle se règle aussi au degré
+  près ; les flèches la décalent de 1 mm (Maj : 10 mm) ; « Plaque » l'envoie sur une autre plaque
+  (ou une nouvelle). Les pièces qui se chevauchent ou dépassent de la plaque sont en rouge, et
+  comptées en bas. Molette : zoom ; glisser le fond : déplacer la vue ; « Tout voir » recadre.
+  Le premier déplacement fige la disposition de toutes les pièces du matériau (champ facultatif
+  `placements` du matériau dans le projet) ; une pièce ajoutée ensuite se loge autour des autres.
+  « Ranger automatiquement » revient au rangement par rangées.
 - **Export** à l'échelle 1:1 en millimètres, **un fichier par matériau** (ses plaques posées côte
   à côte, séparées de 20 mm ; boutons SVG / DXF de la page, ou « Exporter tout ») : SVG (traits rouges de 0,1 mm = découpe, textes
   bleus = gravure du nom des pièces si demandé) et DXF R12 (polylignes fermées sur le calque

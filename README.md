@@ -139,7 +139,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière) et l'exporter
   en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
   préréglages contreplaqué et acrylique 3 et 5 mm en 300 × 200 mm ; contour d'une face, trait de
-  coupe compensé, placement sur plaques) en SVG et DXF ;
+  coupe compensé, placement sur plaques, imbrication optimisée, « Plaques en grand » pour déplacer
+  et tourner les pièces à la souris) en SVG et DXF ;
   documents : mise en plan cotée (3 vues, PDF / SVG), gabarit papier 1:1 (PDF), nomenclature (CSV).
   Voir [docs/fabrication.md](docs/fabrication.md).
 - **Simulation** (onglet à part, niveau Intermédiaire) : choisir le matériau, cliquer les faces
