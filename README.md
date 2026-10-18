@@ -150,6 +150,9 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   éléments finis dans un worker. **Alléger la pièce** (optimisation topologique) : avec les mêmes
   appuis et la même charge, le calcul ne garde que la matière utile (part choisie) ; la forme
   obtenue s'exporte en STL ou devient une nouvelle pièce. Voir [docs/simulation.md](docs/simulation.md).
+- **Références entre pièces** : une esquisse peut se poser sur la face d'une autre pièce du projet
+  et reprendre ses arêtes (« Projeter ») ; elle suit les changements de cette pièce. Voir
+  [docs/references-entre-pieces.md](docs/references-entre-pieces.md).
 - **Images de référence** (secteur Esquisse) : poser une photo ou un plan scanné sur un plan, la
   redresser (perspective, d'après un rectangle connu) et la mettre à l'échelle (deux points d'une
   distance connue), puis redessiner la pièce par-dessus dans une esquisse. Voir
