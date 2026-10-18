@@ -113,8 +113,10 @@ describe('import STL', () => {
     const mesh = kernel.mesh(read.solids[0]!, { linearDeflection: 0.1, angularDeflection: 0.3 });
     const elapsed = performance.now() - t0;
     expect(mesh.faces.length).toBeGreaterThan(3000);
-    // Avant correction, le maillage seul prenait une quinzaine de secondes (recherche d'arêtes quadratique).
-    expect(elapsed).toBeLessThan(8000);
+    // Avant correction, le maillage seul prenait une quinzaine de secondes (recherche d'arêtes
+    // quadratique). Aujourd'hui environ 3 s seul, jusqu'à 9 s quand toute la suite tourne en
+    // parallèle : la limite laisse cette marge sans laisser passer l'ancien défaut.
+    expect(elapsed).toBeLessThan(12_000);
     read.solids.forEach((x) => kernel.dispose(x));
   }, 60_000);
 });
