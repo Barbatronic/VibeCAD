@@ -10,8 +10,12 @@ en carton. La pièce garde sa **forme à plat** (le développé), qui se découp
    éventuels).
 2. **Tôle** : choisir l'esquisse, le **matériau**, l'**épaisseur** et le **rayon des plis**. La
    tôle est posée au-dessus du plan de l'esquisse (ou en dessous).
-3. **Trous et découpes** : poches, perçages… se font **à plat, avant les plis** : ils seront dans le
-   développé. Une étape de ce genre placée après un pli est signalée (elle ne serait pas découpée).
+3. **Trous, découpes, congés et chanfreins** : poches, perçages, formes retirées, coins arrondis
+   ou chanfreinés… se font à plat ou **sur la pièce pliée** (esquisse posée sur une face pliée,
+   arêtes d'un rebord) : la matière retirée est **reportée sur le développé**. Une étape qui retire
+   de la matière dans l'arrondi d'un pli donne un avertissement (cette partie n'est pas reportée).
+   Une étape qui ajoute de la matière après un pli n'est pas dans le développé : elle est signalée
+   au pli suivant.
 4. **Bord plié** : cliquer un ou plusieurs bords du dessus (ou du dessous) de la tôle dans la vue
    3D ; régler la **longueur du rebord** (partie droite après le pli), l'**angle**, le **sens**
    (vers le haut ou vers le bas) et, si besoin, un rayon propre à ce pli. Les quatre bords d'un
@@ -58,6 +62,14 @@ avertissement dans l'historique et l'aperçu.
   Le développé est donc exact par construction.
 - **Bord plié** : une languette de longueur « longueur développée + rebord » est ajoutée au plat
   le long du bord, puis pliée sur la ligne du bord.
+- **Faces de la pièce pliée** : un morceau déplacé par un pli est réétiqueté au nom de ce pli
+  (l'étape d'origine reste dans l'étiquette), et chaque rebord d'une même étape « Bord plié » a ses
+  propres étiquettes : une esquisse posée sur une face pliée retrouve sa face sans ambiguïté, et un
+  bord cliqué sur la pièce pliée est retrouvé sur la tôle à plat.
+- **Étape faite après un pli** (`unfoldCut`) : la matière qu'elle retire (pièce d'avant moins pièce
+  d'après : trou, poche, congé, chanfrein, découpe…) est découpée selon les morceaux plats ; chaque
+  partie est ramenée à plat par le placement inverse de son morceau, puis retirée du développé.
+  Les plis suivants repartent de ce développé et gardent ces retouches.
 - Un pli qui traverse l'arrondi d'un pli précédent est **refusé** (on ne plie pas à travers un
   pli), avec l'étape en cause.
 - **Export FreeCAD** : les étapes de tôlerie sont reprises comme formes figées.
@@ -68,12 +80,15 @@ avertissement dans l'historique et l'aperçu.
 avec K = 0,5 ; rebord entre x = 62 et 64, de la hauteur attendue), vers le bas, profil en U (deux
 plis), pli à 45°. `tests/geometry/sheet-metal.test.ts` — par l'historique : tôle, bord plié
 (développé allongé de θ · (r + K t) + longueur, rebord à la bonne place), boîte (quatre bords en une
-étape), pli sur un trait, avertissement de rayon, pli qui traverse un bord plié refusé, format
+étape), pli sur un trait, avertissement de rayon, pli qui traverse un bord plié refusé, faces de
+chaque rebord retrouvées, trou fait après le pli reporté sur le développé (et gardé par un pli
+suivant), chanfrein et congé d'un coin de rebord reportés, trou qui touche un arrondi signalé,
+format
 natif relu à l'identique et conforme au schéma. `tests/unit/sheet-metal.test.ts` — longueur
 développée, facteur K, limites, lignes de pli coupées au contour (trous compris).
 `tests/e2e/sheet-metal.spec.ts` — dans l'application : tôle, pli sur un trait, bord plié cliqué
-dans la vue, avertissement de rayon, dépliage (lignes et angles), export laser du développé avec
-ses lignes de pli.
+dans la vue, esquisse sur la face pliée et trou percé après le pli, avertissement de rayon,
+dépliage (lignes et angles), export laser du développé (contour, trou) avec ses lignes de pli.
 
 ## Limites
 
