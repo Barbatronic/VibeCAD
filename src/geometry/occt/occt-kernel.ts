@@ -20,7 +20,7 @@ import type {
 } from 'replicad-opencascadejs';
 import type { EdgeRef, FaceRef, Id } from '../../domain/model';
 import { frameToWorld, type Frame3D } from '../../math/frame';
-import { add3, dot3, length3, scale3, sub3, type Vec3 } from '../../math/vec';
+import { add3, dot3, length3, normalize3, scale3, sub3, type Vec3 } from '../../math/vec';
 import { mergeAlignedSegments } from '../../sketch/merge-segments';
 import type { ProfileLoop, ProfileRegion } from '../../sketch/profiles';
 import {
@@ -500,6 +500,40 @@ export class OcctKernel implements GeometryKernel {
         result = next;
       }
       if (parts.length > 1) for (const p of parts) this.dispose(p);
+      return result;
+    } catch (err) {
+      for (const p of parts) if (!p.disposed) this.dispose(p);
+      throw err;
+    }
+  }
+
+  revolveSection(shapeIn: KernelShape, plane: { origin: Vec3; normal: Vec3 }, axis: { origin: Vec3; direction: Vec3 }, angle: number, featureId: Id): KernelShape | null {
+    const src = asOcct(shapeIn);
+    const oc = this.oc;
+    const n = normalize3(plane.normal);
+    const parts: OcctShape[] = [];
+    try {
+      this.guard('pli', () =>
+        withScope((scope) => {
+          for (const f of src.faces) {
+            const info = this.surfaceInfo(scope, f.face);
+            if (info.surface !== 'plane' || !info.plane) continue;
+            if (Math.abs(Math.abs(dot3(info.plane.normal, n)) - 1) > 1e-6) continue;
+            if (Math.abs(dot3(sub3(info.plane.origin, plane.origin), n)) > 1e-5) continue;
+            const ax1 = scope.track(new oc.gp_Ax1(this.pnt(scope, axis.origin), this.dir(scope, axis.direction)));
+            const revol = scope.track(new oc.BRepPrimAPI_MakeRevol(f.face, ax1, angle, true));
+            if (!revol.IsDone()) throw new KernelError('Le pli n’a pas pu être construit.');
+            const solid = revol.Shape();
+            const faces = this.taggedFaces(solid);
+            faces.forEach((face) => addTags(face.tags, [{ featureId, role: 'side', entityId: 'bend' }]));
+            parts.push(new OcctShape(solid, faces));
+          }
+        }),
+      );
+      if (parts.length === 0) return null;
+      if (parts.length === 1) return parts[0]!;
+      const result = this.fuseMany(parts[0]!, parts.slice(1));
+      for (const p of parts) this.dispose(p);
       return result;
     } catch (err) {
       for (const p of parts) if (!p.disposed) this.dispose(p);

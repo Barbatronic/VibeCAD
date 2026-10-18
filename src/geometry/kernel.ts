@@ -259,6 +259,12 @@ export interface GeometryKernel {
   makeSweep(request: SweepRequest): KernelShape;
   /** Solide de révolution ; faces étiquetées `start`, `end` (révolution partielle) et `side`. */
   makeRevolution(request: RevolveRequest): KernelShape;
+  /**
+   * Pli d'une tôle : les faces planes du solide posées sur le plan donné (la section de la tôle à
+   * l'entrée du pli) tournent de `angle` (radians) autour de l'axe ; null si aucune face n'est sur
+   * ce plan. Faces créées étiquetées `{ featureId, role: 'side', entityId: 'bend' }`.
+   */
+  revolveSection(shape: KernelShape, plane: { origin: Vec3; normal: Vec3 }, axis: { origin: Vec3; direction: Vec3 }, angle: number, featureId: Id): KernelShape | null;
   fuse(base: KernelShape, tool: KernelShape): KernelShape;
   cut(base: KernelShape, tool: KernelShape): KernelShape;
   /**
