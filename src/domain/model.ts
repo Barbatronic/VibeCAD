@@ -274,7 +274,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -312,6 +312,9 @@ export type MoveFeature = FeatureBase<'move', MoveParams>;
 export type HoleFeature = FeatureBase<'hole', HoleParams>;
 export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams>;
 export type AxisFeature = FeatureBase<'axis', DatumAxisParams>;
+export type SheetFeature = FeatureBase<'sheet', SheetParams>;
+export type FlangeFeature = FeatureBase<'flange', FlangeParams>;
+export type FoldFeature = FeatureBase<'fold', FoldParams>;
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -667,6 +670,50 @@ export interface MirrorParams {
  * s'amincit), par exemple pour ajouter du jeu entre deux pièces imprimées. Coins arrondis
  * (décalage exact) ou vifs.
  */
+/**
+ * Tôle : le contour fermé d'une esquisse, d'une épaisseur, dans un matériau pliable. La pièce
+ * devient une pièce de tôlerie : bords pliés et plis s'appliquent à la tôle à plat, qui reste son
+ * développé (voir `domain/sheet-metal.ts`).
+ */
+export interface SheetParams {
+  sketchId: Id;
+  /** Épaisseur (mm). */
+  thickness: number;
+  /** Matériau (`SHEET_MATERIALS`) : rayon minimal, angle maximal, facteur K. */
+  materialId: string;
+  /** Rayon intérieur des plis par défaut (mm). */
+  radius: number;
+  /** Vrai : la tôle est sous le plan de l'esquisse (sinon au-dessus, côté normale). */
+  reversed: boolean;
+}
+
+/** Côté vers lequel un pli remonte : celui de la normale de la tôle (`up`) ou l'autre. */
+export type BendDirection = 'up' | 'down';
+
+/** Bord plié : un rebord ajouté le long d'arêtes droites du contour de la tôle, puis plié. */
+export interface FlangeParams {
+  edges: EdgeRef[];
+  /** Longueur droite du rebord après le pli (mm). */
+  length: number;
+  /** Angle du pli (degrés, 0 à 180). */
+  angle: number;
+  direction: BendDirection;
+  /** Rayon intérieur (mm) ; absent : celui de la tôle. */
+  radius?: number;
+}
+
+/** Pli sur une ligne : la tôle se plie le long d'un trait d'esquisse posé sur elle. */
+export interface FoldParams {
+  sketchId: Id;
+  /** Segment de l'esquisse qui sert de ligne de pli ; absent : le premier segment. */
+  lineId?: string;
+  angle: number;
+  direction: BendDirection;
+  /** Côté du trait qui se plie (en allant du premier au second point du segment). */
+  side: 'left' | 'right';
+  radius?: number;
+}
+
 export interface ThickenParams {
   distance: number;
   corners: 'round' | 'sharp';

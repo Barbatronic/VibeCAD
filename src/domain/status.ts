@@ -63,6 +63,14 @@ export type FeatureIssueCode =
   | 'HOLE_NO_CENTER'
   | 'HOLE_REMOVES_NOTHING'
   | 'BLEND_FAILED'
+  | 'SHEET_REQUIRED'
+  | 'SHEET_ALREADY'
+  | 'SHEET_AFTER_FOLD'
+  | 'SHEET_BEND_LIMIT'
+  | 'SHEET_FOLD_LINE'
+  | 'SHEET_FLANGE_EDGE'
+  | 'SHEET_FOLD_FAILED'
+  | 'SHEET_FOLD_CROSSING'
   | 'BLOCKED_BY_PREVIOUS';
 
 export interface FeatureStatus {
@@ -147,6 +155,15 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',
   BLEND_FAILED: 'Cette valeur est trop grande pour les arêtes choisies : essayez une valeur plus petite.',
+  SHEET_REQUIRED: 'Il faut d’abord une tôle : créez-la avec l’outil « Tôle » à partir d’un contour fermé.',
+  SHEET_ALREADY: 'La pièce est déjà une tôle, ou a déjà un volume : une tôle commence une nouvelle pièce (bouton + du panneau Pièces).',
+  SHEET_AFTER_FOLD:
+    'Une étape qui n’est pas un pli (perçage, poche…) a été faite sur la pièce déjà pliée : elle ne serait pas dans le développé. Faites les trous et découpes à plat, avant les plis (glissez ce pli plus bas dans l’historique).',
+  SHEET_BEND_LIMIT: 'Ce pli est difficile à réaliser dans ce matériau.',
+  SHEET_FOLD_LINE: 'L’esquisse doit contenir un trait, dessiné sur la tôle : c’est la ligne de pli.',
+  SHEET_FLANGE_EDGE: 'Choisissez une arête droite du bord de la tôle (entre le dessus, ou le dessous, et un côté).',
+  SHEET_FOLD_CROSSING: 'Ce pli traverse l’arrondi d’un pli précédent : on ne peut pas plier à travers un pli. Déplacez la ligne de pli, ou faites ce pli avant l’autre en le raccourcissant.',
+  SHEET_FOLD_FAILED: 'Le pli n’a pas pu être construit : vérifiez que la ligne de pli traverse la tôle et que les plis ne se croisent pas.',
   BLOCKED_BY_PREVIOUS: 'Cette étape attend la correction d’une étape précédente.',
 };
 

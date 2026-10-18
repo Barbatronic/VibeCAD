@@ -2,6 +2,9 @@
 import type { Feature, FeatureType } from '../domain/model';
 import type { FeatureEvaluator } from './evaluation';
 import { evaluateSweep } from './sweep/evaluate';
+import { evaluateSheet } from './sheet/evaluate';
+import { evaluateFlange } from './flange/evaluate';
+import { evaluateFold } from './fold/evaluate';
 import { evaluateSplit } from './split/evaluate';
 import { evaluateDraft } from './draft/evaluate';
 import { evaluateThicken } from './thicken/evaluate';
@@ -27,6 +30,9 @@ type Evaluators = { [T in FeatureType]: FeatureEvaluator<Extract<Feature, { type
 
 export const FEATURE_EVALUATORS: Evaluators = {
   sketch: evaluateSketch,
+  sheet: evaluateSheet,
+  flange: evaluateFlange,
+  fold: evaluateFold,
   extrude: evaluateExtrude,
   primitive: evaluatePrimitive,
   gear: evaluateGear,

@@ -5,6 +5,9 @@
 import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
 import { sweepDefinition } from './sweep/definition';
+import { sheetDefinition } from './sheet/definition';
+import { flangeDefinition } from './flange/definition';
+import { foldDefinition } from './fold/definition';
 import { splitDefinition } from './split/definition';
 import { draftDefinition } from './draft/definition';
 import { thickenDefinition } from './thicken/definition';
@@ -47,6 +50,9 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   shell: shellDefinition,
   fillet: filletDefinition,
   chamfer: chamferDefinition,
+  sheet: sheetDefinition,
+  flange: flangeDefinition,
+  fold: foldDefinition,
   'imported-solid': importedSolidDefinition,
 };
 

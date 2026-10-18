@@ -82,7 +82,21 @@ export function foldGeometry(frame: Frame3D, thickness: number, fold: FoldSpec):
   return { start, side, allowance, axis: { origin, direction }, move };
 }
 
-/** Pièce pliée à partir du plat (le plat n'est pas libéré ; le résultat appartient à l'appelant). */
+/** Un pli traverse l'arrondi d'un pli précédent : impossible à plier. */
+export class FoldCrossingError extends Error {
+  constructor(
+    readonly featureId: Id,
+    readonly crossed: Id,
+  ) {
+    super('FOLD_CROSSING');
+    this.name = 'FoldCrossingError';
+  }
+}
+
+/**
+ * Pièce pliée à partir du plat (le plat n'est pas libéré ; le résultat appartient à l'appelant).
+ * Lance `FoldCrossingError` si la bande d'un pli traverse celle d'un pli précédent.
+ */
 export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat' | 'frame' | 'thickness' | 'folds'>): KernelShape {
   const folds = sheet.folds.filter((f) => Math.abs(f.angle) > 1e-9);
   if (folds.length === 0) return kernel.transformed(sheet.flat, identity4(), { keep: true });
@@ -90,6 +104,8 @@ export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat'
   type Piece = { shape: KernelShape; owned: boolean; m: Mat4 };
   let pieces: Piece[] = [{ shape: sheet.flat, owned: false, m: identity4() }];
   const bends: Piece[] = [];
+  // Bandes des plis déjà faits, à plat : un pli suivant ne doit pas les traverser.
+  const strips: { featureId: Id; shape: KernelShape }[] = [];
   const release = (p: Piece) => {
     if (p.owned) kernel.dispose(p.shape);
     p.owned = false;
@@ -100,24 +116,51 @@ export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat'
       const g = foldGeometry(sheet.frame, sheet.thickness, fold);
       const end = add3(g.start, scale3(g.side, g.allowance));
       const next: Piece[] = [];
+      for (const prior of strips) {
+        const before = halfSpace(kernel, fold.featureId, g.start, g.side, size, 'opposite');
+        const after = halfSpace(kernel, fold.featureId, end, g.side, size, 'normal');
+        let crossing = 0;
+        try {
+          const rest = kernel.cut(prior.shape, before);
+          const inside = kernel.cut(rest, after);
+          crossing = kernel.volumeOf(inside).volume;
+          kernel.dispose(rest);
+          kernel.dispose(inside);
+        } finally {
+          kernel.dispose(before);
+          kernel.dispose(after);
+        }
+        if (crossing > 1e-6 * Math.max(1, sheet.thickness ** 3)) throw new FoldCrossingError(fold.featureId, prior.featureId);
+      }
       for (const piece of pieces) {
         // Côté fixe (avant la ligne), bande du pli (remplacée par l'arrondi), côté plié (après la bande).
         const before = halfSpace(kernel, fold.featureId, g.start, g.side, size, 'opposite');
         const after = halfSpace(kernel, fold.featureId, end, g.side, size, 'normal');
         let fixed: KernelShape | null = null;
         let moving: KernelShape | null = null;
+        let strip: KernelShape | null = null;
         try {
           fixed = kernel.common(piece.shape, before);
           moving = kernel.common(piece.shape, after);
+          // Bande du pli : seule la matière qui traverse la ligne se plie (pas un morceau voisin
+          // qui ne fait que toucher le plan, comme le bout d'un autre rebord dans un coin).
+          const rest = kernel.cut(piece.shape, before);
+          try {
+            strip = kernel.cut(rest, after);
+          } finally {
+            kernel.dispose(rest);
+          }
         } finally {
           kernel.dispose(before);
           kernel.dispose(after);
         }
-        if (nonEmpty(fixed)) {
-          const bend = kernel.revolveSection(fixed, { origin: g.start, normal: g.side }, g.axis, Math.abs(fold.angle), fold.featureId);
+        if (nonEmpty(strip)) {
+          const bend = kernel.revolveSection(strip, { origin: g.start, normal: g.side }, g.axis, Math.abs(fold.angle), fold.featureId);
           if (bend) bends.push({ shape: bend, owned: true, m: piece.m });
-          next.push({ shape: fixed, owned: true, m: piece.m });
-        } else kernel.dispose(fixed);
+          strips.push({ featureId: fold.featureId, shape: strip });
+        } else kernel.dispose(strip);
+        if (nonEmpty(fixed)) next.push({ shape: fixed, owned: true, m: piece.m });
+        else kernel.dispose(fixed);
         if (nonEmpty(moving)) next.push({ shape: moving, owned: true, m: multiply4(piece.m, g.move) });
         else kernel.dispose(moving);
         release(piece);
@@ -133,6 +176,7 @@ export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat'
   } finally {
     for (const p of pieces) release(p);
     for (const b of bends) release(b);
+    for (const st of strips) kernel.dispose(st.shape);
   }
 }
 

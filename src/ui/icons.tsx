@@ -54,6 +54,25 @@ const PATHS: Record<string, JSX.Element> = {
       <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="2.5 2" />
     </>
   ),
+  sheet: (
+    <>
+      <path d="M2.5 14.5l9.5-5 9.5 5-9.5 5z" />
+      <path d="M2.5 14.5v1.8l9.5 5 9.5-5v-1.8" opacity="0.6" />
+    </>
+  ),
+  flange: (
+    <>
+      <path d="M3 19h12a4 4 0 0 0 4-4V4" />
+      <path d="M3 16h11.5a1.5 1.5 0 0 0 1.5-1.5V4" opacity="0.6" />
+    </>
+  ),
+  fold: (
+    <>
+      <path d="M2.5 19h9.5l7.5-12" />
+      <path d="M12 19l-4.5-12" opacity="0.45" stroke-dasharray="2 2" />
+      <path d="M12 21.5v-5" stroke-dasharray="1.5 1.5" />
+    </>
+  ),
   thicken: (
     <>
       <rect x="8" y="8" width="8" height="8" rx="1" />

@@ -961,12 +961,13 @@ export class AppController {
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
     if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
-    if (feature.type !== 'fillet' && feature.type !== 'chamfer') return;
+    if (feature.type !== 'fillet' && feature.type !== 'chamfer' && feature.type !== 'flange') return;
     if (pick.partId !== draft.partId) return this.explain('Choisissez des arêtes de la pièce en cours de modification.');
     const mesh = this.displayedMesh(pick.partId);
     const part = findPart(this.state.doc, pick.partId);
     if (!mesh || !part) return;
     let edges = feature.params.edges;
+    if (pick.kind === 'face' && feature.type === 'flange') return this.explain('Cliquez une arête du bord de la tôle (le trait entre le dessus et le côté) pour y ajouter un bord plié.');
     if (pick.kind === 'face') {
       const index = blendIndexFromFacePick(mesh, pick.index, feature.id);
       if (index === null) return this.explain('Cliquez une arête (le trait entre deux faces) pour l’ajouter.');

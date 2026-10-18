@@ -1637,6 +1637,137 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "sheet"
+            },
+            "params": {
+              "type": "object",
+              "description": "Tôle : contour fermé d'une esquisse, d'une épaisseur, dans un matériau pliable (steel, stainless, aluminium, brass, acrylic, petg, polypropylene, cardboard). La pièce garde sa tôle à plat (développé) pour les plis.",
+              "required": [
+                "sketchId",
+                "thickness",
+                "materialId",
+                "radius"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "thickness": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "materialId": {
+                  "type": "string"
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Rayon intérieur des plis par défaut (mm)."
+                },
+                "reversed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "flange"
+            },
+            "params": {
+              "type": "object",
+              "description": "Bord plié : rebord ajouté le long d'arêtes droites du contour de la tôle à plat, puis plié.",
+              "required": [
+                "edges",
+                "length",
+                "angle",
+                "direction"
+              ],
+              "properties": {
+                "edges": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/edgeRef"
+                  }
+                },
+                "length": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Longueur droite du rebord après le pli (mm)."
+                },
+                "angle": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 180
+                },
+                "direction": {
+                  "enum": [
+                    "up",
+                    "down"
+                  ],
+                  "description": "Le pli remonte du côté de la normale de la tôle (up) ou de l'autre (down)."
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "fold"
+            },
+            "params": {
+              "type": "object",
+              "description": "Pli sur une ligne : un segment d'une esquisse posée sur la tôle.",
+              "required": [
+                "sketchId",
+                "angle",
+                "direction",
+                "side"
+              ],
+              "properties": {
+                "sketchId": {
+                  "$ref": "#/$defs/id"
+                },
+                "lineId": {
+                  "type": "string"
+                },
+                "angle": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 180
+                },
+                "direction": {
+                  "enum": [
+                    "up",
+                    "down"
+                  ],
+                  "description": "Le pli remonte du côté de la normale de la tôle (up) ou de l'autre (down)."
+                },
+                "side": {
+                  "enum": [
+                    "left",
+                    "right"
+                  ],
+                  "description": "Côté du segment (du premier au second point) qui se plie."
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
         }
       ]
     },

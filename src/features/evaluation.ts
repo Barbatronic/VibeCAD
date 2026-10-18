@@ -2,6 +2,7 @@
  * Types partagés par les évaluateurs de fonctions et le moteur de recalcul.
  * Les évaluateurs ne connaissent que l'interface `GeometryKernel`, jamais Open CASCADE.
  */
+import type { SheetState } from './sheet/fold';
 import type { Feature, Id, SketchParams } from '../domain/model';
 import type { FeatureStatus } from '../domain/status';
 import type { GeometryKernel, KernelShape, ShapeAnalysis } from '../geometry/kernel';
@@ -53,6 +54,8 @@ export interface EvaluationContext {
   axes: ReadonlyMap<Id, { point: Vec3; dir: Vec3 }>;
   /** Corps outils des étapes précédentes (volume ajouté ou retiré), pour la répétition. */
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
+  /** Tôle de la pièce (base, plat et plis), si la pièce est une pièce de tôlerie. */
+  sheet: SheetState | null;
   /** Solides d'une ressource STEP embarquée (lecture mise en cache par le moteur). */
   readStepSolids(resourceId: Id): { solids: KernelShape[] } | { error: 'RESOURCE_MISSING' | 'IMPORT_FAILED'; detail?: string };
 }
@@ -64,6 +67,10 @@ export interface FeatureOutcome {
   analysis?: ShapeAnalysis;
   /** Corps outil (volume ajouté ou retiré), conservé pour l'aperçu et la répétition. */
   tool?: KernelShape;
+  /** Tôle après cette étape (tôle, bord plié, pli). */
+  sheet?: SheetState;
+  /** Autres formes créées par l'étape et détenues par elle (plat d'un bord plié). */
+  owned?: KernelShape[];
   /** Le corps outil a été ajouté (extrusion, révolution) ou retiré (poche) du solide. */
   toolMode?: 'add' | 'cut';
   sketch?: SketchEvaluation;

@@ -4,6 +4,7 @@
  * du registre des fonctions.
  */
 import { createId } from './ids';
+import { DEFAULT_SHEET_MATERIAL, defaultBendRadius, sheetMaterial } from './sheet-metal';
 import type {
   JointCoupling,
   VolumeOperation,
@@ -18,6 +19,9 @@ import type {
   SplitFeature,
   DraftFeature,
   ThickenFeature,
+  SheetFeature,
+  FlangeFeature,
+  FoldFeature,
   GearFeature,
   MoveFeature,
   HoleFeature,
@@ -78,6 +82,9 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   hole: 'Perçage',
   plane: 'Plan',
   axis: 'Axe',
+  sheet: 'Tôle',
+  flange: 'Bord plié',
+  fold: 'Pli',
 };
 
 export function nowIso(): string {
@@ -306,7 +313,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -353,6 +360,20 @@ export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, k
 
 export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorParams['source'] = { kind: 'part' }, plane: MirrorPlane = { kind: 'plane', plane: 'YZ' }): MirrorFeature {
   return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
+}
+
+export function makeSheetFeature(doc: CadDocument, part: Part, sketchId: Id, materialId = DEFAULT_SHEET_MATERIAL): SheetFeature {
+  const material = sheetMaterial(materialId);
+  const thickness = material.thicknesses.includes(1) ? 1 : material.thicknesses[0]!;
+  return { id: newFeatureId(doc, 'sheet'), type: 'sheet', name: nextFeatureName(part, 'sheet'), params: { sketchId, thickness, materialId: material.id, radius: defaultBendRadius(material, thickness), reversed: false } };
+}
+
+export function makeFlangeFeature(doc: CadDocument, part: Part, edges: EdgeRef[] = []): FlangeFeature {
+  return { id: newFeatureId(doc, 'flange'), type: 'flange', name: nextFeatureName(part, 'flange'), params: { edges, length: 20, angle: 90, direction: 'up' } };
+}
+
+export function makeFoldFeature(doc: CadDocument, part: Part, sketchId: Id): FoldFeature {
+  return { id: newFeatureId(doc, 'fold'), type: 'fold', name: nextFeatureName(part, 'fold'), params: { sketchId, angle: 90, direction: 'up', side: 'right' } };
 }
 
 export function makeThickenFeature(doc: CadDocument, part: Part, distance = 0.2): ThickenFeature {

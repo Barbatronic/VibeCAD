@@ -600,7 +600,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -852,6 +852,46 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: { resourceId: str(v, p, 'resourceId', pp), solidIndex: num(v, p, 'solidIndex', pp, { min: 0, integer: true }) },
+      };
+    case 'sheet':
+      return {
+        id,
+        name,
+        type,
+        params: {
+          sketchId: str(v, p, 'sketchId', pp),
+          thickness: num(v, p, 'thickness', pp, { min: 0 }),
+          materialId: str(v, p, 'materialId', pp),
+          radius: num(v, p, 'radius', pp, { min: 0 }),
+          reversed: p.reversed === true,
+        },
+      };
+    case 'flange':
+      return {
+        id,
+        name,
+        type,
+        params: {
+          edges: readEdges(v, p, pp),
+          length: num(v, p, 'length', pp, { min: 0 }),
+          angle: num(v, p, 'angle', pp, { min: 0, max: 180 }),
+          direction: oneOf(v, p, 'direction', pp, ['up', 'down'] as const),
+          ...(p.radius !== undefined ? { radius: num(v, p, 'radius', pp, { min: 0 }) } : {}),
+        },
+      };
+    case 'fold':
+      return {
+        id,
+        name,
+        type,
+        params: {
+          sketchId: str(v, p, 'sketchId', pp),
+          ...(p.lineId !== undefined ? { lineId: str(v, p, 'lineId', pp) } : {}),
+          angle: num(v, p, 'angle', pp, { min: 0, max: 180 }),
+          direction: oneOf(v, p, 'direction', pp, ['up', 'down'] as const),
+          side: oneOf(v, p, 'side', pp, ['left', 'right'] as const),
+          ...(p.radius !== undefined ? { radius: num(v, p, 'radius', pp, { min: 0 }) } : {}),
+        },
       };
     case 'fillet':
       return { id, name, type, params: { edges: readEdges(v, p, pp), radius: num(v, p, 'radius', pp, { min: 0 }) } };

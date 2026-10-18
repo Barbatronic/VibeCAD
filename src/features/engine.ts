@@ -10,6 +10,7 @@
  * dépendent du solide (statut `blocked`, avec l'étape en cause). Les esquisses sur un plan
  * d'origine restent évaluées et modifiables. Le dernier solide valide reste disponible.
  */
+import type { SheetState } from './sheet/fold';
 import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
 import { issue, type FeatureStatus } from '../domain/status';
@@ -52,6 +53,8 @@ export interface PartEvaluation {
   tools: Map<Id, KernelShape>;
   /** Clé de cache de chaque étape (stable tant que l'étape et son amont sont inchangés). */
   stepKeys: Map<Id, string>;
+  /** Tôle (pièce de tôlerie) : plat et plis à la fin de l'historique ; null sinon. */
+  sheet: SheetState | null;
 }
 
 /** Nombre de recalculs pendant lesquels une étape inutilisée reste en cache (annuler/rétablir rapides). */
@@ -65,6 +68,7 @@ interface WalkState {
   datums: ReadonlyMap<Id, Frame3D>;
   axes: ReadonlyMap<Id, { point: Vec3; dir: Vec3 }>;
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
+  sheet: SheetState | null;
 }
 
 export class RecomputeEngine {
@@ -156,13 +160,14 @@ export class RecomputeEngine {
     const tools = new Map<Id, KernelShape>();
     const toolModes = new Map<Id, { shape: KernelShape; mode: 'add' | 'cut' }>();
     const stepKeys = new Map<Id, string>();
+    let sheet: SheetState | null = null;
 
     for (const feature of part.features) {
       const key = this.stepKey(prevKey, feature);
       stepKeys.set(feature.id, key);
       let record = this.records.get(key);
       if (!record) {
-        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, axes: axisMap, tools: toolModes });
+        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, axes: axisMap, tools: toolModes, sheet });
         this.records.set(key, record);
       }
       record.lastUsed = gen;
@@ -188,6 +193,12 @@ export class RecomputeEngine {
       if (outcome.tool && outcome.toolMode && outcome.status.state !== 'error' && outcome.status.state !== 'blocked') {
         toolModes.set(feature.id, { shape: outcome.tool, mode: outcome.toolMode });
       }
+      // Tôle : une étape de tôlerie donne la nouvelle tôle ; une autre étape qui change la pièce
+      // change aussi le plat tant qu'il n'y a pas de pli, sinon elle n'est pas dans le développé.
+      const applied = outcome.shape && outcome.status.state !== 'error' && outcome.status.state !== 'blocked';
+      const before = sheet as SheetState | null;
+      if (outcome.sheet) sheet = outcome.sheet;
+      else if (before && applied && definitionOf(feature).affectsSolid) sheet = before.folds.length === 0 ? { ...before, flat: outcome.shape! } : { ...before, later: [...before.later, feature.id] };
       if (outcome.shape) {
         state.shape = outcome.shape;
         state.analysis = outcome.analysis ?? null;
@@ -196,7 +207,7 @@ export class RecomputeEngine {
       if (!state.failure && record.failureAfter) failedFeatureId = feature.id;
       state.failure = record.failureAfter;
     }
-    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys };
+    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet };
   }
 
   private computeStep(feature: Feature, key: string, state: WalkState): StepRecord {
@@ -222,6 +233,7 @@ export class RecomputeEngine {
       datums: state.datums,
       axes: state.axes,
       tools: state.tools,
+      sheet: state.sheet,
       readStepSolids: (resourceId) => this.readStepSolids(resourceId),
     };
     let outcome: FeatureOutcome;
@@ -268,6 +280,7 @@ export class RecomputeEngine {
     const owned = new Set<KernelShape>();
     if (outcome.shape) owned.add(outcome.shape);
     if (outcome.tool) owned.add(outcome.tool);
+    for (const s of outcome.owned ?? []) owned.add(s);
     for (const s of owned) this.kernel.dispose(s);
   }
 

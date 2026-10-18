@@ -24,6 +24,9 @@ import { RevolvePanel } from '../features/revolve/panel';
 import { SplitPanel } from '../features/split/panel';
 import { DraftPanel } from '../features/draft/panel';
 import { ThickenPanel } from '../features/thicken/panel';
+import { SheetPanel } from '../features/sheet/panel';
+import { FlangePanel } from '../features/flange/panel';
+import { FoldPanel } from '../features/fold/panel';
 
 export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<FeaturePanelProps<never>>>> = {
   extrude: ExtrudePanel as FunctionComponent<FeaturePanelProps<never>>,
@@ -45,4 +48,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   mirror: MirrorPanel as FunctionComponent<FeaturePanelProps<never>>,
   fillet: FilletPanel as FunctionComponent<FeaturePanelProps<never>>,
   chamfer: ChamferPanel as FunctionComponent<FeaturePanelProps<never>>,
+  sheet: SheetPanel as FunctionComponent<FeaturePanelProps<never>>,
+  flange: FlangePanel as FunctionComponent<FeaturePanelProps<never>>,
+  fold: FoldPanel as FunctionComponent<FeaturePanelProps<never>>,
 };

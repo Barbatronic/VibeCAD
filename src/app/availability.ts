@@ -42,7 +42,8 @@ function hasHoleCenters(sketch: SketchFeature): boolean {
  */
 export function suggestedSketch(state: AppState, part: Part, type?: FeatureType): SketchFeature | null {
   const sketches = part.features.filter((f): f is SketchFeature => f.type === 'sketch');
-  const usable = (s: SketchFeature) => (type === 'hole' ? hasHoleCenters(s) : sketchProfileOk(state, part.id, s.id) !== false);
+  const usable = (s: SketchFeature) =>
+    type === 'hole' ? hasHoleCenters(s) : type === 'fold' ? s.params.entities.some((e) => e.type === 'line' && !e.reference) : sketchProfileOk(state, part.id, s.id) !== false;
   const sel = state.selection;
   if (sel?.kind === 'feature' && sel.partId === part.id) {
     const s = sketches.find((f) => f.id === sel.featureId);
@@ -90,7 +91,13 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
   const sketches = part.features.filter((f) => f.type === 'sketch');
   if (sketches.length === 0) return no(`Pour créer une ${label}, dessinez d’abord une esquisse fermée (bouton « Esquisse »).`);
   if (!suggestedSketch(state, part, type)) {
-    return no(type === 'hole' ? 'Aucune esquisse n’a de point ni de cercle : posez un point (outil Point) là où percer.' : 'Aucune esquisse n’a de contour fermé : terminez le contour avant de continuer.');
+    return no(
+      type === 'hole'
+        ? 'Aucune esquisse n’a de point ni de cercle : posez un point (outil Point) là où percer.'
+        : type === 'fold'
+          ? 'Dessinez d’abord, sur la tôle, une esquisse avec un trait : c’est la ligne de pli.'
+          : 'Aucune esquisse n’a de contour fermé : terminez le contour avant de continuer.',
+    );
   }
   return yes;
 }
