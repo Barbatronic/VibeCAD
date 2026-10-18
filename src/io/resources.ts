@@ -96,7 +96,7 @@ export function createResourceProvider(resources: Record<Id, StepResource>): Res
       const hit = cache.get(id);
       if (hit) return hit;
       const r = resources[id];
-      if (!r) return undefined;
+      if (!r || r.kind === 'image') return undefined;
       const data = { sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r), kind: r.kind };
       cache.set(id, data);
       return data;

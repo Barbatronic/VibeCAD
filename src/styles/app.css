@@ -3279,6 +3279,24 @@ kbd {
 }
 
 /* Simulation : « Alléger la pièce » (optimisation topologique). */
+.image-calibration {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
+}
+.image-calibration canvas {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface) 0% 50%) 50% / 16px 16px;
+}
+.image-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+
 .topology {
   margin-top: 14px;
   padding-top: 10px;

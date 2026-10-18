@@ -25,6 +25,7 @@ import { SplitPanel } from '../features/split/panel';
 import { DraftPanel } from '../features/draft/panel';
 import { ThickenPanel } from '../features/thicken/panel';
 import { SheetPanel } from '../features/sheet/panel';
+import { ImagePanel } from '../features/image/panel';
 import { FlangePanel } from '../features/flange/panel';
 import { FoldPanel } from '../features/fold/panel';
 
@@ -51,4 +52,5 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   sheet: SheetPanel as FunctionComponent<FeaturePanelProps<never>>,
   flange: FlangePanel as FunctionComponent<FeaturePanelProps<never>>,
   fold: FoldPanel as FunctionComponent<FeaturePanelProps<never>>,
+  image: ImagePanel as FunctionComponent<FeaturePanelProps<never>>,
 };

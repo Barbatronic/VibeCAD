@@ -66,6 +66,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M3 16h11.5a1.5 1.5 0 0 0 1.5-1.5V4" opacity="0.6" />
     </>
   ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.8" />
+      <path d="M3 17l5.5-5 4 3.5 3-2.5L21 17" />
+    </>
+  ),
   unfold: (
     <>
       <path d="M2.5 16h19" />

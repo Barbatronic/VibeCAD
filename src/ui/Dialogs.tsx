@@ -1,5 +1,4 @@
-import type { ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { formatLength, formatVolume } from '../domain/units';
 import { NATIVE_EXTENSION } from '../io/native-format';
 import { STL_UNIT_NOTE } from '../io/stl';
@@ -10,51 +9,7 @@ import { Button, Callout, IconButton, Segmented } from './components/controls';
 import { LEVELS } from '../app/levels';
 import type { ExportFormat, ThemeChoice } from '../app/state';
 import { Icon } from './icons';
-
-function Modal(props: { title: string; onClose: () => void; children: ComponentChildren; footer?: ComponentChildren; wide?: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>('[data-autofocus], .modal-body button, .modal-body input, .modal-footer button');
-    first?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        props.onClose();
-      }
-      if (e.key === 'Tab' && ref.current) {
-        const focusables = Array.from(ref.current.querySelectorAll<HTMLElement>('button, input, select, a[href], [tabindex="0"]')).filter((el) => !el.hasAttribute('disabled'));
-        if (focusables.length === 0) return;
-        const firstEl = focusables[0]!;
-        const lastEl = focusables[focusables.length - 1]!;
-        if (e.shiftKey && document.activeElement === firstEl) {
-          e.preventDefault();
-          lastEl.focus();
-        } else if (!e.shiftKey && document.activeElement === lastEl) {
-          e.preventDefault();
-          firstEl.focus();
-        }
-      }
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      previous?.focus?.();
-    };
-  }, []);
-  return (
-    <div class="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>
-      <div class={`modal${props.wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref}>
-        <div class="modal-header">
-          <h2 id="modal-title">{props.title}</h2>
-          <IconButton icon="close" label="Fermer" onClick={props.onClose} />
-        </div>
-        <div class="modal-body">{props.children}</div>
-        {props.footer ? <div class="modal-footer">{props.footer}</div> : null}
-      </div>
-    </div>
-  );
-}
+import { Modal } from './components/modal';
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });

@@ -55,6 +55,8 @@ export interface PartEvaluation {
   stepKeys: Map<Id, string>;
   /** Tôle (pièce de tôlerie) : plat et plis à la fin de l'historique ; null sinon. */
   sheet: SheetState | null;
+  /** Images de référence : repère de leur support. */
+  images: { featureId: Id; frame: Frame3D }[];
 }
 
 /** Nombre de recalculs pendant lesquels une étape inutilisée reste en cache (annuler/rétablir rapides). */
@@ -161,6 +163,7 @@ export class RecomputeEngine {
     const toolModes = new Map<Id, { shape: KernelShape; mode: 'add' | 'cut' }>();
     const stepKeys = new Map<Id, string>();
     let sheet: SheetState | null = null;
+    const images: { featureId: Id; frame: Frame3D }[] = [];
 
     for (const feature of part.features) {
       const key = this.stepKey(prevKey, feature);
@@ -193,6 +196,7 @@ export class RecomputeEngine {
       if (outcome.tool && outcome.toolMode && outcome.status.state !== 'error' && outcome.status.state !== 'blocked') {
         toolModes.set(feature.id, { shape: outcome.tool, mode: outcome.toolMode });
       }
+      if (outcome.imageFrame) images.push({ featureId: feature.id, frame: outcome.imageFrame });
       // Tôle après l'étape (voir `sheetAfter`).
       if (outcome.sheet) sheet = outcome.sheet;
       if (outcome.shape) {
@@ -203,7 +207,7 @@ export class RecomputeEngine {
       if (!state.failure && record.failureAfter) failedFeatureId = feature.id;
       state.failure = record.failureAfter;
     }
-    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet };
+    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet, images };
   }
 
   private computeStep(feature: Feature, key: string, state: WalkState): StepRecord {

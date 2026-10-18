@@ -20,6 +20,7 @@ import type {
   DraftFeature,
   ThickenFeature,
   SheetFeature,
+  ImageFeature,
   FlangeFeature,
   FoldFeature,
   GearFeature,
@@ -85,6 +86,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   sheet: 'Tôle',
   flange: 'Bord plié',
   fold: 'Pli',
+  image: 'Image',
 };
 
 export function nowIso(): string {
@@ -313,7 +315,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -374,6 +376,16 @@ export function makeFlangeFeature(doc: CadDocument, part: Part, edges: EdgeRef[]
 
 export function makeFoldFeature(doc: CadDocument, part: Part, sketchId: Id): FoldFeature {
   return { id: newFeatureId(doc, 'fold'), type: 'fold', name: nextFeatureName(part, 'fold'), params: { sketchId, angle: 90, direction: 'up', side: 'right' } };
+}
+
+export function makeImageFeature(doc: CadDocument, part: Part, resourceId: Id, pixels: { w: number; h: number }, support: SketchSupport, width = 100): ImageFeature {
+  return {
+    id: newFeatureId(doc, 'image'),
+    type: 'image',
+    name: nextFeatureName(part, 'image'),
+    visible: true,
+    params: { resourceId, pixels, support, center: { x: 0, y: 0 }, width, rotation: 0, mirror: false, opacity: 0.6 },
+  };
 }
 
 export function makeThickenFeature(doc: CadDocument, part: Part, distance = 0.2): ThickenFeature {

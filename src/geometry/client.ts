@@ -90,10 +90,11 @@ export class GeometryClient {
   }
 
   private async syncResources(doc: CadDocument): Promise<void> {
-    const missing = Object.values(doc.resources).filter((r) => !this.sentResources.has(`${r.id}:${r.sha256}`));
+    // Les images (calques) ne servent qu'à l'affichage : le worker n'en a pas besoin.
+    const missing = Object.values(doc.resources).filter((r) => r.kind !== 'image' && !this.sentResources.has(`${r.id}:${r.sha256}`));
     if (missing.length === 0) return;
     await this.request('resources', {
-      resources: missing.map((r) => ({ id: r.id, sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r), kind: r.kind })),
+      resources: missing.map((r) => ({ id: r.id, sha256: r.sha256, fileName: r.fileName, bytes: resourceBytes(r), kind: r.kind as 'step' | 'stl' })),
     });
     for (const r of missing) this.sentResources.add(`${r.id}:${r.sha256}`);
   }

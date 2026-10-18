@@ -1768,6 +1768,172 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "image"
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "params": {
+              "type": "object",
+              "description": "Image de référence (calque) posée sur un plan ou une face : centre et largeur en mm dans le repère du support, rotation en degrés, opacité 0 → 1 ; redressement facultatif (4 coins d'un rectangle connu, en fraction de l'image, et ses proportions).",
+              "required": [
+                "resourceId",
+                "pixels",
+                "support",
+                "center",
+                "width",
+                "rotation",
+                "mirror",
+                "opacity"
+              ],
+              "properties": {
+                "resourceId": {
+                  "$ref": "#/$defs/id"
+                },
+                "pixels": {
+                  "type": "object",
+                  "required": [
+                    "w",
+                    "h"
+                  ],
+                  "properties": {
+                    "w": {
+                      "type": "number",
+                      "minimum": 1
+                    },
+                    "h": {
+                      "type": "number",
+                      "minimum": 1
+                    }
+                  }
+                },
+                "support": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        },
+                        "offset": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
+                    }
+                  ]
+                },
+                "center": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "rotation": {
+                  "type": "number"
+                },
+                "mirror": {
+                  "type": "boolean"
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "perspective": {
+                  "type": "object",
+                  "required": [
+                    "corners",
+                    "aspect"
+                  ],
+                  "properties": {
+                    "corners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    "aspect": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -2184,7 +2350,8 @@
         "kind": {
           "enum": [
             "step",
-            "stl"
+            "stl",
+            "image"
           ]
         },
         "fileName": {
@@ -2209,6 +2376,10 @@
         },
         "importedAt": {
           "type": "string"
+        },
+        "mime": {
+          "type": "string",
+          "description": "Type MIME d'une image (image/png, image/jpeg, image/webp)."
         }
       }
     },

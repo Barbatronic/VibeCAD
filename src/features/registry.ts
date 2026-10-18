@@ -6,6 +6,7 @@ import type { Feature, Id } from '../domain/model';
 import type { FeatureDefinition, FeatureDefinitions, ParamIssue } from './definition';
 import { sweepDefinition } from './sweep/definition';
 import { sheetDefinition } from './sheet/definition';
+import { imageDefinition } from './image/definition';
 import { flangeDefinition } from './flange/definition';
 import { foldDefinition } from './fold/definition';
 import { splitDefinition } from './split/definition';
@@ -53,6 +54,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   sheet: sheetDefinition,
   flange: flangeDefinition,
   fold: foldDefinition,
+  image: imageDefinition,
   'imported-solid': importedSolidDefinition,
 };
 

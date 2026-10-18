@@ -3,6 +3,7 @@ import type { Feature, FeatureType } from '../domain/model';
 import type { FeatureEvaluator } from './evaluation';
 import { evaluateSweep } from './sweep/evaluate';
 import { evaluateSheet } from './sheet/evaluate';
+import { evaluateImage } from './image/evaluate';
 import { evaluateFlange } from './flange/evaluate';
 import { evaluateFold } from './fold/evaluate';
 import { evaluateSplit } from './split/evaluate';
@@ -33,6 +34,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   sheet: evaluateSheet,
   flange: evaluateFlange,
   fold: evaluateFold,
+  image: evaluateImage,
   extrude: evaluateExtrude,
   primitive: evaluatePrimitive,
   gear: evaluateGear,

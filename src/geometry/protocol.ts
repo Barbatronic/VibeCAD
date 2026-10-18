@@ -42,6 +42,8 @@ export interface PartResult {
   failedFeatureId: Id | null;
   /** Aperçu : corps outil de la fonction demandée (volume ajouté ou retiré). */
   previewTool?: { featureId: Id; mesh: MeshData };
+  /** Images de référence : repère de leur support. */
+  images?: { featureId: Id; frame: Frame3D }[];
   /** Tôlerie (pièce qui a des plis) : développé et lignes de pli. */
   flat?: SheetFlatResult;
 }

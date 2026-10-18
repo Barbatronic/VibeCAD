@@ -1,4 +1,5 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
+import type { StepResource } from '../domain/model';
 import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
 import type { SectionPlane } from '../geometry/protocol';
@@ -190,6 +191,10 @@ export interface AppState {
   collisions: { key: string; items: { a: Id; b: Id; volume: number; mesh: MeshData }[] } | null;
   /** Repère du centre de gravité de la pièce active dans la vue. */
   showCentroid: boolean;
+  /** Image en cours d'ajout (calque) : sa ressource n'entre dans le projet qu'à la validation. */
+  pendingImage: StepResource | null;
+  /** Incrémenté quand une image finit de se charger (nouveau rendu de la vue). */
+  imageVersion: number;
   /** Tôlerie : les pièces pliées sont montrées à plat (développé), avec leurs lignes de pli. */
   unfolded: boolean;
   /**
@@ -272,6 +277,8 @@ export function initialState(): AppState {
     section: null,
     showCentroid: false,
     unfolded: false,
+    pendingImage: null,
+    imageVersion: 0,
     isolatedPartId: null,
     drawingRevision: 0,
     collisionCheck: false,

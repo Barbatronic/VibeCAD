@@ -600,7 +600,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -853,6 +853,33 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         type,
         params: { resourceId: str(v, p, 'resourceId', pp), solidIndex: num(v, p, 'solidIndex', pp, { min: 0, integer: true }) },
       };
+    case 'image': {
+      const px = obj(v, p.pixels, `${pp}.pixels`) ?? {};
+      const c = obj(v, p.center, `${pp}.center`) ?? {};
+      const persp = p.perspective !== undefined ? obj(v, p.perspective, `${pp}.perspective`) : null;
+      const corners = persp ? arr(v, persp, 'corners', `${pp}.perspective`).map((q, i) => {
+        const qo = obj(v, q, `${pp}.perspective.corners[${i}]`) ?? {};
+        return { x: num(v, qo, 'x', `${pp}.perspective.corners[${i}]`), y: num(v, qo, 'y', `${pp}.perspective.corners[${i}]`) };
+      }) : [];
+      if (persp && corners.length !== 4) v.error(`${pp}.perspective.corners`, '4 coins attendus');
+      return {
+        id,
+        name,
+        type,
+        visible: bool(v, o, 'visible', path, true),
+        params: {
+          resourceId: str(v, p, 'resourceId', pp),
+          pixels: { w: num(v, px, 'w', `${pp}.pixels`, { min: 1 }), h: num(v, px, 'h', `${pp}.pixels`, { min: 1 }) },
+          support: readSupport(v, p.support, `${pp}.support`),
+          center: { x: num(v, c, 'x', `${pp}.center`), y: num(v, c, 'y', `${pp}.center`) },
+          width: num(v, p, 'width', pp, { min: 0 }),
+          rotation: num(v, p, 'rotation', pp),
+          mirror: p.mirror === true,
+          opacity: num(v, p, 'opacity', pp, { min: 0, max: 1 }),
+          ...(persp && corners.length === 4 ? { perspective: { corners: corners as [typeof corners[0], typeof corners[0], typeof corners[0], typeof corners[0]], aspect: num(v, persp, 'aspect', `${pp}.perspective`, { min: 0 }) } } : {}),
+        },
+      };
+    }
     case 'sheet':
       return {
         id,
@@ -1076,7 +1103,8 @@ function readResource(v: Validator, x: unknown, path: string): Resource | null {
   const data = str(v, o, 'data', path);
   return {
     id: str(v, o, 'id', path),
-    kind: oneOf(v, o, 'kind', path, ['step', 'stl'] as const),
+    kind: oneOf(v, o, 'kind', path, ['step', 'stl', 'image'] as const),
+    ...(o.mime !== undefined ? { mime: str(v, o, 'mime', path) } : {}),
     fileName: str(v, o, 'fileName', path),
     encoding: oneOf(v, o, 'encoding', path, ['utf8', 'base64'] as const),
     data,
@@ -1113,6 +1141,9 @@ function checkReferences(v: Validator, doc: CadDocument): void {
       }
       if (f.type === 'imported-solid' && !doc.resources[f.params.resourceId]) {
         v.warnings.push(`${f.name} : les données du fichier importé sont absentes.`);
+      }
+      if (f.type === 'image' && !doc.resources[f.params.resourceId]) {
+        v.warnings.push(`${f.name} : les données de l’image sont absentes.`);
       }
       if (f.type === 'sketch') checkSketch(v, f.params, f.name, path);
       seen.set(f.id, f);

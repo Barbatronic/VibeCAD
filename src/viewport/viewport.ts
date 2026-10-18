@@ -30,6 +30,9 @@ import {
   WebGLRenderer,
   type Material,
   type Object3D,
+  Matrix4,
+  SRGBColorSpace,
+  Texture,
 } from 'three';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
@@ -129,6 +132,8 @@ export interface ViewportInput {
   datumPlanes?: { key: string; frame: Frame3D; label: string; active?: boolean }[];
   /** Axes de construction à montrer (trait mixte nommé), `active` : celui en cours de modification. */
   datumAxes?: { key: string; point: Vec3; dir: Vec3; label: string; active?: boolean }[];
+  /** Images de référence (calques) : rectangle texturé sur le plan de leur support. */
+  images?: { key: string; frame: Frame3D; center: Vec2; width: number; height: number; rotation: number; mirror: boolean; opacity: number; source: CanvasImageSource }[];
   /** Tôlerie dépliée : lignes de pli (tirets) et leur étiquette (angle). */
   bendLines?: { a: Vec3; b: Vec3; label?: string }[];
   resultMesh?: {
@@ -433,6 +438,7 @@ export class Viewport {
     this.syncAnchors(input.anchors ?? []);
     this.syncDatumPlanes(input.datumPlanes ?? [], input.datumAxes ?? []);
     this.syncBendLines(input.bendLines ?? []);
+    this.syncImages(input.images ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
@@ -730,6 +736,53 @@ export class Viewport {
 
   private datumObjects: Object3D[] = [];
   private datumKey = '';
+  private imageObjects = new Map<string, { mesh: Mesh; source: CanvasImageSource }>();
+
+  /** Images de référence : un rectangle texturé, translucide, sous les esquisses. */
+  private syncImages(images: NonNullable<ViewportInput['images']>): void {
+    const wanted = new Set(images.map((i) => i.key));
+    for (const [key, entry] of this.imageObjects) {
+      if (wanted.has(key)) continue;
+      entry.mesh.parent?.remove(entry.mesh);
+      entry.mesh.geometry.dispose();
+      const m = entry.mesh.material as MeshBasicMaterial;
+      m.map?.dispose();
+      m.dispose();
+      this.imageObjects.delete(key);
+      this.needsRender = true;
+    }
+    for (const img of images) {
+      const known = this.imageObjects.get(img.key);
+      if (known && known.source === img.source) continue;
+      if (known) {
+        known.mesh.parent?.remove(known.mesh);
+        known.mesh.geometry.dispose();
+        const m = known.mesh.material as MeshBasicMaterial;
+        m.map?.dispose();
+        m.dispose();
+      }
+      const texture = new Texture(img.source as TexImageSource);
+      texture.colorSpace = SRGBColorSpace;
+      texture.needsUpdate = true;
+      const mesh = new Mesh(
+        new PlaneGeometry(1, 1),
+        new MeshBasicMaterial({ map: texture, transparent: true, opacity: img.opacity, side: DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+      );
+      mesh.matrixAutoUpdate = false;
+      const a = (img.rotation * Math.PI) / 180;
+      const local = new Matrix4()
+        .makeTranslation(img.center.x, img.center.y, 0)
+        .multiply(new Matrix4().makeRotationZ(a))
+        .multiply(new Matrix4().makeScale(img.width * (img.mirror ? -1 : 1), img.height, 1));
+      mesh.matrix.copy(frameMatrix(img.frame).multiply(local));
+      mesh.matrixWorldNeedsUpdate = true;
+      mesh.renderOrder = -1;
+      this.overlayGroup.add(mesh);
+      this.imageObjects.set(img.key, { mesh, source: img.source });
+      this.needsRender = true;
+    }
+  }
+
   private bendObjects: Object3D[] = [];
   private bendKey = '';
 

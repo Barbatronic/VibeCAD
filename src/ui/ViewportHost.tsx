@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { partShown, type AppState } from '../app/state';
-import type { Assembly, AssemblyFastener, SketchFeature } from '../domain/model';
+import type { Assembly, AssemblyFastener, ImageFeature, SketchFeature } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import { pointPosition, standalonePoints } from '../sketch/model';
 import { frameToWorld } from '../math/frame';
@@ -49,6 +49,8 @@ import { Icon } from './icons';
 import { allows } from '../app/levels';
 import { dot3, sub3, type Vec3 } from '../math/vec';
 import { clipLineToOutline, faceOutline, largestPlanarFace } from '../app/laser';
+import { imageSize } from '../app/images';
+import { imageSource, onImageReady } from './image-cache';
 import { formatLength } from '../domain/units';
 import { resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
 import { exaggerationFor } from '../sim/study';
@@ -440,6 +442,23 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
+  // Images de référence (calques) : celles de l'historique, et celle en cours d'édition.
+  const images: NonNullable<ViewportInput['images']> = [];
+  for (const p of s.doc.parts) {
+    if (!partShown(s, p)) continue;
+    const editing = s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.mode.draft.feature : null;
+    const result = (editing ? s.preview?.parts[p.id] : undefined) ?? s.display[p.id]?.result;
+    for (const im of result?.images ?? []) {
+      const f = (editing?.id === im.featureId ? editing : p.features.find((x) => x.id === im.featureId)) as ImageFeature | undefined;
+      if (!f || f.type !== 'image' || !f.visible) continue;
+      const resource = s.doc.resources[f.params.resourceId] ?? (s.pendingImage?.id === f.params.resourceId ? s.pendingImage : undefined);
+      const source = resource ? imageSource(resource, f.params) : null;
+      if (!source) continue;
+      const size = imageSize(f.params);
+      const pr = f.params;
+      images.push({ key: `${f.id}|${JSON.stringify(pr)}|${JSON.stringify(im.frame)}`, frame: im.frame, center: pr.center, width: size.w, height: size.h, rotation: pr.rotation, mirror: pr.mirror, opacity: pr.opacity, source });
+    }
+  }
   // Lignes de pli des tôles dépliées, coupées au contour de la tôle à plat.
   const bendLines: NonNullable<ViewportInput['bendLines']> = [];
   if (s.unfolded && mode === 'model') {
@@ -460,7 +479,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines };
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -788,13 +807,15 @@ export function ViewportHost() {
   const [, setTick] = useState(0);
   const tickPending = useRef(false);
   const state = useAppState((s) => s);
+  // Une image de référence a fini de se charger : nouveau rendu.
+  useEffect(() => onImageReady(() => c.imagesChanged()), []);
   const input = useMemo(
     () => {
       const partId = state.workspace === 'simulation' ? c.simulationPartId() : null;
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

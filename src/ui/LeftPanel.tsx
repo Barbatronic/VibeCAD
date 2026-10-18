@@ -317,7 +317,7 @@ function HistorySection() {
                   )}
                   <span class="row-actions">
                     {f.type !== 'imported-solid' ? <IconButton icon="edit" label={`Modifier « ${f.name} »`} small onClick={() => c.editFeature(f.id)} /> : null}
-                    {f.type === 'sketch' ? (
+                    {f.type === 'sketch' || f.type === 'image' ? (
                       <IconButton icon={f.visible ? 'eye' : 'eye-off'} label={f.visible ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
                     ) : null}
                     <IconButton icon="trash" label={`Supprimer « ${f.name} »`} small onClick={() => c.deleteFeature(f.id)} />

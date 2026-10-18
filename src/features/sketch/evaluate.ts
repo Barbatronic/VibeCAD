@@ -1,4 +1,4 @@
-import type { Id, SketchEntity, SketchFeature, SketchParams } from '../../domain/model';
+import type { Id, SketchEntity, SketchFeature, SketchParams, SketchSupport } from '../../domain/model';
 import { issue, okStatus, type FeatureIssueCode, type FeatureStatus } from '../../domain/status';
 import { canonicalFrame, originPlaneFrame, worldToFrame, type Frame3D } from '../../math/frame';
 import { distance2, dot3, type Vec2 } from '../../math/vec';
@@ -8,7 +8,11 @@ import type { EvaluationContext, FeatureEvaluator, FeatureOutcome } from '../eva
 
 /** Repère d'une esquisse : plan d'origine, ou face plane retrouvée par sa référence sémantique. */
 export function resolveSketchFrame(feature: SketchFeature, ctx: EvaluationContext): { frame: Frame3D } | { code: FeatureIssueCode } {
-  const support = feature.params.support;
+  return resolveSupportFrame(feature.params.support, ctx);
+}
+
+/** Repère d'un support (plan d'origine, plan de construction, face plane) : esquisse, image. */
+export function resolveSupportFrame(support: SketchSupport, ctx: EvaluationContext): { frame: Frame3D } | { code: FeatureIssueCode } {
   if (support.kind === 'plane') return { frame: originPlaneFrame(support.plane, support.offset) };
   if (support.kind === 'datum') {
     const frame = ctx.datums.get(support.featureId);

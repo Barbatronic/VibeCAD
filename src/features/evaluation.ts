@@ -67,6 +67,8 @@ export interface FeatureOutcome {
   analysis?: ShapeAnalysis;
   /** Corps outil (volume ajouté ou retiré), conservé pour l'aperçu et la répétition. */
   tool?: KernelShape;
+  /** Image de référence : repère de son support. */
+  imageFrame?: Frame3D;
   /** Tôle après cette étape (tôle, bord plié, pli). */
   sheet?: SheetState;
   /** Autres formes créées par l'étape et détenues par elle (plat d'un bord plié). */

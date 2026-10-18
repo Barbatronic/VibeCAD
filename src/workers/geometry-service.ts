@@ -92,6 +92,7 @@ export class GeometryService {
       mesh,
       analysis: ev.analysis,
       failedFeatureId: ev.failedFeatureId,
+      ...(ev.images.length ? { images: ev.images } : {}),
     };
     const sheet = ev.sheet;
     if (sheet && sheet.folds.length > 0 && ev.shapeKey) {

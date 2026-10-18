@@ -274,7 +274,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -315,6 +315,10 @@ export type AxisFeature = FeatureBase<'axis', DatumAxisParams>;
 export type SheetFeature = FeatureBase<'sheet', SheetParams>;
 export type FlangeFeature = FeatureBase<'flange', FlangeParams>;
 export type FoldFeature = FeatureBase<'fold', FoldParams>;
+export type ImageFeature = FeatureBase<'image', ImageParams> & {
+  /** Affichage de l'image dans la vue 3D. */
+  visible: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Esquisses
@@ -687,6 +691,37 @@ export interface SheetParams {
   reversed: boolean;
 }
 
+/**
+ * Image de référence (calque) posée sur un plan ou une face, pour redessiner une pièce d'après une
+ * photo ou un plan scanné. Elle ne change pas la pièce. Coordonnées dans le repère du support :
+ * `center` (mm), largeur `width` (mm, la hauteur suit les proportions), rotation (degrés).
+ */
+export interface ImageParams {
+  /** Ressource de l'image (PNG, JPEG, WebP) enregistrée dans le projet. */
+  resourceId: Id;
+  /** Taille de l'image d'origine (pixels). */
+  pixels: { w: number; h: number };
+  support: SketchSupport;
+  center: { x: number; y: number };
+  width: number;
+  rotation: number;
+  mirror: boolean;
+  /** Opacité (0,1 à 1). */
+  opacity: number;
+  /**
+   * Redressement (perspective) : les 4 coins d'un rectangle connu, en fraction de l'image (0 → 1,
+   * y vers le haut), dans l'ordre bas-gauche, bas-droit, haut-droit, haut-gauche, et ses
+   * proportions (largeur / hauteur). L'image redressée montre ce rectangle au centre, avec une
+   * marge d'une demi-largeur et d'une demi-hauteur tout autour.
+   */
+  perspective?: { corners: [Vec2Like, Vec2Like, Vec2Like, Vec2Like]; aspect: number };
+}
+
+export interface Vec2Like {
+  x: number;
+  y: number;
+}
+
 /** Côté vers lequel un pli remonte : celui de la normale de la tôle (`up`) ou l'autre. */
 export type BendDirection = 'up' | 'down';
 
@@ -936,7 +971,10 @@ export interface ChamferParams {
 /** Fichier importé conservé dans le projet : STEP (formes exactes) ou STL (triangles). */
 export interface StepResource {
   id: Id;
-  kind: 'step' | 'stl';
+  /** Fichier importé : solide STEP ou STL, ou image d'un calque (`image`). */
+  kind: 'step' | 'stl' | 'image';
+  /** Type MIME d'une image (image/png, image/jpeg, image/webp). */
+  mime?: string;
   fileName: string;
   /** `utf8` : texte STEP tel quel ; `base64` : octets bruts encodés. */
   encoding: 'utf8' | 'base64';

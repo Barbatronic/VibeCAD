@@ -25,6 +25,7 @@ import {
   findFeature,
   findPart,
   makeExtrudeFeature,
+  makeImageFeature,
   makeImportedSolidFeature,
   makeSketchFeature,
   newResourceId,
@@ -37,7 +38,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -48,7 +49,7 @@ import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
-import { createStepResource, verifyResources } from '../io/resources';
+import { bytesToBase64, createStepResource, verifyResources } from '../io/resources';
 import { meshesToBinaryStl, STL_UNIT_NOTE } from '../io/stl';
 import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
 import { distance3 } from '../math/vec';
@@ -698,12 +699,13 @@ export class AppController {
     this.commit(renameFeature(this.state.doc, featureId, trimmed), `Renommer « ${trimmed} »`);
   }
 
+  /** Afficher ou masquer une esquisse ou une image de référence. */
   toggleSketchVisible(featureId: Id): void {
     const found = findFeature(this.state.doc, featureId);
-    if (!found || found.feature.type !== 'sketch') return;
+    if (!found || (found.feature.type !== 'sketch' && found.feature.type !== 'image')) return;
     const visible = !found.feature.visible;
     this.commit(
-      updateFeature<SketchFeature>(this.state.doc, featureId, (f) => ({ ...f, visible })),
+      updateFeature<SketchFeature | ImageFeature>(this.state.doc, featureId, (f) => ({ ...f, visible })),
       visible ? `Afficher « ${found.feature.name} »` : `Masquer « ${found.feature.name} »`,
     );
   }
@@ -911,6 +913,7 @@ export class AppController {
   /** Démarre une opération proposée par la barre d'outils (voir `FeatureDefinition.tool`). */
   startFeature(type: FeatureType): void {
     if (!this.can(`feature:${type}`)) return this.explain('Cet outil n’est pas disponible à ce niveau (en bas à droite : « Niveau »).');
+    if (type === 'image') return void this.startImage();
     const avail = toolAvailability(this.state, type);
     if (!avail.ok) return this.explain(avail.reason);
     const def = FEATURE_DEFINITIONS[type] as unknown as FeatureDefinition;
@@ -1160,7 +1163,48 @@ export class AppController {
   }
 
   private draftDocument(draft: FeatureDraft): CadDocument {
-    return draft.isNew ? this.insertAtMarker(this.state.doc, draft.partId, draft.feature) : replaceFeature(this.state.doc, draft.feature);
+    // Image en cours d'ajout : son fichier rejoint le projet avec l'étape.
+    const pending = this.state.pendingImage;
+    const base = pending && draft.feature.type === 'image' && draft.feature.params.resourceId === pending.id ? addResource(this.state.doc, pending) : this.state.doc;
+    return draft.isNew ? this.insertAtMarker(base, draft.partId, draft.feature) : replaceFeature(base, draft.feature);
+  }
+
+  /**
+   * Image de référence : choix du fichier (PNG, JPEG, WebP), puis l'étape « Image » s'ouvre sur la
+   * face sélectionnée, ou sur le plan XY, à 100 mm de large (réglages dans le panneau).
+   */
+  async startImage(): Promise<void> {
+    const avail = toolAvailability(this.state, 'image');
+    if (!avail.ok) return this.explain(avail.reason);
+    const file = await pickFile('image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp');
+    if (!file) return;
+    const bytes = await readFileBytes(file);
+    const mime = file.type || (/\.jpe?g$/i.test(file.name) ? 'image/jpeg' : /\.webp$/i.test(file.name) ? 'image/webp' : 'image/png');
+    let pixels: { w: number; h: number };
+    try {
+      const bitmap = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }));
+      pixels = { w: bitmap.width, h: bitmap.height };
+      bitmap.close();
+    } catch {
+      return this.explain(`« ${file.name} » n’est pas une image lisible (PNG, JPEG ou WebP).`);
+    }
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const resource = { ...(await createStepResource(newResourceId(this.state.doc), file.name, bytes, undefined, 'image')), encoding: 'base64' as const, mime };
+    resource.data = bytesToBase64(bytes);
+    const sel = this.state.selection;
+    const part = (sel && findPart(this.state.doc, sel.partId)) || activePart(this.state)!;
+    // Face plane sélectionnée : l'image s'y pose ; sinon le plan XY.
+    const mesh = this.state.display[part.id]?.mesh;
+    const face = sel?.kind === 'face' && mesh ? mesh.faces[sel.index] : undefined;
+    const ref = face?.plane ? pickFaceReference(face.tags, part) : null;
+    const feature = makeImageFeature(this.state.doc, part, resource.id, pixels, ref ? { kind: 'face', ref } : { kind: 'plane', plane: 'XY', offset: 0 });
+    this.set({ pendingImage: resource });
+    this.openDraft({ partId: part.id, isNew: true, feature, fields: FEATURE_DEFINITIONS.image.tool!.initialFields(feature), errors: {} });
+  }
+
+  /** Une image vient de se charger : la vue est redessinée. */
+  imagesChanged(): void {
+    this.set({ imageVersion: this.state.imageVersion + 1 });
   }
 
   /** Ajoute une étape à la position de la barre de retour (à la fin si elle n'est pas utilisée). */
@@ -1279,6 +1323,7 @@ export class AppController {
     this.commit(doc, label, {
       mode: model,
       preview: null,
+      pendingImage: null,
       selection: { kind: 'feature', partId: draft.partId, featureId: draft.feature.id },
       ...(draft.isNew ? this.markerAfterInsert(draft.partId, draft.feature.id) : {}),
     });
@@ -1287,7 +1332,7 @@ export class AppController {
   cancelDraft(): void {
     if (this.state.mode.kind !== 'feature') return;
     this.previewSeq++;
-    this.set({ mode: model, preview: null });
+    this.set({ mode: model, preview: null, pendingImage: null });
   }
 
   // =========================================================================
