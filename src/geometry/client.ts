@@ -136,6 +136,10 @@ export class GeometryClient {
         ...(job.previewFeatureId ? { previewFeatureId: job.previewFeatureId } : {}),
       });
       for (const part of result.parts) {
+        if (part.flat) {
+          if (part.flat.mesh) this.rememberMesh(part.flat.meshKey, part.flat.mesh);
+          else part.flat.mesh = this.meshes.get(part.flat.meshKey) ?? null;
+        }
         if (!part.meshKey) continue;
         if (part.mesh) this.rememberMesh(part.meshKey, part.mesh);
         else part.mesh = this.meshes.get(part.meshKey) ?? null;

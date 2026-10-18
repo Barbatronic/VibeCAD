@@ -5,7 +5,8 @@
 import { freecadFcstd, freecadPlan, freecadScript, type FreecadLeaf, type FreecadPartInput } from '../io/freecad';
 import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '../geometry/protocol';
 import type { CadDocument, EdgeRef, Id } from '../domain/model';
-import type { Vec3 } from '../math/vec';
+import { add3, scale3, type Vec3 } from '../math/vec';
+import { foldLines } from '../features/sheet/fold';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
@@ -92,6 +93,24 @@ export class GeometryService {
       analysis: ev.analysis,
       failedFeatureId: ev.failedFeatureId,
     };
+    const sheet = ev.sheet;
+    if (sheet && sheet.folds.length > 0 && ev.shapeKey) {
+      const flatKey = `flat|${ev.shapeKey}`;
+      const options = meshOptionsFor(ev.analysis?.bbox ?? null, DISPLAY_MESH);
+      const meshKey = `${flatKey}|${options.linearDeflection}`;
+      const f = sheet.frame;
+      const world = (p: { x: number; y: number }) => add3(add3(f.origin, scale3(f.xAxis, p.x)), add3(scale3(f.yAxis, p.y), scale3(f.normal, sheet.thickness)));
+      result.flat = {
+        meshKey,
+        mesh: known.has(meshKey) ? null : this.engine.meshFor(meshKey, sheet.flat, options),
+        normal: f.normal,
+        thickness: sheet.thickness,
+        bends: foldLines(sheet).map((b, i) => {
+          const dir = add3(scale3(f.xAxis, b.dir.x), scale3(f.yAxis, b.dir.y));
+          return { featureId: b.featureId, angle: (b.angle * 180) / Math.PI, radius: sheet.folds[i]!.radius, lines: [{ point: world(b.start), dir }, { point: world(b.end), dir }] };
+        }),
+      };
+    }
     if (previewFeatureId) {
       const tool = ev.tools.get(previewFeatureId);
       const stepKey = ev.stepKeys.get(previewFeatureId);

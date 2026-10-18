@@ -9,7 +9,8 @@ import { formatLength } from '../domain/units';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { worldToFrame } from '../math/frame';
 import { frameFromAxis } from '../math/mat4';
-import { dot3, type Vec2 } from '../math/vec';
+import { dot3, type Vec2, type Vec3 } from '../math/vec';
+import type { Frame3D } from '../math/frame';
 
 /** Contour fermé (polyligne, sans répéter le premier point). */
 export type Loop = Vec2[];
@@ -20,6 +21,59 @@ export interface FlatOutline {
   holes: Loop[];
   /** Épaisseur de la pièce perpendiculairement à la face (mm). */
   thickness: number;
+  /** Repère du plan du contour (coordonnées 2D du contour). */
+  frame: Frame3D;
+}
+
+/** Ligne de pli d'une tôle (développé) : point, direction (3D) et angle du pli (degrés). */
+export interface BendLine {
+  point: Vec3;
+  dir: Vec3;
+  angle: number;
+}
+
+/**
+ * Portions d'une droite (3D, projetée dans le plan du contour) qui sont dans la matière : la droite
+ * est coupée par tous les bords (contour et trous), et on garde les morceaux dont le milieu est à
+ * l'intérieur (règle pair-impair).
+ */
+export function clipLineToOutline(outline: Pick<FlatOutline, 'outer' | 'holes' | 'frame'>, point: Vec3, dir: Vec3): [Vec2, Vec2][] {
+  const p = worldToFrame(outline.frame, point);
+  const q = worldToFrame(outline.frame, { x: point.x + dir.x, y: point.y + dir.y, z: point.z + dir.z });
+  const d = { x: q.x - p.x, y: q.y - p.y };
+  const len = Math.hypot(d.x, d.y);
+  if (len < 1e-12) return [];
+  const loops = [outline.outer, ...outline.holes];
+  const ts: number[] = [];
+  for (const loop of loops)
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i]!;
+      const b = loop[(i + 1) % loop.length]!;
+      const e = { x: b.x - a.x, y: b.y - a.y };
+      const den = d.x * e.y - d.y * e.x;
+      if (Math.abs(den) < 1e-12) continue;
+      const t = ((a.x - p.x) * e.y - (a.y - p.y) * e.x) / den;
+      const u = ((a.x - p.x) * d.y - (a.y - p.y) * d.x) / den;
+      if (u >= -1e-9 && u <= 1 + 1e-9) ts.push(t);
+    }
+  ts.sort((x, y) => x - y);
+  const at = (t: number) => ({ x: p.x + d.x * t, y: p.y + d.y * t });
+  const inside = (pt: Vec2) => {
+    let c = false;
+    for (const loop of loops)
+      for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+        const a = loop[i]!;
+        const b = loop[j]!;
+        if (a.y > pt.y !== b.y > pt.y && pt.x < ((b.x - a.x) * (pt.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+      }
+    return c;
+  };
+  const out: [Vec2, Vec2][] = [];
+  for (let i = 0; i + 1 < ts.length; i++) {
+    if (ts[i + 1]! - ts[i]! < 1e-9) continue;
+    if (inside(at((ts[i]! + ts[i + 1]!) / 2))) out.push([at(ts[i]!), at(ts[i + 1]!)]);
+  }
+  return out;
 }
 
 const sameTag = (t: FaceTag, r: FaceRef) =>
@@ -87,7 +141,7 @@ export function faceOutline(mesh: MeshData, faceIndex: number): FlatOutline | nu
     min = Math.min(min, d);
     max = Math.max(max, d);
   }
-  return { outer, holes, thickness: max - min };
+  return { outer, holes, thickness: max - min, frame: flip };
 }
 
 /** Chaîne des segments (extrémités confondues à 1 µm près) en boucles fermées. */
@@ -162,6 +216,8 @@ export interface PlacedOutline {
   loops: Loop[];
   /** Position du nom gravé (centre de la pièce). */
   labelAt: Vec2;
+  /** Tôle : lignes de pli (repères à graver), en coordonnées de la plaque. */
+  bends?: { a: Vec2; b: Vec2; angle: number }[];
 }
 
 /** Une « page » de découpe : un matériau, ses plaques et les pièces posées dessus. */
@@ -200,6 +256,8 @@ export function laserLayout(
   settings: FabricationSettings['laser'],
   parts: readonly { id: Id; name: string }[],
   meshOf: (partId: Id) => MeshData | null | undefined,
+  /** Tôle : lignes de pli du développé (le maillage donné est alors celui de la tôle à plat). */
+  bendsOf: (partId: Id) => readonly BendLine[] | undefined = () => undefined,
 ): LaserLayout {
   const warnings: string[] = [];
   const thickness: Record<Id, number> = {};
@@ -241,6 +299,7 @@ export function laserLayout(
       warnings.push(`« ${part.name} » (${Math.ceil(bw)} × ${Math.ceil(bh)} mm) est plus grande que les plaques de « ${material.name} » (${w} × ${h} mm).`);
       continue;
     }
+    const bendSegments = (bendsOf(part.id) ?? []).flatMap((b) => clipLineToOutline(outline, b.point, b.dir).map(([a, e]) => ({ a, b: e, angle: b.angle })));
     const c = group.cursor;
     for (let copy = 0; copy < item.copies; copy++) {
       if (c.x + bw + settings.spacing > w) {
@@ -263,6 +322,7 @@ export function laserLayout(
         sheet: c.sheet,
         loops: loops.map((l) => l.map((p) => ({ x: p.x + dx, y: p.y + dy }))),
         labelAt: { x: c.x + bw / 2, y: c.y + bh / 2 },
+        ...(bendSegments.length ? { bends: bendSegments.map((s) => ({ a: { x: s.a.x + dx, y: s.a.y + dy }, b: { x: s.b.x + dx, y: s.b.y + dy }, angle: s.angle })) } : {}),
       });
       c.x += bw + settings.spacing;
       c.row = Math.max(c.row, bh);

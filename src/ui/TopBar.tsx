@@ -178,6 +178,8 @@ function ModelTools() {
       sketch: sketchAvailability(s),
       tools: types.map((t) => toolAvailability(s, t)),
       measure: measureAvailability(s),
+      flat: !!s.display[s.activePartId]?.result.flat,
+      unfolded: s.unfolded,
       selectedSketch: s.selection?.kind === 'feature' && s.doc.parts.some((p) => p.features.some((f) => f.id === (s.selection as { featureId: string }).featureId && f.type === 'sketch')),
       planarFace: s.selection?.kind === 'face',
     }),
@@ -216,10 +218,29 @@ function ModelTools() {
     main: true,
     onClick: () => c.startSketch(),
   };
+  // Tôlerie : montrer la pièce pliée à plat (développé), avec ses lignes de pli.
+  const unfold: SectorTool = {
+    key: 'unfold',
+    id: 'tool-unfold',
+    menuId: 'tool-menu-unfold',
+    icon: 'unfold',
+    label: 'Déplier',
+    hint: 'Déplier : voir la tôle à plat (son développé), avec les lignes de pli, telle qu’elle sera découpée',
+    pressed: a.unfolded,
+    availability: a.flat || a.unfolded ? { ok: true } : { ok: false, reason: 'La pièce active n’a pas encore de pli : ajoutez un bord plié ou un pli à une tôle.' },
+    main: false,
+    onClick: () => c.toggleUnfolded(),
+  };
   return (
     <>
       {sectors.map((s) => (
-        <Sector key={s.name} name={s.name} title={s.title} fold={s.fold} tools={[...(s.name === 'Esquisse' ? [sketch] : []), ...s.types.map((t) => tool(t, s.main.includes(t)))]} />
+        <Sector
+          key={s.name}
+          name={s.name}
+          title={s.title}
+          fold={s.fold}
+          tools={[...(s.name === 'Esquisse' ? [sketch] : []), ...s.types.map((t) => tool(t, s.main.includes(t))), ...(s.name === 'Tôle' && s.types.length ? [unfold] : [])]}
+        />
       ))}
       <div class="toolbar-group secondary" role="group" aria-label="Mesurer">
         <div class="sector-tools">

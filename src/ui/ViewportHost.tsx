@@ -47,7 +47,8 @@ import { MascotBubble } from './Mascot';
 import { formatNumber } from '../domain/units';
 import { Icon } from './icons';
 import { allows } from '../app/levels';
-import type { Vec3 } from '../math/vec';
+import { dot3, sub3, type Vec3 } from '../math/vec';
+import { clipLineToOutline, faceOutline, largestPlanarFace } from '../app/laser';
 import { formatLength } from '../domain/units';
 import { resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
 import { exaggerationFor } from '../sim/study';
@@ -367,12 +368,14 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     if (previewPart?.mesh && previewPart.meshKey) {
       return { partId: p.id, color: p.color, visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
     }
+    // Tôlerie dépliée : la tôle à plat à la place de la pièce pliée.
+    const flat = s.unfolded && mode === 'model' ? d?.result.flat : undefined;
     return {
       partId: p.id,
       color: p.color,
       visible: partShown(s, p),
-      meshKey: d?.meshKey ?? null,
-      mesh: d?.mesh ?? null,
+      meshKey: flat?.mesh ? flat.meshKey : (d?.meshKey ?? null),
+      mesh: flat?.mesh ?? d?.mesh ?? null,
       appearance: workingPartId && p.id !== workingPartId ? 'ghost' : mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
     };
   });
@@ -437,7 +440,27 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes };
+  // Lignes de pli des tôles dépliées, coupées au contour de la tôle à plat.
+  const bendLines: NonNullable<ViewportInput['bendLines']> = [];
+  if (s.unfolded && mode === 'model') {
+    for (const p of s.doc.parts) {
+      const flat = s.display[p.id]?.result.flat;
+      if (!flat?.mesh || !partShown(s, p)) continue;
+      const face = largestPlanarFace(flat.mesh);
+      const outline = face >= 0 ? faceOutline(flat.mesh, face) : null;
+      if (!outline) continue;
+      for (const bend of flat.bends) {
+        bend.lines.forEach((l, k) => {
+          const h = dot3(sub3(l.point, outline.frame.origin), outline.frame.normal);
+          for (const [a, b] of clipLineToOutline(outline, l.point, l.dir)) {
+            const label = k === 0 ? `${formatNumber(Math.abs(bend.angle), 0)}° ${bend.angle >= 0 ? '↑' : '↓'}` : undefined;
+            bendLines.push({ a: frameToWorld(outline.frame, a, h), b: frameToWorld(outline.frame, b, h), ...(label ? { label } : {}) });
+          }
+        });
+      }
+    }
+  }
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -771,7 +794,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

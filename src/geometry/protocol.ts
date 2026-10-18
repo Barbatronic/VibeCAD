@@ -42,6 +42,21 @@ export interface PartResult {
   failedFeatureId: Id | null;
   /** Aperçu : corps outil de la fonction demandée (volume ajouté ou retiré). */
   previewTool?: { featureId: Id; mesh: MeshData };
+  /** Tôlerie (pièce qui a des plis) : développé et lignes de pli. */
+  flat?: SheetFlatResult;
+}
+
+/**
+ * Développé d'une pièce de tôlerie : la tôle à plat (maillage, omis si l'interface a déjà
+ * `meshKey`) et, pour chaque pli, les deux lignes qui bordent la bande pliée (point et direction,
+ * sur le dessus de la tôle ; à couper au contour). `angle` en degrés, négatif vers le bas.
+ */
+export interface SheetFlatResult {
+  meshKey: string;
+  mesh: MeshData | null;
+  normal: Vec3;
+  thickness: number;
+  bends: { featureId: Id; angle: number; radius: number; lines: { point: Vec3; dir: Vec3 }[] }[];
 }
 
 export interface EvaluationResult {

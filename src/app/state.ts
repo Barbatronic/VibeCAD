@@ -190,6 +190,8 @@ export interface AppState {
   collisions: { key: string; items: { a: Id; b: Id; volume: number; mesh: MeshData }[] } | null;
   /** Repère du centre de gravité de la pièce active dans la vue. */
   showCentroid: boolean;
+  /** Tôlerie : les pièces pliées sont montrées à plat (développé), avec leurs lignes de pli. */
+  unfolded: boolean;
   /**
    * Pièce isolée (onglet Pièces) : elle seule est affichée, quelle que soit la visibilité enregistrée
    * des pièces, qui reste intacte ; un second clic revient exactement à l'affichage d'avant.
@@ -269,6 +271,7 @@ export function initialState(): AppState {
     sketchGrid: true,
     section: null,
     showCentroid: false,
+    unfolded: false,
     isolatedPartId: null,
     drawingRevision: 0,
     collisionCheck: false,

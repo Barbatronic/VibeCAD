@@ -222,6 +222,11 @@ export class AppController {
   }
 
   /** Montre ou cache le centre de gravité de la pièce active. */
+  /** Montre les pièces de tôlerie à plat (développé), ou pliées. */
+  toggleUnfolded(on?: boolean): void {
+    this.set({ unfolded: on ?? !this.state.unfolded, fitRequest: this.state.fitRequest + 1 });
+  }
+
   toggleCentroid(on?: boolean): void {
     this.set({ showCentroid: on ?? !this.state.showCentroid });
   }
@@ -2178,7 +2183,13 @@ export class AppController {
   /** Disposition actuelle des pièces à découper au laser. */
   laserLayout(): LaserLayout {
     const s = this.state;
-    return laserLayout(this.fabrication().laser, s.doc.parts, (id) => s.display[id]?.mesh);
+    // Tôle pliée : on découpe son développé (la tôle à plat), avec ses lignes de pli.
+    return laserLayout(
+      this.fabrication().laser,
+      s.doc.parts,
+      (id) => s.display[id]?.result.flat?.mesh ?? s.display[id]?.mesh,
+      (id) => s.display[id]?.result.flat?.bends.flatMap((b) => b.lines.map((l) => ({ point: l.point, dir: l.dir, angle: b.angle }))),
+    );
   }
 
   /** Fichier de découpe laser (SVG ou DXF) des plaques d'un matériau. */
@@ -2187,7 +2198,7 @@ export class AppController {
     const group = this.laserLayout().materials.find((g) => g.material.id === materialId);
     if (!group) return null;
     const sheets = Array.from({ length: group.sheets }, (_v, i) => ({
-      items: group.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name } })),
+      items: group.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name }, ...(p.bends ? { bends: p.bends } : {}) })),
     }));
     return { sheet: group.material.sheet, sheets, engraveNames: !!f.engraveNames };
   }

@@ -66,6 +66,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M3 16h11.5a1.5 1.5 0 0 0 1.5-1.5V4" opacity="0.6" />
     </>
   ),
+  unfold: (
+    <>
+      <path d="M2.5 16h19" />
+      <path d="M2.5 19h19" opacity="0.6" />
+      <path d="M12 3v8M8.5 7.5 12 11l3.5-3.5" />
+    </>
+  ),
   fold: (
     <>
       <path d="M2.5 19h9.5l7.5-12" />

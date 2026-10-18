@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { appState, clickSketch, clickTool, expectVolume, finishSketch, moveSketch, openApp, session, worldToScreen } from './helpers';
 
@@ -68,4 +69,25 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   const statuses = await appState(page, (s) => s.display[s.activePartId].result.statuses.map((x: any) => x.state));
   expect(statuses.every((x: string) => x === 'ok')).toBe(true);
   await page.screenshot({ path: 'tests/output/e2e-tolerie.png' });
+
+  // Déplier : la tôle à plat, avec les deux lignes de pli (étiquettes de l'angle).
+  await clickTool(page, 'tool-unfold');
+  await expect(page.locator('.vp-tag-bend')).toHaveCount(2);
+  await expect(page.locator('.vp-tag-bend').first()).toContainText('90°');
+  await page.screenshot({ path: 'tests/output/e2e-tolerie-deplie.png' });
+  await clickTool(page, 'tool-unfold');
+  await expect(page.locator('.vp-tag-bend')).toHaveCount(0);
+
+  // Découpe laser du développé : contour rouge et lignes de pli en tirets verts (2 par pli).
+  await page.click('#tab-fabrication');
+  await page.click('#fab-laser');
+  await page.getByLabel('Exemplaires à découper de « Pièce 1 »').fill('1');
+  await expect(page.locator('.sheet-bend')).toHaveCount(4);
+  await page.screenshot({ path: 'tests/output/e2e-tolerie-laser.png' });
+  const [svg] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);
+  await svg.saveAs('tests/output/e2e-tolerie-laser.svg');
+  const text = readFileSync('tests/output/e2e-tolerie-laser.svg', 'utf8');
+  expect((text.match(/<line [^>]*stroke="#00a000"/g) ?? []).length).toBe(4);
+  // Développé : 60 mm + 15 mm de rebord + les deux bandes de pli, sur 30 mm.
+  expect((text.match(/<polygon /g) ?? []).length).toBe(1);
 });

@@ -129,6 +129,8 @@ export interface ViewportInput {
   datumPlanes?: { key: string; frame: Frame3D; label: string; active?: boolean }[];
   /** Axes de construction à montrer (trait mixte nommé), `active` : celui en cours de modification. */
   datumAxes?: { key: string; point: Vec3; dir: Vec3; label: string; active?: boolean }[];
+  /** Tôlerie dépliée : lignes de pli (tirets) et leur étiquette (angle). */
+  bendLines?: { a: Vec3; b: Vec3; label?: string }[];
   resultMesh?: {
     key: string;
     positions: Float32Array;
@@ -430,6 +432,7 @@ export class Viewport {
     this.syncPoints(input.points ?? []);
     this.syncAnchors(input.anchors ?? []);
     this.syncDatumPlanes(input.datumPlanes ?? [], input.datumAxes ?? []);
+    this.syncBendLines(input.bendLines ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
@@ -727,6 +730,44 @@ export class Viewport {
 
   private datumObjects: Object3D[] = [];
   private datumKey = '';
+  private bendObjects: Object3D[] = [];
+  private bendKey = '';
+
+  /** Lignes de pli d'une tôle dépliée : tirets verts, angle du pli en étiquette. */
+  private syncBendLines(lines: NonNullable<ViewportInput['bendLines']>): void {
+    const key = JSON.stringify(lines);
+    if (key === this.bendKey) return;
+    this.bendKey = key;
+    for (const o of this.bendObjects) {
+      o.parent?.remove(o);
+      if (o instanceof LineSegments) {
+        o.geometry.dispose();
+        (o.material as Material).dispose();
+      }
+    }
+    this.bendObjects = [];
+    for (const l of lines) {
+      const len = Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y, l.b.z - l.a.z);
+      const line = new LineSegments(
+        new BufferGeometry().setAttribute('position', new Float32BufferAttribute([l.a.x, l.a.y, l.a.z, l.b.x, l.b.y, l.b.z], 3)),
+        new LineDashedMaterial({ color: this.palette.axisY, dashSize: Math.max(0.8, len / 30), gapSize: Math.max(0.5, len / 60), depthTest: false }),
+      );
+      line.computeLineDistances();
+      line.renderOrder = 4;
+      this.overlayGroup.add(line);
+      this.bendObjects.push(line);
+      if (l.label) {
+        const el = document.createElement('span');
+        el.className = 'vp-tag vp-tag-bend';
+        el.textContent = l.label;
+        const tag = new CSS2DObject(el);
+        tag.position.set((l.a.x + l.b.x) / 2, (l.a.y + l.b.y) / 2, (l.a.z + l.b.z) / 2);
+        this.overlayGroup.add(tag);
+        this.bendObjects.push(tag);
+      }
+    }
+    this.needsRender = true;
+  }
 
   /**
    * Plans de construction : un carré translucide centré sur la projection du milieu de la pièce,

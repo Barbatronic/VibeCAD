@@ -160,7 +160,9 @@ function SheetPreview({ materialId }: { materialId: string }) {
     const sheets = doc.sheets.map((sheet) =>
       sheet.items.flatMap((it) => it.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z')),
     );
-    return { w, h, sheets };
+    // Tôle : lignes de pli en tirets verts.
+    const bends = doc.sheets.map((sheet) => sheet.items.flatMap((it) => (it.bends ?? []).map((b) => `M${b.a.x.toFixed(2)},${(h - b.a.y).toFixed(2)}L${b.b.x.toFixed(2)},${(h - b.b.y).toFixed(2)}`)));
+    return { w, h, sheets, bends };
   }, (a, b) => JSON.stringify(a) === JSON.stringify(b));
   if (!svg) return <p class="empty-hint">Aucune pièce dans ce matériau.</p>;
   return (
@@ -171,6 +173,9 @@ function SheetPreview({ materialId }: { materialId: string }) {
             <rect x="0" y="0" width={svg.w} height={svg.h} fill="var(--surface)" stroke="var(--border-strong)" stroke-width={Math.max(svg.w, svg.h) / 300} />
             {paths.map((d, i) => (
               <path key={i} d={d} fill="none" stroke="#e03131" stroke-width={Math.max(svg.w, svg.h) / 400} />
+            ))}
+            {svg.bends[n]!.map((d, i) => (
+              <path key={`b${i}`} class="sheet-bend" d={d} fill="none" stroke="#2f9e44" stroke-width={Math.max(svg.w, svg.h) / 400} stroke-dasharray={`${Math.max(svg.w, svg.h) / 100} ${Math.max(svg.w, svg.h) / 200}`} />
             ))}
           </svg>
           <figcaption class="field-help">

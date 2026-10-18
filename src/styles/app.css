@@ -1411,6 +1411,12 @@ details.advanced summary {
   border-color: var(--vp-plane);
 }
 
+.vp-tag-bend {
+  color: var(--vp-axis-y);
+  border-color: var(--vp-axis-y);
+  font-weight: 600;
+}
+
 .vp-tag-plane.is-hover {
   outline: 3px solid currentColor;
 }
