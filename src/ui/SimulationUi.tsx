@@ -21,6 +21,7 @@ export function SimulationTools() {
   const c = useController();
   const picking = useAppState((s) => (s.mode.kind === 'pick-sim-face' ? s.mode.role : null));
   const running = useAppState((s) => s.simulationRun?.status === 'running');
+  const lightening = useAppState((s) => s.topologyRun?.status === 'running');
   return (
     <>
       <ToolGroup name="Préparer">
@@ -29,6 +30,17 @@ export function SimulationTools() {
       </ToolGroup>
       <ToolGroup name="Résultat">
         <ToolButton id="sim-run" icon="simulate" label="Calculer" hint="Calculer la déformation de la pièce" pressed={running} onClick={() => void c.runSimulation()} />
+        <ToolButton
+          id="sim-lighten"
+          icon="shell"
+          label="Alléger"
+          hint="Alléger la pièce : garder seulement la matière qui travaille (réglages en bas du panneau de droite)"
+          pressed={lightening}
+          onClick={() => {
+            document.getElementById('topo-title')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            void c.runTopology();
+          }}
+        />
       </ToolGroup>
     </>
   );
