@@ -315,7 +315,11 @@ export class Viewport {
     this.renderer.setScissor(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
     this.renderer.setViewport(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
     this.renderer.clearDepth();
+    // Sans effacer la couleur : le cube se dessine par-dessus la vue (transparent autour).
+    const autoClear = this.renderer.autoClear;
+    this.renderer.autoClear = false;
     this.renderer.render(this.viewCube.scene, this.viewCube.camera);
+    this.renderer.autoClear = autoClear;
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, this.width, this.height);
     this.labelRenderer.render(this.scene, camera);
