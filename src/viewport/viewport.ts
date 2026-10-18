@@ -1382,7 +1382,8 @@ export class Viewport {
     if (this.input.mode === 'pick-support') {
       const plane = this.pickOriginPlane(e);
       const pick = this.pickModel(e);
-      if (pick && pick.kind === 'face' && (!plane || pick.distance <= plane.distance)) {
+      // Une face sous la souris l'emporte sur les grands plans d'origine qui la traverseraient.
+      if (pick && pick.kind === 'face') {
         this.events.onPick(pick, { shift: e.shiftKey, double });
         return;
       }
@@ -1533,7 +1534,7 @@ export class Viewport {
     const pick = this.lockedVertexPick(e) ?? this.pickModel(e);
     if (this.input.mode === 'pick-support') {
       const plane = this.pickOriginPlane(e);
-      const usePlane = plane && (!pick || pick.kind !== 'face' || plane.distance < pick.distance) ? plane.plane : null;
+      const usePlane = plane && (!pick || pick.kind !== 'face') ? plane.plane : null;
       if (usePlane !== this.hoverPlane) this.setPlaneHover(usePlane);
       if (usePlane) {
         if (this.hoverOverlay) this.clearHoverOverlayOnly();

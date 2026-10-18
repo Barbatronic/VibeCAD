@@ -145,9 +145,10 @@ export const TOOL_HELP: Record<SketchTool, string> = {
 };
 
 /** Arête de la pièce projetée sur le plan de l'esquisse, proposée par l'outil Projeter. */
+/** Arête reprenable ; `partId` : arête d'une autre pièce du projet. */
 export type ProjectableCurve =
-  | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef }
-  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef };
+  | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef; partId?: Id }
+  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id };
 
 export interface SessionMessage {
   kind: 'info' | 'success' | 'error';
@@ -1792,7 +1793,7 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
   const index = nearestProjectable(s, p);
   if (index === null) return { ...s, message: info('Cliquez sur une arête violette de la pièce pour la reprendre dans l’esquisse.') };
   const curve = s.projectable[index]!;
-  const existing = s.sketch.entities.find((e) => (e.type === 'line' || e.type === 'circle') && e.reference && sameEdgeRef(e.reference.edge, curve.ref));
+  const existing = s.sketch.entities.find((e) => (e.type === 'line' || e.type === 'circle') && e.reference && (e.reference.partId ?? null) === (curve.partId ?? null) && sameEdgeRef(e.reference.edge, curve.ref));
   if (existing) return { ...s, selection: [existing.id], message: info('Cette arête est déjà reprise dans l’esquisse.') };
   let sketch: SketchParams;
   let id: string;
@@ -1807,7 +1808,7 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
   }
   sketch = {
     ...sketch,
-    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle') ? { ...e, reference: { edge: curve.ref } } : e)),
+    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId } : {}) } } : e)),
   };
   const what = curve.kind === 'line' ? 'ses extrémités' : 'son centre';
   const { session } = commit(s, sketch, {

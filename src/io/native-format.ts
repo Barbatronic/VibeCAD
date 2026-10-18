@@ -978,7 +978,7 @@ function readSupport(v: Validator, x: unknown, path: string): SketchSupport {
   }
   const r = obj(v, o.ref, `${path}.ref`);
   if (!r) return { kind: 'plane', plane: 'XY', offset: 0 };
-  return { kind, ref: readFaceRef(v, r, `${path}.ref`) };
+  return { kind, ref: readFaceRef(v, r, `${path}.ref`), ...(o.partId !== undefined ? { partId: str(v, o, 'partId', path) } : {}) };
 }
 
 function readSketchParams(v: Validator, p: Record<string, unknown>, path: string): SketchParams {
@@ -994,13 +994,17 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       entities.push({ id, type, x: num(v, o, 'x', ep), y: num(v, o, 'y', ep) });
       return;
     }
-    const flags: { construction?: boolean; reference?: { edge: EdgeRef } } = {};
+    const flags: { construction?: boolean; reference?: { edge: EdgeRef; partId?: string } } = {};
     if (o.construction === true) flags.construction = true;
     if (o.reference !== undefined) {
       const r = obj(v, o.reference, `${ep}.reference`);
       const faces = r ? arr(v, obj(v, r.edge, `${ep}.reference.edge`) ?? {}, 'faces', `${ep}.reference.edge`) : [];
       if (faces.length !== 2) v.error(`${ep}.reference.edge.faces`, 'deux faces attendues');
-      else flags.reference = { edge: { faces: [readFaceRef(v, faces[0], `${ep}.reference.edge.faces[0]`), readFaceRef(v, faces[1], `${ep}.reference.edge.faces[1]`)] } };
+      else
+        flags.reference = {
+          edge: { faces: [readFaceRef(v, faces[0], `${ep}.reference.edge.faces[0]`), readFaceRef(v, faces[1], `${ep}.reference.edge.faces[1]`)] },
+          ...(r?.partId !== undefined ? { partId: str(v, r, 'partId', `${ep}.reference`) } : {}),
+        };
     }
     if (type === 'line') entities.push({ id, type, a: str(v, o, 'a', ep), b: str(v, o, 'b', ep), ...flags });
     else if (type === 'arc') entities.push({ id, type, center: str(v, o, 'center', ep), start: str(v, o, 'start', ep), end: str(v, o, 'end', ep), ...flags });

@@ -72,6 +72,7 @@ export type FeatureIssueCode =
   | 'SHEET_FOLD_FAILED'
   | 'SHEET_FOLD_CROSSING'
   | 'SHEET_CUT_ON_BEND'
+  | 'PART_CYCLE'
   | 'BLOCKED_BY_PREVIOUS';
 
 export interface FeatureStatus {
@@ -164,6 +165,8 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SHEET_FOLD_LINE: 'L’esquisse doit contenir un trait, dessiné sur la tôle : c’est la ligne de pli.',
   SHEET_FLANGE_EDGE: 'Choisissez une arête droite du bord de la tôle (entre le dessus, ou le dessous, et un côté).',
   SHEET_FOLD_CROSSING: 'Ce pli traverse l’arrondi d’un pli précédent : on ne peut pas plier à travers un pli. Déplacez la ligne de pli, ou faites ce pli avant l’autre en le raccourcissant.',
+  PART_CYCLE:
+    'Boucle entre pièces : cette esquisse reprend une autre pièce qui, elle-même, reprend (directement ou non) celle-ci. Choisissez une face ou des arêtes d’une pièce qui ne dépend pas de celle-ci.',
   SHEET_CUT_ON_BEND:
     'Cette étape retire de la matière dans l’arrondi d’un pli : cette partie n’est pas dans le développé (à plat). Éloignez-la du pli, ou faites-la à plat avant de plier.',
   SHEET_FOLD_FAILED: 'Le pli n’a pas pu être construit : vérifiez que la ligne de pli traverse la tôle et que les plis ne se croisent pas.',

@@ -56,7 +56,7 @@ import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
-import { createSession, setPixelSize, setProjectable, setTool, type SketchSession } from '../sketch/session';
+import { createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
 import type { MeshData } from '../geometry/kernel';
@@ -67,6 +67,7 @@ import { invertRigid4, transformPoint4 } from '../math/mat4';
 import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
+import { externalParts } from '../features/sketch/definition';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
@@ -583,9 +584,7 @@ export class AppController {
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
       const mode = this.state.mode;
       if (mode.kind === 'sketch') {
-        const part = findPart(this.state.doc, mode.session.partId);
-        const mesh = display[mode.session.partId]?.mesh;
-        const session = part && mesh ? setProjectable(mode.session, projectableCurves(mesh, mode.session.frame, part, mode.session.featureId)) : mode.session;
+        const session = setProjectable(mode.session, this.projectables(mode.session.partId, mode.session.frame, mode.session.featureId));
         if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
       }
     } catch (err) {
@@ -621,7 +620,8 @@ export class AppController {
     if (this.state.workspace === 'simulation') return this.simulationPick(pick);
     const mode = this.state.mode;
     if (mode.kind === 'pick-support') {
-      if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId);
+      // La face peut être celle d'une autre pièce : l'esquisse reste dans la pièce choisie.
+      if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId, mode.partId);
       return;
     }
     if (mode.kind === 'measure') {
@@ -798,7 +798,11 @@ export class AppController {
     this.beginSketchOn(mode.partId, { kind: 'datum', featureId }, frame, mode.repairFeatureId);
   }
 
-  sketchOnFace(partId: Id, faceIndex: number, repairFeatureId: Id | null): boolean {
+  /**
+   * Esquisse sur une face : dans la pièce de la face, ou dans `targetPartId` si c'est une autre
+   * pièce (la face d'appui est alors désignée avec la pièce qui la porte, et suit sa forme finale).
+   */
+  sketchOnFace(partId: Id, faceIndex: number, repairFeatureId: Id | null, targetPartId: Id = partId): boolean {
     const display = this.state.display[partId];
     const face = display?.mesh?.faces[faceIndex];
     const part = findPart(this.state.doc, partId);
@@ -813,6 +817,14 @@ export class AppController {
     }
     const ref = pickFaceReference(face.tags, part);
     if (!ref) return false;
+    if (targetPartId !== partId) {
+      if (partDependsOn(this.state.doc, partId, targetPartId)) {
+        this.explain(`« ${part.name} » reprend déjà la pièce active : s’appuyer sur elle ferait une boucle. Choisissez une autre face ou un plan.`);
+        return false;
+      }
+      this.beginSketchOn(targetPartId, { kind: 'face', ref, partId }, canonicalFrame(face.plane.origin, face.plane.normal), repairFeatureId);
+      return true;
+    }
     if (repairFeatureId) {
       const index = part.features.findIndex((f) => f.id === repairFeatureId);
       const refIndex = part.features.findIndex((f) => f.id === ref.featureId);
@@ -840,9 +852,23 @@ export class AppController {
     this.openSession(partId, feature.id, true, frame, feature.params);
   }
 
+  /**
+   * Arêtes reprenables par « Projeter » : celles de la pièce (avant l'esquisse) et celles des autres
+   * pièces visibles du projet, sauf celles qui dépendent de cette pièce (boucle).
+   */
+  private projectables(partId: Id, frame: Frame3D, featureId: Id): ProjectableCurve[] {
+    const s = this.state;
+    const part = findPart(s.doc, partId);
+    if (!part) return [];
+    const own = projectableCurves(s.display[partId]?.mesh, frame, part, featureId);
+    const others = s.doc.parts
+      .filter((p) => p.id !== partId && p.visible && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
+      .flatMap((p) => projectableCurves(s.display[p.id]?.mesh, frame, p, featureId, true));
+    return [...own, ...others];
+  }
+
   private openSession(partId: Id, featureId: Id, isNew: boolean, frame: Frame3D, params: SketchFeature['params'], supportChanged = false): void {
-    const part = findPart(this.state.doc, partId);
-    const projectable = part ? projectableCurves(this.state.display[partId]?.mesh, frame, part, featureId) : [];
+    const projectable = this.projectables(partId, frame, featureId);
     let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable });
     if (!this.state.sketchGrid) session = { ...session, snapToGrid: false };
     if (supportChanged) session = { ...session, dirty: true };
@@ -3209,4 +3235,18 @@ function pointTriangleDistance(p: Vec3, a: Vec3, b: Vec3, c: Vec3): number {
     return Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
   };
   return Math.min(seg(a, b), seg(b, c), seg(c, a));
+}
+
+/** Vrai si la pièce `a` reprend (directement ou par d'autres pièces) la pièce `b`. */
+export function partDependsOn(doc: CadDocument, a: Id, b: Id): boolean {
+  const seen = new Set<Id>();
+  const stack = [a];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (id === b) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const f of findPart(doc, id)?.features ?? []) stack.push(...externalParts(f));
+  }
+  return false;
 }

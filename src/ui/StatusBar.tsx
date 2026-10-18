@@ -35,7 +35,7 @@ function helpText(s: AppState): string {
     case 'feature':
       return 'Réglez les paramètres à droite : l’aperçu se met à jour. Puis « Valider » (Entrée) ou « Annuler » (Échap).';
     case 'pick-support':
-      return 'Cliquez un plan coloré (XY, XZ ou YZ) ou une face plane de la pièce. Échap pour annuler.';
+      return 'Cliquez un plan coloré (XY, XZ ou YZ) ou une face plane, de cette pièce ou d’une autre pièce du projet (l’esquisse reste dans la pièce active et suit cette face). Échap pour annuler.';
     case 'measure':
       return 'Cliquez une arête ou une face pour lire ses dimensions, puis un second élément pour la distance. Échap pour terminer.';
     case 'pick-fab-face':

@@ -11,6 +11,7 @@
  * d'origine restent évaluées et modifiables. Le dernier solide valide reste disponible.
  */
 import { unfoldCut, type SheetState } from './sheet/fold';
+import { externalParts } from './sketch/definition';
 import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
 import { issue, type FeatureStatus } from '../domain/status';
@@ -71,6 +72,8 @@ interface WalkState {
   axes: ReadonlyMap<Id, { point: Vec3; dir: Vec3 }>;
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
   sheet: SheetState | null;
+  /** Formes finales des pièces déjà calculées (références entre pièces). */
+  finals: ReadonlyMap<Id, { shape: KernelShape; key: string }>;
 }
 
 export class RecomputeEngine {
@@ -87,9 +90,17 @@ export class RecomputeEngine {
   /** Recalcule toutes les pièces du document. Les résultats restent valides jusqu'au prochain appel. */
   evaluateDocument(doc: CadDocument): PartEvaluation[] {
     const gen = ++this.generation;
-    const results = doc.parts.map((part) => this.walkPart(part, gen));
+    // Une pièce qui reprend une face ou des arêtes d'une autre est calculée après elle.
+    const { order, cyclic } = partOrder(doc);
+    const finals = new Map<Id, { shape: KernelShape; key: string }>();
+    const byId = new Map<Id, PartEvaluation>();
+    for (const part of order) {
+      const ev = this.walkPart(part, gen, finals, cyclic);
+      byId.set(part.id, ev);
+      if (ev.shape && ev.shapeKey) finals.set(part.id, { shape: ev.shape, key: ev.shapeKey });
+    }
     this.evict(gen);
-    return results;
+    return doc.parts.map((p) => byId.get(p.id)!);
   }
 
   /** Maillage d'affichage du solide d'une pièce, mis en cache par clé d'étape et qualité. */
@@ -143,7 +154,7 @@ export class RecomputeEngine {
     return hashString(`${prevKey}|${stableStringify({ id: feature.id, type: feature.type, params: feature.params })}|${extra}`);
   }
 
-  private walkPart(part: Part, gen: number): PartEvaluation {
+  private walkPart(part: Part, gen: number, finals: ReadonlyMap<Id, { shape: KernelShape; key: string }> = new Map(), cyclic: ReadonlySet<Id> = new Set()): PartEvaluation {
     let prevKey = hashString(`part:${part.id}`);
     const state: { shape: KernelShape | null; analysis: ShapeAnalysis | null; failure: Id | null } = {
       shape: null,
@@ -166,11 +177,18 @@ export class RecomputeEngine {
     const images: { featureId: Id; frame: Frame3D }[] = [];
 
     for (const feature of part.features) {
-      const key = this.stepKey(prevKey, feature);
+      // Références vers d'autres pièces : la clé de l'étape suit leur forme finale.
+      const external = externalParts(feature);
+      const extKey = external.map((id) => `${id}=${finals.get(id)?.key ?? '-'}`).join(',');
+      const key = extKey ? hashString(`${this.stepKey(prevKey, feature)}|ext:${extKey}`) : this.stepKey(prevKey, feature);
       stepKeys.set(feature.id, key);
       let record = this.records.get(key);
+      if (!record && cyclic.has(part.id) && external.some((id) => cyclic.has(id))) {
+        record = { key, outcome: { status: issue(feature.id, 'error', 'PART_CYCLE') }, failureAfter: state.failure, lastUsed: 0 };
+        this.records.set(key, record);
+      }
       if (!record) {
-        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, axes: axisMap, tools: toolModes, sheet });
+        record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, axes: axisMap, tools: toolModes, sheet, finals });
         this.records.set(key, record);
       }
       record.lastUsed = gen;
@@ -234,6 +252,7 @@ export class RecomputeEngine {
       axes: state.axes,
       tools: state.tools,
       sheet: state.sheet,
+      externalShape: (partId) => state.finals.get(partId)?.shape ?? null,
       readStepSolids: (resourceId) => this.readStepSolids(resourceId),
     };
     let outcome: FeatureOutcome;
@@ -341,4 +360,29 @@ export class RecomputeEngine {
     }
     for (const [key, m] of this.meshes) if (m.lastUsed <= limit) this.meshes.delete(key);
   }
+}
+
+/**
+ * Ordre de calcul des pièces : une pièce qui reprend une face ou des arêtes d'une autre vient
+ * après elle (tri topologique, ordre du projet sinon). Les pièces prises dans une boucle de
+ * références (A reprend B qui reprend A) sont calculées à la fin, leurs références en erreur.
+ */
+export function partOrder(doc: CadDocument): { order: Part[]; cyclic: Set<Id> } {
+  const ids = new Set(doc.parts.map((p) => p.id));
+  const deps = new Map(doc.parts.map((p) => [p.id, new Set(p.features.flatMap((f) => externalParts(f)).filter((id) => ids.has(id) && id !== p.id))]));
+  const order: Part[] = [];
+  const done = new Set<Id>();
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const p of doc.parts) {
+      if (done.has(p.id) || [...deps.get(p.id)!].some((d) => !done.has(d))) continue;
+      order.push(p);
+      done.add(p.id);
+      progress = true;
+    }
+  }
+  const cyclic = new Set(doc.parts.filter((p) => !done.has(p.id)).map((p) => p.id));
+  for (const p of doc.parts) if (cyclic.has(p.id)) order.push(p);
+  return { order, cyclic };
 }

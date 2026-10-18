@@ -1,4 +1,4 @@
-import type { SketchFeature } from '../../domain/model';
+import type { Feature, Id, SketchFeature } from '../../domain/model';
 import { formatLength } from '../../domain/units';
 import { countCurves } from '../../sketch/model';
 import type { FeatureDefinition, ParamIssue } from '../definition';
@@ -14,10 +14,12 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
   affectsSolid: false,
   dependencies(feature) {
     const s = feature.params.support;
-    const ids = new Set<string>(s.kind === 'face' ? [s.ref.featureId] : s.kind === 'datum' ? [s.featureId] : []);
+    // Les références vers une autre pièce (face d'appui, arêtes reprises) ne sont pas des étapes de
+    // cette pièce : elles dépendent de la forme finale de l'autre pièce (voir `externalParts`).
+    const ids = new Set<string>(s.kind === 'face' && !s.partId ? [s.ref.featureId] : s.kind === 'datum' ? [s.featureId] : []);
     // Arêtes reprises de la pièce : l'esquisse dépend des étapes qui ont créé leurs faces.
     for (const e of feature.params.entities) {
-      if ((e.type === 'line' || e.type === 'circle') && e.reference) for (const f of e.reference.edge.faces) ids.add(f.featureId);
+      if ((e.type === 'line' || e.type === 'circle') && e.reference && !e.reference.partId) for (const f of e.reference.edge.faces) ids.add(f.featureId);
     }
     return Array.from(ids);
   },
@@ -39,7 +41,9 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
         ? `${PLANE_LABELS[s.plane]}${s.offset ? `, décalé de ${formatLength(s.offset)}` : ''}`
         : s.kind === 'datum'
           ? 'sur un plan de construction'
-          : 'sur une face';
+          : s.partId
+            ? 'sur une face d’une autre pièce'
+            : 'sur une face';
     const { lines, circles } = countCurves(feature.params);
     const parts = [];
     if (lines) parts.push(`${lines} segment${lines > 1 ? 's' : ''}`);
@@ -50,4 +54,14 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
 
 export function describeSupportPlane(plane: keyof typeof PLANE_LABELS): string {
   return PLANE_LABELS[plane];
+}
+
+/** Autres pièces dont une esquisse dépend (face d'appui, arêtes reprises). */
+export function externalParts(feature: Feature): Id[] {
+  if (feature.type !== 'sketch') return [];
+  const ids = new Set<Id>();
+  const s = feature.params.support;
+  if (s.kind === 'face' && s.partId) ids.add(s.partId);
+  for (const e of feature.params.entities) if ((e.type === 'line' || e.type === 'circle') && e.reference?.partId) ids.add(e.reference.partId);
+  return Array.from(ids);
 }

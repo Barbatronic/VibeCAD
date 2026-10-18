@@ -851,6 +851,10 @@
                         },
                         "ref": {
                           "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
                         }
                       }
                     },
@@ -1093,6 +1097,10 @@
                         },
                         "ref": {
                           "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
                         }
                       }
                     },
@@ -1190,6 +1198,10 @@
                         },
                         "ref": {
                           "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
                         }
                       }
                     },
@@ -1551,6 +1563,10 @@
                         },
                         "ref": {
                           "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
                         }
                       }
                     },
@@ -1847,6 +1863,10 @@
                         },
                         "ref": {
                           "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
                         }
                       }
                     },
@@ -2017,6 +2037,10 @@
                 },
                 "ref": {
                   "$ref": "#/$defs/faceRef"
+                },
+                "partId": {
+                  "$ref": "#/$defs/id",
+                  "description": "Face d'une autre pièce du projet (sa forme finale)."
                 }
               }
             },
@@ -2095,10 +2119,13 @@
                     "required": [
                       "edge"
                     ],
-                    "description": "Arête de la pièce projetée (élément fixe, recalculé).",
+                    "description": "Arête projetée (élément fixe, recalculé), de la pièce ou d'une autre pièce du projet (partId).",
                     "properties": {
                       "edge": {
                         "$ref": "#/$defs/edgeRef"
+                      },
+                      "partId": {
+                        "$ref": "#/$defs/id"
                       }
                     }
                   }
@@ -2134,10 +2161,13 @@
                     "required": [
                       "edge"
                     ],
-                    "description": "Arête de la pièce projetée (élément fixe, recalculé).",
+                    "description": "Arête projetée (élément fixe, recalculé), de la pièce ou d'une autre pièce du projet (partId).",
                     "properties": {
                       "edge": {
                         "$ref": "#/$defs/edgeRef"
+                      },
+                      "partId": {
+                        "$ref": "#/$defs/id"
                       }
                     }
                   }

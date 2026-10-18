@@ -330,7 +330,8 @@ export type ImageFeature = FeatureBase<'image', ImageParams> & {
  */
 export type SketchSupport =
   | { kind: 'plane'; plane: PlaneName; offset: number }
-  | { kind: 'face'; ref: FaceRef }
+  /** Face plane de la pièce, ou d'une autre pièce du projet (`partId`, sa forme finale). */
+  | { kind: 'face'; ref: FaceRef; partId?: Id }
   /** Plan de construction (étape `plane` de la même pièce, placée avant). */
   | { kind: 'datum'; featureId: Id };
 
@@ -376,6 +377,8 @@ export interface SketchPoint {
  */
 export interface SketchReference {
   edge: EdgeRef;
+  /** Arête d'une autre pièce du projet (sa forme finale) ; absent : la pièce de l'esquisse. */
+  partId?: Id;
 }
 
 /** Propriétés communes des courbes d'esquisse. */

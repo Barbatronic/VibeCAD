@@ -54,6 +54,11 @@ export interface EvaluationContext {
   axes: ReadonlyMap<Id, { point: Vec3; dir: Vec3 }>;
   /** Corps outils des étapes précédentes (volume ajouté ou retiré), pour la répétition. */
   tools: ReadonlyMap<Id, { shape: KernelShape; mode: 'add' | 'cut' }>;
+  /**
+   * Forme finale d'une autre pièce du projet (face d'appui ou arêtes reprises d'une esquisse) :
+   * null si elle n'existe pas, n'a pas de volume ou dépend elle-même de cette pièce (boucle).
+   */
+  externalShape(partId: Id): KernelShape | null;
   /** Tôle de la pièce (base, plat et plis), si la pièce est une pièce de tôlerie. */
   sheet: SheetState | null;
   /** Solides d'une ressource STEP embarquée (lecture mise en cache par le moteur). */
