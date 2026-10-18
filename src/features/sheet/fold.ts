@@ -16,7 +16,7 @@
 import type { Id } from '../../domain/model';
 import type { GeometryKernel, KernelShape } from '../../geometry/kernel';
 import type { Frame3D } from '../../math/frame';
-import { identity4, multiply4, translation4, type Mat4 } from '../../math/mat4';
+import { identity4, invertRigid4, multiply4, translation4, type Mat4 } from '../../math/mat4';
 import { add3, cross3, normalize3, scale3, type Vec2, type Vec3 } from '../../math/vec';
 import { halfSpace } from '../half-space';
 
@@ -93,13 +93,23 @@ export class FoldCrossingError extends Error {
   }
 }
 
+/** Morceau de tôle à plat et son placement dans la pièce pliée. */
+export interface PlacedPiece {
+  shape: KernelShape;
+  m: Mat4;
+}
+
 /**
- * Pièce pliée à partir du plat (le plat n'est pas libéré ; le résultat appartient à l'appelant).
- * Lance `FoldCrossingError` si la bande d'un pli traverse celle d'un pli précédent.
+ * Découpage de la tôle à plat en morceaux plats (avec leur placement dans la pièce pliée) et en
+ * arrondis (dans le repère à plat, avec le placement du morceau qui les porte). Les formes
+ * appartiennent à l'appelant. Les faces d'un morceau déplacé par un pli sont réétiquetées au nom de
+ * ce pli (comme une symétrie de toute la pièce : l'étape d'origine reste dans l'étiquette) : deux
+ * morceaux d'une même face, de part et d'autre d'un pli, restent ainsi distincts (esquisse posée
+ * sur une face pliée). Lance `FoldCrossingError` si la bande d'un pli traverse celle d'un pli
+ * précédent.
  */
-export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat' | 'frame' | 'thickness' | 'folds'>): KernelShape {
+export function foldLayout(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat' | 'frame' | 'thickness' | 'folds'>): { pieces: PlacedPiece[]; bends: PlacedPiece[] } {
   const folds = sheet.folds.filter((f) => Math.abs(f.angle) > 1e-9);
-  if (folds.length === 0) return kernel.transformed(sheet.flat, identity4(), { keep: true });
   const size = 1e4;
   type Piece = { shape: KernelShape; owned: boolean; m: Mat4 };
   let pieces: Piece[] = [{ shape: sheet.flat, owned: false, m: identity4() }];
@@ -111,6 +121,7 @@ export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat'
     p.owned = false;
   };
   const nonEmpty = (s: KernelShape) => kernel.volumeOf(s).solidCount > 0;
+  let done = false;
   try {
     for (const fold of folds) {
       const g = foldGeometry(sheet.frame, sheet.thickness, fold);
@@ -161,22 +172,75 @@ export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat'
         } else kernel.dispose(strip);
         if (nonEmpty(fixed)) next.push({ shape: fixed, owned: true, m: piece.m });
         else kernel.dispose(fixed);
-        if (nonEmpty(moving)) next.push({ shape: moving, owned: true, m: multiply4(piece.m, g.move) });
-        else kernel.dispose(moving);
+        if (nonEmpty(moving)) {
+          const retagged = kernel.transformed(moving, identity4(), { featureId: fold.featureId, whole: true });
+          kernel.dispose(moving);
+          next.push({ shape: retagged, owned: true, m: multiply4(piece.m, g.move) });
+        } else kernel.dispose(moving);
         release(piece);
       }
       pieces = next;
     }
-    const placed = [...pieces, ...bends].map((p) => kernel.transformed(p.shape, p.m, { keep: true }));
-    try {
-      return placed.length === 1 ? kernel.transformed(placed[0]!, identity4(), { keep: true }) : kernel.fuseMany(placed[0]!, placed.slice(1));
-    } finally {
-      for (const s of placed) kernel.dispose(s);
-    }
+    // Sans pli : une copie du plat (le résultat appartient toujours à l'appelant).
+    const out = {
+      pieces: pieces.map((p) => ({ shape: p.owned ? p.shape : kernel.transformed(p.shape, identity4(), { keep: true }), m: p.m })),
+      bends: bends.map((b) => ({ shape: b.shape, m: b.m })),
+    };
+    done = true;
+    return out;
   } finally {
-    for (const p of pieces) release(p);
-    for (const b of bends) release(b);
+    if (!done) {
+      for (const p of pieces) release(p);
+      for (const b of bends) release(b);
+    }
     for (const st of strips) kernel.dispose(st.shape);
+  }
+}
+
+/** Pièce pliée à partir du plat (le plat n'est pas libéré ; le résultat appartient à l'appelant). */
+export function foldSheet(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat' | 'frame' | 'thickness' | 'folds'>): KernelShape {
+  const layout = foldLayout(kernel, sheet);
+  const all = [...layout.pieces, ...layout.bends];
+  const placed: KernelShape[] = [];
+  try {
+    for (const p of all) placed.push(kernel.transformed(p.shape, p.m, { keep: true }));
+    return placed.length === 1 ? kernel.transformed(placed[0]!, identity4(), { keep: true }) : kernel.fuseMany(placed[0]!, placed.slice(1));
+  } finally {
+    for (const s of placed) kernel.dispose(s);
+    for (const p of all) kernel.dispose(p.shape);
+  }
+}
+
+/**
+ * Matière retirée de la pièce pliée par un outil (poche, perçage…), reportée sur la tôle à plat :
+ * pour chaque morceau plat, la partie de l'outil qui le touche une fois plié est ramenée à plat
+ * (placement inverse) puis retirée du développé. Un outil qui touche un arrondi ne peut pas être
+ * déplié exactement : `touchesBend` le signale (la partie dans l'arrondi n'est pas reportée).
+ */
+export function unfoldCut(kernel: GeometryKernel, sheet: Pick<SheetState, 'flat' | 'frame' | 'thickness' | 'folds'>, tool: KernelShape): { flat: KernelShape; touchesBend: boolean } {
+  const layout = foldLayout(kernel, sheet);
+  const backs: KernelShape[] = [];
+  let touchesBend = false;
+  try {
+    for (const p of layout.pieces) {
+      const placed = kernel.transformed(p.shape, p.m, { keep: true });
+      const removed = kernel.common(tool, placed);
+      kernel.dispose(placed);
+      if (kernel.volumeOf(removed).volume > 1e-9) backs.push(kernel.transformed(removed, invertRigid4(p.m), { keep: true }));
+      kernel.dispose(removed);
+    }
+    for (const b of layout.bends) {
+      const placed = kernel.transformed(b.shape, b.m, { keep: true });
+      const inter = kernel.common(tool, placed);
+      if (kernel.volumeOf(inter).volume > 1e-6) touchesBend = true;
+      kernel.dispose(placed);
+      kernel.dispose(inter);
+    }
+    const flat = backs.length ? kernel.cutMany(sheet.flat, backs) : kernel.transformed(sheet.flat, identity4(), { keep: true });
+    return { flat, touchesBend };
+  } finally {
+    for (const s of backs) kernel.dispose(s);
+    for (const p of [...layout.pieces, ...layout.bends]) kernel.dispose(p.shape);
   }
 }
 

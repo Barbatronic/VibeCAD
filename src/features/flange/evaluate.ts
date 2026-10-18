@@ -1,4 +1,4 @@
-import type { FlangeFeature } from '../../domain/model';
+import type { FaceRef, FlangeFeature } from '../../domain/model';
 import { kFactorFor, sheetMaterial } from '../../domain/sheet-metal';
 import { issue, okStatus } from '../../domain/status';
 import type { KernelShape } from '../../geometry/kernel';
@@ -29,7 +29,9 @@ export const evaluateFlange: FeatureEvaluator<FlangeFeature> = (feature, ctx) =>
   const folds: FoldSpec[] = [];
   const height = (p: Vec3) => dot3(sub3(p, frame.origin), n);
   try {
-    for (const edge of feature.params.edges) {
+    for (const picked of feature.params.edges) {
+      // Arête cliquée sur la pièce pliée : ses faces sont retrouvées sur la tôle à plat.
+      const edge = { ...picked, faces: picked.faces.map((f) => flatFaceRef(f, sheet)) as typeof picked.faces };
       const curves = kernel.edgeCurves(sheet.flat, edge);
       const line = curves.length === 1 && curves[0]!.kind === 'line' ? curves[0]! : null;
       if (!line || line.kind !== 'line') return fail('SHEET_FLANGE_EDGE');
@@ -54,7 +56,9 @@ export const evaluateFlange: FeatureEvaluator<FlangeFeature> = (feature, ctx) =>
       const reach = foldAllowance(spec, t) + feature.params.length;
       const box = kernel.makePrimitive({ featureId: feature.id, shape: 'box', position: { x: 0, y: 0, z: 0 }, width: length3(sub3(b, a)), depth: reach, height: t, diameter: 1, thickness: 1 });
       try {
-        tabs.push(kernel.transformed(box, [d.x, d.y, d.z, 0, outward.x, outward.y, outward.z, 0, n.x, n.y, n.z, 0, a.x, a.y, a.z, 1], { keep: true }));
+        // Étiquettes propres à chaque rebord de l'étape (rang du bord) : une esquisse posée sur
+        // l'un d'eux le retrouve sans ambiguïté.
+        tabs.push(kernel.transformed(box, [d.x, d.y, d.z, 0, outward.x, outward.y, outward.z, 0, n.x, n.y, n.z, 0, a.x, a.y, a.z, 1], { featureId: feature.id, index: folds.length }));
       } finally {
         kernel.dispose(box);
       }
@@ -86,6 +90,21 @@ export const evaluateFlange: FeatureEvaluator<FlangeFeature> = (feature, ctx) =>
     return { status: issue(feature.id, 'error', code) };
   }
 };
+
+/**
+ * Référence d'une face de la pièce pliée ramenée à la tôle à plat : un morceau déplacé par un pli
+ * porte l'étiquette du pli (« <étape d'origine>/<élément> ») ; on retrouve l'étiquette d'origine.
+ */
+export function flatFaceRef(ref: FaceRef, sheet: SheetState): FaceRef {
+  const folds = new Set(sheet.folds.map((f) => f.featureId));
+  let r = ref;
+  while (folds.has(r.featureId) && r.entityId?.includes('/')) {
+    const k = r.entityId.indexOf('/');
+    const entity = r.entityId.slice(k + 1);
+    r = { featureId: r.entityId.slice(0, k), role: r.role, ...(entity ? { entityId: entity } : {}), ...(r.index !== undefined ? { index: r.index } : {}) };
+  }
+  return r;
+}
 
 function toSheet(sheet: SheetState, p: Vec3) {
   const d = sub3(p, sheet.frame.origin);

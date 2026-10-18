@@ -49,6 +49,27 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await expect.poll(async () => (await bbox(page))?.max.x ?? 99).toBeCloseTo(42.5, 1);
   await expect.poll(async () => (await bbox(page))?.max.z ?? 0).toBeGreaterThan(15);
 
+  // Esquisse sur la face pliée (face extérieure de la partie relevée, x = 40 + r + t) : un trou
+  // Ø 6 percé après le pli, reporté sur le développé.
+  await page.waitForTimeout(400);
+  const raised = await worldToScreen(page, 42.5, 15, 10);
+  await page.mouse.dblclick(raised.x, raised.y);
+  await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
+  await page.waitForTimeout(450);
+  await page.click('#sk-circle');
+  const plane = await page.evaluate(() => (window as any).vibecad.store.get().mode.session.sketch);
+  expect(plane).toBeTruthy();
+  const target = await worldToScreen(page, 42.5, 15, 10);
+  await page.mouse.click(target.x, target.y);
+  await page.keyboard.type('6');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'circle').length).toBe(1);
+  await finishSketch(page);
+  await clickTool(page, 'tool-pocket');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expect.poll(() => appState(page, (s) => s.display[s.activePartId].result.statuses.at(-1).state)).toBe('ok');
+
   // Bord plié de 15 mm sur le bord gauche du dessus (x = 0).
   await page.waitForTimeout(400);
   const left = await worldToScreen(page, 0, 15, 1);
@@ -88,6 +109,6 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await svg.saveAs('tests/output/e2e-tolerie-laser.svg');
   const text = readFileSync('tests/output/e2e-tolerie-laser.svg', 'utf8');
   expect((text.match(/<line [^>]*stroke="#00a000"/g) ?? []).length).toBe(4);
-  // Développé : 60 mm + 15 mm de rebord + les deux bandes de pli, sur 30 mm.
-  expect((text.match(/<polygon /g) ?? []).length).toBe(1);
+  // Développé : le contour et le trou percé après le pli.
+  expect((text.match(/<polygon /g) ?? []).length).toBe(2);
 });

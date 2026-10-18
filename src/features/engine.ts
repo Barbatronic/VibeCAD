@@ -10,7 +10,7 @@
  * dépendent du solide (statut `blocked`, avec l'étape en cause). Les esquisses sur un plan
  * d'origine restent évaluées et modifiables. Le dernier solide valide reste disponible.
  */
-import type { SheetState } from './sheet/fold';
+import { unfoldCut, type SheetState } from './sheet/fold';
 import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
 import { issue, type FeatureStatus } from '../domain/status';
@@ -193,12 +193,8 @@ export class RecomputeEngine {
       if (outcome.tool && outcome.toolMode && outcome.status.state !== 'error' && outcome.status.state !== 'blocked') {
         toolModes.set(feature.id, { shape: outcome.tool, mode: outcome.toolMode });
       }
-      // Tôle : une étape de tôlerie donne la nouvelle tôle ; une autre étape qui change la pièce
-      // change aussi le plat tant qu'il n'y a pas de pli, sinon elle n'est pas dans le développé.
-      const applied = outcome.shape && outcome.status.state !== 'error' && outcome.status.state !== 'blocked';
-      const before = sheet as SheetState | null;
+      // Tôle après l'étape (voir `sheetAfter`).
       if (outcome.sheet) sheet = outcome.sheet;
-      else if (before && applied && definitionOf(feature).affectsSolid) sheet = before.folds.length === 0 ? { ...before, flat: outcome.shape! } : { ...before, later: [...before.later, feature.id] };
       if (outcome.shape) {
         state.shape = outcome.shape;
         state.analysis = outcome.analysis ?? null;
@@ -243,6 +239,7 @@ export class RecomputeEngine {
       const detail = err instanceof KernelError ? [err.message, err.detail].filter(Boolean).join(' — ') : String(err);
       outcome = { status: issue(feature.id, 'error', 'KERNEL_FAILURE', { detail }) };
     }
+    if (state.sheet && !outcome.sheet) this.sheetAfter(feature, state.sheet, outcome, state.shape);
     const broken = def.affectsSolid && (outcome.status.state === 'error' || outcome.status.state === 'blocked');
     if (broken && outcome.shape) {
       if (outcome.shape !== outcome.tool) this.kernel.dispose(outcome.shape);
@@ -251,6 +248,46 @@ export class RecomputeEngine {
     }
     const failureAfter = state.failure ?? (broken ? (outcome.status.blockedBy ?? feature.id) : null);
     return { key, outcome, failureAfter, lastUsed: 0 };
+  }
+
+  /**
+   * Tôle après une étape qui n'est pas de la tôlerie : sans pli, la pièce est encore à plat et
+   * devient le nouveau plat. Après un pli, la matière que l'étape a retirée (poche, perçage, congé,
+   * chanfrein, découpe…) — la pièce d'avant moins celle d'après — est reportée sur le plat
+   * (`unfoldCut`) ; de la matière ajoutée n'est pas dans le développé (signalée aux plis suivants).
+   */
+  private sheetAfter(feature: Feature, sheet: SheetState, outcome: FeatureOutcome, before: KernelShape | null): void {
+    const applied = !!outcome.shape && outcome.status.state !== 'error' && outcome.status.state !== 'blocked';
+    if (!applied || !definitionOf(feature).affectsSolid) return;
+    if (sheet.folds.length === 0) {
+      outcome.sheet = { ...sheet, flat: outcome.shape! };
+      return;
+    }
+    if (!before) {
+      outcome.sheet = { ...sheet, later: [...sheet.later, feature.id] };
+      return;
+    }
+    const k = this.kernel;
+    const tiny = 1e-6 * Math.max(1, sheet.thickness ** 3);
+    let removed: KernelShape | null = null;
+    let added: KernelShape | null = null;
+    try {
+      removed = k.cut(before, outcome.shape!);
+      added = k.cut(outcome.shape!, before);
+      const grew = k.volumeOf(added).volume > tiny;
+      if (k.volumeOf(removed).volume > tiny) {
+        const r = unfoldCut(k, sheet, removed);
+        outcome.sheet = { ...sheet, flat: r.flat, ...(grew ? { later: [...sheet.later, feature.id] } : {}) };
+        outcome.owned = [...(outcome.owned ?? []), r.flat];
+        if (r.touchesBend && outcome.status.state === 'ok') outcome.status = issue(feature.id, 'warning', 'SHEET_CUT_ON_BEND');
+      } else if (grew) outcome.sheet = { ...sheet, later: [...sheet.later, feature.id] };
+    } catch {
+      // Report impossible : l'étape reste hors du développé.
+      outcome.sheet = { ...sheet, later: [...sheet.later, feature.id] };
+    } finally {
+      if (removed) k.dispose(removed);
+      if (added) k.dispose(added);
+    }
   }
 
   private readStepSolids(resourceId: Id): ReturnType<EvaluationContext['readStepSolids']> {

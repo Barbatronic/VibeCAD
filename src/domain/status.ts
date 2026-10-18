@@ -71,6 +71,7 @@ export type FeatureIssueCode =
   | 'SHEET_FLANGE_EDGE'
   | 'SHEET_FOLD_FAILED'
   | 'SHEET_FOLD_CROSSING'
+  | 'SHEET_CUT_ON_BEND'
   | 'BLOCKED_BY_PREVIOUS';
 
 export interface FeatureStatus {
@@ -158,11 +159,13 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SHEET_REQUIRED: 'Il faut d’abord une tôle : créez-la avec l’outil « Tôle » à partir d’un contour fermé.',
   SHEET_ALREADY: 'La pièce est déjà une tôle, ou a déjà un volume : une tôle commence une nouvelle pièce (bouton + du panneau Pièces).',
   SHEET_AFTER_FOLD:
-    'Une étape qui n’est pas un pli (perçage, poche…) a été faite sur la pièce déjà pliée : elle ne serait pas dans le développé. Faites les trous et découpes à plat, avant les plis (glissez ce pli plus bas dans l’historique).',
+    'Une étape qui ajoute de la matière à la pièce déjà pliée (extrusion, forme…) est placée avant ce pli : elle ne serait pas dans le développé. Faites-la après les plis, ou retirez-la.',
   SHEET_BEND_LIMIT: 'Ce pli est difficile à réaliser dans ce matériau.',
   SHEET_FOLD_LINE: 'L’esquisse doit contenir un trait, dessiné sur la tôle : c’est la ligne de pli.',
   SHEET_FLANGE_EDGE: 'Choisissez une arête droite du bord de la tôle (entre le dessus, ou le dessous, et un côté).',
   SHEET_FOLD_CROSSING: 'Ce pli traverse l’arrondi d’un pli précédent : on ne peut pas plier à travers un pli. Déplacez la ligne de pli, ou faites ce pli avant l’autre en le raccourcissant.',
+  SHEET_CUT_ON_BEND:
+    'Cette étape retire de la matière dans l’arrondi d’un pli : cette partie n’est pas dans le développé (à plat). Éloignez-la du pli, ou faites-la à plat avant de plier.',
   SHEET_FOLD_FAILED: 'Le pli n’a pas pu être construit : vérifiez que la ligne de pli traverse la tôle et que les plis ne se croisent pas.',
   BLOCKED_BY_PREVIOUS: 'Cette étape attend la correction d’une étape précédente.',
 };

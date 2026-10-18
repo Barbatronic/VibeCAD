@@ -1,7 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, makeFlangeFeature, makeFoldFeature, makeSheetFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, makeChamferFeature, makeFilletFeature, makeFlangeFeature, makeFoldFeature, makePrimitiveFeature, makeSheetFeature, makeSketchFeature } from '../../src/domain/document';
 import type { CadDocument, EdgeRef, Id } from '../../src/domain/model';
 import { kFactorFor, sheetMaterial } from '../../src/domain/sheet-metal';
 import { RecomputeEngine } from '../../src/features/engine';
@@ -140,5 +140,75 @@ describe('tôlerie : tôle, bord plié, pli', () => {
     const res = evaluate(addFeature(doc, partId, fo));
     expect(res.statuses.at(-1)!.code).toBe('SHEET_FOLD_CROSSING');
     expect(res.statuses.at(-1)!.relatedFeatureId).toBe(fl.id);
+  });
+
+  it('bords pliés d’une même étape : chaque rebord a ses faces (esquisse posée sur l’un d’eux)', () => {
+    const { doc: d0, partId, sheetId, lines } = sheetDoc();
+    const fl = makeFlangeFeature(d0, findPart(d0, partId)!, [topEdge(sheetId, lines[1]!), topEdge(sheetId, lines[3]!)]);
+    const doc = addFeature(d0, partId, fl);
+    const res = evaluate(doc);
+    for (const index of [0, 1]) expect(kernel.findFacePlane(res.shape!, { featureId: fl.id, role: 'end', index }).status).toBe('found');
+    // Esquisse sur la face extérieure du rebord droit (dessus de la languette, pliée).
+    const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'face', ref: { featureId: fl.id, role: 'end', index: 0 } });
+    const res2 = evaluate(addFeature(doc, partId, sk));
+    expect(res2.statuses.at(-1)!.state).not.toBe('error');
+  });
+
+  it('trou fait dans un rebord après le pli : reporté sur le développé', () => {
+    const { doc: d0, partId, sheetId, lines } = sheetDoc();
+    const fl = makeFlangeFeature(d0, findPart(d0, partId)!, [topEdge(sheetId, lines[1]!)]);
+    let doc = addFeature(d0, partId, { ...fl, params: { ...fl.params, length: 30 } });
+    const before = evaluate(doc);
+    const flatBefore = kernel.volumeOf(before.sheet!.flat).volume;
+    // Boîte retirée qui traverse le rebord (x 103 → 105) entre z = 15 et 25, y = 15 → 25.
+    const cut = makePrimitiveFeature(doc, findPart(doc, partId)!, 'box', 'cut');
+    doc = addFeature(doc, partId, { ...cut, params: { ...cut.params, position: { x: 95, y: 15, z: 15 }, width: 20, depth: 10, height: 10 } });
+    const res = evaluate(doc);
+    expect(res.statuses.at(-1)!.state).toBe('ok');
+    expect(res.sheet!.later).toEqual([]);
+    expect(before.analysis!.volume - res.analysis!.volume).toBeCloseTo(200, 1);
+    expect(flatBefore - kernel.volumeOf(res.sheet!.flat).volume).toBeCloseTo(200, 1);
+    // Un pli fait ensuite garde le trou (la pièce est reconstruite à partir du plat).
+    const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 0 });
+    doc = addFeature(doc, partId, { ...sk, params: addLine(sk.params, { x: 30, y: -5 }, { x: 30, y: 45 }).sketch });
+    const fo = makeFoldFeature(doc, findPart(doc, partId)!, sk.id);
+    const res2 = evaluate(addFeature(doc, partId, { ...fo, params: { ...fo.params, side: 'left' } }));
+    expect(res2.statuses.at(-1)!.state).toBe('ok');
+    // Volume : celui d'avant (trou compris), plus l'écart de l'arrondi (fibre neutre à K < 0,5).
+    const k = kFactorFor(sheetMaterial('aluminium'), 3, 2);
+    expect(res2.analysis!.volume).toBeCloseTo(res.analysis!.volume + (Math.PI / 2) * 2 * 40 * (0.5 - k) * 2, 0);
+  });
+
+  it('trou qui touche l’arrondi d’un pli : avertissement', () => {
+    const { doc: d0, partId, sheetId, lines } = sheetDoc();
+    const fl = makeFlangeFeature(d0, findPart(d0, partId)!, [topEdge(sheetId, lines[1]!)]);
+    let doc = addFeature(d0, partId, fl);
+    const cut = makePrimitiveFeature(doc, findPart(doc, partId)!, 'box', 'cut');
+    doc = addFeature(doc, partId, { ...cut, params: { ...cut.params, position: { x: 98, y: 15, z: -1 }, width: 10, depth: 10, height: 8 } });
+    const res = evaluate(doc);
+    expect(res.statuses.at(-1)!.code).toBe('SHEET_CUT_ON_BEND');
+  });
+
+  it('chanfrein et congé faits sur un rebord après le pli : reportés sur le développé', () => {
+    const { doc: d0, partId, sheetId, lines } = sheetDoc();
+    const fl = makeFlangeFeature(d0, findPart(d0, partId)!, [topEdge(sheetId, lines[1]!)]);
+    const doc = addFeature(d0, partId, { ...fl, params: { ...fl.params, length: 30 } });
+    const before = evaluate(doc);
+    const flatBefore = kernel.volumeOf(before.sheet!.flat).volume;
+    // Coins du bout du rebord : arêtes entre son bout (y+) et ses côtés (x−, x+), sur la pièce pliée.
+    const face = (e: string) => ({ featureId: fl.id, role: 'side' as const, entityId: `${fl.id}/${e}`, index: 0 });
+    const corner = (e: string): EdgeRef => ({ faces: [face('y+'), face(e)] });
+    const ch = makeChamferFeature(doc, findPart(doc, partId)!, [corner('x-')], 3);
+    const res = evaluate(addFeature(doc, partId, ch));
+    expect(res.statuses.at(-1)!.state).toBe('ok');
+    expect(res.sheet!.later).toEqual([]);
+    // Coin de 3 × 3 mm sur 2 mm d'épaisseur : 9 mm³ en moins, sur la pièce et sur le développé.
+    expect(before.analysis!.volume - res.analysis!.volume).toBeCloseTo(9, 2);
+    expect(flatBefore - kernel.volumeOf(res.sheet!.flat).volume).toBeCloseTo(9, 2);
+    const fi = makeFilletFeature(doc, findPart(doc, partId)!, [corner('x+')], 4);
+    const res2 = evaluate(addFeature(doc, partId, fi));
+    expect(res2.statuses.at(-1)!.state).toBe('ok');
+    // Coin arrondi R4 : (4² − π·4²/4) × 2 mm en moins.
+    expect(flatBefore - kernel.volumeOf(res2.sheet!.flat).volume).toBeCloseTo((16 - 4 * Math.PI) * 2, 2);
   });
 });
