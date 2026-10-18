@@ -77,6 +77,8 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await expect.poll(() => appState(page, (s) => s.selection?.kind)).toBe('edge');
   await clickTool(page, 'tool-flange');
   await expect(page.getByText('1 arête', { exact: true })).toBeVisible();
+  // L'arête choisie est surlignée dans la vue (trait épais, couleur de sélection).
+  await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.chosenEdgeObject)).toBe(true);
   await page.locator('#draft-length').fill('15');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   // Rayon trop petit pour l'aluminium de 1 mm (au moins 1,5 mm) : avertissement dans l'aperçu.

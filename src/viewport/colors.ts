@@ -47,7 +47,7 @@ const FALLBACK: ViewportPalette = {
   previewAdd: '#2fa36b',
   previewCut: '#d64545',
   selection: '#e06c00',
-  hover: '#3d8bff',
+  hover: '#f2c200',
   error: '#d1342f',
   plane: '#5b8fd9',
   stale: '#9aa3ad',

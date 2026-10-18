@@ -20,6 +20,11 @@ test('congé sur des arêtes choisies à la souris, avec aperçu', async ({ page
   const back = await worldToScreen(page, 40, 30, 5);
   await page.mouse.click(back.x, back.y);
   await expect(page.getByText('2 arêtes', { exact: true })).toBeVisible();
+  // Les arêtes choisies sont surlignées, et le survol d'une arête la montre pendant l'opération.
+  await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.chosenEdgeObject)).toBe(true);
+  const other = await worldToScreen(page, 60, 15, 5);
+  await page.mouse.move(other.x, other.y);
+  await expect.poll(() => page.evaluate(() => !!(window as any).vibecad.controller.viewport.hoverOverlay)).toBe(true);
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, PLATE_VOLUME - 2 * 60 * (4 - Math.PI));

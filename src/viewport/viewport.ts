@@ -134,6 +134,8 @@ export interface ViewportInput {
   datumAxes?: { key: string; point: Vec3; dir: Vec3; label: string; active?: boolean }[];
   /** Images de référence (calques) : rectangle texturé sur le plan de leur support. */
   images?: { key: string; frame: Frame3D; center: Vec2; width: number; height: number; rotation: number; mirror: boolean; opacity: number; source: CanvasImageSource }[];
+  /** Arêtes choisies par l'opération en cours (congé, chanfrein, bord plié) : surlignées. */
+  chosenEdges?: { a: Vec3; b: Vec3 }[];
   /** Tôlerie dépliée : lignes de pli (tirets) et leur étiquette (angle). */
   bendLines?: { a: Vec3; b: Vec3; label?: string }[];
   resultMesh?: {
@@ -443,6 +445,7 @@ export class Viewport {
     this.syncDatumPlanes(input.datumPlanes ?? [], input.datumAxes ?? []);
     this.syncBendLines(input.bendLines ?? []);
     this.syncImages(input.images ?? []);
+    this.syncChosenEdges(input.chosenEdges ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
     this.syncMarkers(input.markers ?? []);
@@ -1063,6 +1066,27 @@ export class Viewport {
     }
   }
 
+  private chosenEdgeObject: LineSegments2 | null = null;
+  private chosenEdgeKey = '';
+
+  /** Arêtes choisies de l'opération en cours, en épais, couleur de sélection, toujours visibles. */
+  private syncChosenEdges(edges: NonNullable<ViewportInput['chosenEdges']>): void {
+    const key = JSON.stringify(edges);
+    if (key === this.chosenEdgeKey) return;
+    this.chosenEdgeKey = key;
+    if (this.chosenEdgeObject) this.disposeOverlay(this.chosenEdgeObject);
+    this.chosenEdgeObject = null;
+    if (edges.length) {
+      const geometry = new LineSegmentsGeometry();
+      geometry.setPositions(edges.flatMap((e) => [e.a.x, e.a.y, e.a.z, e.b.x, e.b.y, e.b.z]));
+      const line = new LineSegments2(geometry, this.resolved(fatLineMaterial(this.palette.selection, 5, { depthTest: false })));
+      line.renderOrder = 39;
+      this.overlayGroup.add(line);
+      this.chosenEdgeObject = line;
+    }
+    this.needsRender = true;
+  }
+
   private syncMeasure(measure: ViewportInput['measure']): void {
     for (const o of this.measureObjects) this.disposeOverlay(o);
     this.measureObjects = [];
@@ -1555,7 +1579,7 @@ export class Viewport {
       const overlay =
         pick.kind === 'face' || pick.kind === 'vertex'
           ? part?.faceOverlay(pick.index, hatchMaterial(this.palette.hover, 0.35))
-          : part?.edgeOverlay(pick.index, this.resolved(fatLineMaterial(this.palette.hover, 3, { depthTest: false })));
+          : part?.edgeOverlay(pick.index, this.resolved(fatLineMaterial(this.palette.hover, 4, { depthTest: false })));
       if (overlay && part) {
         this.placeOverlay(overlay, part);
         this.overlayGroup.add(overlay);

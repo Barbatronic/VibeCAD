@@ -50,6 +50,7 @@ import { allows } from '../app/levels';
 import { dot3, sub3, type Vec3 } from '../math/vec';
 import { clipLineToOutline, faceOutline, largestPlanarFace } from '../app/laser';
 import { imageSize } from '../app/images';
+import { edgeRefSegments } from '../app/edges';
 import { imageSource, onImageReady } from './image-cache';
 import { formatLength } from '../domain/units';
 import { resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
@@ -415,7 +416,12 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
 
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
-  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || s.mode.draft.feature.type === 'plane' || s.mode.draft.feature.type === 'axis' || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell');
+  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || s.mode.draft.feature.type === 'plane' || s.mode.draft.feature.type === 'axis' || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell' || s.mode.draft.feature.type === 'flange');
+  // Arêtes déjà choisies (congé, chanfrein, bord plié) : surlignées sur la pièce d'avant l'opération.
+  const draft = s.mode.kind === 'feature' ? s.mode.draft : null;
+  const draftEdges = draft && (draft.feature.type === 'fillet' || draft.feature.type === 'chamfer' || draft.feature.type === 'flange') ? draft.feature.params.edges : [];
+  const baseMesh = draft ? s.display[draft.partId]?.mesh : null;
+  const chosenEdges = draftEdges.length && baseMesh ? edgeRefSegments(baseMesh, draftEdges) : [];
   // Centre de gravité de la pièce active (pièce entière : pas pendant une coupe ni une esquisse).
   const points: { at: Vec3; label: string }[] = [];
   const active = s.display[s.activePartId]?.result.analysis;
@@ -479,7 +485,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images };
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
