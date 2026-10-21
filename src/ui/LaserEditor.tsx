@@ -28,6 +28,11 @@ export function LaserEditor() {
   const [drag, setDrag] = useState<{ key: string; dx: number; dy: number; x: number; y: number; moved: boolean } | null>(null);
   const [pan, setPan] = useState<{ sx: number; sy: number; v: View } | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  // À l'ouverture, le clavier va à l'éditeur (Échap, R, flèches), pas au champ resté actif derrière.
+  useEffect(() => {
+    if (materialId) root.current?.focus();
+  }, [materialId]);
   const [size, setSize] = useState({ w: 1000, h: 600 });
   const [view, setView] = useState<View | null>(null);
   useEffect(() => {
@@ -124,7 +129,7 @@ export function LaserEditor() {
   const nOverlap = [...problems.overlap].filter((i) => pieces[i]!.sheet === current).length;
   const nOutside = [...problems.outside].filter((i) => pieces[i]!.sheet === current).length;
   return (
-    <div class="laser-editor" role="dialog" aria-modal="true" aria-label={`Plaques en grand : ${group.material.name}`}>
+    <div class="laser-editor" role="dialog" aria-modal="true" aria-label={`Plaques en grand : ${group.material.name}`} tabIndex={-1} ref={root}>
       <div class="laser-editor-bar">
         <Icon name="laser" />
         <strong>{group.material.name}</strong>

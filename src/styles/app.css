@@ -3288,6 +3288,9 @@ kbd {
   flex-direction: column;
   background: var(--bg-app);
 }
+.laser-editor:focus {
+  outline: none;
+}
 .laser-editor-bar {
   display: flex;
   flex-wrap: wrap;
