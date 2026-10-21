@@ -6,6 +6,10 @@ en carton. La pièce garde sa **forme à plat** (le développé), qui se découp
 
 ## Utilisation
 
+![Carrosserie en tôle d'acrylique pliée en U, fenêtres découpées dans les bords pliés](images/tolerie.png)
+
+![La même pièce dépliée (outil Déplier) : développé à plat et lignes de pli à 90°](images/tolerie-deplie.png)
+
 1. **Esquisse** : dessiner le contour de la tôle à plat (rectangle, contour quelconque, avec trous
    éventuels).
 2. **Tôle** : choisir l'esquisse, le **matériau**, l'**épaisseur** et le **rayon des plis**. La

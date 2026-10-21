@@ -13,11 +13,15 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
 > Les fichiers de projet gardent l'extension `.vibecad` (nom de développement de l'application) :
 > les projets déjà enregistrés s'ouvrent sans conversion ([décision 0007](docs/decisions/0007-nom-application.md)).
 
-![Plaque percée de 80 × 30 × 5 mm après modification de la largeur](docs/images/plaque-percee.png)
+![Assemblage d'une petite voiture : châssis, paliers, essieux, quatre roues et carrosserie en tôle pliée](docs/images/voiture-assemblage.png)
 
-![Assemblage : goupille en glissière dans le trou de la plaque, avec ses curseurs](docs/images/assemblage.png)
+![Pièce « Roue » isolée, avec son historique : esquisse, extrusion, trou d'allègement répété cinq fois](docs/images/roue-historique.png)
 
-![Parcours guidé : chaque étape se valide toute seule](docs/images/parcours-java.png)
+![Carrosserie en tôle d'acrylique : développé à plat avec ses lignes de pli](docs/images/tolerie-deplie.png)
+
+![Découpe laser : roues et châssis imbriqués sur une plaque de contreplaqué](docs/images/laser-plaques.png)
+
+![Parcours guidé : chaque étape se valide toute seule](docs/images/parcours-guide.png)
 
 ## Ce que l'on peut faire
 

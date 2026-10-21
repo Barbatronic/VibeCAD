@@ -6,6 +6,8 @@ pièce fixe, chaque liaison ayant au plus deux mouvements simples.
 
 ## Ce que voit l'utilisateur
 
+![Assemblage d'une petite voiture : châssis fixe, paliers, essieux, roues et carrosserie](images/voiture-assemblage.png)
+
 - Deux onglets en haut : **Pièces** (la modélisation actuelle) et **Assemblage**.
 - Dans Assemblage, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),
   **Assembler** (Main, Liaison), **Vérifier** (Collisions, Éclater), **Modifier**, **Exporter**.

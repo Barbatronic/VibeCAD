@@ -54,6 +54,8 @@ passer une étape, revenir en arrière ou quitter à tout moment. Le bouton à u
 évidence par un contour orange animé. Si le chat est activé, **Java** (noir sur le dessus, blanc en
 dessous) présente chaque étape et saute de joie quand elle est réussie.
 
+![Première étape du parcours guidé « plaque percée »](images/parcours-guide.png)
+
 En dehors du parcours, le chat n'apparaît que lorsqu'il a quelque chose d'utile à dire : une
 étape en erreur (avec un bouton pour l'ouvrir ou la réparer), une esquisse au contour ouvert, une
 pièce vide. Il tutoie l'enfant, emploie le vrai vocabulaire de CAO et ne modifie jamais la pièce
@@ -72,6 +74,15 @@ lui-même. On peut le réduire d'un clic ou le masquer (Aide → « Afficher le 
 | 9 | Poche traversante, Valider | retirer de la matière |
 | 10 | Double-clic sur « Esquisse 1 », cote 60 → 80 | modifier l'historique, recalcul |
 | 11 | Enregistrer, exporter en STEP | garder et partager son travail |
+
+![Étape 7 : le cercle posé sur la face, la cote horizontale en cours de saisie](images/esquisse-cote.png)
+
+![Étape 9 : aperçu de la poche avant validation](images/apercu-poche.png)
+
+Quand une étape ne peut plus se calculer (ici, la face qui portait une esquisse a disparu),
+l'historique l'explique en mots simples et propose de la réparer :
+
+![Étape en erreur dans l'historique, avec son explication et les boutons pour la réparer](images/erreur-reference.png)
 
 ## Conseils pour l'accompagnement
 

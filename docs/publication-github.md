@@ -62,6 +62,18 @@ main sur ce qui est mis en ligne.
 Si vous préférez une mise à jour automatique à chaque `git push`, il suffit d'ajouter
 `push: { branches: [main] }` sous `on:` dans `.github/workflows/pages.yml`.
 
+## Refaire les captures d'écran
+
+Les images du README et de `docs/` (thème sombre, 1440 × 900) sont produites par un test
+Playwright à partir d'un projet de démonstration, la petite voiture
+(`tests/helpers/demo-car.ts`) :
+
+```bash
+DOC_SCREENS=1 npx playwright test doc-screens --project=chromium
+```
+
+Les fichiers sont réécrits dans `docs/images/`. Sans `DOC_SCREENS`, ce test est ignoré.
+
 ## Bon à savoir
 
 - Les projets restent **dans le navigateur de chaque appareil** : le site publié a son propre

@@ -55,6 +55,9 @@ qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabri
   Le premier déplacement fige la disposition de toutes les pièces du matériau (champ facultatif
   `placements` du matériau dans le projet) ; une pièce ajoutée ensuite se loge autour des autres.
   « Ranger automatiquement » revient au rangement par rangées.
+
+  ![Plaques en grand : roues et châssis imbriqués sur une plaque de contreplaqué 5 mm](images/laser-plaques.png)
+
 - **Export** à l'échelle 1:1 en millimètres, **un fichier par matériau** (ses plaques posées côte
   à côte, séparées de 20 mm ; boutons SVG / DXF de la page, ou « Exporter tout ») : SVG (traits rouges de 0,1 mm = découpe, textes
   bleus = gravure du nom des pièces si demandé) et DXF R12 (polylignes fermées sur le calque
