@@ -6,7 +6,7 @@ pièce fixe, chaque liaison ayant au plus deux mouvements simples.
 
 ## Ce que voit l'utilisateur
 
-![Assemblage d'une petite voiture : châssis fixe, paliers, essieux, roues et carrosserie](images/voiture-assemblage.png)
+![Quadrilatère articulé : quatre liaisons pivot, la pièce fixe en orange, la visserie posée sur les liaisons](images/assemblage-visserie.png)
 
 - Deux onglets en haut : **Pièces** (la modélisation actuelle) et **Assemblage**.
 - Dans Assemblage, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),

@@ -73,6 +73,8 @@ DOC_SCREENS=1 npx playwright test doc-screens --project=chromium
 ```
 
 Les fichiers sont réécrits dans `docs/images/`. Sans `DOC_SCREENS`, ce test est ignoré.
+Deux captures sont faites à la main et ne sont pas réécrites : l'assemblage avec visserie
+(`assemblage-visserie.png`) et la simulation (`simulation-bras.png`).
 
 ## Bon à savoir
 

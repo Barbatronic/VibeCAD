@@ -2,7 +2,8 @@
  * Captures de la documentation et du README (thème sombre), à partir du projet de démonstration
  * (petite voiture, `tests/helpers/demo-car.ts`). Ne tourne qu'à la demande :
  *   DOC_SCREENS=1 npx playwright test doc-screens --project=chromium
- * Les images sont écrites dans docs/images/.
+ * Les images sont écrites dans docs/images/. Les captures de l'assemblage avec visserie
+ * (assemblage-visserie.png) et de la simulation (simulation-bras.png) sont faites à la main.
  */
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { demoCar } from '../helpers/demo-car';
@@ -35,16 +36,10 @@ const call = (page: Page, fn: string, ...args: unknown[]) => page.evaluate(([f, 
 const dismissToasts = (page: Page) => page.evaluate(() => { const v = (window as any).vibecad; for (const t of v.store.get().toasts) v.controller.dismissToast(t.id); });
 const partId = (page: Page, name: string) => page.evaluate((n) => (window as any).vibecad.store.get().doc.parts.find((p: any) => p.name === n).id, name);
 
-test('assemblage, pièce, tôlerie, découpe laser', async ({ browser }) => {
+test('pièce, tôlerie, découpe laser', async ({ browser }) => {
   test.setTimeout(240_000);
   const page = await darkPage(browser);
   await loadDemo(page);
-
-  // Assemblage de la voiture (README).
-  await page.click('#tab-assembly');
-  await call(page, 'setView', 'iso');
-  await settle(page);
-  await page.screenshot({ path: `${OUT}/voiture-assemblage.png` });
 
   // Pièce : la roue et son historique (répétition des trous d'allègement).
   await page.click('#tab-parts');
