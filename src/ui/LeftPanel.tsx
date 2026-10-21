@@ -91,7 +91,7 @@ function PartsSection() {
                   onDblClick={() => setRenaming(p.id)}
                 >
                   <span class="name">{p.name}</span>
-                  {(isolatedId ? p.id === isolatedId : p.visible) ? null : <span class="hidden-tag">masquée</span>}
+                  {p.visible ? null : <span class="hidden-tag">masquée</span>}
                   {p.id === activePartId ? <span class="visually-hidden"> (pièce active)</span> : null}
                 </button>
               )}

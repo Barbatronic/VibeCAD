@@ -739,6 +739,7 @@ textarea {
 }
 
 .part-select {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -756,6 +757,7 @@ textarea {
 
 .part-select .name,
 .feature-main .name {
+  min-width: 4ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -784,6 +786,13 @@ textarea {
   border: 1px solid var(--border);
   color: var(--text-faint);
   font-size: 11.5px;
+}
+
+/* Colonne étroite : le nom de la pièce passe avant l'étiquette (la ligne reste grisée). */
+@container (max-width: 160px) {
+  .part-select .hidden-tag {
+    display: none;
+  }
 }
 
 .color-swatch {
