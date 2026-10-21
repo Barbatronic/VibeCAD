@@ -3376,6 +3376,33 @@ kbd {
   font-weight: 600;
 }
 
+.level-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.level-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.level-choice:hover,
+.level-choice:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.level-choice span {
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
 .image-calibration {
   display: flex;
   justify-content: center;

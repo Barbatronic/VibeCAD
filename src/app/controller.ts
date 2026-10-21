@@ -174,6 +174,8 @@ export class AppController {
     const saved = parseLevel(await this.deps.projects?.getSetting<string>('level').catch(() => undefined));
     if (fromUrl) this.setLevel(fromUrl);
     else if (saved) this.setLevel(saved, false);
+    // Première ouverture (aucun niveau retenu) : on propose de le choisir ; Expert par défaut.
+    else if (this.deps.projects && !this.state.dialog) this.set({ dialog: { kind: 'choose-level' } });
     const tips = await this.deps.projects?.getSetting<boolean>('tips').catch(() => undefined);
     if (tips === false) this.set({ tips: false });
     const theme = await this.deps.projects?.getSetting<string>('theme').catch(() => undefined);
@@ -333,7 +335,7 @@ export class AppController {
 
   /** Préférences de l'appareil remises à leur valeur de départ. */
   resetPreferences(): void {
-    this.setLevel('debutant');
+    this.setLevel('expert');
     this.setTips(true);
     this.setTheme('auto');
     this.setSketchGrid(true);

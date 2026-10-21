@@ -7,7 +7,8 @@ export function Modal(props: { title: string; onClose: () => void; children: Com
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>('[data-autofocus], .modal-body button, .modal-body input, .modal-footer button');
+    // L'élément marqué `data-autofocus` d'abord, sinon le premier bouton ou champ.
+    const first = ref.current?.querySelector<HTMLElement>('[data-autofocus]') ?? ref.current?.querySelector<HTMLElement>('.modal-body button, .modal-body input, .modal-footer button');
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

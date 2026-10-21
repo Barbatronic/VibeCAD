@@ -34,5 +34,5 @@ test('préférences : thème, niveau, aide et aimantation retenus sur l’appare
   await page.getByRole('menuitem', { name: 'Préférences…' }).click();
   await page.getByRole('dialog', { name: 'Préférences' }).getByRole('button', { name: 'Rétablir les réglages par défaut' }).click();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
-  await expect.poll(() => appState(page, (s) => [s.level, s.tips, s.sketchGrid, s.theme])).toEqual(['debutant', true, true, 'auto']);
+  await expect.poll(() => appState(page, (s) => [s.level, s.tips, s.sketchGrid, s.theme])).toEqual(['expert', true, true, 'auto']);
 });

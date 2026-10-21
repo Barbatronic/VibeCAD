@@ -502,7 +502,10 @@ function PreferencesDialog() {
           <label class="checkbox-row" key={l.id}>
             <input type="radio" name="pref-level" checked={prefs.level === l.id} onChange={() => c.setLevel(l.id)} />
             <span>
-              <strong>{l.label}</strong> — {l.description}
+              <strong>
+              {l.label}
+              {l.id === 'expert' ? ' (par défaut)' : ''}
+            </strong> — {l.description}
             </span>
           </label>
         ))}
@@ -566,6 +569,8 @@ export function Dialogs() {
       return <ProblemDialog />;
     case 'about':
       return <AboutDialog />;
+    case 'choose-level':
+      return <ChooseLevelDialog />;
     case 'preferences':
       return <PreferencesDialog />;
     default:
@@ -606,5 +611,27 @@ export function Toasts() {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Première ouverture : choisir le niveau de l'interface (modifiable ensuite en bas à droite). */
+function ChooseLevelDialog() {
+  const c = useController();
+  const choose = (level: (typeof LEVELS)[number]['id']) => {
+    c.setLevel(level);
+    c.setDialog(null);
+  };
+  return (
+    <Modal title={`Bienvenue dans ${APP_NAME} !`} onClose={() => choose('expert')}>
+      <p>Choisissez le niveau de l’interface : il règle les outils montrés. Vous pourrez le changer à tout moment, en bas à droite (« Niveau »).</p>
+      <div class="level-choices">
+        {LEVELS.map((l) => (
+          <button key={l.id} type="button" class="level-choice" data-autofocus={l.id === 'expert' ? '' : undefined} onClick={() => choose(l.id)}>
+            <strong>{l.label}</strong>
+            <span>{l.description}</span>
+          </button>
+        ))}
+      </div>
+    </Modal>
   );
 }

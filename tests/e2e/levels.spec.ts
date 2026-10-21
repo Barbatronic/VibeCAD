@@ -3,9 +3,17 @@ import { openApp, openFileMenu } from './helpers';
 
 const BASE = 'http://localhost:5174/';
 
-test('niveaux : Débutant par défaut (outils de base), Intermédiaire puis Expert, niveau retenu', async ({ page }) => {
+test('niveaux : choix à la première ouverture (Expert par défaut), Débutant, Intermédiaire puis Expert, niveau retenu', async ({ page }) => {
   await openApp(page, BASE);
   const level = page.getByLabel('Niveau de l’interface');
+  // Première ouverture : une fenêtre propose les trois niveaux ; Expert est le niveau par défaut.
+  const welcome = page.getByRole('dialog', { name: /Bienvenue/ });
+  await expect(welcome).toBeVisible();
+  await expect(welcome.getByRole('button')).toHaveCount(4);
+  await expect(level).toHaveValue('expert');
+  await page.screenshot({ path: 'tests/output/e2e-choix-niveau.png' });
+  await welcome.getByRole('button', { name: /Débutant/ }).click();
+  await expect(welcome).toHaveCount(0);
   await expect(level).toHaveValue('debutant');
   // Débutant : esquisse, extrusion, poche ; pas de révolution, ni d'assemblage, ni d'import.
   await expect(page.locator('#tool-extrude')).toBeVisible();

@@ -137,7 +137,9 @@ export type Dialog =
   | { kind: 'unsaved'; action: 'new' | 'open-project' | 'open-file' | 'open-draft'; payload?: string }
   | { kind: 'about' }
   | { kind: 'problem'; title: string; message: string; details: string[] }
-  | { kind: 'confirm-leave-sketch' };
+  | { kind: 'confirm-leave-sketch' }
+  /** Première ouverture : choix du niveau de l'interface. */
+  | { kind: 'choose-level' };
 
 export type OfflineState =
   | { status: 'dev' }
@@ -272,7 +274,7 @@ export function initialState(): AppState {
     lastEvaluation: null,
     fitRequest: 0,
     rollback: {},
-    level: 'debutant',
+    level: 'expert',
     tips: true,
     theme: 'auto',
     sketchGrid: true,

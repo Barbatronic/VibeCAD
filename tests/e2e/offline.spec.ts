@@ -5,6 +5,12 @@ import { openExport, appState, clickSketch, expectVolume, finishSketch, moveSket
 test('après préparation du mode hors ligne, un rechargement sans réseau permet de créer, enregistrer et exporter', async ({ page, context }) => {
   await page.goto(PROD_URL);
   await page.waitForFunction(() => (window as any).vibecad?.store?.get().kernel.status === 'ready', null, { timeout: 60_000 });
+  // Première ouverture : choix du niveau (Expert proposé par défaut), retenu ensuite.
+  const welcome = page.getByRole('dialog', { name: /Bienvenue/ });
+  await expect(welcome).toBeVisible();
+  await welcome.getByRole('button', { name: /Expert/ }).click();
+  await expect(welcome).toHaveCount(0);
+  await expect.poll(() => appState(page, (s) => s.level)).toBe('expert');
   // Le service worker signale la fin de la mise en cache (application, aides, WASM).
   await expect.poll(() => appState(page, (s) => s.offline.status), { timeout: 60_000 }).toBe('ready');
   await expect(page.getByText('Hors ligne : prêt')).toBeVisible();
