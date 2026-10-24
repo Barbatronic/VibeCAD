@@ -275,7 +275,7 @@ function LaserRightPanel() {
         </div>
         {page ? (
           <div class="mat-page" role="tabpanel" aria-label={page.name}>
-            <NameField value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
+            <NameField key={page.id} value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
             <div class="limits-row">
               {numberField('Épaisseur du matériau', page.thickness, 'mm', (thickness) => c.updateLaserMaterial(page.id, { thickness }, 'Épaisseur du matériau'), { step: 0.5 })}
               {numberField('Trait de coupe (kerf)', page.kerf, 'mm', (kerf) => c.updateLaserMaterial(page.id, { kerf }, 'Trait de coupe'), { step: 0.05, max: 2 })}

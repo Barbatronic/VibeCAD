@@ -82,6 +82,8 @@ test('découpe laser : matériau 5 mm choisi seul, page par matériau, export SV
   // Nouveau matériau, renommé.
   await page.getByRole('button', { name: 'Ajouter un matériau' }).click();
   await expect(tabs.getByRole('tab')).toHaveCount(5);
+  // La page du nouveau matériau s'ouvre (sélection juste après l'ajout).
+  await expect(tabs.getByRole('tab').last()).toHaveAttribute('aria-selected', 'true');
   await page.getByLabel('Nom du matériau').fill('MDF 3 mm');
   await page.getByLabel('Nom du matériau').press('Enter');
   await expect(tabs.getByRole('tab', { name: /MDF 3 mm/ })).toHaveAttribute('aria-selected', 'true');
