@@ -32,10 +32,13 @@ for (const width of [1850, 1440, 1280]) {
 test('barre d’outils : écran étroit, les derniers outils passent dans le tiroir « Plus », qui fonctionne', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await openApp(page);
-  await expect.poll(async () => (await fits(page)).fits).toBe(true);
+  // Très petit écran : menu et ateliers sur une ligne, les outils sur la suivante, rien ne dépasse.
+  await expect.poll(() => page.evaluate(() => { const bar = document.querySelector('.topbar') as HTMLElement; return bar.scrollWidth <= bar.clientWidth + 1; })).toBe(true);
+  const tabTop = (await page.locator('#tab-parts').boundingBox())!.y;
+  expect((await page.locator('.toolbar').boundingBox())!.y).toBeGreaterThan(tabTop + 20);
   expect(await fits(page)).toMatchObject({ compact: '4', overflow: true });
-  // Le rang des onglets tient aussi (onglets en icônes).
-  expect(await page.evaluate(() => { const r = document.querySelector('.header-row') as HTMLElement; return r.scrollWidth <= r.clientWidth + 1; })).toBe(true);
+  // Menu et ateliers (en icônes) restent dans la barre.
+  await expect(page.getByRole('button', { name: 'Fichier' })).toBeVisible();
   await expect(page.locator('#tab-assembly')).toBeVisible();
   const more = page.getByRole('button', { name: 'Plus d’outils' });
   await expect(more).toBeVisible();

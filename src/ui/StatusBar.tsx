@@ -1,7 +1,8 @@
 import { LEVELS, type Level } from '../app/levels';
 import type { AppState } from '../app/state';
 import { isDirty } from '../app/state';
-import { formatLength } from '../domain/units';
+import { formatLength, formatNumber, formatVolume } from '../domain/units';
+import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { describeFaceRef, pickFaceReference } from '../features/sketch/support';
 import { TOOL_HELP } from '../sketch/session';
 import { applyUpdate } from '../app/offline';
@@ -79,11 +80,30 @@ export function StatusBar() {
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const offline = useAppState((s) => s.offline);
+  // Rappel de la pièce active (atelier Pièces) : volume et masse dans sa matière ; un clic ouvre Propriétés.
+  const readout = useAppState(
+    (s) => {
+      if (s.workspace !== 'parts') return null;
+      const part = s.doc.parts.find((p) => p.id === s.activePartId);
+      const a = part ? s.display[part.id]?.result.analysis : null;
+      if (!part || !a || a.solidCount === 0) return null;
+      return { name: part.name, volume: formatVolume(a.volume), mass: formatNumber(massOf(a.volume, partMaterial(partMaterialId(part))), 1), idle: s.mode.kind === 'model' };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
   return (
     <footer class="statusbar">
-      <span class="help-text" aria-live="polite">
+      <span class="help-text" aria-live="polite" title={text}>
         {text}
       </span>
+      {readout ? (
+        <button type="button" class="item part-readout" title="Propriétés de la pièce : matière, volume, masse, encombrement" disabled={!readout.idle} onClick={() => c.toggleProperties(true)}>
+          <Icon name="info" />
+          <span>
+            {readout.name} · {readout.volume} · ≈ {readout.mass} g
+          </span>
+        </button>
+      ) : null}
       <label class="item level-pick" title={LEVELS.map((l) => `${l.label} : ${l.description}`).join('\n')}>
         Niveau
         <select class="level-select" aria-label="Niveau de l’interface" value={level} onChange={(e) => c.setLevel((e.target as HTMLSelectElement).value as Level)}>
@@ -94,7 +114,7 @@ export function StatusBar() {
           ))}
         </select>
       </label>
-      <span class="item" title="Toutes les longueurs sont en millimètres">
+      <span class="item units-item" title="Toutes les longueurs sont en millimètres">
         Unités : mm
       </span>
       <span class="item" title={doc.storage ? 'Les projets sont conservés dans ce navigateur' : 'Stockage du navigateur indisponible : utilisez Enregistrer sous…'}>

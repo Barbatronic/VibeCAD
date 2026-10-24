@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   appState,
   buildPlateViaUi,
+  clickEmptyView,
   expectVolume,
   finishSketch,
   openApp,
@@ -37,7 +38,7 @@ test('parcours de la plaque percée, modification de la largeur, annuler et rét
   expect(hole.origin.y).toBeCloseTo(15, 6);
 
   // Annuler puis rétablir : dimensions, historique et géométrie cohérents.
-  await page.locator('.vp-canvas').click({ position: { x: 20, y: 20 } });
+  await clickEmptyView(page);
   await page.keyboard.press('Control+z');
   await expectVolume(page, PLATE_VOLUME);
   await page.keyboard.press('Control+y');

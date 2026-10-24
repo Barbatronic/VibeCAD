@@ -31,7 +31,9 @@ function FileMenu() {
   const exportOk = useAppState((s) => exportAvailability(s).ok);
   const canImport = useAppState((s) => allows(s.level, 'import-step'));
   const tutorialOn = useAppState((s) => s.tutorial !== null);
-  useEffect(() => {
+  const projectName = useAppState((s) => s.doc.name);
+  // Avant l'affichage (layout) : une touche Échap juste après l'ouverture referme bien le menu.
+  useLayoutEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
@@ -67,6 +69,12 @@ function FileMenu() {
     </button>
   );
   const onMenuKey = (e: KeyboardEvent) => {
+    // Échap referme aussi depuis le menu (l'écouteur du document n'est posé qu'après l'affichage).
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      setOpen(false);
+      return;
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
     const items = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('.menu-item') ?? []);
@@ -74,13 +82,31 @@ function FileMenu() {
     items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
   };
   return (
-    <div class="anchor" ref={root}>
-      <button type="button" class="tool-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} title="Fichier : nouveau, ouvrir, enregistrer, importer, exporter ; parcours guidés, aide, préférences">
-        <Icon name="menu" />
-        <span>Fichier</span>
+    <div class="anchor app-menu" ref={root}>
+      <button
+        type="button"
+        class="app-menu-btn"
+        aria-label="Fichier"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        title={`${APP_NAME} — « ${projectName} » : nouveau, ouvrir, enregistrer, importer, exporter ; parcours guidés, aide, préférences`}
+      >
+        <span class="brand">
+          {/* Logo provisoire (cube) : le chat n'est plus le logo, seulement une mascotte facultative. */}
+          <img class="brand-mark" src="icons/icon.svg" alt="" width={26} height={26} />
+          <span class="visually-hidden">{APP_NAME}</span>
+        </span>
+        <Icon name="chevron-down" />
       </button>
       {open ? (
         <div class="menu" role="menu" aria-label="Fichier" onKeyDown={onMenuKey}>
+          {/* En tête du menu : l'application et le nom du projet (modifiable). */}
+          <div class="menu-head">
+            <span class="menu-app">{APP_NAME}</span>
+            <ProjectName />
+          </div>
+          <div class="menu-sep" role="separator" />
           {item('new', 'Nouveau projet', () => c.newProject())}
           {item('open', 'Ouvrir…', () => void c.showOpenDialog(), 'Ctrl+O')}
           {item('save', 'Enregistrer', () => void c.save(), 'Ctrl+S')}
@@ -104,6 +130,11 @@ function ProjectName() {
   const name = useAppState((s) => s.doc.name);
   const [text, setText] = useState(name);
   useEffect(() => setText(name), [name]);
+  const commit = () => {
+    const t = text.trim();
+    if (t && t !== name) c.renameProject(t);
+    else if (!t) setText(name);
+  };
   return (
     <input
       class="project-name"
@@ -111,9 +142,13 @@ function ProjectName() {
       title="Nom du projet (cliquez pour le modifier)"
       value={text}
       onInput={(e) => setText((e.target as HTMLInputElement).value)}
-      onBlur={() => (text.trim() ? c.renameProject(text) : setText(name))}
+      onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        // Entrée enregistre tout de suite : le menu peut se fermer avant que le champ perde le focus.
+        if (e.key === 'Enter') {
+          commit();
+          (e.target as HTMLInputElement).blur();
+        }
         if (e.key === 'Escape') {
           setText(name);
           (e.target as HTMLInputElement).blur();
@@ -178,6 +213,7 @@ function ModelTools() {
       sketch: sketchAvailability(s),
       tools: types.map((t) => toolAvailability(s, t)),
       measure: measureAvailability(s),
+      properties: s.propertiesOpen,
       flat: !!s.display[s.activePartId]?.result.flat,
       unfolded: s.unfolded,
       selectedSketch: s.selection?.kind === 'feature' && s.doc.parts.some((p) => p.features.some((f) => f.id === (s.selection as { featureId: string }).featureId && f.type === 'sketch')),
@@ -245,6 +281,14 @@ function ModelTools() {
       <div class="toolbar-group secondary" role="group" aria-label="Mesurer">
         <div class="sector-tools">
           <ToolButton id="tool-measure" icon="measure" label="Mesurer" hint="Mesurer une arête, une face ou une distance" availability={a.measure} onClick={() => c.startMeasure()} />
+          <ToolButton
+            id="tool-properties"
+            icon="info"
+            label="Propriétés"
+            hint="Propriétés de la pièce : matière, volume, masse, encombrement, centre de gravité"
+            pressed={a.properties}
+            onClick={() => c.toggleProperties()}
+          />
         </div>
         <div class="sector-name" aria-hidden="true">
           Contrôler
@@ -392,7 +436,15 @@ function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTM
     const tools = nav.current;
     if (!el || !tools || expanded) return;
     let frame = 0;
-    const overflowing = () => el.scrollWidth > el.clientWidth + 1;
+    // Débordement des éléments de la barre eux-mêmes (pas de scrollWidth : un menu déroulant ouvert
+    // près du bord dépasse de la barre et ferait compacter la barre en boucle).
+    const overflowing = () => {
+      const right = el.getBoundingClientRect().right - parseFloat(getComputedStyle(el).paddingRight || '0');
+      // Les outils restent dans leur zone (plus étroite que la barre quand ils ont leur propre ligne).
+      const toolsRight = Math.min(right, tools.getBoundingClientRect().right);
+      const out = (items: Element[], limit: number) => (items as HTMLElement[]).some((i) => i !== tools && i.offsetParent !== null && i.getBoundingClientRect().right > limit + 1);
+      return out(Array.from(el.children), right) || out(Array.from(tools.children), toolsRight);
+    };
     const fit = () => {
       cancelAnimationFrame(frame);
       frame = 0;
@@ -464,58 +516,45 @@ export function TopBar() {
   const workspace = useAppState((s) => s.workspace);
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const level = useAppState((s) => s.level);
-  const leftShown = useAppState((s) => (window.matchMedia('(max-width: 980px)').matches ? s.leftPanelOpen : !s.leftPanelHidden));
+  const leftShown = useAppState((s) => s.leftPanelOpen);
   return (
     <header class="app-header">
-      {/* Rang du haut : projet et onglets des ateliers ; rang du dessous : les outils de l'atelier. */}
-      <div class="header-row">
-        <IconButton
-          icon="panel"
-          label="Afficher ou masquer le panneau des pièces"
-          pressed={leftShown}
-          onClick={() => c.toggleLeftPanel(undefined, window.matchMedia('(max-width: 980px)').matches)}
-        />
-        <div class="brand">
-          {/* Logo provisoire (cube) : le chat n'est plus le logo, seulement une mascotte facultative. */}
-          <img class="brand-mark" src="icons/icon.svg" alt="" width={26} height={26} />
-          <span>{APP_NAME}</span>
-        </div>
+      {/* Une seule barre : menu (logo), ateliers, outils de l'atelier. */}
+      <div class="topbar" ref={barRef}>
+        {/* Écran étroit seulement (tiroir des pièces) : sur écran large, la languette du panneau le replie. */}
+        <IconButton id="toggle-left-drawer" icon="panel" label="Afficher ou masquer le panneau des pièces" pressed={leftShown} onClick={() => c.toggleLeftPanel(undefined, true)} />
         <FileMenu />
-        <ProjectName />
         <WorkspaceTabs />
-        <div class="spacer" />
-        {/* Raccourcis pour débuter : Parcours (Débutant) et Aide (Débutant, Intermédiaire) ; tous deux restent dans le menu Fichier. */}
+        {expanded ? <div class="toolbar-placeholder" style={{ width: `${expanded.width}px` }} /> : null}
+        <nav
+          class={`toolbar${expanded ? ' is-expanded' : ''}`}
+          aria-label="Outils"
+          ref={navRef}
+          onClick={(e) => {
+            // Tiroir ouvert : il se referme après un outil (pas après l'ouverture d'un menu).
+            const button = (e.target as Element).closest('button');
+            if (expanded && button && !button.hasAttribute('aria-haspopup')) close();
+          }}
+        >
+          <UndoRedo />
+          {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
+        </nav>
+        <button
+          type="button"
+          class="tool-btn toolbar-more"
+          aria-expanded={!!expanded}
+          aria-label="Plus d’outils"
+          title="Plus d’outils : la barre est trop étroite pour tous les montrer"
+          onClick={() => (expanded ? close() : setExpanded({ width: navRef.current?.offsetWidth ?? 0 }))}
+        >
+          <Icon name="more" />
+          <span>Plus</span>
+        </button>
+        {/* Raccourcis pour débuter : Parcours (Débutant) et Aide (Débutant, Intermédiaire) ; tous deux restent dans le menu. */}
         {level === 'debutant' ? (
           <IconButton icon="graduation" label="Parcours guidés : la plaque percée, l’assemblage, la fabrication" pressed={tutorialOn} onClick={() => (tutorialOn ? c.closeTutorial() : c.startTutorial())} />
         ) : null}
         {level !== 'expert' ? <IconButton icon="help" label="Aide (F1) : commandes de navigation et vocabulaire" onClick={() => c.toggleHelp()} /> : null}
-      </div>
-      <div class="topbar" ref={barRef}>
-      {expanded ? <div class="toolbar-placeholder" style={{ width: `${expanded.width}px` }} /> : null}
-      <nav
-        class={`toolbar${expanded ? ' is-expanded' : ''}`}
-        aria-label="Outils"
-        ref={navRef}
-        onClick={(e) => {
-          // Tiroir ouvert : il se referme après un outil (pas après l'ouverture d'un menu).
-          const button = (e.target as Element).closest('button');
-          if (expanded && button && !button.hasAttribute('aria-haspopup')) close();
-        }}
-      >
-        <UndoRedo />
-        {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
-      </nav>
-      <button
-        type="button"
-        class="tool-btn toolbar-more"
-        aria-expanded={!!expanded}
-        aria-label="Plus d’outils"
-        title="Plus d’outils : la barre est trop étroite pour tous les montrer"
-        onClick={() => (expanded ? close() : setExpanded({ width: navRef.current?.offsetWidth ?? 0 }))}
-      >
-        <Icon name="more" />
-        <span>Plus</span>
-      </button>
       </div>
     </header>
   );

@@ -45,7 +45,7 @@ test('perçage : un point posé avec l’outil Point, percé à un diamètre lib
   await page.mouse.dblclick(top.x, top.y);
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
   await page.waitForTimeout(450);
-  await page.click('#sk-point');
+  await clickTool(page, 'sk-point');
   await clickSketch(page, 45, 15);
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'point').length).toBe(1);
   await finishSketch(page);

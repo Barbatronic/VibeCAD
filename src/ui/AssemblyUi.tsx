@@ -48,11 +48,12 @@ export function WorkspaceTabs() {
               id={`tab-${id}`}
               aria-selected={workspace === id}
               disabled={busy && workspace !== id}
-              title={busy && workspace !== id ? `${title} — terminez d’abord l’opération en cours` : title}
+              title={busy && workspace !== id ? `${label} : ${title} — terminez d’abord l’opération en cours` : `${label} : ${title}`}
               onClick={() => c.setWorkspace(id)}
             >
               <Icon name={icon} />
-              <span>{label}</span>
+              {/* Icône seule dans la barre : le nom reste lu (lecteurs d'écran) et en infobulle. */}
+              <span class="visually-hidden">{label}</span>
             </button>
           ))}
       </div>

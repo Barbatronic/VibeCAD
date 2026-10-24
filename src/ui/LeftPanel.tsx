@@ -1,9 +1,7 @@
 import { allows } from '../app/levels';
-import { PLA_DENSITY } from '../app/fabrication';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Feature, Id, Part } from '../domain/model';
 import type { FeatureStatus } from '../domain/status';
-import { formatNumber, formatVolume } from '../domain/units';
 import { definitionOf, featureSummary } from '../features/registry';
 import { activeCount } from '../app/rollback';
 import { useAppState, useController } from './context';
@@ -38,6 +36,22 @@ function InlineRename(props: { value: string; label: string; onDone: (value: str
   );
 }
 
+/**
+ * Sections repliables du panneau (Pièces, Historique) : repliées, elles ne montrent que l'élément
+ * choisi. L'état est gardé d'un atelier à l'autre (le panneau est recréé en changeant d'atelier).
+ */
+const folded = { parts: false, history: false };
+function useFolded(key: keyof typeof folded): [boolean, () => void] {
+  const [value, setValue] = useState(folded[key]);
+  return [
+    value,
+    () => {
+      folded[key] = !value;
+      setValue(!value);
+    },
+  ];
+}
+
 function PartsSection() {
   const c = useController();
   const parts = useAppState((s) => s.doc.parts);
@@ -46,10 +60,22 @@ function PartsSection() {
   const isolatedId = useAppState((s) => (s.isolatedPartId && s.doc.parts.some((p) => p.id === s.isolatedPartId) ? s.isolatedPartId : null));
   const [renaming, setRenaming] = useState<Id | null>(null);
   const isolated = parts.find((p) => p.id === isolatedId);
+  const [fold, toggleFold] = useFolded('parts');
+  const shown = fold ? parts.filter((p) => p.id === activePartId) : parts;
   return (
     <section class="panel-section" aria-labelledby="parts-title">
       <div class="panel-header">
-        <span id="parts-title">Pièces</span>
+        <button
+          type="button"
+          class="section-toggle"
+          aria-expanded={!fold}
+          title={fold ? 'Montrer toutes les pièces' : 'Replier : ne montrer que la pièce choisie'}
+          onClick={toggleFold}
+        >
+          <Icon name={fold ? 'chevron-right' : 'chevron-down'} />
+          <span id="parts-title">Pièces</span>
+          {parts.length > 1 ? <span class="count">{parts.length}</span> : null}
+        </button>
         <span class="spacer" />
         <IconButton
           id="part-add"
@@ -62,7 +88,7 @@ function PartsSection() {
       </div>
       <div class="panel-body">
         <ul class="part-list">
-          {parts.map((p) => (
+          {shown.map((p) => (
             <li key={p.id} class={`part-row${p.id === activePartId ? ' is-active' : ''}${(isolatedId ? p.id === isolatedId : p.visible) ? '' : ' is-hidden'}`}>
               <label class="color-swatch" style={{ background: p.color }} title={`Couleur de « ${p.name} »`}>
                 <input
@@ -220,17 +246,18 @@ function HistorySection() {
     (s) => Object.fromEntries((part ? (s.display[part.id]?.result.sketches ?? []) : []).map((k) => [k.featureId, k.dof])) as Record<Id, number>,
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  const analysis = useAppState((s) => (part ? s.display[part.id]?.result.analysis : null));
-  const showCentroid = useAppState((s) => s.showCentroid);
-  const canCentroid = useAppState((s) => allows(s.level, 'view-centroid'));
   const selection = useAppState((s) => s.selection);
   const draft = useAppState((s) => (s.mode.kind === 'feature' && s.mode.draft.isNew ? s.mode.draft.feature : null));
   const editingSketch = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.featureId : null));
   const rollback = useAppState((s) => s.rollback);
   const [renaming, setRenaming] = useState<Id | null>(null);
+  const [foldHistory, toggleFoldHistory] = useFolded('history');
   if (!part) return null;
   const statusOf = (id: Id) => statuses?.find((st) => st.featureId === id);
   const active = activeCount(part, rollback);
+  // Repliée : seule l'étape choisie (sinon l'esquisse en cours, sinon la dernière étape calculée).
+  const selectedId = selection?.kind === 'feature' && part.features.some((f) => f.id === selection.featureId) ? selection.featureId : null;
+  const shownId = foldHistory ? (selectedId ?? editingSketch ?? part.features[active - 1]?.id ?? null) : null;
   const draftRow = draft ? (
     <li key="draft-row">
       <div class="feature-row is-selected">
@@ -258,7 +285,17 @@ function HistorySection() {
   return (
     <section class="panel-section grow" aria-labelledby="history-title">
       <div class="panel-header">
-        <span id="history-title">Historique — {part.name}</span>
+        <button
+          type="button"
+          class="section-toggle"
+          aria-expanded={!foldHistory}
+          title={foldHistory ? 'Montrer toutes les étapes' : 'Replier : ne montrer que l’étape choisie'}
+          onClick={toggleFoldHistory}
+        >
+          <Icon name={foldHistory ? 'chevron-right' : 'chevron-down'} />
+          <span id="history-title">Historique — {part.name}</span>
+          {part.features.length > 1 ? <span class="count">{part.features.length}</span> : null}
+        </button>
       </div>
       <div class="panel-body">
         {part.features.length === 0 && !draft ? (
@@ -267,8 +304,9 @@ function HistorySection() {
           </p>
         ) : null}
         <ol class="feature-list" aria-label={`Étapes de construction de ${part.name}`}>
-          {active === 0 && part.features.length > 0 ? [draftRow, rollbackMarker] : null}
+          {active === 0 && part.features.length > 0 && !foldHistory ? [draftRow, rollbackMarker] : null}
           {part.features.flatMap((f, index) => {
+            if (foldHistory && f.id !== shownId) return [];
             const after = index >= active;
             const status = after ? undefined : statusOf(f.id);
             const def = definitionOf(f);
@@ -326,28 +364,11 @@ function HistorySection() {
                 {status && status.state !== 'ok' ? <IssueBox part={part} feature={f} status={status} /> : null}
               </li>
             );
+            if (foldHistory) return [row];
             return index === active - 1 && active < part.features.length ? [row, draftRow, rollbackMarker] : [row];
           })}
-          {active === part.features.length ? draftRow : null}
+          {active === part.features.length || foldHistory ? draftRow : null}
         </ol>
-        {analysis && analysis.solidCount > 0 ? (
-          <div class="part-figures">
-            <p class="field-help">
-              Volume de la pièce : <strong>{formatVolume(analysis.volume)}</strong>
-              {analysis.solidCount > 1 ? ` (${analysis.solidCount} morceaux séparés)` : ''}
-              <br />
-              Masse en PLA (pleine) : <strong>≈ {formatNumber((analysis.volume * PLA_DENSITY) / 1000, 1)} g</strong>
-            </p>
-            {canCentroid && analysis.centroid ? (
-              <label class="checkbox-row" title="Le centre de gravité est le point d’équilibre de la pièce : posée sur une pointe à cet endroit, elle tiendrait en équilibre.">
-                <input type="checkbox" checked={showCentroid} onChange={() => c.toggleCentroid()} />
-                <span>
-                  Centre de gravité : {formatNumber(analysis.centroid.x, 1)} ; {formatNumber(analysis.centroid.y, 1)} ; {formatNumber(analysis.centroid.z, 1)} mm
-                </span>
-              </label>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     </section>
   );

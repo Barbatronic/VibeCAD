@@ -25,7 +25,7 @@ test('références entre pièces : esquisse de la pièce 2 sur une face de la pi
   await page.waitForTimeout(450);
 
   // Projeter : l'arête avant du dessus de la pièce 1 (y = 0).
-  await page.click('#sk-project');
+  await clickTool(page, 'sk-project');
   await expect
     .poll(async () => {
       await moveSketch(page, 20 + Math.random() * 0.01, 0);

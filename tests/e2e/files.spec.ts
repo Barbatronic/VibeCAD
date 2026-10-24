@@ -13,6 +13,7 @@ import { openExport,
   openFileMenu,
   PLATE_VOLUME,
   session,
+  sketchToScreen,
   WIDE_PLATE_VOLUME,
 } from './helpers';
 
@@ -27,15 +28,22 @@ async function exportStep(page: Page, file: string): Promise<string> {
 test('enregistrer dans le navigateur, recharger, puis modifier la première esquisse', async ({ page }) => {
   await openApp(page);
   await buildPlateViaUi(page);
+  // Le nom du projet est en tête du menu (logo).
+  await openFileMenu(page);
   await page.getByRole('textbox', { name: 'Nom du projet' }).fill('Ma plaque');
   await page.getByRole('textbox', { name: 'Nom du projet' }).press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: 'Fichier' })).toHaveCount(0);
   await page.keyboard.press('Control+s');
   await expect(page.getByText(/Projet enregistré/)).toBeVisible();
   await expect(page.getByText(/Enregistré à/)).toBeVisible();
 
   await page.reload();
   await page.waitForFunction(() => (window as any).vibecad?.store?.get().kernel.status === 'ready');
+  await openFileMenu(page);
   await expect(page.getByRole('textbox', { name: 'Nom du projet' })).toHaveValue('Ma plaque');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: 'Fichier' })).toHaveCount(0);
   await expectVolume(page, PLATE_VOLUME);
   const history = page.getByRole('list', { name: /Étapes de construction/ });
   await expect(history.getByRole('listitem')).toHaveCount(4);
@@ -97,6 +105,11 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
   await page.click('#tool-sketch');
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
+  await page.waitForTimeout(450);
+  // Recul (molette) : la plaque remplit la zone libre, la cale se dessine à sa droite.
+  const origin = await sketchToScreen(page, 30, 15);
+  await page.mouse.move(origin.x, origin.y);
+  await page.mouse.wheel(0, 600);
   await page.waitForTimeout(450);
   await clickSketch(page, 70, 0);
   await moveSketch(page, 80, 10);

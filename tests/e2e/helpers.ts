@@ -155,9 +155,44 @@ export async function buildPlateViaUi(page: Page): Promise<void> {
  */
 export async function clickTool(page: Page, id: string): Promise<void> {
   const button = page.locator(`#${id}`);
-  if (await button.isVisible()) return button.click();
-  await page.locator('.sector', { has: button }).locator('.split-toggle').click();
-  await page.click(`#${id.replace(/^(tool|sk)-/, '$1-menu-')}`);
+  // La barre se recompacte quand son contenu change : un outil sorti peut passer dans le menu de
+  // son secteur entre le test de visibilité et le clic. On réessaie alors par le menu.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await button.isVisible()) {
+      try {
+        return await button.click({ timeout: 3000 });
+      } catch {
+        continue;
+      }
+    }
+    const toggle = page.locator('.sector', { has: button }).locator('.split-toggle');
+    if (await toggle.isVisible()) {
+      await toggle.click();
+      return page.click(`#${id.replace(/^(tool|sk)-/, '$1-menu-')}`);
+    }
+  }
+  return button.click();
+}
+
+/** Zone libre de la vue 3D (coordonnées de la page) : hors de la barre et des panneaux flottants. */
+export async function freeViewArea(page: Page): Promise<{ left: number; top: number; right: number; bottom: number }> {
+  const box = (await page.locator('.vp-canvas').boundingBox())!;
+  const inset = await page.evaluate(() => {
+    const main = document.querySelector('.main') as HTMLElement;
+    const v = (name: string) => parseFloat(main.style.getPropertyValue(name)) || 0;
+    return { l: v('--vp-inset-l'), r: v('--vp-inset-r'), t: v('--vp-inset-t') };
+  });
+  return { left: box.x + inset.l, top: box.y + inset.t, right: box.x + box.width - inset.r, bottom: box.y + box.height };
+}
+
+/** Clic sur un coin vide de la vue 3D, hors de la barre et des panneaux flottants (donne le focus à la vue). */
+export async function clickEmptyView(page: Page): Promise<void> {
+  const at = await page.evaluate(() => {
+    const main = document.querySelector('.main') as HTMLElement;
+    const v = (name: string) => parseFloat(main.style.getPropertyValue(name)) || 0;
+    return { x: v('--vp-inset-l') + 20, y: v('--vp-inset-t') + 20 };
+  });
+  await page.locator('.vp-canvas').click({ position: at });
 }
 
 export async function openFileMenu(page: Page): Promise<void> {

@@ -13,7 +13,7 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   await page.waitForTimeout(450);
 
   // Projeter : le bord du trou (cercle Ø 6 centré en 15, 15) et le bord avant de la plaque.
-  await page.click('#sk-project');
+  await clickTool(page, 'sk-project');
   // Les arêtes à reprendre peuvent arriver juste après le choix de l'outil : survoler à nouveau.
   await expect
     .poll(async () => {

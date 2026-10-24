@@ -15,6 +15,7 @@ import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
 import { SketchLists } from './SketchLists';
+import { PropertiesPanel } from './PropertiesPanel';
 import { allows } from '../app/levels';
 
 function supportText(support: SketchSupport, part: Part | undefined): string {
@@ -328,10 +329,11 @@ export function RightPanel() {
   const mode = useAppState((s) => s.mode.kind);
   const workspace = useAppState((s) => s.workspace);
   const session = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session : null));
+  const propertiesOpen = useAppState((s) => s.propertiesOpen);
   if (workspace === 'assembly') return <AssemblyRightPanel />;
   if (workspace === 'fabrication') return <FabricationRightPanel />;
   if (workspace === 'simulation') return <SimulationRightPanel />;
-  if (mode === 'model') return null;
+  if (mode === 'model') return propertiesOpen ? <PropertiesPanel /> : null;
   return (
     <aside class="panel right-panel" aria-label="Paramètres de l’opération en cours">
       {mode === 'sketch' && session ? <SketchPanel session={session} /> : null}

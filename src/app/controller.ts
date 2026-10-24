@@ -35,6 +35,7 @@ import {
   renamePart,
   replaceFeature,
   setPartColor,
+  setPartMaterial,
   setPartVisible,
   updateFeature,
 } from '../domain/document';
@@ -683,6 +684,19 @@ export class AppController {
     const part = findPart(this.state.doc, partId);
     if (!part || part.color === color) return;
     this.commit(setPartColor(this.state.doc, partId, color), `Changer la couleur de « ${part.name} »`);
+  }
+
+  /** Matière de la pièce : masse (Propriétés), matériau par défaut de ses études de simulation. */
+  setPartMaterial(partId: Id, material: string): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || part.material === material) return;
+    this.commit(setPartMaterial(this.state.doc, partId, material), `Matière de « ${part.name} »`);
+  }
+
+  /** Ouvre ou ferme le panneau Propriétés de la pièce active. */
+  toggleProperties(open?: boolean): void {
+    const next = open ?? !this.state.propertiesOpen;
+    this.set({ propertiesOpen: next, ...(next ? { rightPanelHidden: false } : {}) });
   }
 
   deletePart(partId: Id): void {
@@ -1886,6 +1900,11 @@ export class AppController {
   toggleLeftPanel(open?: boolean, narrow = false): void {
     if (narrow) this.set({ leftPanelOpen: open ?? !this.state.leftPanelOpen });
     else this.set({ leftPanelHidden: open === undefined ? !this.state.leftPanelHidden : !open });
+  }
+
+  /** Replie ou rouvre le panneau de droite (réglages de l'opération, de la liaison…). */
+  toggleRightPanel(open?: boolean): void {
+    this.set({ rightPanelHidden: open === undefined ? !this.state.rightPanelHidden : !open });
   }
 
   // =========================================================================

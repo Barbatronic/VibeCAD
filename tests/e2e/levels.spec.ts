@@ -46,7 +46,8 @@ test('niveaux : choix à la première ouverture (Expert par défaut), Débutant,
   await expect(page.locator('#sk-parallel')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Annuler/ }).last().click();
-  await expect(page.locator('#tool-revolve')).toBeVisible();
+  // Révolution disponible (sortie, ou rangée dans le menu de son secteur selon la place).
+  await expect(page.locator('#tool-revolve')).toHaveCount(1);
   await expect(page.locator('#tab-assembly')).toBeVisible();
 
   // Retenu après rechargement.

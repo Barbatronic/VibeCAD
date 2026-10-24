@@ -66,17 +66,219 @@ textarea {
   min-height: 0;
 }
 
-/* Écran large : panneau des pièces masqué (bouton en haut à gauche), la vue prend la place. */
+/* Zone de la vue 3D (et du parcours guidé posé dessus). */
+.viewport-area {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+}
+
+/* Languettes des panneaux flottants : seulement sur écran large. */
+.panel-handle {
+  display: none;
+}
+
+/*
+ * Écran large : la vue occupe toute la largeur ; les panneaux flottent par-dessus (coins arrondis,
+ * fond translucide et flouté : le modèle reste visible derrière). Une languette sur leur bord les
+ * replie contre le côté de l'écran, ou les rouvre. La vue centre son cadrage sur la zone libre
+ * (ViewportHost mesure la place prise par les panneaux).
+ */
 @media (min-width: 981px) {
-  .main.left-collapsed {
-    grid-template-columns: 0 minmax(0, 1fr) auto;
+  .app {
+    /* Verre des éléments flottants : translucide et flouté. */
+    --glass-bg: color-mix(in srgb, var(--surface) var(--glass-alpha), transparent);
+    --glass-border: color-mix(in srgb, var(--border) 70%, transparent);
+    /* Flou léger et teinte (sombre en thème sombre) : le modèle reste visible derrière, assombri. */
+    --glass-filter: blur(6px) saturate(1.2) var(--glass-tone);
+    /* Couleurs pleines du thème, gardées pour les éléments flottants qui redéfinissent les leurs. */
+    --surface-solid: var(--surface);
+    --surface-2-solid: var(--surface-2);
+    /* Bandeau du haut posé sur la vue : la vue occupe toute la hauteur. */
+    grid-template-rows: minmax(0, 1fr) auto;
   }
-  /* L'élément reste dans la grille (sinon la vue glisserait dans la colonne vide). */
-  .main.left-collapsed .left-panel {
+  .app > .app-header,
+  .app > .main {
+    grid-area: 1 / 1;
+  }
+  /* Le bouton du tiroir des pièces ne sert qu'en écran étroit (ici : languette du panneau). */
+  #toggle-left-drawer {
+    display: none;
+  }
+  .app > .app-header {
+    align-self: start;
+    pointer-events: none;
+  }
+  .app-header > * {
+    pointer-events: auto;
+  }
+  /*
+   * Verre : le flou est porté par un fond (::before), pas par l'élément lui-même. Un élément flouté
+   * borne le flou de ce qu'il contient : ses menus déroulants ne floutteraient plus la vue derrière.
+   */
+  .app-header > .topbar,
+  .main > .left-panel,
+  .main > .right-panel {
+    isolation: isolate;
+  }
+  .app-header > .topbar::before,
+  .main > .left-panel::before,
+  .main > .right-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    pointer-events: none;
+  }
+  /* Fonds intérieurs (encadrés, champs, secteurs, menus) translucides eux aussi. */
+  .app-header,
+  .main > .panel,
+  .app .menu {
+    --surface: color-mix(in srgb, var(--surface-solid) var(--glass-alpha), transparent);
+    --surface-2: color-mix(in srgb, var(--surface-2-solid) calc(var(--glass-alpha) + 8%), transparent);
+  }
+  /* Éléments posés sur la vue (frise de l'historique, boutons de vue, bandeau, coupe) : même verre. */
+  .main .timeline,
+  .main .view-controls .cluster,
+  .main .overlay-banner,
+  .main .section-panel,
+  .main .busy-indicator {
+    --surface: color-mix(in srgb, var(--surface-solid) var(--glass-alpha), transparent);
+    --surface-2: color-mix(in srgb, var(--surface-2-solid) calc(var(--glass-alpha) + 8%), transparent);
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+  /* Menus déroulants : verre, un peu plus couvrant pour rester lisibles. */
+  .app .menu,
+  .app .topbar .toolbar.is-expanded {
+    background: color-mix(in srgb, var(--surface-solid) calc(var(--glass-alpha) + 20%), transparent);
+    border-color: var(--glass-border);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+  /* Barre : un bloc flottant aux coins arrondis, calé à gauche (le menu et les ateliers ne bougent
+     pas quand les outils changent d'un atelier à l'autre). */
+  .app-header > .topbar {
+    width: fit-content;
+    max-width: calc(100% - 20px);
+    margin: 8px 0 0 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    background: transparent;
+    box-shadow: var(--shadow-2);
+  }
+  .main {
+    position: relative;
+    display: block;
+    --float-gap: 10px;
+    --left-width: 286px;
+    --right-width: 336px;
+  }
+  .viewport-area {
+    position: absolute;
+    inset: 0;
+  }
+  .main > .left-panel,
+  .main > .right-panel {
+    position: absolute;
+    z-index: 6;
+    /* Sous la barre d'outils flottante (hauteur mesurée par ViewportHost). */
+    top: calc(var(--vp-inset-t) + var(--float-gap));
+    bottom: var(--float-gap);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    background: transparent;
+    box-shadow: var(--shadow-2);
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease,
+      visibility 0s;
+  }
+  .main > .left-panel {
+    left: var(--float-gap);
+    width: var(--left-width);
+  }
+  .main > .right-panel {
+    right: var(--float-gap);
+    width: var(--right-width);
+  }
+  .main.left-collapsed > .left-panel {
+    transform: translateX(calc(-100% - 2 * var(--float-gap)));
+    opacity: 0;
     visibility: hidden;
-    overflow: hidden;
-    min-width: 0;
-    border: 0;
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease,
+      visibility 0s 0.22s;
+  }
+  .main.right-collapsed > .right-panel {
+    transform: translateX(calc(100% + 2 * var(--float-gap)));
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease,
+      visibility 0s 0.22s;
+  }
+  .panel-handle {
+    position: absolute;
+    z-index: 7;
+    top: calc(50% + var(--vp-inset-t) / 2);
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 56px;
+    padding: 0;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    color: var(--text-muted);
+    box-shadow: var(--shadow-1, none);
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition:
+      left 0.22s ease,
+      right 0.22s ease,
+      color 0.15s;
+  }
+  .panel-handle:hover {
+    color: var(--accent);
+  }
+  .panel-handle .icon,
+  .panel-handle svg {
+    width: 16px;
+    height: 16px;
+  }
+  .panel-handle.left {
+    left: calc(var(--float-gap) + var(--left-width));
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+  }
+  .main.left-collapsed > .panel-handle.left {
+    left: 0;
+  }
+  .panel-handle.right {
+    right: calc(var(--float-gap) + var(--right-width));
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+  }
+  .main.right-collapsed > .panel-handle.right {
+    right: 0;
+  }
+  .main > .panel .panel-actions {
+    background: color-mix(in srgb, var(--surface-2) 40%, transparent);
+  }
+  /* Pas de panneau de droite (modélisation sans opération en cours) : pas de languette. */
+  .main:not(:has(> .right-panel)) > .panel-handle.right {
+    display: none;
   }
 }
 
@@ -85,8 +287,9 @@ textarea {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  /* Écart constant (même compactée) : le menu et les ateliers ne bougent pas d'un atelier à l'autre. */
+  gap: 3px;
+  padding: 4px 6px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   min-height: 64px;
@@ -139,7 +342,7 @@ textarea {
 .toolbar {
   display: flex;
   align-items: stretch;
-  gap: 4px;
+  gap: 3px;
   flex-wrap: nowrap;
 }
 
@@ -153,7 +356,7 @@ textarea {
 .toolbar-group.sector,
 .toolbar-group.secondary {
   flex-direction: column;
-  padding: 2px 3px 1px;
+  padding: 2px 2px 1px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
@@ -366,7 +569,7 @@ textarea {
 
 .timeline {
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--vp-shift));
   bottom: 12px;
   transform: translateX(-50%);
   z-index: 6;
@@ -640,6 +843,14 @@ textarea {
 .right-panel {
   width: 336px;
   border-left: 1px solid var(--border);
+}
+
+/* Place prise par les panneaux flottants sur la vue (mesurée par ViewportHost). */
+.main {
+  --vp-inset-l: 0px;
+  --vp-inset-r: 0px;
+  --vp-inset-t: 0px;
+  --vp-shift: calc((var(--vp-inset-l) - var(--vp-inset-r)) / 2);
 }
 
 .panel-section {
@@ -1449,8 +1660,8 @@ details.advanced summary {
 
 .view-controls {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: calc(10px + var(--vp-inset-t));
+  right: calc(10px + var(--vp-inset-r));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1473,8 +1684,8 @@ details.advanced summary {
 
 .overlay-banner {
   position: absolute;
-  top: 10px;
-  left: 50%;
+  top: calc(10px + var(--vp-inset-t));
+  left: calc(50% + var(--vp-shift));
   transform: translateX(-50%);
   z-index: 6;
   max-width: min(640px, calc(100% - 140px));
@@ -1621,7 +1832,7 @@ details.advanced summary {
 .busy-indicator {
   position: absolute;
   bottom: 12px;
-  right: 12px;
+  right: calc(12px + var(--vp-inset-r));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1644,8 +1855,10 @@ details.advanced summary {
 .statusbar {
   display: flex;
   align-items: center;
-  /* Écran étroit : l'aide passe sur sa propre ligne plutôt que d'être écrasée mot par mot. */
-  flex-wrap: wrap;
+  /* Une seule ligne, hauteur fixe : un message plus long ne doit pas rétrécir la vue 3D (elle
+     bougerait sous la souris). Le message trop long est coupé, en entier dans l'infobulle. */
+  flex-wrap: nowrap;
+  overflow: hidden;
   gap: 2px 14px;
   min-height: 38px;
   padding: 4px 12px;
@@ -1658,7 +1871,18 @@ details.advanced summary {
 .statusbar .help-text {
   flex: 1 1 320px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text);
+}
+
+/* Écran étroit : le message d'abord ; le rappel de la pièce et les unités se retirent. */
+@media (max-width: 720px) {
+  .statusbar .part-readout,
+  .statusbar .units-item {
+    display: none;
+  }
 }
 
 .statusbar .item {
@@ -1869,7 +2093,7 @@ kbd {
 
 .tutorial {
   position: absolute;
-  left: 12px;
+  left: calc(12px + var(--vp-inset-l));
   bottom: 112px;
   z-index: 8;
   width: min(380px, calc(100% - 24px));
@@ -2025,14 +2249,6 @@ kbd {
    data-compact 2 (outils secondaires en icônes), 3 (tous les outils en icônes seules ; le nom
    reste dans l'infobulle et pour les lecteurs d'écran) et 4 (espacements réduits). En
    dernier recours (data-overflow), les derniers groupes passent dans le tiroir « Plus ». */
-.topbar[data-compact='2'] .brand span,
-.topbar[data-compact='3'] .brand span,
-.topbar[data-compact='4'] .brand span {
-  display: none;
-}
-.topbar[data-compact] {
-  gap: 4px;
-}
 .topbar[data-compact] .tool-btn {
   min-width: 44px;
   padding: 4px 3px;
@@ -2040,9 +2256,6 @@ kbd {
 }
 .topbar[data-compact] .toolbar-group {
   padding-inline: 2px;
-}
-.topbar[data-compact] .project-name {
-  width: 104px;
 }
 /* Palier 1 : Annuler, Rétablir, Parcours, Aide et Préférences en icônes seules. */
 .topbar[data-compact] .history-group .tool-btn,
@@ -2085,9 +2298,6 @@ kbd {
     white-space: nowrap;
 }
 /* Palier 4 : espacements réduits. */
-.topbar[data-compact='4'] .project-name {
-  width: 80px;
-}
 .topbar[data-compact='4'] .toolbar-group {
   padding-inline: 1px;
 }
@@ -2140,6 +2350,16 @@ kbd {
   .main {
     grid-template-columns: 0 minmax(0, 1fr) auto;
   }
+  /* Le tiroir des pièces sort de la grille (position absolue) : colonnes explicites, sinon la vue
+     tomberait dans la colonne vide. */
+  .main > .viewport-area {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .main > .right-panel {
+    grid-column: 3;
+    grid-row: 1;
+  }
   .left-panel {
     position: absolute;
     z-index: 30;
@@ -2177,6 +2397,107 @@ kbd {
     border-left: none;
     border-top: 1px solid var(--border);
     box-shadow: var(--shadow-2);
+  }
+}
+
+/* Barre d'état : rappel de la pièce active (un clic ouvre Propriétés). */
+.statusbar .part-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.statusbar .part-readout:hover:not(:disabled) {
+  color: var(--accent);
+}
+.statusbar .part-readout:disabled {
+  cursor: default;
+}
+.statusbar .part-readout svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Propriétés : matières en boutons (nom et masse volumique), la matière choisie en couleur. */
+.material-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 4px 0;
+}
+.material-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.material-chip:hover {
+  border-color: var(--accent);
+}
+.material-chip[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.material-name {
+  font-weight: 600;
+}
+.material-density {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+/* Propriétés de la pièce : libellé à gauche, valeur à droite. */
+.props-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 12px 0;
+}
+.props-list dt {
+  color: var(--text-muted);
+}
+.props-list dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Listes déroulantes natives : options sur fond plein (les panneaux flottants sont translucides). */
+select option,
+select optgroup {
+  background: var(--surface-solid, var(--surface));
+  color: var(--text);
+}
+
+/* Très petit écran : menu et ateliers sur une ligne, les outils sur la suivante. */
+@media (max-width: 600px) {
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .topbar > .toolbar,
+  .topbar > .toolbar-placeholder {
+    order: 2;
+    flex: 1 0 calc(100% - 64px);
+    min-width: 0;
+  }
+  .topbar > .toolbar-more {
+    order: 3;
   }
 }
 
@@ -2256,7 +2577,7 @@ kbd {
 
 .mascot-bubble {
   position: absolute;
-  left: 12px;
+  left: calc(12px + var(--vp-inset-l));
   bottom: 120px;
   z-index: 7;
   display: flex;
@@ -2311,7 +2632,7 @@ kbd {
 
 .mascot-mini {
   position: absolute;
-  left: 12px;
+  left: calc(12px + var(--vp-inset-l));
   bottom: 120px;
   z-index: 7;
   padding: 4px;
@@ -2363,74 +2684,100 @@ kbd {
 
 /* ------------------------------------------------------------------ Assemblage */
 
-/* En-tête : rang du projet et des onglets d'ateliers, puis rang des outils (.topbar). */
+/* En-tête : une seule barre (.topbar) — menu (logo), ateliers, outils de l'atelier. */
 .app-header {
   position: relative;
   z-index: 20;
   min-width: 0;
 }
 
-.header-row {
-  display: flex;
+/* Menu de l'application : le logo ouvre Fichier ; le nom du projet est en tête du menu. */
+.app-menu-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
-  min-height: 42px;
-  padding: 0 10px;
+  gap: 2px;
+  flex: none;
+  min-height: 50px;
+  padding: 4px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.app-menu-btn:hover,
+.app-menu-btn[aria-expanded='true'] {
   background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.app-menu-btn .brand {
+  padding: 0;
+}
+.app-menu-btn > svg {
+  width: 14px;
+  height: 14px;
+}
+.menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px 6px;
+}
+.menu-app {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.menu-head .project-name {
+  width: 100%;
+  max-width: none;
+  border-color: var(--border);
 }
 
-.header-row .brand span {
-  font-size: 15px;
-}
-
+/* Ateliers : icônes seules, l'atelier actif en couleur (nom en infobulle). */
 .workspace-bar {
   display: flex;
-  align-self: flex-end;
-  min-width: 0;
-  margin-left: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  align-items: center;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
 }
 
-/* Onglets de classeur : l'atelier actif se raccorde à la zone de travail. */
 .workspace-tabs {
   display: flex;
   gap: 2px;
 }
 
 .workspace-tabs button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: -1px;
-  padding: 5px 14px 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 40px;
+  padding: 0;
   border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
-  font-weight: 600;
-  white-space: nowrap;
   cursor: pointer;
 }
 
 .workspace-tabs button svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .workspace-tabs button:hover:not(:disabled) {
   color: var(--text);
-  background: var(--surface);
+  background: var(--surface-2);
 }
 
 .workspace-tabs button[aria-selected='true'] {
-  background: var(--surface);
+  background: var(--accent-soft);
   color: var(--accent);
-  border-color: var(--border);
-  box-shadow: inset 0 2px 0 var(--accent);
+  border-color: var(--accent);
 }
 
 .workspace-tabs button:disabled {
@@ -2867,8 +3214,8 @@ kbd {
 /* Réglages de la vue en coupe, sous les boutons de vue. */
 .section-panel {
   position: absolute;
-  top: 10px;
-  right: 64px;
+  top: calc(10px + var(--vp-inset-t));
+  right: calc(64px + var(--vp-inset-r));
   z-index: 12;
   display: flex;
   flex-direction: column;
@@ -2924,14 +3271,6 @@ kbd {
   /* Décalé à côté du symbole (la position est gérée par la vue : pas de transform ici). */
   margin: -26px 0 0 26px;
   pointer-events: none;
-}
-
-.part-figures {
-  margin: 12px 4px 0;
-}
-
-.part-figures .field-help {
-  margin: 0 0 4px;
 }
 
 .collision-list {
@@ -3522,29 +3861,3 @@ kbd {
   border-top: 1px solid var(--border);
 }
 
-/* En-tête étroit : le nom du logiciel puis les libellés des onglets disparaissent (icônes, nom en infobulle). */
-@media (max-width: 1000px) {
-  .header-row .brand span {
-    display: none;
-  }
-  .header-row .project-name {
-    width: 140px;
-  }
-}
-
-@media (max-width: 760px) {
-  .workspace-tabs button span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .workspace-tabs button {
-    padding: 5px 10px 6px;
-  }
-  .header-row .project-name {
-    width: 100px;
-  }
-}

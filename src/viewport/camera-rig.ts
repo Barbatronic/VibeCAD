@@ -40,6 +40,10 @@ export class CameraRig {
   projection: Projection = 'perspective';
   private width = 1;
   private height = 1;
+  /** Place cachée à gauche, à droite et en haut par les panneaux et la barre flottants (px) : le centre de la vue et le cadrage portent sur la zone libre. */
+  private insetLeft = 0;
+  private insetRight = 0;
+  private insetTop = 0;
   private transition: Transition | null = null;
 
   constructor(domElement: HTMLElement, private readonly onChange: () => void) {
@@ -71,7 +75,39 @@ export class CameraRig {
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    this.perspective.aspect = this.width / this.height;
+    this.applyView();
+  }
+
+  /** Panneaux et barre posés sur la vue : le centre de projection passe au milieu de la zone libre. */
+  setInsets(left: number, right: number, top = 0): void {
+    const l = Math.max(0, Math.round(left));
+    const r = Math.max(0, Math.round(right));
+    const t = Math.max(0, Math.round(top));
+    if (l === this.insetLeft && r === this.insetRight && t === this.insetTop) return;
+    this.insetLeft = l;
+    this.insetRight = r;
+    this.insetTop = t;
+    this.applyView();
+  }
+
+  /** Cadre complet : la vue en est une partie, décalée pour centrer la zone libre. */
+  private fullWidth(): number {
+    return this.width + Math.abs(this.insetLeft - this.insetRight);
+  }
+
+  private fullHeight(): number {
+    return this.height + this.insetTop;
+  }
+
+  private applyView(): void {
+    const d = this.insetLeft - this.insetRight;
+    const full = this.fullWidth();
+    const fullH = this.fullHeight();
+    this.perspective.aspect = full / fullH;
+    for (const cam of [this.perspective, this.orthographic]) {
+      if (d === 0 && this.insetTop === 0) cam.clearViewOffset();
+      else cam.setViewOffset(full, fullH, (Math.abs(d) - d) / 2, 0, this.width, this.height);
+    }
     this.perspective.updateProjectionMatrix();
     this.updateOrthoFrustum();
     this.onChange();
@@ -83,7 +119,7 @@ export class CameraRig {
 
   private updateOrthoFrustum(distance = this.distance()): void {
     const halfH = distance * Math.tan(MathUtils.degToRad(FOV / 2));
-    const halfW = halfH * (this.width / this.height);
+    const halfW = halfH * (this.fullWidth() / this.fullHeight());
     this.orthographic.left = -halfW;
     this.orthographic.right = halfW;
     this.orthographic.top = halfH;
@@ -127,10 +163,10 @@ export class CameraRig {
   /** Taille d'un pixel écran en mm, à la profondeur de la cible. */
   pixelSize(): number {
     if (this.projection === 'orthographic') {
-      return (this.orthographic.top - this.orthographic.bottom) / this.orthographic.zoom / this.height;
+      return (this.orthographic.top - this.orthographic.bottom) / this.orthographic.zoom / this.fullHeight();
     }
     const d = this.distance();
-    return (2 * d * Math.tan(MathUtils.degToRad(FOV / 2))) / this.height;
+    return (2 * d * Math.tan(MathUtils.degToRad(FOV / 2))) / this.fullHeight();
   }
 
   /** Oriente la caméra selon une direction (de la cible vers la caméra) et un haut d'écran. */
@@ -196,8 +232,12 @@ export class CameraRig {
     const center = box.getCenter(new Vector3());
     const radius = Math.max(box.getSize(new Vector3()).length() / 2, 5);
     const fov = MathUtils.degToRad(FOV);
-    const fit = Math.min(fov, 2 * Math.atan(Math.tan(fov / 2) * (this.width / this.height)));
-    return { center, distance: (radius / Math.sin(fit / 2)) * 1.1 };
+    // Zone libre entre les panneaux et sous la barre ; angle par pixel du cadre complet.
+    const freeW = Math.max(this.width * 0.3, this.width - this.insetLeft - this.insetRight);
+    const freeH = Math.max(this.height * 0.3, this.height - this.insetTop);
+    const perPixel = Math.tan(fov / 2) / (this.fullHeight() / 2);
+    const half = Math.atan((perPixel * Math.min(freeW, freeH)) / 2);
+    return { center, distance: (radius / Math.sin(half)) * 1.1 };
   }
 
   /** Avance la transition en cours ; renvoie vrai si une image doit être redessinée. */

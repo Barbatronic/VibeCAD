@@ -314,8 +314,8 @@ export class Viewport {
     const size = VIEW_CUBE_SIZE;
     this.viewCube.sync(camera.position.clone().sub(this.rig.target), camera.up);
     this.renderer.setScissorTest(true);
-    this.renderer.setScissor(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
-    this.renderer.setViewport(VIEW_CUBE_MARGIN, VIEW_CUBE_MARGIN, size, size);
+    this.renderer.setScissor(this.cubeLeft(), VIEW_CUBE_MARGIN, size, size);
+    this.renderer.setViewport(this.cubeLeft(), VIEW_CUBE_MARGIN, size, size);
     this.renderer.clearDepth();
     // Sans effacer la couleur : le cube se dessine par-dessus la vue (transparent autour).
     const autoClear = this.renderer.autoClear;
@@ -1218,10 +1218,26 @@ export class Viewport {
     window.addEventListener('pointercancel', finish);
   }
 
+  /** Place couverte par les panneaux flottants (gauche, droite) et la barre du haut (px). */
+  private insets = { left: 0, right: 0, top: 0 };
+
+  /** Panneaux et barre posés sur la vue : centre de la vue, cadrage et cube de navigation suivent la zone libre. */
+  setInsets(left: number, right: number, top = 0): void {
+    if (left === this.insets.left && right === this.insets.right && top === this.insets.top) return;
+    this.insets = { left, right, top };
+    this.rig.setInsets(left, right, top);
+    this.needsRender = true;
+  }
+
+  /** Bord gauche du cube de navigation (px depuis le bord de la vue). */
+  private cubeLeft(): number {
+    return VIEW_CUBE_MARGIN + this.insets.left;
+  }
+
   /** Position d'un événement dans le carré du cube de navigation (−1 → 1), ou null en dehors. */
   private cubePoint(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const x = e.clientX - rect.left - VIEW_CUBE_MARGIN;
+    const x = e.clientX - rect.left - this.cubeLeft();
     const y = rect.height - (e.clientY - rect.top) - VIEW_CUBE_MARGIN;
     if (x < 0 || y < 0 || x > VIEW_CUBE_SIZE || y > VIEW_CUBE_SIZE) return null;
     return { x: (2 * x) / VIEW_CUBE_SIZE - 1, y: (2 * y) / VIEW_CUBE_SIZE - 1 };
@@ -1261,7 +1277,7 @@ export class Viewport {
   viewCubeClientPoint(dir: [number, number, number]): { x: number; y: number } {
     const p = this.viewCube.project(dir);
     const rect = this.renderer.domElement.getBoundingClientRect();
-    return { x: rect.left + VIEW_CUBE_MARGIN + ((p.x + 1) / 2) * VIEW_CUBE_SIZE, y: rect.top + rect.height - VIEW_CUBE_MARGIN - ((p.y + 1) / 2) * VIEW_CUBE_SIZE };
+    return { x: rect.left + this.cubeLeft() + ((p.x + 1) / 2) * VIEW_CUBE_SIZE, y: rect.top + rect.height - VIEW_CUBE_MARGIN - ((p.y + 1) / 2) * VIEW_CUBE_SIZE };
   }
 
   private bindEvents(): void {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, clickSketch, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
+import { appState, clickSketch, clickTool, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
 
 test('révolution : un rectangle tourné autour de l’axe Y donne un anneau, puis un demi-anneau', async ({ page }) => {
   await openApp(page);
@@ -17,7 +17,7 @@ test('révolution : un rectangle tourné autour de l’axe Y donne un anneau, pu
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'line').length).toBe(4);
   await finishSketch(page);
 
-  await page.click('#tool-revolve');
+  await clickTool(page, 'tool-revolve');
   await expect(page.locator('#draft-axis')).toHaveValue('sketch-y');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
@@ -61,7 +61,7 @@ test('révolution en poche : une gorge creusée dans un bloc, aperçu en rouge',
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'line').length).toBe(4);
   await finishSketch(page);
 
-  await page.click('#tool-revolve');
+  await clickTool(page, 'tool-revolve');
   await page.getByRole('group', { name: 'Matière' }).getByRole('button', { name: 'Creuser' }).click();
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await expect.poll(() => appState(page, (s) => s.preview?.tool?.kind)).toBe('cut');

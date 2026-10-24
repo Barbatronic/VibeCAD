@@ -890,6 +890,72 @@ export function ViewportHost() {
     viewport?.setInput(input);
   }, [viewport, input]);
 
+  // Panneaux flottants (écran large) : place qu'ils prennent sur la vue, à gauche et à droite.
+  // Mesurée à chaque rendu, au redimensionnement et pendant leurs animations de repli.
+  const measureInsets = useRef<() => void>(() => undefined);
+  measureInsets.current = () => {
+    const host = container.current;
+    const main = host?.closest<HTMLElement>('.main');
+    if (!host || !main || !viewport) return;
+    const vp = host.getBoundingClientRect();
+    const overlap = (selector: string, side: 'left' | 'right') => {
+      const panel = main.querySelector<HTMLElement>(`:scope > ${selector}`);
+      if (!panel || getComputedStyle(panel).position !== 'absolute') return 0;
+      const r = panel.getBoundingClientRect();
+      // Volet du bas (petit écran) : il ne prend pas un côté de la vue.
+      if (r.width === 0 || r.width > vp.width * 0.6) return 0;
+      return Math.max(0, Math.round(side === 'left' ? r.right - vp.left : vp.right - r.left));
+    };
+    const left = overlap('.left-panel', 'left');
+    const right = overlap('.right-panel', 'right');
+    // Bandeau du haut posé sur la vue (écran large) : sa hauteur est cachée.
+    const header = document.querySelector<HTMLElement>('.app-header');
+    const top = header ? Math.max(0, Math.round(header.getBoundingClientRect().bottom - vp.top)) : 0;
+    main.style.setProperty('--vp-inset-l', `${left}px`);
+    main.style.setProperty('--vp-inset-r', `${right}px`);
+    main.style.setProperty('--vp-inset-t', `${top}px`);
+    viewport.setInsets(left, right, top);
+  };
+  useEffect(() => measureInsets.current());
+  useEffect(() => {
+    const main = container.current?.closest<HTMLElement>('.main');
+    if (!main) return;
+    let frame = 0;
+    let running = 0;
+    const loop = () => {
+      measureInsets.current();
+      frame = running > 0 ? requestAnimationFrame(loop) : 0;
+    };
+    const isPanel = (e: Event) => e.target instanceof HTMLElement && e.target.parentElement === main && e.target.classList.contains('panel');
+    const onStart = (e: TransitionEvent) => {
+      if (!isPanel(e) || e.propertyName !== 'transform') return;
+      running++;
+      if (!frame) frame = requestAnimationFrame(loop);
+    };
+    const onEnd = (e: TransitionEvent) => {
+      if (!isPanel(e) || e.propertyName !== 'transform') return;
+      running = Math.max(0, running - 1);
+      measureInsets.current();
+    };
+    const onResize = () => measureInsets.current();
+    // La barre d'outils change de hauteur (compactage, onglet, opération en cours).
+    const header = document.querySelector('.app-header');
+    const observer = new ResizeObserver(onResize);
+    if (header) observer.observe(header);
+    main.addEventListener('transitionrun', onStart);
+    main.addEventListener('transitionend', onEnd);
+    main.addEventListener('transitioncancel', onEnd);
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(frame);
+      main.removeEventListener('transitionrun', onStart);
+      main.removeEventListener('transitionend', onEnd);
+      main.removeEventListener('transitioncancel', onEnd);
+      window.removeEventListener('resize', onResize);
+      observer.disconnect();
+    };
+  }, [viewport]);
+
   // Thème choisi dans les préférences : appliqué à la page, puis aux couleurs de la vue 3D.
   const theme = state.theme;
   useEffect(() => {

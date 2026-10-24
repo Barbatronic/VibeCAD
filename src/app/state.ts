@@ -254,6 +254,10 @@ export interface AppState {
   leftPanelOpen: boolean;
   /** Écran large : panneau des pièces masqué pour agrandir la vue. */
   leftPanelHidden: boolean;
+  /** Écran large : panneau de droite replié contre le bord (une languette le rouvre). */
+  rightPanelHidden: boolean;
+  /** Panneau Propriétés de la pièce active ouvert (matière, volume, masse, encombrement). */
+  propertiesOpen: boolean;
   toasts: Toast[];
   /** Parcours guidé : `id` null tant que l'utilisateur n'a pas choisi le parcours. */
   tutorial: { id: TutorialId | null; step: number } | null;
@@ -318,6 +322,8 @@ export function initialState(): AppState {
     helpOpen: false,
     leftPanelOpen: false,
     leftPanelHidden: false,
+    rightPanelHidden: false,
+    propertiesOpen: false,
     toasts: [],
     tutorial: null,
   };

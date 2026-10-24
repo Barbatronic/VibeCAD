@@ -1,3 +1,4 @@
+import { useEffect } from 'preact/hooks';
 import { Dialogs, Toasts } from './Dialogs';
 import { LaserEditor } from './LaserEditor';
 import { HelpDrawer } from './HelpDrawer';
@@ -8,21 +9,50 @@ import { TopBar } from './TopBar';
 import { TipLayer } from './TipLayer';
 import { Tutorial } from './Tutorial';
 import { ViewportHost } from './ViewportHost';
-import { useAppState } from './context';
+import { useAppState, useController } from './context';
+import { Icon } from './icons';
 
 export function App() {
+  const c = useController();
   const leftOpen = useAppState((s) => s.leftPanelOpen);
   const leftHidden = useAppState((s) => s.leftPanelHidden);
+  const rightHidden = useAppState((s) => s.rightPanelHidden);
+  const modeKind = useAppState((s) => s.mode.kind);
+  // Une nouvelle opération rouvre ses réglages (sinon « Valider » resterait caché).
+  useEffect(() => {
+    if (modeKind !== 'model') c.toggleRightPanel(true);
+  }, [modeKind]);
   return (
     <div class="app">
       <TopBar />
-      <main class={`main${leftOpen ? ' left-open' : ''}${leftHidden ? ' left-collapsed' : ''}`}>
+      <main class={`main${leftOpen ? ' left-open' : ''}${leftHidden ? ' left-collapsed' : ''}${rightHidden ? ' right-collapsed' : ''}`}>
         <LeftPanel />
-        <div style={{ position: 'relative', minWidth: 0, minHeight: 0, display: 'grid' }}>
+        <div class="viewport-area">
           <ViewportHost />
           <Tutorial />
         </div>
         <RightPanel />
+        {/* Languettes des panneaux flottants (écran large) : replier contre le bord, ou rouvrir. */}
+        <button
+          type="button"
+          class="panel-handle left"
+          aria-label={leftHidden ? 'Afficher le panneau de gauche' : 'Replier le panneau de gauche'}
+          title={leftHidden ? 'Afficher le panneau de gauche' : 'Replier le panneau de gauche'}
+          aria-expanded={!leftHidden}
+          onClick={() => c.toggleLeftPanel()}
+        >
+          <Icon name={leftHidden ? 'chevron-right' : 'chevron-left'} />
+        </button>
+        <button
+          type="button"
+          class="panel-handle right"
+          aria-label={rightHidden ? 'Afficher le panneau de droite' : 'Replier le panneau de droite'}
+          title={rightHidden ? 'Afficher le panneau de droite' : 'Replier le panneau de droite'}
+          aria-expanded={!rightHidden}
+          onClick={() => c.toggleRightPanel()}
+        >
+          <Icon name={rightHidden ? 'chevron-left' : 'chevron-right'} />
+        </button>
       </main>
       <StatusBar />
       <LaserEditor />

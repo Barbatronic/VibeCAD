@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { appState, buildPlateViaUi, openApp } from './helpers';
+import { appState, buildPlateViaUi, freeViewArea, openApp } from './helpers';
 
 /** Point écran d'un point de la pièce insérée n° `index` (coordonnées de la pièce). */
 async function onScreen(page: Page, index: number, p: { x: number; y: number; z: number }) {
@@ -27,13 +27,14 @@ test('liaison : Maj maintenue verrouille une face, le repère s’accroche au so
   }
   await expect.poll(() => page.evaluate(() => [...(window as any).vibecad.controller.viewport.parts.values()].filter((p: any) => p.data).length)).toBe(2);
   // Cadrer jusqu'à ce que la seconde plaque soit dans la vue (elle peut s'afficher après un premier cadrage).
-  const canvas = (await page.locator('.vp-canvas').boundingBox())!;
+  // Dans la zone libre de la vue (pas sous les panneaux flottants).
   await expect
     .poll(async () => {
       await page.evaluate(() => (window as any).vibecad.controller.fitAll());
       await page.waitForTimeout(600);
+      const free = await freeViewArea(page);
       const p = await onScreen(page, 1, { x: 60, y: 30, z: 5 });
-      return p.x > canvas.x && p.x < canvas.x + canvas.width - 20 && p.y > canvas.y && p.y < canvas.y + canvas.height - 40;
+      return p.x > free.left + 20 && p.x < free.right - 20 && p.y > free.top + 20 && p.y < free.bottom - 40;
     })
     .toBe(true);
   await page.click('#as-joint');
@@ -50,9 +51,15 @@ test('liaison : Maj maintenue verrouille une face, le repère s’accroche au so
   await page.keyboard.down('Shift');
   await expect.poll(() => appState(page, (s) => !!s.mode.lockedFace)).toBe(true);
   // Viser le coin (60, 30, 5) : le survol devient un sommet, avec l'aperçu du repère.
+  // Le verrou arrive dans la vue une image après l'état : on refait le survol jusqu'au sommet.
   const corner = await onScreen(page, 1, { x: 60, y: 30, z: 5 });
-  await page.mouse.move(corner.x - 6, corner.y + 4);
-  await expect.poll(() => appState(page, (s) => s.hover?.kind)).toBe('vertex');
+  await expect
+    .poll(async () => {
+      await page.mouse.move(corner.x - 5, corner.y + 4);
+      await page.mouse.move(corner.x - 6, corner.y + 4);
+      return appState(page, (s) => s.hover?.kind);
+    })
+    .toBe('vertex');
   await expect(page.locator('.vp-tag-marker', { hasText: 'Accroche sur la pièce qui bouge' })).toBeVisible();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'tests/output/e2e-liaison-sommet.png' });
