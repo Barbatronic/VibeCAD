@@ -481,6 +481,20 @@
         "visible": {
           "type": "boolean"
         },
+        "material": {
+          "type": "string",
+          "enum": [
+            "pla",
+            "petg",
+            "abs",
+            "tpu",
+            "plywood",
+            "acrylic",
+            "aluminium",
+            "steel"
+          ],
+          "description": "Matière de la pièce (masse, matériau par défaut des études de simulation). Facultatif : absente, celle de sa tôle, sinon le PLA."
+        },
         "features": {
           "type": "array",
           "items": {

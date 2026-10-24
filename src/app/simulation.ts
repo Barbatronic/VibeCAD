@@ -7,6 +7,7 @@ import type { CadDocument, FaceRef, Id, LoadDirection, SimulationStudy, StudyFac
 import { transformPoint4, type Mat4 } from '../math/mat4';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { GRAVITY, simMaterial } from '../sim/materials';
+import { partMaterialId } from '../domain/part-material';
 import { heatColor, type StudyInput, type StudyOutput } from '../sim/study';
 
 /** Précision : nombre de cubes visé. */
@@ -26,13 +27,15 @@ export const DIRECTION_LABELS: Record<LoadDirection, string> = {
   custom: 'Direction au choix (X, Y, Z)',
 };
 
-export function defaultStudy(partId: Id): SimulationStudy {
-  return { partId, materialId: 'pla', quality: 'normal', fixed: [], load: { faces: [], kind: 'mass', value: 1, direction: '-z' } };
+/** Étude par défaut : matériau de la pièce (sa matière, voir Propriétés), sinon le PLA. */
+export function defaultStudy(partId: Id, materialId = 'pla'): SimulationStudy {
+  return { partId, materialId, quality: 'normal', fixed: [], load: { faces: [], kind: 'mass', value: 1, direction: '-z' } };
 }
 
 /** Étude enregistrée d'une pièce, ou l'étude par défaut. */
 export function studyOf(doc: CadDocument, partId: Id): SimulationStudy {
-  return doc.simulation?.studies.find((s) => s.partId === partId) ?? defaultStudy(partId);
+  const part = doc.parts.find((p) => p.id === partId);
+  return doc.simulation?.studies.find((s) => s.partId === partId) ?? defaultStudy(partId, part ? partMaterialId(part) : undefined);
 }
 
 /** Document dont l'étude de la pièce est remplacée. */

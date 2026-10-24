@@ -164,6 +164,10 @@ export function setPartColor(doc: CadDocument, partId: Id, color: string): CadDo
   return updatePart(doc, partId, (p) => ({ ...p, color }));
 }
 
+export function setPartMaterial(doc: CadDocument, partId: Id, material: string): CadDocument {
+  return updatePart(doc, partId, (p) => ({ ...p, material }));
+}
+
 export function removePart(doc: CadDocument, partId: Id): CadDocument {
   let next: CadDocument = { ...doc, parts: doc.parts.filter((p) => p.id !== partId) };
   // Les insertions de cette pièce dans l'assemblage (et leurs liaisons) disparaissent avec elle.

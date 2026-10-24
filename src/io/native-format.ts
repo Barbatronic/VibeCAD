@@ -5,6 +5,7 @@
  * dépendances, unités, noms) et les ressources géométriques des imports (STEP embarqués).
  * Aucun objet du noyau n'est sérialisé : la géométrie est reconstruite à l'ouverture.
  */
+import { PART_MATERIALS } from '../domain/part-material';
 import type {
   SubAssembly,
   MirrorPlane,
@@ -74,6 +75,7 @@ export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISO
         name: p.name,
         color: p.color,
         visible: p.visible,
+        ...(p.material ? { material: p.material } : {}),
         features: p.features.map((f) => ({ ...f, dependsOn: featureDependencies(f) })),
       })),
       resources: doc.resources,
@@ -580,11 +582,18 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
   const color = str(v, o, 'color', path);
   if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) v.error(`${path}.color`, 'couleur #rrggbb attendue');
   const features = arr(v, o, 'features', path).map((f, i) => readFeature(v, f, `${path}.features[${i}]`));
+  // Matière (facultative) : une valeur inconnue (version plus récente) est refusée clairement.
+  let material: string | undefined;
+  if (o.material !== undefined) {
+    if (typeof o.material === 'string' && PART_MATERIALS.some((m) => m.id === o.material)) material = o.material;
+    else v.error(`${path}.material`, `matière inconnue (attendu : ${PART_MATERIALS.map((m) => m.id).join(', ')})`);
+  }
   return {
     id: str(v, o, 'id', path),
     name: str(v, o, 'name', path),
     color,
     visible: bool(v, o, 'visible', path, true),
+    ...(material ? { material } : {}),
     features: features.filter((f): f is Feature => f !== null),
   };
 }

@@ -3,7 +3,8 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
-import { makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
+import { partMaterialId } from '../../src/domain/part-material';
+import { setPartMaterial, makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
@@ -26,6 +27,22 @@ describe('format natif .vibecad', () => {
     expect(parsed.doc).toEqual(doc);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.savedAt).toBe('2026-10-09T12:00:00.000Z');
+  });
+
+  it('conserve la matière d’une pièce (facultative), refuse une matière inconnue', () => {
+    const { doc } = buildPlateDocument();
+    const steel = setPartMaterial(doc, doc.parts[0]!.id, 'steel');
+    const parsed = parseNativeFile(serializeDocument(steel));
+    expect(parsed.ok && parsed.doc.parts[0]!.material).toBe('steel');
+    // Absente : pas de champ écrit, le PLA par défaut.
+    const plain = JSON.parse(serializeDocument(doc));
+    expect('material' in plain.document.parts[0]).toBe(false);
+    expect(partMaterialId(doc.parts[0]!)).toBe('pla');
+    const unknown = JSON.parse(serializeDocument(steel));
+    unknown.document.parts[0].material = 'unobtainium';
+    const refused = parseNativeFile(JSON.stringify(unknown));
+    expect(refused.ok).toBe(false);
+    expect(!refused.ok && refused.details.join(' ')).toContain('material');
   });
 
   it('conserve les matériaux de découpe et lit l’ancien réglage à une seule plaque', () => {

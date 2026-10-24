@@ -285,6 +285,11 @@ export interface Part {
   /** Couleur d'affichage et d'export STEP, au format #rrggbb. */
   color: string;
   visible: boolean;
+  /**
+   * Matière (identifiant de `domain/part-material.ts`) : masse de la pièce, matériau par défaut de
+   * ses études de simulation. Facultatif : absente, celle de sa tôle, sinon le PLA.
+   */
+  material?: string;
   /** Historique de construction, évalué dans l'ordre. */
   features: Feature[];
 }
