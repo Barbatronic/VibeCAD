@@ -1,12 +1,12 @@
 /**
  * Captures de la documentation et du README (thème sombre), à partir du projet de démonstration
- * (petite voiture, `tests/helpers/demo-car.ts`). Ne tourne qu'à la demande :
+ * (support de moteur NEMA 17, `tests/helpers/demo-motor.ts`). Ne tourne qu'à la demande :
  *   DOC_SCREENS=1 npx playwright test doc-screens --project=chromium
  * Les images sont écrites dans docs/images/. Les captures de l'assemblage avec visserie
  * (assemblage-visserie.png) et de la simulation (simulation-bras.png) sont faites à la main.
  */
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { demoCar } from '../helpers/demo-car';
+import { demoMotorMount } from '../helpers/demo-motor';
 import { buildPlateViaUi, clickSketch, clickTool, menuItem, session, worldToScreen } from './helpers';
 
 const OUT = 'docs/images';
@@ -28,7 +28,7 @@ const settle = async (page: Page) => {
 
 /** Charge le projet de démonstration et attend son calcul. */
 async function loadDemo(page: Page) {
-  await page.evaluate((doc) => (window as any).vibecad.controller.commit(doc, 'Projet de démonstration'), demoCar() as any);
+  await page.evaluate((doc) => (window as any).vibecad.controller.commit(doc, 'Projet de démonstration'), demoMotorMount() as any);
   await expect.poll(() => page.evaluate(() => { const s = (window as any).vibecad.store.get(); return s.doc.parts.every((p: any) => s.display[p.id]?.mesh); }), { timeout: 60_000 }).toBe(true);
 }
 
@@ -41,19 +41,20 @@ test('pièce, tôlerie, découpe laser', async ({ browser }) => {
   const page = await darkPage(browser);
   await loadDemo(page);
 
-  // Pièce : la roue et son historique (répétition des trous d'allègement).
+  // Pièce : la platine et son historique (congés, perçages).
   await page.click('#tab-parts');
-  const wheel = await partId(page, 'Roue');
-  await call(page, 'toggleIsolate', wheel);
+  const plate = await partId(page, 'Platine');
+  await page.locator('.part-select', { hasText: 'Platine' }).click();
+  await call(page, 'toggleIsolate', plate);
   await call(page, 'setView', 'iso');
   await call(page, 'fitAll');
   await settle(page);
-  await page.screenshot({ path: `${OUT}/roue-historique.png` });
-  await call(page, 'toggleIsolate', wheel);
+  await page.screenshot({ path: `${OUT}/piece-historique.png` });
+  await call(page, 'toggleIsolate', plate);
 
-  // Tôlerie : la carrosserie pliée, puis dépliée avec ses lignes de pli.
-  const body = await partId(page, 'Carrosserie');
-  await call(page, 'toggleIsolate', body);
+  // Tôlerie : le capot plié, puis déplié avec ses lignes de pli.
+  const cover = await partId(page, 'Capot');
+  await call(page, 'toggleIsolate', cover);
   await call(page, 'fitAll');
   await settle(page);
   await page.screenshot({ path: `${OUT}/tolerie.png` });
@@ -61,15 +62,13 @@ test('pièce, tôlerie, découpe laser', async ({ browser }) => {
   await settle(page);
   await page.screenshot({ path: `${OUT}/tolerie-deplie.png` });
   await clickTool(page, 'tool-unfold');
-  await call(page, 'toggleIsolate', body);
+  await call(page, 'toggleIsolate', cover);
 
-  // Découpe laser : châssis et carrosserie (développé), plaques en grand après optimisation.
+  // Découpe laser : capots (développés) en acrylique 3 mm, plaques en grand après optimisation.
   await page.click('#tab-fabrication');
   await page.click('#fab-laser');
-  for (const [name, n] of [['Châssis', '2'], ['Carrosserie', '2'], ['Roue', '4']] as const) {
-    const field = page.getByLabel(`Exemplaires à découper de « ${name} »`);
-    if (await field.count()) await field.fill(n);
-  }
+  await page.getByLabel('Exemplaires à découper de « Capot »').fill('4');
+  await page.getByLabel('Matériau de « Capot »').selectOption({ label: 'Acrylique 3 mm' });
   await page.waitForTimeout(500);
   // Matériau le plus garni (le plus de pièces posées).
   const material = await page.evaluate(() => {
