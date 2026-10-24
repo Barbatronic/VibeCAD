@@ -48,7 +48,7 @@ l'historique et les parcours.
 
 ## Le parcours guidé « plaque percée »
 
-Bouton **Parcours** en haut à droite (ou Aide → Lancer le parcours guidé). Douze étapes courtes ;
+Bouton **Parcours** au bout de la barre (niveau Débutant), ou menu Fichier (logo) → Parcours guidés. Douze étapes courtes ;
 chacune se valide toute seule en observant le modèle réel (« Bravo, c'est fait ! »), et on peut
 passer une étape, revenir en arrière ou quitter à tout moment. Le bouton à utiliser est mis en
 évidence par un contour orange animé. Si le chat est activé, **Java** (noir sur le dessus, blanc en

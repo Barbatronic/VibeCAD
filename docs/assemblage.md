@@ -8,7 +8,8 @@ pièce fixe, chaque liaison ayant au plus deux mouvements simples.
 
 ![Quadrilatère articulé : quatre liaisons pivot, la pièce fixe en orange, la visserie posée sur les liaisons](images/assemblage-visserie.png)
 
-- Deux onglets en haut : **Pièces** (la modélisation actuelle) et **Assemblage**.
+- Les ateliers, en icônes au début de la barre : **Pièces** (la modélisation) et **Assemblage**
+  (puis Fabrication et Simulation).
 - Dans Assemblage, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),
   **Assembler** (Main, Liaison), **Vérifier** (Collisions, Éclater), **Modifier**, **Exporter**.
 - Panneau de gauche : les pièces insérées (la première est **fixe**, marquée d'une punaise) et les

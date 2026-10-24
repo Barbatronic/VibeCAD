@@ -81,9 +81,15 @@ lit un projet complet et juste. Une cote d'esquisse liée porte de même `expres
   "name": "Pièce 1",
   "color": "#4f86c6",
   "visible": true,
+  "material": "pla",
   "features": [ { "…": "étapes de l'historique, dans l'ordre" } ]
 }
 ```
+
+`material` (facultatif) : matière de la pièce, pour sa masse et le matériau par défaut de ses
+études de simulation — `pla`, `petg`, `abs`, `tpu`, `plywood` (contreplaqué), `acrylic`,
+`aluminium`, `steel` (mêmes identifiants que les matériaux de simulation). Absent : la matière
+de sa tôle si elle en a une, sinon le PLA. Une valeur inconnue est refusée à l'ouverture.
 
 ## Fonctions (étapes de l'historique)
 

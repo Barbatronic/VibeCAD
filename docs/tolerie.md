@@ -6,7 +6,7 @@ en carton. La pièce garde sa **forme à plat** (le développé), qui se découp
 
 ## Utilisation
 
-![Carrosserie en tôle d'acrylique pliée en U, fenêtres découpées dans les bords pliés](images/tolerie.png)
+![Capot en tôle d'acrylique 3 mm plié en U, fentes d'aération découpées après les plis](images/tolerie.png)
 
 ![La même pièce dépliée (outil Déplier) : développé à plat et lignes de pli à 90°](images/tolerie-deplie.png)
 

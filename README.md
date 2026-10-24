@@ -15,11 +15,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
 
 ![Assemblage : quadrilatère articulé par liaisons pivot, avec sa visserie (vis et écrous)](docs/images/assemblage-visserie.png)
 
-![Pièce « Roue » isolée, avec son historique : esquisse, extrusion, trou d'allègement répété cinq fois](docs/images/roue-historique.png)
+![Platine d'un support de moteur NEMA 17 isolée, avec son historique : esquisse, extrusion, congés, perçages](docs/images/piece-historique.png)
 
-![Carrosserie en tôle d'acrylique : développé à plat avec ses lignes de pli](docs/images/tolerie-deplie.png)
+![Capot en tôle d'acrylique 3 mm : développé à plat avec ses lignes de pli et ses fentes d'aération](docs/images/tolerie-deplie.png)
 
-![Découpe laser : roues et châssis imbriqués sur une plaque de contreplaqué](docs/images/laser-plaques.png)
+![Découpe laser : capots développés imbriqués sur une plaque d'acrylique 3 mm](docs/images/laser-plaques.png)
 
 ![Simulation : un bras en acier chargé de 4 kg, coloré du bleu (tranquille) au rouge (très sollicité)](docs/images/simulation-bras.png)
 
@@ -29,7 +29,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
 
 - **Projets** : nouveau, ouvrir, enregistrer (dans le navigateur), enregistrer sous (fichier
   `.vibecad`), sauvegarde automatique et récupération après fermeture inattendue.
-- **Pièces** : une ou plusieurs pièces indépendantes dans un document ; nom, visibilité, couleur.
+- **Pièces** : une ou plusieurs pièces indépendantes dans un document ; nom, visibilité, couleur,
+  matière.
 - **Esquisses** sur les plans XY, XZ, YZ ou sur une face plane : segment, rectangle (par deux
   coins ou par le centre, qui reste au milieu quand on cote), cercle, **arc de cercle** (centre,
   départ, arrivée ; les contours mêlant segments et arcs donnent de vrais volumes), **polygone
@@ -169,8 +170,10 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   pliés sur ses bords et des plis sur des traits, avec les limites du matériau (rayon minimal,
   angle maximal) ; « Déplier » montre la forme à plat et ses lignes de pli, et la découpe laser
   part du développé. Voir [docs/tolerie.md](docs/tolerie.md).
-- **Volume, masse et centre de gravité** de la pièce sous l'historique (masse estimée en PLA
-  plein) ; le centre de gravité peut être montré dans la vue (symbole des plans).
+- **Propriétés** de la pièce (secteur Contrôler, ou rappel dans la barre d'état) : matière (PLA,
+  PETG, ABS, TPU, contreplaqué, acrylique, aluminium, acier), volume, masse, encombrement et
+  centre de gravité, qui peut être montré dans la vue (symbole des plans). La matière est
+  enregistrée avec la pièce et proposée par défaut dans l'atelier Simulation.
 - **Vue en coupe** (bouton « Coupe » de la vue) : la pièce est coupée par un plan XY, XZ ou YZ
   réglable au curseur, la face de coupe hachurée en rouge ; affichage seulement, la pièce n'est pas
   modifiée.
@@ -191,7 +194,7 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
 - **Bulles d'explication** au survol de chaque outil (désactivables dans l'Aide).
 - **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
   droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).
-- **Préférences** (roue dentée en haut à droite, ou menu Fichier) : niveau, bulles d'explication,
+- **Préférences** (menu Fichier, ouvert par le logo) : niveau, bulles d'explication,
   environnement des jeunes (le chat), thème automatique / clair / sombre, aimantation à la grille
   des esquisses ; retenues sur
   l'appareil, jamais dans le projet, avec un retour aux réglages par défaut.

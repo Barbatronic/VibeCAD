@@ -65,8 +65,8 @@ Si vous préférez une mise à jour automatique à chaque `git push`, il suffit 
 ## Refaire les captures d'écran
 
 Les images du README et de `docs/` (thème sombre, 1440 × 900) sont produites par un test
-Playwright à partir d'un projet de démonstration, la petite voiture
-(`tests/helpers/demo-car.ts`) :
+Playwright à partir d'un projet de démonstration, un support de moteur NEMA 17 (platine,
+moteur, poulie GT2, visserie, capot en tôle d'acrylique ; `tests/helpers/demo-motor.ts`) :
 
 ```bash
 DOC_SCREENS=1 npx playwright test doc-screens --project=chromium

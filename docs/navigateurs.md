@@ -38,6 +38,17 @@ classe.
 - **Pavé tactile** : deux doigts = zoom (comme la molette), pincer = zoom, Maj + glisser ou clic
   droit = déplacer la vue. Sur certains Mac, le défilement à deux doigts est rapide : le
   ralentir dans les réglages du système si besoin.
-- **Écrans étroits** (< 980 px) : le panneau des pièces se replie (bouton en haut à gauche) ; en
+- **Une seule barre en haut** : le logo ouvre le menu Fichier (avec le nom du projet, modifiable,
+  en tête du menu), puis les ateliers en icônes (Pièces, Assemblage, Fabrication, Simulation ; nom
+  en infobulle), puis les outils de l'atelier, qui se compactent quand la place manque.
+- **Écrans larges** (> 980 px) : la vue 3D occupe toute la fenêtre ; la barre flotte en haut à
+  gauche (le menu et les ateliers restent en place d'un atelier à l'autre) et les panneaux de gauche et de droite flottent par-dessus la vue (coins arrondis, fond translucide et flouté : le modèle reste
+  visible derrière). La languette sur leur bord les replie contre le côté de l'écran, ou les rouvre ; les
+  réglages de droite se rouvrent d'eux-mêmes au début d'une opération. Le cadrage, le cube de
+  navigation et les boutons de vue se placent dans la zone libre, sous la barre et entre les
+  panneaux. Le flou
+  (`backdrop-filter`) est géré par tous les navigateurs visés ; sans lui, le fond reste
+  simplement translucide.
+- **Écrans étroits** (< 980 px) : le panneau des pièces se replie (bouton au début de la barre) ; en
   dessous de 720 px, le panneau des paramètres s'affiche en bas. L'usage visé reste un
   ordinateur avec souris.
