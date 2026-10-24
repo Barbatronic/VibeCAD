@@ -21,7 +21,8 @@
     "bench": "vitest run --config vitest.bench.config.ts",
     "test:e2e:firefox": "playwright test --project=firefox",
     "verify:freecad": "vitest run tests/geometry/freecad.test.ts",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "sync:site": "node scripts/sync-site-docs.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",
