@@ -22,8 +22,11 @@ l'assemblage (liaisons) n'y sont pas prises en compte.
 3. Garde-fous : boucles de dépendance signalées (une pièce qui dépend d'une pièce qui dépend
    d'elle), possibilité de figer une référence (couper le lien).
 
-**À trancher.** Position suivie par les références : proposition, la position de référence de
-l'assemblage (mouvements des liaisons à zéro), pas l'animation ni la position du moment.
+**Avancement.** Livré : entrée « Modifier dans l'assemblage », vue de la pièce entourée de ses
+voisines, esquisse posée sur la face d'une voisine à sa place (position de référence : liaisons à
+zéro), format et calcul. Reste : projection d'arêtes en contexte, mise à jour des positions quand
+l'assemblage change, lien figé et indication dans l'historique. Détails :
+[conception en contexte](conception-en-contexte.md).
 
 ## 2. Couple nécessaire sur une liaison (simulation de mécanisme)
 
