@@ -47,6 +47,7 @@ export const COLLECTIONS: CollectionSpec[] = [
   { id: 'motors', name: 'Moteurs', description: 'Moteurs pas à pas NEMA, avec centreur, arbre et taraudages de fixation.' },
   { id: 'pulleys', name: 'Poulies', description: 'Poulies crantées GT2 pour courroie de 6 mm, alésage 5 mm.' },
   { id: 'couplers', name: 'Accouplements', description: 'Accouplements rigides entre deux arbres, avec vis de pression.' },
+  { id: 'servos', name: 'Servomoteurs', description: 'Servomoteurs de modélisme : format standard (MG996R) et micro (SG90, MG90S), avec pattes de fixation et cannelure de sortie.' },
 ];
 
 /** Pièce unique : nom, couleur, matière. */
@@ -197,6 +198,72 @@ function coupler(d1: number, d2: number): ComponentSpec {
   };
 }
 
+interface ServoSize {
+  /** Corps : longueur (X), largeur (Y), hauteur du boîtier (Z). */
+  body: [number, number, number];
+  /** Pattes : longueur totale, épaisseur, hauteur du dessous des pattes. */
+  tabs: { length: number; thickness: number; z: number };
+  /** Trous des pattes : diamètre, entraxe en longueur et en largeur (0 : un trou par patte). */
+  holes: { d: number; spanX: number; spanY: number };
+  /** Sortie : distance de l'axe au bout du boîtier, bossage (Ø, hauteur), cannelure (Ø, hauteur). */
+  output: { fromEnd: number; boss: [number, number]; spline: [number, number] };
+}
+
+/** Servomoteur : boîtier, pattes de fixation percées, bossage et cannelure de sortie. */
+function servo(id: string, code: string, size: ServoSize, color: string, realMass: number, extra: string): ComponentSpec {
+  const [L, W, H] = size.body;
+  const height = H + size.output.boss[1] + size.output.spline[1];
+  return {
+    collection: 'servos',
+    id,
+    name: `Servomoteur ${code}`,
+    description: `Servomoteur ${code} : boîtier ${L} × ${W} × ${H} mm, hauteur ${Math.round(height * 10) / 10} mm avec la cannelure, pattes de ${size.tabs.length} mm percées Ø ${size.holes.d} (entraxe ${size.holes.spanX} mm). ${extra} Masse réelle ≈ ${realMass} g (moteur et engrenages).`,
+    tags: ['servomoteur', 'servo', code, 'modélisme'],
+    dimensions: { L, W, H, pattes: size.tabs.length, entraxe: size.holes.spanX },
+    build: () => {
+      let { doc, partId } = single(`Servomoteur ${code}`, color, 'abs');
+      const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 0 });
+      doc = addFeature(doc, partId, { ...sk, params: solved(rectangle(sk.params, L, W).sketch) });
+      const body = makeExtrudeFeature(doc, findPart(doc, partId)!, sk.id, H);
+      doc = addFeature(doc, partId, body);
+      // Pattes : une plaque sur toute la longueur, à la hauteur de fixation.
+      const skT = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: size.tabs.z });
+      doc = addFeature(doc, partId, { ...skT, params: solved(rectangle(skT.params, size.tabs.length, W).sketch) });
+      const tabs = makeExtrudeFeature(doc, findPart(doc, partId)!, skT.id, size.tabs.thickness);
+      doc = addFeature(doc, partId, tabs);
+      const hx = size.holes.spanX / 2;
+      const ys = size.holes.spanY ? [-size.holes.spanY / 2, size.holes.spanY / 2] : [0];
+      const holes = circleSketch(doc, partId, { kind: 'face', ref: { featureId: tabs.id, role: 'end' } }, [-hx, hx].flatMap((x) => ys.map((y) => ({ x, y, r: size.holes.d / 2 }))));
+      doc = holes.doc;
+      doc = addFeature(doc, partId, makePocketFeature(doc, findPart(doc, partId)!, holes.sketchId, { kind: 'distance', distance: size.tabs.thickness + 0.5 }));
+      // Sortie : bossage puis cannelure, axe à `fromEnd` du bout du boîtier.
+      const ax = L / 2 - size.output.fromEnd;
+      const boss = circleSketch(doc, partId, { kind: 'face', ref: { featureId: body.id, role: 'end' } }, [{ x: ax, y: 0, r: size.output.boss[0] / 2 }]);
+      doc = boss.doc;
+      const exBoss = makeExtrudeFeature(doc, findPart(doc, partId)!, boss.sketchId, size.output.boss[1]);
+      doc = addFeature(doc, partId, exBoss);
+      const spline = circleSketch(doc, partId, { kind: 'face', ref: { featureId: exBoss.id, role: 'end' } }, [{ x: ax, y: 0, r: size.output.spline[0] / 2 }]);
+      doc = spline.doc;
+      doc = addFeature(doc, partId, makeExtrudeFeature(doc, findPart(doc, partId)!, spline.sketchId, size.output.spline[1]));
+      return doc;
+    },
+  };
+}
+
+const STANDARD_SERVO: ServoSize = {
+  body: [40.7, 19.7, 36.8],
+  tabs: { length: 54.5, thickness: 2.5, z: 26.6 },
+  holes: { d: 4.6, spanX: 49.5, spanY: 10 },
+  output: { fromEnd: 10, boss: [13, 2], spline: [5.8, 4.1] },
+};
+
+const MICRO_SERVO: ServoSize = {
+  body: [22.5, 12.2, 22.7],
+  tabs: { length: 32.2, thickness: 2.5, z: 15.9 },
+  holes: { d: 2.2, spanX: 27.6, spanY: 0 },
+  output: { fromEnd: 6, boss: [11.8, 4], spline: [4.8, 3.2] },
+};
+
 export const COMPONENTS: ComponentSpec[] = [
   bearing('625', 5, 16, 5),
   bearing('608', 8, 22, 7),
@@ -210,4 +277,7 @@ export const COMPONENTS: ComponentSpec[] = [
   gt2(36),
   coupler(5, 5),
   coupler(5, 8),
+  servo('mg996r', 'MG996R', STANDARD_SERVO, '#626a76', 55, 'Format standard, pignons métal, couple ≈ 1 N·m sous 6 V.'),
+  servo('sg90', 'SG90', MICRO_SERVO, '#3d7fd6', 9, 'Micro-servo, pignons plastique, couple ≈ 0,18 N·m sous 4,8 V.'),
+  servo('mg90s', 'MG90S', MICRO_SERVO, '#737b87', 13.4, 'Micro-servo, pignons métal, couple ≈ 0,22 N·m sous 4,8 V.'),
 ];
