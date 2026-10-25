@@ -170,6 +170,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   pliés sur ses bords et des plis sur des traits, avec les limites du matériau (rayon minimal,
   angle maximal) ; « Déplier » montre la forme à plat et ses lignes de pli, et la découpe laser
   part du développé. Voir [docs/tolerie.md](docs/tolerie.md).
+- **Bibliothèques de composants** : roulements, moteurs NEMA 17, poulies GT2, accouplements…
+  insérés en un clic avec leur historique paramétrique, depuis des dépôts GitHub (un dossier par
+  collection, chaque composant en .vibecad et .step avec sa vignette) ; par défaut
+  [VibeCAD-Components](https://github.com/Barbatronic/VibeCAD-Components). Voir
+  [docs/bibliotheques.md](docs/bibliotheques.md).
 - **Propriétés** de la pièce (secteur Contrôler, ou rappel dans la barre d'état) : matière (PLA,
   PETG, ABS, TPU, contreplaqué, acrylique, aluminium, acier), volume, masse, encombrement et
   centre de gravité, qui peut être montré dans la vue (symbole des plans). La matière est
@@ -308,6 +313,8 @@ Le choix de la licence MIT est provisoire et peut être revu
 ([décision 0006](docs/decisions/0006-licence.md)).
 
 ## Limites connues (version 0.1)
+
+Chantiers prévus : voir la [feuille de route](docs/feuille-de-route.md).
 
 - Congés et chanfreins : rayon / distance constants ; une arête est désignée par ses deux faces
   voisines, donc deux arêtes séparées entre les mêmes faces sont traitées ensemble.
