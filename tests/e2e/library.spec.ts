@@ -35,6 +35,8 @@ test('composants : parcourir une bibliothèque, chercher, insérer une pièce pa
   expect(part.material).toBe('steel');
   expect(part.features.map((f: any) => f.type)).toEqual(['sketch', 'extrude', 'chamfer', 'sketch', 'pocket', 'sketch', 'pocket']);
   await expect.poll(() => appState(page, (s) => s.display[s.doc.parts[1].id]?.result.analysis?.solidCount)).toBe(1);
+  // Esquisses du composant entièrement cotées : 0 degré de liberté (vertes).
+  expect(await appState(page, (s) => s.display[s.doc.parts[1].id].result.sketches.map((k: any) => k.dof))).toEqual([0, 0, 0]);
 
   // Atelier Assemblage : la poulie est ajoutée au projet et insérée dans l'assemblage.
   await page.click('#tab-assembly');

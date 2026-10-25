@@ -5,6 +5,7 @@
  * .step (solide exact), avec leur fiche .json ; les vignettes .png viennent de la vue 3D.
  *
  * Un dossier = une collection (bearings/, motors/…) ; un composant = des fichiers de même nom.
+ * Toutes les esquisses sont entièrement cotées (0 degré de liberté) : voir ./sketch.ts.
  */
 import {
   addFeature,
@@ -19,8 +20,8 @@ import {
   setPartColor,
   setPartMaterial,
 } from '../../src/domain/document';
-import type { CadDocument, EdgeRef, Id, SketchParams, SketchSupport } from '../../src/domain/model';
-import { addCircle, addRectangle } from '../../src/sketch/model';
+import type { CadDocument, EdgeRef, Id, SketchSupport } from '../../src/domain/model';
+import { circles, rectangle, solved } from './sketch';
 
 export interface CollectionSpec {
   /** Nom du dossier. */
@@ -54,17 +55,6 @@ function single(name: string, color: string, material: string): { doc: CadDocume
   const partId = doc.parts[0]!.id;
   doc = setPartMaterial(setPartColor(renamePart(doc, partId, name), partId, color), partId, material);
   return { doc, partId };
-}
-
-function circles(base: SketchParams, list: { x: number; y: number; r: number }[]): { sketch: SketchParams; ids: string[] } {
-  let sketch = base;
-  const ids: string[] = [];
-  for (const c of list) {
-    const r = addCircle(sketch, { x: c.x, y: c.y }, c.r);
-    sketch = r.sketch;
-    ids.push(r.circleId);
-  }
-  return { sketch, ids };
 }
 
 /** Ajoute une esquisse de cercles sur un support ; renvoie l'esquisse et les identifiants des cercles. */
@@ -128,8 +118,8 @@ function nema17(length: number): ComponentSpec {
     build: () => {
       let { doc, partId } = single(`Moteur NEMA 17 × ${length}`, '#6b7480', 'steel');
       const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 0 });
-      const rect = addRectangle(sk.params, { x: -21.15, y: -21.15 }, { x: 21.15, y: 21.15 });
-      doc = addFeature(doc, partId, { ...sk, params: rect.sketch });
+      const rect = rectangle(sk.params, 42.3, 42.3);
+      doc = addFeature(doc, partId, { ...sk, params: solved(rect.sketch) });
       const ex = makeExtrudeFeature(doc, findPart(doc, partId)!, sk.id, length);
       doc = addFeature(doc, partId, ex);
       const corners: EdgeRef[] = rect.lines.map((l, i) => ({
