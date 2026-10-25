@@ -39,6 +39,10 @@ function stableIds(text: string): string {
   });
 }
 
+function hideSketches(doc: CadDocument): CadDocument {
+  return { ...doc, parts: doc.parts.map((p) => ({ ...p, features: p.features.map((f) => (f.type === 'sketch' ? { ...f, visible: false } : f)) })) };
+}
+
 let kernel: GeometryKernel;
 beforeAll(async () => {
   kernel = await getKernel();
@@ -46,7 +50,8 @@ beforeAll(async () => {
 
 describe('bibliothèque de composants', () => {
   it.each(COMPONENTS.map((c) => [`${c.collection}/${c.id}`, c] as const))('%s se calcule', (_key, spec) => {
-    const doc = spec.build();
+    // Esquisses masquées : un composant ouvert ou inséré montre seulement son volume.
+    const doc = hideSketches(spec.build());
     const [result] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
     expect(result!.statuses.filter((s) => s.state !== 'ok').map((s) => s.message ?? s.state)).toEqual([]);
     expect(result!.analysis?.solidCount).toBe(1);

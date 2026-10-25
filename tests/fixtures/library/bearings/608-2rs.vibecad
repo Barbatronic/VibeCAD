@@ -24,7 +24,7 @@
             "id": "sk-1",
             "type": "sketch",
             "name": "Esquisse 1",
-            "visible": true,
+            "visible": false,
             "params": {
               "support": {
                 "kind": "plane",
@@ -168,7 +168,7 @@
             "id": "sk-2",
             "type": "sketch",
             "name": "Esquisse 2",
-            "visible": true,
+            "visible": false,
             "params": {
               "support": {
                 "kind": "face",
@@ -254,7 +254,7 @@
             "id": "sk-3",
             "type": "sketch",
             "name": "Esquisse 3",
-            "visible": true,
+            "visible": false,
             "params": {
               "support": {
                 "kind": "face",

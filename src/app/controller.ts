@@ -267,7 +267,8 @@ export class AppController {
       const parsed = parseNativeFile(await res.text());
       if (!parsed.ok) throw new Error(parsed.error);
       if (this.state.mode.kind !== 'model') throw new Error('Terminez d’abord l’opération en cours.');
-      const copy = copyPartsInto(this.state.doc, parsed.doc, parsed.doc.parts.slice(0, 1).map((p) => p.id));
+      // Esquisses masquées : seul le volume du composant s'affiche (l'œil de l'historique les remontre).
+      const copy = copyPartsInto(this.state.doc, parsed.doc, parsed.doc.parts.slice(0, 1).map((p) => p.id), { hideSketches: true });
       const partId = copy.partIds[0]!;
       // Nom unique dans le projet : « Roulement 608-2RS (2) » pour un second exemplaire.
       const base = findPart(copy.doc, partId)!.name;

@@ -37,6 +37,8 @@ test('composants : parcourir une bibliothèque, chercher, insérer une pièce pa
   await expect.poll(() => appState(page, (s) => s.display[s.doc.parts[1].id]?.result.analysis?.solidCount)).toBe(1);
   // Esquisses du composant entièrement cotées : 0 degré de liberté (vertes).
   expect(await appState(page, (s) => s.display[s.doc.parts[1].id].result.sketches.map((k: any) => k.dof))).toEqual([0, 0, 0]);
+  // Esquisses masquées : seul le volume du composant s'affiche.
+  expect(part.features.filter((f: any) => f.type === 'sketch').map((f: any) => f.visible)).toEqual([false, false, false]);
 
   // Atelier Assemblage : la poulie est ajoutée au projet et insérée dans l'assemblage.
   await page.click('#tab-assembly');

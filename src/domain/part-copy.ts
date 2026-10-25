@@ -22,9 +22,10 @@ const prefixOf = (id: string) => id.slice(0, Math.max(1, id.indexOf('-'))) || 'i
 
 /**
  * Ajoute au projet `target` les pièces `partIds` (toutes par défaut) du projet `source`, avec leurs
- * ressources embarquées. Renvoie le projet et les identifiants des nouvelles pièces, dans l'ordre.
+ * ressources embarquées ; `hideSketches` masque leurs esquisses. Renvoie le projet et les
+ * identifiants des nouvelles pièces, dans l'ordre.
  */
-export function copyPartsInto(target: CadDocument, source: CadDocument, partIds?: Id[]): { doc: CadDocument; partIds: Id[] } {
+export function copyPartsInto(target: CadDocument, source: CadDocument, partIds?: Id[], options: { hideSketches?: boolean } = {}): { doc: CadDocument; partIds: Id[] } {
   const parts = source.parts.filter((p) => !partIds || partIds.includes(p.id));
   const taken = takenIds(target);
   const map = new Map<string, string>();
@@ -48,7 +49,12 @@ export function copyPartsInto(target: CadDocument, source: CadDocument, partIds?
   // Remplacement de chaque identifiant là où il apparaît comme valeur exacte (références entre
   // étapes, arêtes, faces…) ; les identifiants internes aux esquisses ne sont pas touchés.
   const remap = <T>(value: T): T => JSON.parse(JSON.stringify(value), (_k, v) => (typeof v === 'string' && map.has(v) ? map.get(v) : v)) as T;
-  const copied: Part[] = parts.map((p) => remap(p));
+  // Esquisses masquées (composants de bibliothèque) : seul le volume s'affiche, l'œil de
+  // l'historique les remontre.
+  const copied: Part[] = parts.map((p) => {
+    const part = remap(p);
+    return options.hideSketches ? { ...part, features: part.features.map((f) => (f.type === 'sketch' ? { ...f, visible: false } : f)) } : part;
+  });
   const copiedResources = Object.fromEntries(resources.map(([id, r]) => [map.get(id)!, remap(r)]));
   return {
     doc: { ...target, parts: [...target.parts, ...copied], resources: { ...target.resources, ...copiedResources } },

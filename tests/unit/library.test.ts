@@ -82,5 +82,8 @@ describe('bibliothèques de composants', () => {
     const pocket = copy.features[3] as { params: { sketchId: string } };
     expect(pocket.params.sketchId).toBe(copy.features[2]!.id);
     expect(JSON.stringify(copy.features[2])).toContain(copy.features[1]!.id);
+    // Composant de bibliothèque : esquisses masquées, le reste visible.
+    const hidden = copyPartsInto(target, withMaterial, undefined, { hideSketches: true }).doc.parts.at(-1)!;
+    expect(hidden.features.map((f) => (f.type === 'sketch' ? f.visible : null))).toEqual(original.features.map((f) => (f.type === 'sketch' ? false : null)));
   });
 });
