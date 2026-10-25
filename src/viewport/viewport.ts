@@ -19,6 +19,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  PerspectiveCamera,
   PlaneGeometry,
   Plane,
   Raycaster,
@@ -30,6 +31,7 @@ import {
   WebGLRenderer,
   type Material,
   type Object3D,
+  MathUtils,
   Matrix4,
   SRGBColorSpace,
   Texture,
@@ -1127,6 +1129,39 @@ export class Viewport {
 
   fitAll(): void {
     this.rig.fit(this.contentBounds());
+  }
+
+  /**
+   * Image carrée du modèle seul (PNG, fond transparent), en vue isométrique cadrée sur les pièces :
+   * sans grille, axes, esquisses, repères ni cube. Sert aux vignettes des bibliothèques de composants.
+   */
+  snapshot(size = 512): string {
+    const box = this.contentBounds();
+    const center = box && !box.isEmpty() ? box.getCenter(new Vector3()) : new Vector3();
+    const radius = box && !box.isEmpty() ? Math.max(box.getSize(new Vector3()).length() / 2, 1) : 10;
+    const fov = 30;
+    const camera = new PerspectiveCamera(fov, 1, radius / 100, radius * 100);
+    camera.up.set(0, 0, 1);
+    camera.position.copy(center).addScaledVector(new Vector3(1, -1, 0.85).normalize(), (radius / Math.sin(MathUtils.degToRad(fov / 2))) * 1.04);
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    const hidden = [this.grid.group, this.axes.group, this.planesGroup, this.overlayGroup, this.sessionView.group, ...[...this.sketchViews.values()].map((v) => v.view.group)].filter((g) => g.visible);
+    for (const g of hidden) g.visible = false;
+    const ratio = this.renderer.getPixelRatio();
+    this.headlight.position.copy(camera.position);
+    this.headlight.target.position.copy(center);
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(size, size, false);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, size, size);
+    this.renderer.clear();
+    this.renderer.render(this.scene, camera);
+    const url = this.renderer.domElement.toDataURL('image/png');
+    for (const g of hidden) g.visible = true;
+    this.renderer.setPixelRatio(ratio);
+    this.resize();
+    this.needsRender = true;
+    return url;
   }
 
   setProjection(projection: Projection): void {
