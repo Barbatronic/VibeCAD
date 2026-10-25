@@ -27,7 +27,7 @@ export default defineConfig({
     host: 'localhost',
   },
   test: {
-    include: ['tests/unit/**/*.test.ts', 'tests/geometry/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/geometry/**/*.test.ts', 'tests/library/**/*.test.ts'],
     environment: 'node',
     testTimeout: 60_000,
     hookTimeout: 60_000,

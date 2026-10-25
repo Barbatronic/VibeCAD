@@ -22,7 +22,8 @@
     "test:e2e:firefox": "playwright test --project=firefox",
     "verify:freecad": "vitest run tests/geometry/freecad.test.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "sync:site": "node scripts/sync-site-docs.mjs"
+    "sync:site": "node scripts/sync-site-docs.mjs",
+    "library:build": "LIBRARY_OUT=../VibeCAD-Components vitest run tests/library && LIBRARY_OUT=../VibeCAD-Components playwright test library-previews --project=chromium && node ../VibeCAD-Components/tools/build-index.mjs"
   },
   "dependencies": {
     "preact": "10.29.8",
