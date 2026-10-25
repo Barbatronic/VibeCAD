@@ -1,0 +1,51 @@
+{
+  "format": "vibecad",
+  "schemaVersion": 1,
+  "generator": {
+    "name": "VibeCAD",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-25T00:00:00.000Z",
+  "document": {
+    "id": "doc-1",
+    "name": "Poulie GT2 20 dents",
+    "units": "mm",
+    "createdAt": "2026-10-25T00:00:00.000Z",
+    "modifiedAt": "2026-10-25T00:00:00.000Z",
+    "parts": [
+      {
+        "id": "part-1",
+        "name": "Poulie GT2 20 dents",
+        "color": "#d9a441",
+        "visible": true,
+        "material": "aluminium",
+        "features": [
+          {
+            "id": "ge-1",
+            "type": "gear",
+            "name": "Poulie 1",
+            "params": {
+              "kind": "pulley",
+              "module": 1.5,
+              "pressureAngle": 20,
+              "teeth": 20,
+              "belt": "GT2-2",
+              "thickness": 7,
+              "bore": 5,
+              "rackHeight": 5,
+              "flanges": true,
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "operation": "add"
+            },
+            "dependsOn": []
+          }
+        ]
+      }
+    ],
+    "resources": {}
+  }
+}

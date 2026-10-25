@@ -152,6 +152,21 @@ function InsertMenu() {
               <span>Importer un projet comme sous-assemblage…</span>
             </button>
           ) : null}
+          <div class="menu-sep" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            id="as-insert-component"
+            class="menu-item"
+            title="Roulements, moteurs, poulies… d’une bibliothèque de composants : ajoutés au projet puis insérés"
+            onClick={() => {
+              setOpen(false);
+              c.openComponents();
+            }}
+          >
+            <Icon name="import" />
+            <span>Composant d’une bibliothèque…</span>
+          </button>
         </div>
       ) : null}
     </div>

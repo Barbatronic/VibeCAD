@@ -1,0 +1,269 @@
+{
+  "format": "vibecad",
+  "schemaVersion": 1,
+  "generator": {
+    "name": "VibeCAD",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-25T00:00:00.000Z",
+  "document": {
+    "id": "doc-1",
+    "name": "Roulement 608-2RS",
+    "units": "mm",
+    "createdAt": "2026-10-25T00:00:00.000Z",
+    "modifiedAt": "2026-10-25T00:00:00.000Z",
+    "parts": [
+      {
+        "id": "part-1",
+        "name": "Roulement 608-2RS",
+        "color": "#b8c0ca",
+        "visible": true,
+        "material": "steel",
+        "features": [
+          {
+            "id": "sk-1",
+            "type": "sketch",
+            "name": "Esquisse 1",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 11
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 4
+                }
+              ],
+              "constraints": []
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-1",
+            "type": "extrude",
+            "name": "Extrusion 1",
+            "params": {
+              "sketchId": "sk-1",
+              "distance": 7,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-1"
+            ]
+          },
+          {
+            "id": "ch-1",
+            "type": "chamfer",
+            "name": "Chanfrein 1",
+            "params": {
+              "edges": [
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "c1"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "c1"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "end"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "c2"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "c2"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "end"
+                    }
+                  ]
+                }
+              ],
+              "distance": 0.5
+            },
+            "dependsOn": [
+              "ex-1"
+            ]
+          },
+          {
+            "id": "sk-2",
+            "type": "sketch",
+            "name": "Esquisse 2",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "face",
+                "ref": {
+                  "featureId": "ex-1",
+                  "role": "end"
+                }
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 9.74
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 5.96
+                }
+              ],
+              "constraints": []
+            },
+            "dependsOn": [
+              "ex-1"
+            ]
+          },
+          {
+            "id": "po-1",
+            "type": "pocket",
+            "name": "Poche 1",
+            "params": {
+              "sketchId": "sk-2",
+              "extent": {
+                "kind": "distance",
+                "distance": 0.3
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-2"
+            ]
+          },
+          {
+            "id": "sk-3",
+            "type": "sketch",
+            "name": "Esquisse 3",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "face",
+                "ref": {
+                  "featureId": "ex-1",
+                  "role": "start"
+                }
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 9.74
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 5.96
+                }
+              ],
+              "constraints": []
+            },
+            "dependsOn": [
+              "ex-1"
+            ]
+          },
+          {
+            "id": "po-2",
+            "type": "pocket",
+            "name": "Poche 2",
+            "params": {
+              "sketchId": "sk-3",
+              "extent": {
+                "kind": "distance",
+                "distance": 0.3
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-3"
+            ]
+          }
+        ]
+      }
+    ],
+    "resources": {}
+  }
+}

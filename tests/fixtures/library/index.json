@@ -1,0 +1,80 @@
+{
+  "format": "vibecad-library",
+  "version": 1,
+  "name": "Barbatronic",
+  "description": "Composants mécaniques courants pour VibeCAD : roulements, moteurs pas à pas, poulies, accouplements.",
+  "license": "MIT",
+  "homepage": "https://github.com/Barbatronic/VibeCAD-Components",
+  "collections": [
+    {
+      "id": "bearings",
+      "name": "Roulements",
+      "description": "Roulements à billes à gorge profonde, avec flasques (2RS).",
+      "components": [
+        {
+          "id": "608-2rs",
+          "name": "Roulement 608-2RS",
+          "description": "Roulement à billes 608-2RS : alésage 8 mm, diamètre extérieur 22 mm, largeur 7 mm.",
+          "tags": [
+            "roulement",
+            "608",
+            "8x22x7"
+          ],
+          "dimensions": {
+            "d": 8,
+            "D": 22,
+            "B": 7
+          },
+          "material": "steel",
+          "volume": 2173.64,
+          "mass": 17.06,
+          "size": [
+            22,
+            22,
+            7
+          ],
+          "files": {
+            "vibecad": "bearings/608-2rs.vibecad",
+            "step": null,
+            "preview": "bearings/608-2rs.png"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pulleys",
+      "name": "Poulies",
+      "description": "Poulies crantées GT2 pour courroie de 6 mm, alésage 5 mm.",
+      "components": [
+        {
+          "id": "gt2-20t-5mm",
+          "name": "Poulie GT2 20 dents",
+          "description": "Poulie crantée GT2 20 dents pour courroie de 6 mm, alésage 5 mm, avec flasques.",
+          "tags": [
+            "poulie",
+            "GT2",
+            "courroie"
+          ],
+          "dimensions": {
+            "dents": 20,
+            "alésage": 5,
+            "largeur": 7
+          },
+          "material": "aluminium",
+          "volume": 903.66,
+          "mass": 2.44,
+          "size": [
+            15.22,
+            15.22,
+            9
+          ],
+          "files": {
+            "vibecad": "pulleys/gt2-20t-5mm.vibecad",
+            "step": null,
+            "preview": "pulleys/gt2-20t-5mm.png"
+          }
+        }
+      ]
+    }
+  ]
+}

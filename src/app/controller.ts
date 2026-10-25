@@ -93,6 +93,8 @@ import { StudyError, type StudyErrorCode } from '../sim/study';
 import { topologySurface } from '../sim/topology';
 import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
+import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
+import { copyPartsInto } from '../domain/part-copy';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
@@ -100,6 +102,8 @@ export interface ControllerDeps {
   projects: ProjectStore | null;
   /** Calcul de simulation (worker dédié) ; absent : calcul sur le fil principal. */
   simulation?: SimRunner;
+  /** Téléchargement des bibliothèques de composants (par défaut : fetch du navigateur). */
+  fetch?: typeof fetch;
 }
 
 const model: Mode = { kind: 'model' };
@@ -187,6 +191,112 @@ export class AppController {
     if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
+    const libraries = await this.deps.projects?.getSetting<string[]>('libraries').catch(() => undefined);
+    if (Array.isArray(libraries) && libraries.every((l) => typeof l === 'string')) this.set({ libraries });
+  }
+
+  // ----- Bibliothèques de composants (voir docs/bibliotheques.md)
+
+  /** Ouvre la fenêtre des composants ; les catalogues se chargent (une fois par session). */
+  openComponents(): void {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    this.set({ dialog: { kind: 'components', inserting: null } });
+    void this.loadLibraries();
+  }
+
+  /** Charge les catalogues pas encore chargés (tous si `force`, pour actualiser). */
+  async loadLibraries(force = false): Promise<void> {
+    const sources = this.state.libraries;
+    const known = new Map(this.state.libraryCatalogs.map((c) => [c.source, c]));
+    const todo = sources.filter((src) => force || !known.has(src) || known.get(src)!.status === 'error');
+    const order = () => sources.map((src) => known.get(src)).filter((c): c is LibraryCatalog => !!c);
+    for (const src of todo) known.set(src, { source: src, status: 'loading' });
+    this.set({ libraryCatalogs: order() });
+    await Promise.all(
+      todo.map(async (src) => {
+        const catalog = await fetchLibrary(src, this.deps.fetch ?? fetch);
+        if (!this.state.libraries.includes(src)) return;
+        known.set(src, catalog);
+        this.set({ libraryCatalogs: this.state.libraries.map((l) => known.get(l) ?? this.state.libraryCatalogs.find((c) => c.source === l)).filter((c): c is LibraryCatalog => !!c) });
+      }),
+    );
+  }
+
+  /** Ajoute une bibliothèque (adresse d'un dépôt GitHub ou d'un dossier web avec index.json). */
+  addLibrary(source: string): boolean {
+    const src = source.trim().replace(/\/+$/, '');
+    if (!libraryBaseUrl(src)) {
+      this.explain('Adresse invalide : indiquez l’adresse https d’un dépôt GitHub (https://github.com/compte/dépôt) ou d’un dossier web contenant index.json.');
+      return false;
+    }
+    if (this.state.libraries.includes(src)) return true;
+    const libraries = [...this.state.libraries, src];
+    this.set({ libraries });
+    void this.deps.projects?.setSetting('libraries', libraries).catch(() => undefined);
+    void this.loadLibraries();
+    return true;
+  }
+
+  removeLibrary(source: string): void {
+    const libraries = this.state.libraries.filter((l) => l !== source);
+    this.set({ libraries, libraryCatalogs: this.state.libraryCatalogs.filter((c) => c.source !== source) });
+    void this.deps.projects?.setSetting('libraries', libraries).catch(() => undefined);
+  }
+
+  /**
+   * Insère un composant : sa pièce paramétrique (.vibecad, historique complet) est copiée dans le
+   * projet ; dans l'atelier Assemblage, elle est aussi insérée dans l'assemblage. Un composant livré
+   * seulement en STEP passe par la fenêtre d'import.
+   */
+  async insertComponent(source: string, componentId: string): Promise<void> {
+    const catalog = this.state.libraryCatalogs.find((c) => c.source === source);
+    const component = catalog?.status === 'ready' ? catalog.index.collections.flatMap((c) => c.components).find((k) => k.id === componentId) : undefined;
+    if (!catalog || catalog.status !== 'ready' || !component) return;
+    const fetcher = this.deps.fetch ?? fetch;
+    this.set({ dialog: { kind: 'components', inserting: `${source}|${componentId}` } });
+    try {
+      if (!component.files.vibecad) {
+        const res = await fetcher(`${catalog.base}${component.files.step}`);
+        if (!res.ok) throw new Error(`Fichier STEP introuvable (réponse ${res.status}).`);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        await this.beginImport(new File([bytes], `${component.id}.step`, { type: 'model/step' }));
+        return;
+      }
+      const res = await fetcher(`${catalog.base}${component.files.vibecad}`);
+      if (!res.ok) throw new Error(`Fichier du composant introuvable (réponse ${res.status}).`);
+      const parsed = parseNativeFile(await res.text());
+      if (!parsed.ok) throw new Error(parsed.error);
+      if (this.state.mode.kind !== 'model') throw new Error('Terminez d’abord l’opération en cours.');
+      const copy = copyPartsInto(this.state.doc, parsed.doc, parsed.doc.parts.slice(0, 1).map((p) => p.id));
+      const partId = copy.partIds[0]!;
+      // Nom unique dans le projet : « Roulement 608-2RS (2) » pour un second exemplaire.
+      const base = findPart(copy.doc, partId)!.name;
+      const taken = new Set(this.state.doc.parts.map((p) => p.name));
+      let name = base;
+      for (let n = 2; taken.has(name); n++) name = `${base} (${n})`;
+      const doc = name === base ? copy.doc : renamePart(copy.doc, partId, name);
+      const inAssembly = this.state.workspace === 'assembly';
+      if (!inAssembly) this.fitPending = true;
+      this.commit(doc, `Insérer le composant « ${name} »`, {
+        dialog: null,
+        ...(inAssembly ? {} : { activePartId: partId, selection: { kind: 'part' as const, partId } }),
+      });
+      this.toast('success', `« ${name} » ajouté au projet (${catalog.index.name}), avec son historique : il se modifie comme une pièce dessinée ici.`);
+      if (inAssembly) await this.insertWhenComputed(partId);
+    } catch (err) {
+      const d = this.state.dialog;
+      if (d?.kind === 'components') this.set({ dialog: { ...d, inserting: null } });
+      this.toast('error', `Le composant « ${component.name} » n’a pas pu être inséré.`, { detail: (err as Error).message });
+    }
+  }
+
+  /** Insère la pièce dans l'assemblage dès que son volume est calculé. */
+  private async insertWhenComputed(partId: Id, timeout = 30_000): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      if ((this.state.display[partId]?.result.analysis?.solidCount ?? 0) > 0) return this.insertInstance(partId);
+      await new Promise((r) => setTimeout(r, 100));
+    }
   }
 
   // ----- Collisions de l'assemblage

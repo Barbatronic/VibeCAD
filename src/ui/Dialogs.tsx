@@ -10,6 +10,7 @@ import { LEVELS } from '../app/levels';
 import type { ExportFormat, ThemeChoice } from '../app/state';
 import { Icon } from './icons';
 import { Modal } from './components/modal';
+import { ComponentsDialog } from './ComponentsDialog';
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
@@ -473,6 +474,48 @@ function AboutDialog() {
  * Préférences de cet appareil : niveau, aide, apparence, esquisse. Elles ne sont pas enregistrées
  * dans le projet (un même fichier s'ouvre de la même façon partout).
  */
+/** Bibliothèques de composants : la liste, retirer, ajouter l'adresse d'un dépôt. */
+function LibrariesPrefs() {
+  const c = useController();
+  const libraries = useAppState((s) => s.libraries);
+  const [text, setText] = useState('');
+  const add = () => {
+    if (text.trim() && c.addLibrary(text)) setText('');
+  };
+  return (
+    <fieldset class="prefs-group">
+      <legend>Bibliothèques de composants</legend>
+      <ul class="library-list" aria-label="Bibliothèques de composants">
+        {libraries.map((l) => (
+          <li key={l}>
+            <span class="library-url" title={l}>
+              {l.replace(/^https:\/\//, '')}
+            </span>
+            <IconButton icon="trash" small label={`Retirer la bibliothèque ${l}`} onClick={() => c.removeLibrary(l)} />
+          </li>
+        ))}
+      </ul>
+      <div class="library-add">
+        <input
+          type="url"
+          class="input"
+          aria-label="Adresse d’une bibliothèque"
+          placeholder="https://github.com/compte/depot"
+          value={text}
+          onInput={(e) => setText((e.target as HTMLInputElement).value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+        />
+        <Button icon="plus" onClick={add}>
+          Ajouter
+        </Button>
+      </div>
+      <p class="field-help">
+        Un dépôt GitHub (ou un dossier web) avec un catalogue index.json : un dossier par collection, chaque composant en .vibecad et/ou .step avec sa vignette. Voir le dépôt Barbatronic/VibeCAD-Components.
+      </p>
+    </fieldset>
+  );
+}
+
 function PreferencesDialog() {
   const c = useController();
   const prefs = useAppState(
@@ -546,6 +589,7 @@ function PreferencesDialog() {
           <span>Aimanter les points à la grille (on peut aussi l’activer ou le couper dans chaque esquisse)</span>
         </label>
       </fieldset>
+      <LibrariesPrefs />
     </Modal>
   );
 }
@@ -573,6 +617,8 @@ export function Dialogs() {
       return <ChooseLevelDialog />;
     case 'preferences':
       return <PreferencesDialog />;
+    case 'components':
+      return <ComponentsDialog />;
     default:
       return null;
   }

@@ -112,6 +112,7 @@ function FileMenu() {
           {item('save', 'Enregistrer', () => void c.save(), 'Ctrl+S')}
           {item('export', 'Enregistrer sous… (fichier)', () => void c.saveAs(), 'Ctrl+Maj+S')}
           <div class="menu-sep" role="separator" />
+          {item('import', 'Composants (bibliothèques)…', () => c.openComponents())}
           {canImport ? item('import', 'Importer un fichier (STEP, STL)…', () => void c.importStep()) : null}
           {item('export', 'Exporter… (STEP, 3MF, STL, GLB)', () => c.showExportDialog(), undefined, !exportOk)}
           <div class="menu-sep" role="separator" />

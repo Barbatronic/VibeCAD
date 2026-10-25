@@ -78,6 +78,14 @@ function PartsSection() {
         </button>
         <span class="spacer" />
         <IconButton
+          id="part-component"
+          icon="import"
+          label={busy ? 'Insérer un composant (terminez d’abord l’opération en cours)' : 'Insérer un composant d’une bibliothèque (roulement, moteur, poulie…)'}
+          small
+          disabled={busy}
+          onClick={() => c.openComponents()}
+        />
+        <IconButton
           id="part-add"
           icon="plus"
           label={busy ? 'Ajouter une pièce (terminez d’abord l’opération en cours)' : 'Ajouter une nouvelle pièce indépendante'}

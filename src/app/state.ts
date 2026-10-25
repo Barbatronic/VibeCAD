@@ -1,4 +1,5 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
+import { DEFAULT_LIBRARIES, type LibraryCatalog } from './library';
 import type { StepResource } from '../domain/model';
 import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
@@ -120,6 +121,8 @@ export type ThemeChoice = 'auto' | 'light' | 'dark';
 
 export type Dialog =
   | { kind: 'preferences' }
+  /** Bibliothèques de composants : `inserting` = composant en cours de chargement (source|id). */
+  | { kind: 'components'; inserting: string | null }
   | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
   | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; /** Export d'un plateau d'impression (son rang) ou de tous. */ plate?: number | 'all' }
   | {
@@ -258,6 +261,10 @@ export interface AppState {
   rightPanelHidden: boolean;
   /** Panneau Propriétés de la pièce active ouvert (matière, volume, masse, encombrement). */
   propertiesOpen: boolean;
+  /** Bibliothèques de composants (adresses des dépôts), retenues sur l'appareil. */
+  libraries: string[];
+  /** Catalogues chargés, dans l'ordre des bibliothèques. */
+  libraryCatalogs: LibraryCatalog[];
   toasts: Toast[];
   /** Parcours guidé : `id` null tant que l'utilisateur n'a pas choisi le parcours. */
   tutorial: { id: TutorialId | null; step: number } | null;
@@ -324,6 +331,8 @@ export function initialState(): AppState {
     leftPanelHidden: false,
     rightPanelHidden: false,
     propertiesOpen: false,
+    libraries: [...DEFAULT_LIBRARIES],
+    libraryCatalogs: [],
     toasts: [],
     tutorial: null,
   };
