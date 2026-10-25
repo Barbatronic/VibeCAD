@@ -7,6 +7,8 @@
  */
 import { PART_MATERIALS } from '../domain/part-material';
 import type {
+  AssemblyContext,
+  SketchReference,
   SubAssembly,
   MirrorPlane,
   JointCoupling,
@@ -987,6 +989,20 @@ function readEdges(v: Validator, p: Record<string, unknown>, path: string): Edge
   });
 }
 
+/** Contexte d'assemblage d'une référence vers une autre pièce (facultatif). */
+function readContext(v: Validator, o: Record<string, unknown>, path: string): { context?: AssemblyContext } {
+  if (o.context === undefined) return {};
+  const c = obj(v, o.context, `${path}.context`);
+  if (!c) return {};
+  const cp = `${path}.context`;
+  const matrix = arr(v, c, 'matrix', cp);
+  if (matrix.length !== 16 || !matrix.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+    v.error(`${cp}.matrix`, 'matrice 4 × 4 attendue (16 nombres)');
+    return {};
+  }
+  return { context: { instanceId: str(v, c, 'instanceId', cp), otherInstanceId: str(v, c, 'otherInstanceId', cp), matrix: matrix as number[], ...(c.frozen === true ? { frozen: true } : {}) } };
+}
+
 function readSupport(v: Validator, x: unknown, path: string): SketchSupport {
   const o = obj(v, x, path);
   if (!o) return { kind: 'plane', plane: 'XY', offset: 0 };
@@ -997,7 +1013,7 @@ function readSupport(v: Validator, x: unknown, path: string): SketchSupport {
   }
   const r = obj(v, o.ref, `${path}.ref`);
   if (!r) return { kind: 'plane', plane: 'XY', offset: 0 };
-  return { kind, ref: readFaceRef(v, r, `${path}.ref`), ...(o.partId !== undefined ? { partId: str(v, o, 'partId', path) } : {}) };
+  return { kind, ref: readFaceRef(v, r, `${path}.ref`), ...(o.partId !== undefined ? { partId: str(v, o, 'partId', path), ...readContext(v, o, path) } : {}) };
 }
 
 function readSketchParams(v: Validator, p: Record<string, unknown>, path: string): SketchParams {
@@ -1013,7 +1029,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       entities.push({ id, type, x: num(v, o, 'x', ep), y: num(v, o, 'y', ep) });
       return;
     }
-    const flags: { construction?: boolean; reference?: { edge: EdgeRef; partId?: string } } = {};
+    const flags: { construction?: boolean; reference?: SketchReference } = {};
     if (o.construction === true) flags.construction = true;
     if (o.reference !== undefined) {
       const r = obj(v, o.reference, `${ep}.reference`);
@@ -1022,7 +1038,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       else
         flags.reference = {
           edge: { faces: [readFaceRef(v, faces[0], `${ep}.reference.edge.faces[0]`), readFaceRef(v, faces[1], `${ep}.reference.edge.faces[1]`)] },
-          ...(r?.partId !== undefined ? { partId: str(v, r, 'partId', `${ep}.reference`) } : {}),
+          ...(r?.partId !== undefined ? { partId: str(v, r, 'partId', `${ep}.reference`), ...readContext(v, r, `${ep}.reference`) } : {}),
         };
     }
     if (type === 'line') entities.push({ id, type, a: str(v, o, 'a', ep), b: str(v, o, 'b', ep), ...flags });

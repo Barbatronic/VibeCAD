@@ -348,10 +348,26 @@ export type ImageFeature = FeatureBase<'image', ImageParams> & {
  * - un plan d'origine, éventuellement décalé le long de sa normale ;
  * - une face plane désignée par une référence sémantique (jamais par un numéro de face).
  */
+/**
+ * Conception en contexte d'assemblage : la référence vers une autre pièce passe par l'assemblage.
+ * `matrix` (4 × 4, colonnes) place l'autre pièce dans le repère de la pièce de l'esquisse, d'après
+ * leurs insertions `instanceId` (cette pièce) et `otherInstanceId` (l'autre), liaisons à zéro.
+ * L'application la recalcule quand l'assemblage change, sauf si `frozen` (lien figé).
+ */
+export interface AssemblyContext {
+  instanceId: Id;
+  otherInstanceId: Id;
+  matrix: number[];
+  frozen?: boolean;
+}
+
 export type SketchSupport =
   | { kind: 'plane'; plane: PlaneName; offset: number }
-  /** Face plane de la pièce, ou d'une autre pièce du projet (`partId`, sa forme finale). */
-  | { kind: 'face'; ref: FaceRef; partId?: Id }
+  /**
+   * Face plane de la pièce, ou d'une autre pièce du projet (`partId`, sa forme finale), placée
+   * comme dans l'assemblage si `context`.
+   */
+  | { kind: 'face'; ref: FaceRef; partId?: Id; context?: AssemblyContext }
   /** Plan de construction (étape `plane` de la même pièce, placée avant). */
   | { kind: 'datum'; featureId: Id };
 
@@ -399,6 +415,8 @@ export interface SketchReference {
   edge: EdgeRef;
   /** Arête d'une autre pièce du projet (sa forme finale) ; absent : la pièce de l'esquisse. */
   partId?: Id;
+  /** Autre pièce placée comme dans l'assemblage (conception en contexte). */
+  context?: AssemblyContext;
 }
 
 /** Propriétés communes des courbes d'esquisse. */

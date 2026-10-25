@@ -243,6 +243,7 @@ export class RecomputeEngine {
         lastUsed: 0,
       };
     }
+    const placed: KernelShape[] = [];
     const ctx: EvaluationContext = {
       kernel: this.kernel,
       shape: state.shape,
@@ -252,7 +253,14 @@ export class RecomputeEngine {
       axes: state.axes,
       tools: state.tools,
       sheet: state.sheet,
-      externalShape: (partId) => state.finals.get(partId)?.shape ?? null,
+      externalShape: (partId, matrix) => {
+        const shape = state.finals.get(partId)?.shape ?? null;
+        if (!shape || !matrix) return shape;
+        // Autre pièce placée comme dans l'assemblage : copie déplacée, libérée après l'étape.
+        const moved = this.kernel.transformed(shape, matrix, { keep: true });
+        placed.push(moved);
+        return moved;
+      },
       readStepSolids: (resourceId) => this.readStepSolids(resourceId),
     };
     let outcome: FeatureOutcome;
@@ -262,6 +270,7 @@ export class RecomputeEngine {
       const detail = err instanceof KernelError ? [err.message, err.detail].filter(Boolean).join(' — ') : String(err);
       outcome = { status: issue(feature.id, 'error', 'KERNEL_FAILURE', { detail }) };
     }
+    for (const shape of placed) if (shape !== outcome.shape && shape !== outcome.tool) this.kernel.dispose(shape);
     if (state.sheet && !outcome.sheet) this.sheetAfter(feature, state.sheet, outcome, state.shape);
     const broken = def.affectsSolid && (outcome.status.state === 'error' || outcome.status.state === 'blocked');
     if (broken && outcome.shape) {

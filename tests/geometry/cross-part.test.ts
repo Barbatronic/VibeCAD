@@ -92,4 +92,50 @@ describe('références entre pièces d’un même projet', () => {
     validate(JSON.parse(text));
     expect(validate.errors ?? []).toEqual([]);
   });
+
+  it('contexte d’assemblage : la face et l’arête de l’autre pièce sont placées par la matrice', () => {
+    const p = project(10);
+    // A placée 50 mm plus haut et 100 mm plus loin en X que B dans l'assemblage.
+    const matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 100, 0, 50, 1];
+    const context = { instanceId: 'in-b', otherInstanceId: 'in-a', matrix };
+    let doc = p.doc;
+    doc = {
+      ...doc,
+      parts: doc.parts.map((part) =>
+        part.id !== p.b ? part : { ...part, features: part.features.map((f) => (f.id === p.sketch && f.type === 'sketch' ? { ...f, params: { ...f.params, support: { ...f.params.support, context } as never } } : f)) },
+      ),
+    };
+    const r = evaluate(doc);
+    expect(r[1]!.statuses.map((s) => s.message ?? s.detail ?? s.code ?? s.state)).toEqual(['ok', 'ok']);
+    // Dessus de A à z = 10 + 50 ; le rectangle de B (5 → 15) n'est pas déplacé en X par le repère
+    // de la face, qui suit seulement son plan.
+    expect(r[1]!.analysis!.bbox!.min.z).toBeCloseTo(60, 6);
+    expect(r[1]!.analysis!.bbox!.max.z).toBeCloseTo(65, 6);
+
+    // Arête reprise à travers l'assemblage : elle est décalée de 100 en X.
+    const sk = makeSketchFeature(doc, findPart(doc, p.b)!, { kind: 'plane', plane: 'XY', offset: 0 });
+    const line = addLine(sk.params, { x: 1, y: 1 }, { x: 2, y: 1 });
+    const params = {
+      ...line.sketch,
+      entities: line.sketch.entities.map((e) =>
+        e.id === line.lineId ? { ...e, reference: { edge: { faces: [{ featureId: p.box, role: 'end' as const }, { featureId: p.box, role: 'side' as const, entityId: 'y-' }] as [any, any] }, partId: p.a, context } } : e,
+      ),
+    };
+    doc = addFeature(doc, p.b, { ...sk, params });
+    const r2 = evaluate(doc);
+    const solved = r2[1]!.sketches.find((s) => s.featureId === sk.id)!.solved;
+    const xs = (solved.entities.filter((e) => e.type === 'point' && e.id !== 'o') as { x: number }[]).map((q) => q.x).sort((u, v) => u - v);
+    expect(xs[0]).toBeCloseTo(100, 6);
+    expect(xs.at(-1)).toBeCloseTo(140, 6);
+
+    // Format : contexte relu à l'identique, conforme au schéma ; une matrice incomplète est refusée.
+    const text = serializeDocument(doc, '2026-10-25T12:00:00.000Z');
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc).toEqual(doc);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    validate(JSON.parse(text));
+    expect(validate.errors ?? []).toEqual([]);
+    const broken = text.replace('"matrix": [\n', '"matrix": [\n 1,\n');
+    expect(parseNativeFile(broken).ok).toBe(false);
+  });
 });

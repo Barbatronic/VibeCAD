@@ -943,6 +943,9 @@
                         "partId": {
                           "$ref": "#/$defs/id",
                           "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
                         }
                       }
                     },
@@ -1189,6 +1192,9 @@
                         "partId": {
                           "$ref": "#/$defs/id",
                           "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
                         }
                       }
                     },
@@ -1290,6 +1296,9 @@
                         "partId": {
                           "$ref": "#/$defs/id",
                           "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
                         }
                       }
                     },
@@ -1655,6 +1664,9 @@
                         "partId": {
                           "$ref": "#/$defs/id",
                           "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
                         }
                       }
                     },
@@ -1955,6 +1967,9 @@
                         "partId": {
                           "$ref": "#/$defs/id",
                           "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
                         }
                       }
                     },
@@ -2129,6 +2144,9 @@
                 "partId": {
                   "$ref": "#/$defs/id",
                   "description": "Face d'une autre pièce du projet (sa forme finale)."
+                },
+                "context": {
+                  "$ref": "#/$defs/assemblyContext"
                 }
               }
             },
@@ -2214,6 +2232,9 @@
                       },
                       "partId": {
                         "$ref": "#/$defs/id"
+                      },
+                      "context": {
+                        "$ref": "#/$defs/assemblyContext"
                       }
                     }
                   }
@@ -2256,6 +2277,9 @@
                       },
                       "partId": {
                         "$ref": "#/$defs/id"
+                      },
+                      "context": {
+                        "$ref": "#/$defs/assemblyContext"
                       }
                     }
                   }
@@ -2943,6 +2967,34 @@
         },
         "comment": {
           "type": "string"
+        }
+      }
+    },
+    "assemblyContext": {
+      "type": "object",
+      "required": [
+        "instanceId",
+        "otherInstanceId",
+        "matrix"
+      ],
+      "description": "Conception en contexte d'assemblage : position de l'autre pièce dans le repère de la pièce de l'esquisse (matrice 4 × 4 en colonnes), d'après leurs insertions dans l'assemblage, liaisons à zéro. Recalculée par l'application sauf si frozen.",
+      "properties": {
+        "instanceId": {
+          "$ref": "#/$defs/id"
+        },
+        "otherInstanceId": {
+          "$ref": "#/$defs/id"
+        },
+        "matrix": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 16,
+          "maxItems": 16
+        },
+        "frozen": {
+          "type": "boolean"
         }
       }
     }

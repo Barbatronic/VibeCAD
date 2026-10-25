@@ -19,7 +19,8 @@ export function resolveSupportFrame(support: SketchSupport, ctx: EvaluationConte
     return frame ? { frame } : { code: 'SUPPORT_LOST' };
   }
   // Face d'une autre pièce : retrouvée sur sa forme finale.
-  const shape = support.partId ? ctx.externalShape(support.partId) : ctx.shape;
+  // Placée comme dans l'assemblage si la référence passe par lui (conception en contexte).
+  const shape = support.partId ? ctx.externalShape(support.partId, support.context?.matrix) : ctx.shape;
   if (!shape) return { code: 'SUPPORT_LOST' };
   const found = ctx.kernel.findFacePlane(shape, support.ref);
   switch (found.status) {
@@ -50,7 +51,7 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
   };
   for (const e of refs) {
     if ((e.type !== 'line' && e.type !== 'circle') || !e.reference) continue;
-    const source = e.reference.partId ? ctx.externalShape(e.reference.partId) : ctx.shape;
+    const source = e.reference.partId ? ctx.externalShape(e.reference.partId, e.reference.context?.matrix) : ctx.shape;
     const curves = source ? ctx.kernel.edgeCurves(source, e.reference.edge) : [];
     if (e.type === 'line') {
       const a = pointAt(e.a);
