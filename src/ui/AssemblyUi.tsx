@@ -379,6 +379,7 @@ export function AssemblySection() {
                   </span>
                 </button>
                 <span class="row-actions">
+                  {!i.block ? <IconButton icon="edit" small label={`Modifier « ${i.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(i.id)} /> : null}
                   <IconButton icon="trash" small label={`Retirer « ${i.name} » de l’assemblage`} onClick={() => c.removeInstance(i.id)} />
                 </span>
               </div>
@@ -673,6 +674,11 @@ function InstancePanel({ id }: { id: string }) {
         <span>{inst.name}</span>
       </div>
       <div class="panel-content">
+      {!inst.subassemblyId ? (
+        <Button icon="edit" onClick={() => c.editInAssembly(id)}>
+          Modifier dans l’assemblage
+        </Button>
+      ) : null}
       {fixed ? (
         <Callout kind="info">C’est la pièce fixe : les autres pièces se placent par rapport à elle.</Callout>
       ) : held ? (

@@ -261,6 +261,11 @@ export interface AppState {
   rightPanelHidden: boolean;
   /** Panneau Propriétés de la pièce active ouvert (matière, volume, masse, encombrement). */
   propertiesOpen: boolean;
+  /**
+   * Conception en contexte d'assemblage : la pièce de l'insertion `instanceId` se modifie dans
+   * l'onglet Pièces, entourée des autres pièces de l'assemblage à leur place.
+   */
+  assemblyContext: { instanceId: Id } | null;
   /** Bibliothèques de composants (adresses des dépôts), retenues sur l'appareil. */
   libraries: string[];
   /** Catalogues chargés, dans l'ordre des bibliothèques. */
@@ -331,6 +336,7 @@ export function initialState(): AppState {
     leftPanelHidden: false,
     rightPanelHidden: false,
     propertiesOpen: false,
+    assemblyContext: null,
     libraries: [...DEFAULT_LIBRARIES],
     libraryCatalogs: [],
     toasts: [],

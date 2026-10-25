@@ -1714,6 +1714,10 @@ details.advanced summary {
   border-color: var(--vp-preview-cut);
 }
 
+.overlay-banner.context {
+  border-left: 5px solid var(--accent);
+}
+
 .overlay-banner.stale {
   border-left: 5px solid var(--warning);
 }

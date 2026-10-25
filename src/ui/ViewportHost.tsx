@@ -34,6 +34,7 @@ import type { SketchRenderInput } from '../viewport/sketch-render';
 import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type ViewSelection } from '../viewport/viewport';
 import { blockContent, explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
 import { subassemblyContent } from '../domain/subassemblies';
+import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
@@ -360,7 +361,9 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
   // Pendant une opération ou une esquisse, les autres pièces deviennent transparentes : on voit
   // ce que l'on fait sur la pièce en cours.
   const workingPartId = s.mode.kind === 'feature' ? s.mode.draft.partId : s.mode.kind === 'sketch' ? s.mode.session.partId : null;
-  const parts: ViewPartInput[] = s.doc.parts.map((p) => {
+  // Conception dans l'assemblage : la pièce modifiée seule, entourée des pièces voisines à leur place.
+  const context = activeContext(s);
+  const parts: ViewPartInput[] = s.doc.parts.filter((p) => !context || p.id === context.partId).map((p) => {
     const d = s.display[p.id];
     const sec = cut?.parts[p.id];
     if (cut && sec !== undefined) {
@@ -382,11 +385,27 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       appearance: workingPartId && p.id !== workingPartId ? 'ghost' : mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
     };
   });
+  if (context) {
+    for (const leaf of context.leaves) {
+      const part = s.doc.parts.find((p) => p.id === leaf.partId);
+      const d = s.display[leaf.partId];
+      parts.push({
+        partId: `${CONTEXT_PREFIX}${leaf.key}`,
+        color: part?.color ?? '#888888',
+        visible: true,
+        meshKey: d?.meshKey ?? null,
+        mesh: d?.mesh ?? null,
+        // Atténuées (cliquables pour poser une esquisse) ; transparentes pendant une opération.
+        appearance: workingPartId ? 'ghost' : 'dimmed',
+        matrix: leaf.local,
+      });
+    }
+  }
 
   const sketches: ViewportInput['sketches'] = [];
   if (mode !== 'sketch') {
     for (const part of s.doc.parts) {
-      if (!partShown(s, part)) continue;
+      if (!partShown(s, part) || (context && part.id !== context.partId)) continue;
       const result = s.display[part.id]?.result;
       if (!result) continue;
       for (const f of part.features) {
@@ -793,15 +812,24 @@ function Banner() {
         const root = stale.features.find((f) => f.id === rootId);
         return { kind: 'stale', text: `« ${stale.name} » n’est plus à jour : corrigez l’étape « ${root?.name ?? '?'} » (en rouge dans l’historique).` };
       }
+      // Conception dans l'assemblage : rappel, et retour à l'onglet Assemblage.
+      const ctx = s.assemblyContext && s.workspace === 'parts' ? s.doc.assembly?.instances.find((i) => i.id === s.assemblyContext!.instanceId) : undefined;
+      if (ctx && ctx.partId === s.activePartId) return { kind: 'context', text: `Dans l’assemblage : « ${ctx.name} », entourée des pièces voisines (liaisons à zéro)` };
       return null;
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
+  const c = useController();
   if (!info) return null;
   return (
     <div class={`overlay-banner ${info.kind}`} role="status">
-      <Icon name={info.kind === 'stale' ? 'warning' : info.kind.startsWith('preview') ? 'info' : 'sketch'} />
+      <Icon name={info.kind === 'stale' ? 'warning' : info.kind.startsWith('preview') ? 'info' : info.kind === 'context' ? 'pivot' : 'sketch'} />
       <span>{info.text}</span>
+      {info.kind === 'context' ? (
+        <button type="button" class="tl-link" id="leave-context" onClick={() => c.leaveAssemblyContext()}>
+          Revenir à l’assemblage
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -821,7 +849,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.assemblyContext],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

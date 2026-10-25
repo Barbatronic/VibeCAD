@@ -64,7 +64,7 @@ import type { MeshData } from '../geometry/kernel';
 import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
-import { invertRigid4, transformPoint4 } from '../math/mat4';
+import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
 import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
@@ -95,6 +95,7 @@ import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
 import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
+import { activeContext, CONTEXT_PREFIX, contextOf } from './assembly-context';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
@@ -733,6 +734,15 @@ export class AppController {
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     if (this.state.workspace === 'simulation') return this.simulationPick(pick);
     const mode = this.state.mode;
+    // Pièce voisine (conception en contexte d'assemblage) : seulement pour poser une esquisse.
+    if (pick?.partId.startsWith(CONTEXT_PREFIX)) {
+      const key = pick.partId.slice(CONTEXT_PREFIX.length);
+      if (pick.kind === 'face' && mode.kind === 'pick-support') this.sketchOnContextFace(key, pick.index, mode.repairFeatureId, mode.partId);
+      else if (pick.kind === 'face' && mode.kind === 'model' && info.double) this.sketchOnContextFace(key, pick.index, null, this.state.activePartId);
+      else if (mode.kind === 'model' && !info.double) this.select(null);
+      else if (mode.kind !== 'model') this.explain('Pièce voisine dans l’assemblage : elle sert d’appui à une esquisse (double-clic sur une de ses faces), pas aux autres outils.');
+      return;
+    }
     if (mode.kind === 'pick-support') {
       // La face peut être celle d'une autre pièce : l'esquisse reste dans la pièce choisie.
       if (pick?.kind === 'face') this.sketchOnFace(pick.partId, pick.index, mode.repairFeatureId, mode.partId);
@@ -775,7 +785,61 @@ export class AppController {
 
   setActivePart(partId: Id): void {
     if (this.state.mode.kind !== 'model') return;
-    this.set({ activePartId: partId, selection: { kind: 'part', partId } });
+    // Une autre pièce choisie : on quitte la conception dans l'assemblage.
+    const ctx = this.state.assemblyContext;
+    const keep = ctx && this.state.doc.assembly?.instances.find((i) => i.id === ctx.instanceId)?.partId === partId;
+    this.set({ activePartId: partId, selection: { kind: 'part', partId }, ...(keep ? {} : { assemblyContext: null }) });
+  }
+
+  // ----- Conception en contexte d'assemblage (voir docs/conception-en-contexte.md)
+
+  /** Modifie la pièce d'une insertion à sa place dans l'assemblage (onglet Pièces, voisines autour). */
+  editInAssembly(instanceId: Id): void {
+    const instance = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
+    if (!instance) return;
+    if (instance.subassemblyId) return this.explain('Un sous-assemblage se modifie depuis son propre assemblage (Assemblage ▾ en haut du panneau).');
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    this.setWorkspace('parts');
+    if (this.state.workspace !== 'parts') return;
+    this.set({ assemblyContext: { instanceId }, activePartId: instance.partId, selection: { kind: 'part', partId: instance.partId }, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  /** Quitte la conception dans l'assemblage et revient à l'onglet Assemblage, sur l'insertion. */
+  leaveAssemblyContext(): void {
+    const ctx = this.state.assemblyContext;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    this.set({ assemblyContext: null });
+    this.setWorkspace('assembly');
+    if (ctx && this.state.workspace === 'assembly') this.set({ assemblySelection: { kind: 'instance', id: ctx.instanceId } });
+  }
+
+  /** Esquisse de la pièce `targetPartId` posée sur la face d'une pièce voisine dans l'assemblage. */
+  sketchOnContextFace(leafKey: string, faceIndex: number, repairFeatureId: Id | null, targetPartId: Id): boolean {
+    const ctx = activeContext(this.state);
+    const leaf = ctx?.leaves.find((l) => l.key === leafKey);
+    if (!ctx || !leaf) return false;
+    const display = this.state.display[leaf.partId];
+    const face = display?.mesh?.faces[faceIndex];
+    const part = findPart(this.state.doc, leaf.partId);
+    if (!display || !face || !part) return false;
+    if (face.surface !== 'plane' || !face.plane) {
+      this.explain('Cette face n’est pas plane : une esquisse se pose sur une face plate ou sur un plan d’origine.');
+      return false;
+    }
+    if (leaf.partId === targetPartId) {
+      this.explain('C’est une autre insertion de la même pièce : une pièce ne peut pas s’appuyer sur elle-même.');
+      return false;
+    }
+    if (partDependsOn(this.state.doc, leaf.partId, targetPartId)) {
+      this.explain(`« ${part.name} » reprend déjà cette pièce : s’appuyer sur elle ferait une boucle. Choisissez une autre face ou un plan.`);
+      return false;
+    }
+    const ref = pickFaceReference(face.tags, part);
+    if (!ref) return false;
+    // Repère de la face dans le repère de la pièce modifiée (la voisine placée comme dans l'assemblage).
+    const frame = canonicalFrame(transformPoint4(leaf.local, face.plane.origin), transformDirection4(leaf.local, face.plane.normal));
+    this.beginSketchOn(targetPartId, { kind: 'face', ref, partId: leaf.partId, context: contextOf(ctx.instanceId, leaf) }, frame, repairFeatureId);
+    return true;
   }
 
   renamePart(partId: Id, name: string): void {
@@ -2045,7 +2109,7 @@ export class AppController {
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     // Les autres onglets (fabrication, simulation…) travaillent sur l'assemblage principal.
     const closed = workspace !== 'assembly' && this.state.doc.editingSubassembly ? { doc: closedDocument(this.state.doc), explode: 0 } : {};
-    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed });
+    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}) });
   }
 
   // ----- Paramètres du projet
