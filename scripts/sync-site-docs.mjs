@@ -43,6 +43,7 @@ const PAGES = [
   'fabrication',
   'simulation',
   'optimisation-topologique',
+  'mecanisme',
   'bibliotheques',
   'export-freecad',
   'navigateurs',

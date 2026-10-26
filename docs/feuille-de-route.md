@@ -49,6 +49,8 @@ sur une glissière) pour faire bouger le système, et quel moteur choisir ?
   de sécurité ; comparaison avec des moteurs courants (NEMA 17 et 23, servomoteurs de modélisme,
   ceux des bibliothèques de composants).
 
-**À trancher.** Inertie : moments d'inertie des pièces (calculables par le noyau) ou
-approximation par masses ponctuelles au centre de gravité pour la première version ; frottement :
-valeur par défaut et réglage par liaison.
+**Avancement.** Livré : étude « Mécanisme » de l'atelier Simulation (liaison motrice et plage,
+poids d'après la matière, accélération avec masses ponctuelles au centre de gravité, frottement
+constant, sécurité, courbe, comparaison avec des moteurs courants, position survolée montrée).
+Reste : charges extérieures (masse portée, ressort), moments d'inertie propres des pièces.
+Détails : [couple sur une liaison](mecanisme.md).

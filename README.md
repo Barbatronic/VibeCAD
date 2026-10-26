@@ -170,6 +170,10 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   pliés sur ses bords et des plis sur des traits, avec les limites du matériau (rayon minimal,
   angle maximal) ; « Déplier » montre la forme à plat et ses lignes de pli, et la découpe laser
   part du développé. Voir [docs/tolerie.md](docs/tolerie.md).
+- **Couple sur une liaison** (atelier Simulation, étude « Mécanisme ») : couple (pivot) ou force
+  (glissière) nécessaire pour faire bouger l'assemblage sur toute la plage de la liaison motrice,
+  d'après le poids des pièces, l'accélération voulue et le frottement ; courbe, couple à fournir
+  et comparaison avec des moteurs courants. Voir [docs/mecanisme.md](docs/mecanisme.md).
 - **Bibliothèques de composants** : roulements, moteurs NEMA 17, poulies GT2, accouplements…
   insérés en un clic avec leur historique paramétrique, depuis des dépôts GitHub (un dossier par
   collection, chaque composant en .vibecad et .step avec sa vignette) ; par défaut
