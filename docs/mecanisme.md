@@ -14,7 +14,9 @@ L'étude de déformation de l'atelier Simulation répond à « la pièce tient-e
      un pivot, ±50 mm pour une glissière) ;
    - **Frottement** (N·m ou N), constant, toujours contre le mouvement ;
    - **Accélération** voulue (rad/s² ou m/s²), 0 pour un mouvement lent ;
-   - **Sécurité** : coefficient multiplicateur (2 par défaut).
+   - **Sécurité** : coefficient multiplicateur (2 par défaut) ;
+   - **Masses portées** : une charge en grammes posée au centre de gravité d'une pièce (objet tenu
+     par une pince, plateau chargé…).
 3. **Calculer** : la courbe du couple sur toute la plage, le couple à fournir, la position du pic
    et son sens (le moteur soulève, ou retient le poids), la masse en mouvement, puis la liste des
    moteurs courants (micro-servos, MG996R, moteurs pas à pas NEMA 17 et 23) avec « suffit » ou
@@ -30,26 +32,32 @@ résultat comme périmé.
   solveur d'assemblage place les pièces (boucles fermées, engrenages et crémaillères compris) ;
   le couple vaut la dérivée de l'énergie potentielle, dU/dq, calculée par différence centrée
   (±0,25° ou ±0,1 mm). Positif : il faut pousser dans le sens des valeurs croissantes.
-- **Accélération** : + J(q) × α, avec l'inertie équivalente J = Σ m |dp/dq|² (masses ramenées à
-  leur centre de gravité), ajoutée dans le sens du pic.
+- **Accélération** : + J(q) × α, avec l'inertie équivalente J = Σ (m |dp/dq|² + ωᵀ I ω) :
+  translation du centre de gravité et rotation propre de chaque pièce (ω, sa vitesse de rotation
+  par unité de q ; I, sa matrice d'inertie, calculée par le noyau et multipliée par la masse
+  volumique de sa matière). Ajoutée dans le sens du pic.
+- **Masses portées** : ajoutées à la masse de la pièce qui les porte, en son centre de gravité
+  (poids et inertie de translation).
 - **À fournir** = (pic + frottement) × sécurité. Un réducteur (engrenages, poulies) divise le
   couple demandé au moteur par son rapport.
 
 Code : `src/app/mechanism.ts` (calcul, moteurs courants), `src/ui/MechanismUi.tsx` (panneau et
 courbe). Format natif : champ facultatif `simulation.mechanism` (`jointId`, `from`, `to`,
-`friction`, `acceleration`, `safety`).
+`friction`, `acceleration`, `safety`, et `loads` : liste de `{ instanceKey, mass }` en kg).
 
 ## Limites
 
 - Calcul quasi statique : pas de terme de vitesse (forces centrifuges), pas de chocs.
-- Pièces pleines ; la visserie n'est pas comptée ; l'inertie propre de chaque pièce autour de son
-  centre de gravité est négligée (pièces longues en rotation rapide : prendre de la marge).
-- Pas encore de charges extérieures (masse portée, ressort) ni de frottement calculé par liaison.
+- Pièces pleines ; la visserie n'est pas comptée.
+- Une masse portée est placée au centre de gravité de sa pièce (pas en un point choisi).
+- Pas de ressort ni de frottement calculé par liaison (frottement forfaitaire).
 
 ## Validation
 
 `tests/geometry/mechanism.test.ts` : bras de 50 mm en pivot sur un axe horizontal, centre de
 gravité à 20 mm de l'axe ; pic = m g r, nul un quart de tour plus loin, opposé à l'opposé ;
-accélération (+ m r² α), frottement et sécurité. `tests/e2e/mechanism.spec.ts` : dans
+accélération (+ (m r² + I) α, inertie propre comprise), masse portée, frottement et sécurité ;
+`tests/geometry/inertia.test.ts` : matrice d'inertie d'un pavé (moments exacts, pas de terme
+croisé). `tests/e2e/mechanism.spec.ts` : dans
 l'application, étude choisie, couple à fournir conforme, moteurs comparés, bras montré à la
-position survolée, résultat périmé après un réglage.
+position survolée, résultat périmé après un réglage, masse portée de 100 g ajoutée au bras.

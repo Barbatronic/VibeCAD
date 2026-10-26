@@ -50,7 +50,7 @@ sur une glissière) pour faire bouger le système, et quel moteur choisir ?
   ceux des bibliothèques de composants).
 
 **Avancement.** Livré : étude « Mécanisme » de l'atelier Simulation (liaison motrice et plage,
-poids d'après la matière, accélération avec masses ponctuelles au centre de gravité, frottement
-constant, sécurité, courbe, comparaison avec des moteurs courants, position survolée montrée).
-Reste : charges extérieures (masse portée, ressort), moments d'inertie propres des pièces.
-Détails : [couple sur une liaison](mecanisme.md).
+poids d'après la matière, masses portées, accélération avec l'inertie de translation et de
+rotation propre de chaque pièce, frottement constant, sécurité, courbe, comparaison avec des
+moteurs courants, position survolée montrée). Pistes : ressort, masse portée en un point choisi,
+frottement par liaison. Détails : [couple sur une liaison](mecanisme.md).
