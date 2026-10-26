@@ -37,6 +37,7 @@ const PAGES = [
   'assemblage',
   'sous-assemblages',
   'references-entre-pieces',
+  'conception-en-contexte',
   'images-reference',
   'tolerie',
   'fabrication',

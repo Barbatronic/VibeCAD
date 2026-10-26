@@ -17,6 +17,15 @@ travaillent dans le repère commun de l'onglet Pièces, sans les positions de l'
   double-clic sur cette face. L'esquisse appartient à la pièce modifiée ; elle est posée sur la
   face de la voisine telle qu'elle est placée dans l'assemblage, et suit cette voisine quand elle
   change (cote, étape).
+- **Projeter les arêtes d'une voisine** : dans une esquisse de la pièce modifiée, l'outil
+  **Projeter** propose aussi les arêtes des voisines, à leur place dans l'assemblage.
+- **Ça suit l'assemblage** : si l'assemblage change (pièce déplacée, liaison ajoutée ou modifiée,
+  repère d'une liaison qui bouge parce qu'une pièce a changé), la place des voisines est recalculée
+  et les esquisses qui s'appuient sur elles suivent. Le report fait partie de la même étape
+  d'annulation que le changement (ou, après un recalcul de forme, se fait sans étape de plus).
+- **Figer** : dans l'historique, le bouton à côté d'une esquisse posée sur une voisine fige sa
+  place (« figée ») : elle ne suit plus l'assemblage, mais toujours la forme de la voisine. Un
+  second clic la libère et la recale aussitôt.
 - **Sortir** : « Revenir à l'assemblage » dans le bandeau (ou l'onglet Assemblage) ; choisir une
   autre pièce dans la liste quitte aussi le contexte.
 
@@ -44,13 +53,15 @@ déplace donc pas une esquisse posée sur une voisine.
 
 `tests/geometry/cross-part.test.ts` (face et arête d'une voisine placées par la matrice, format
 relu à l'identique et conforme au schéma, matrice incomplète refusée),
-`tests/e2e/assembly-context.spec.ts` (dans l'application : entrée depuis l'assemblage, vue avec
-la voisine placée, esquisse posée sur la plaque voisine, extrusion à la bonne hauteur, retour).
+`tests/unit/assembly-context.test.ts` (position de référence, place recalculée quand une pièce
+bouge, lien figé, voisine retirée), `tests/e2e/assembly-context.spec.ts` (dans l'application :
+entrée depuis l'assemblage, vue avec la voisine placée, esquisse posée sur la plaque voisine,
+extrusion à la bonne hauteur, arêtes de la voisine proposées par Projeter, bloc déplacé et
+esquisse qui suit, lien figé qui ne suit plus).
 
-## Reste à faire
+## Limites
 
-- Projeter les arêtes d'une voisine dans une esquisse (outil Projeter) en contexte.
-- Recalculer `matrix` quand l'assemblage change (liaison ajoutée ou modifiée, pièce déplacée),
-  sauf pour un lien figé ; signaler une insertion disparue.
-- Afficher dans l'historique qu'une esquisse s'appuie sur une voisine « dans l'assemblage », et
-  proposer de figer ou de libérer le lien.
+- Les positions sont celles de la position de référence (liaisons à zéro) : une esquisse ne peut
+  pas s'appuyer sur la position du moment d'un mécanisme.
+- Une voisine retirée de l'assemblage laisse l'esquisse à sa dernière position (sans alerte pour
+  l'instant).
