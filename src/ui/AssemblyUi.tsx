@@ -494,6 +494,36 @@ function LimitsField(props: { label: string; unit: string; limits: [number, numb
   );
 }
 
+/** Nom de la liaison, modifiable sur place (Entrée valide, Échap annule). */
+function JointName({ joint }: { joint: AssemblyJoint }) {
+  const c = useController();
+  const [text, setText] = useState(joint.name);
+  useEffect(() => setText(joint.name), [joint.id, joint.name]);
+  const done = () => {
+    const t = text.trim();
+    if (t && t !== joint.name) c.renameJoint(joint.id, t);
+    else setText(joint.name);
+  };
+  return (
+    <input
+      class="title-input"
+      aria-label="Nom de la liaison"
+      title="Nom de la liaison (cliquez pour le modifier)"
+      value={text}
+      onInput={(e) => setText((e.target as HTMLInputElement).value)}
+      onBlur={done}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') {
+          setText(joint.name);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+}
+
 function JointPanel({ joint }: { joint: AssemblyJoint }) {
   const c = useController();
   const issue = useAppState(() => c.assemblyPlacement()?.issues.get(joint.id) ?? null);
@@ -504,7 +534,7 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
     <>
       <div class="panel-title">
         <Icon name={`joint-${joint.kind}`} />
-        <span>{joint.name}</span>
+        <JointName joint={joint} />
       </div>
       <div class="panel-content">
       <p class="vocab">
@@ -667,6 +697,23 @@ function InstancePanel({ id }: { id: string }) {
     />
     </label>
   );
+  const rot = inst.rotation ?? { x: 0, y: 0, z: 0 };
+  const turn = (k: 'x' | 'y' | 'z') => (
+    <label class="mini-field" key={`r${k}`}>
+      <span>{k.toUpperCase()}</span>
+      <NumberInput
+        value={formatNumber(rot[k], 2)}
+        unit="°"
+        step={15}
+        min={-100000}
+        ariaLabel={`Rotation autour de ${k.toUpperCase()}`}
+        onInput={(t) => {
+          const v = readNumber(t);
+          if (v !== null) c.rotateInstance(id, { ...rot, [k]: v });
+        }}
+      />
+    </label>
+  );
   return (
     <>
       <div class="panel-title">
@@ -687,10 +734,17 @@ function InstancePanel({ id }: { id: string }) {
         <Callout kind="info">Pièce libre : reliez-la avec l’outil « Liaison », ou placez-la à la main.</Callout>
       )}
       {!held ? (
-        <div class="field">
-          <span class="field-label">Position (X, Y, Z)</span>
-          <div class="limits-row three">{(['x', 'y', 'z'] as const).map(axis)}</div>
-        </div>
+        <>
+          <div class="field">
+            <span class="field-label">Position (X, Y, Z)</span>
+            <div class="limits-row three">{(['x', 'y', 'z'] as const).map(axis)}</div>
+          </div>
+          <div class="field">
+            <span class="field-label">Orientation (autour de X, Y, Z)</span>
+            <div class="limits-row three">{(['x', 'y', 'z'] as const).map(turn)}</div>
+            <span class="field-help">Ou dans la vue : flèches du manipulateur pour déplacer, anneaux pour tourner (pas de 1 mm et 15° ; Maj : 0,1 mm et 1°).</span>
+          </div>
+        </>
       ) : null}
       {inst.subassemblyId && inner.length ? (
         <div class="field">

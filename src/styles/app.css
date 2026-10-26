@@ -2488,6 +2488,26 @@ select optgroup {
   color: var(--text);
 }
 
+/* Titre de panneau modifiable sur place (nom d'une liaison). */
+.title-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.title-input:hover {
+  border-color: var(--border);
+}
+.title-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
 /* ------------------------------------------------------------------ Étude « Mécanisme » */
 
 .mech-result {

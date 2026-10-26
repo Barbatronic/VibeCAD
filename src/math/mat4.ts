@@ -52,6 +52,12 @@ export function rotationX4(radians: number): Mat4 {
   return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1];
 }
 
+export function rotationY4(radians: number): Mat4 {
+  const c = Math.cos(radians);
+  const s = Math.sin(radians);
+  return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1];
+}
+
 export function rotationZ4(radians: number): Mat4 {
   const c = Math.cos(radians);
   const s = Math.sin(radians);
@@ -81,4 +87,26 @@ export function frameFromAxis(origin: Vec3, axis: Vec3): Frame3D {
   const y = normalize3(cross3(z, ref));
   const x = cross3(y, z);
   return { origin, xAxis: x, yAxis: y, normal: z };
+}
+
+/**
+ * Rotation donnée par trois angles (degrés) : autour de X, puis de Y, puis de Z (axes fixes),
+ * soit Rz · Ry · Rx.
+ */
+export function rotationXYZ4(deg: Vec3): Mat4 {
+  const r = Math.PI / 180;
+  return multiply4(rotationZ4(deg.z * r), multiply4(rotationY4(deg.y * r), rotationX4(deg.x * r)));
+}
+
+/** Angles (degrés) de la rotation d'une matrice, inverses de `rotationXYZ4`. */
+export function eulerXYZ(m: Mat4): Vec3 {
+  const at = (r: number, c: number) => m[c * 4 + r]!;
+  const d = 180 / Math.PI;
+  const sy = Math.max(-1, Math.min(1, -at(2, 0)));
+  const y = Math.asin(sy);
+  if (Math.abs(Math.cos(y)) < 1e-9) {
+    // Blocage de cardan : X et Z tournent autour du même axe ; tout est reporté sur Z.
+    return { x: 0, y: y * d, z: Math.atan2(-at(0, 1), at(1, 1)) * d };
+  }
+  return { x: Math.atan2(at(2, 1), at(2, 2)) * d, y: y * d, z: Math.atan2(at(1, 0), at(0, 0)) * d };
 }

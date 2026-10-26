@@ -7,7 +7,7 @@ import type { Assembly, AssemblyInstance, AssemblyJoint, EdgeRef, FaceRef, Id, J
 import { pickFaceReference } from '../features/sketch/support';
 import type { FaceTag, MeshData, StepBlock, StepComponent } from '../geometry/kernel';
 import { frameToWorld, type Frame3D } from '../math/frame';
-import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationX4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
+import { flipX4, frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationX4, rotationXYZ4, rotationZ4, translation4, type Mat4 } from '../math/mat4';
 import { cross3, dot3, length3, scale3, sub3, type Vec3 } from '../math/vec';
 import { edgeRefFromPick } from './edges';
 
@@ -262,6 +262,12 @@ export interface SolveOptions {
 /** Profondeur maximale d'imbrication des sous-assemblages (garde-fou contre une boucle). */
 const MAX_DEPTH = 8;
 
+/** Placement d'une pièce insérée tant qu'elle n'est tenue par aucune liaison : position puis orientation. */
+export function instanceMatrix(i: Pick<AssemblyInstance, 'position' | 'rotation'>): Mat4 {
+  const r = i.rotation;
+  return r && (r.x || r.y || r.z) ? multiply4(translation4(i.position), rotationXYZ4(r)) : translation4(i.position);
+}
+
 /** Repère (dans le monde) d'une matrice appliquée à un repère local. */
 function transformFrame(m: Mat4, f: Frame3D): Frame3D {
   return worldFrame(m, f);
@@ -383,7 +389,7 @@ export function solveAssembly(
 
   const place = (values: Map<Id, JointValues>): Map<Id, Mat4> => {
     const matrices = new Map<Id, Mat4>();
-    for (const i of assembly.instances) matrices.set(i.id, translation4(i.position));
+    for (const i of assembly.instances) matrices.set(i.id, instanceMatrix(i));
     for (const j of order) {
       const f = frames.get(j.id)!;
       const v = values.get(j.id) ?? valuesOf(j);

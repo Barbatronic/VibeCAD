@@ -273,6 +273,8 @@ export interface AppState {
    */
   mechanismRun: { key: string; result: MechanismResult | null; busy: boolean; error?: string } | null;
   mechanismHover: number | null;
+  /** Valeur affichée pendant un glisser du manipulateur (« X +12 mm », « 45° autour de Z »). */
+  gizmoReadout: string | null;
   /** Bibliothèques de composants (adresses des dépôts), retenues sur l'appareil. */
   libraries: string[];
   /** Catalogues chargés, dans l'ordre des bibliothèques. */
@@ -346,6 +348,7 @@ export function initialState(): AppState {
     assemblyContext: null,
     mechanismRun: null,
     mechanismHover: null,
+    gizmoReadout: null,
     libraries: [...DEFAULT_LIBRARIES],
     libraryCatalogs: [],
     toasts: [],

@@ -51,6 +51,7 @@ import { fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type Par
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
+import { AXIS_VECTORS, Gizmo, type GizmoHandle } from './gizmo';
 
 /** Durée d'un aller-retour de la déformée animée (ms). */
 const RESULT_PERIOD_MS = 1600;
@@ -121,6 +122,8 @@ export interface ViewportInput {
   lockedFace?: { partId: Id; index: number } | null;
   /** Clés des pièces qu'on peut faire glisser à la souris (pièces mobiles d'une liaison). */
   dragTargets?: string[];
+  /** Manipulateur (flèches de déplacement, anneaux de rotation si `rings`) posé en `origin`. */
+  gizmo?: { origin: Vec3; rings: boolean } | null;
   /** Plateau d'impression (mm) dessiné à z = 0 à partir de l'origine. */
   bed?: { x: number; y: number } | null;
   /** Simulation : faces fixées (bleu) et chargées (orange), hachurées. */
@@ -181,6 +184,11 @@ export interface ViewportEvents {
   onContextLost(): void;
   /** Glisser d'une pièce d'assemblage (le mouvement est contraint par sa liaison). */
   onAssemblyDrag?(event: AssemblyDragEvent): void;
+  /**
+   * Glisser d'une poignée du manipulateur : `value` = déplacement (mm) le long de l'axe ou angle
+   * (degrés, sens direct autour de l'axe) depuis le début du glisser.
+   */
+  onGizmo?(event: { phase: 'start' | 'move' | 'end'; handle: GizmoHandle; value: number; shift: boolean }): void;
 }
 
 const EDGE_PICK_PX = 6;
@@ -204,6 +212,9 @@ export class Viewport {
   private readonly headlight = new DirectionalLight(0xffffff, 2.1);
   private readonly partsGroup = new Group();
   private readonly overlayGroup = new Group();
+  private readonly gizmo = new Gizmo();
+  /** Glisser en cours d'une poignée du manipulateur. */
+  private gizmoDrag: { handle: GizmoHandle; origin: Vector3; start: number; last: number; turns: number } | null = null;
   private readonly planesGroup = new Group();
   private readonly parts = new Map<Id, PartObject>();
   private tool: { key: string; object: PartObject } | null = null;
@@ -268,7 +279,7 @@ export class Viewport {
     this.scene.add(new HemisphereLight(0xffffff, 0x8899aa, 1.25));
     this.scene.add(new AmbientLight(0xffffff, 0.25));
     this.scene.add(this.headlight, this.headlight.target);
-    this.scene.add(this.grid.group, this.axes.group, this.partsGroup, this.planesGroup, this.overlayGroup, this.sessionView.group);
+    this.scene.add(this.grid.group, this.axes.group, this.partsGroup, this.planesGroup, this.overlayGroup, this.sessionView.group, this.gizmo.group);
     this.buildOriginPlanes();
     this.viewCube = new ViewCube(this.palette);
 
@@ -306,6 +317,7 @@ export class Viewport {
 
   private render(): void {
     const camera = this.rig.camera;
+    if (this.input.gizmo) this.placeGizmo();
     this.headlight.position.copy(camera.position);
     this.headlight.target.position.copy(this.rig.target);
     this.updateGrid();
@@ -434,6 +446,7 @@ export class Viewport {
   setInput(input: ViewportInput): void {
     const prevMode = this.input.mode;
     this.input = input;
+    if (!this.gizmoDrag) this.placeGizmo();
     this.syncParts(input.parts);
     this.syncTool(input.tool);
     this.syncSketches(input.mode === 'sketch' ? [] : input.sketches);
@@ -1219,6 +1232,138 @@ export class Viewport {
     return { origin: { x: r.origin.x, y: r.origin.y, z: r.origin.z }, direction: { x: r.direction.x, y: r.direction.y, z: r.direction.z } };
   }
 
+  /** Taille du manipulateur : environ 110 px à l'écran, à la profondeur de son centre. */
+  private placeGizmo(): void {
+    const g = this.input.gizmo;
+    if (!g) return this.gizmo.show(null, 1, false);
+    const camera = this.rig.camera;
+    const target = this.rig.target;
+    const toTarget = camera.position.distanceTo(target) || 1;
+    const toOrigin = camera.position.distanceTo(new Vector3(g.origin.x, g.origin.y, g.origin.z)) || toTarget;
+    const px = this.rig.pixelSize() * (this.rig.projection === 'perspective' ? toOrigin / toTarget : 1);
+    this.gizmo.show(g.origin, px * 110, g.rings);
+  }
+
+  /** Valeur d'un glisser : position le long de l'axe (mm) ou angle autour de l'axe (degrés). */
+  private gizmoValue(e: PointerEvent, handle: GizmoHandle, origin: Vector3): number | null {
+    this.raycaster.setFromCamera(this.ndc(e), this.rig.camera);
+    const { origin: ro, direction: rd } = this.raycaster.ray;
+    const a = new Vector3(AXIS_VECTORS[handle.axis].x, AXIS_VECTORS[handle.axis].y, AXIS_VECTORS[handle.axis].z);
+    if (handle.kind === 'move') {
+      // Point de l'axe le plus proche du rayon de la souris.
+      const w0 = origin.clone().sub(ro);
+      const b = a.dot(rd);
+      const denom = 1 - b * b;
+      if (denom < 1e-6) return null;
+      return (b * rd.dot(w0) - a.dot(w0)) / denom;
+    }
+    // Angle du point visé dans le plan perpendiculaire à l'axe.
+    const dn = rd.dot(a);
+    if (Math.abs(dn) < 1e-6) return null;
+    const t = origin.clone().sub(ro).dot(a) / dn;
+    const q = ro.clone().addScaledVector(rd, t).sub(origin);
+    const u = new Vector3(a.y, a.z, a.x);
+    const v = a.clone().cross(u);
+    return (Math.atan2(q.dot(v), q.dot(u)) * 180) / Math.PI;
+  }
+
+  private bindGizmo(): void {
+    const canvas = this.renderer.domElement;
+    this.container.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.button !== 0 || e.target !== canvas || !this.input.gizmo) return;
+        this.raycaster.setFromCamera(this.ndc(e), this.rig.camera);
+        const handle = this.gizmo.pick(this.raycaster);
+        if (!handle) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const origin = this.gizmo.origin.clone();
+        const start = this.gizmoValue(e, handle, origin);
+        if (start === null) return;
+        this.gizmoDrag = { handle, origin, start, last: start, turns: 0 };
+        this.rig.controls.enabled = false;
+        canvas.style.cursor = 'grabbing';
+        this.events.onGizmo?.({ phase: 'start', handle, value: 0, shift: e.shiftKey });
+      },
+      { capture: true },
+    );
+    const valueOf = (e: PointerEvent): number | null => {
+      const drag = this.gizmoDrag!;
+      const v = this.gizmoValue(e, drag.handle, drag.origin);
+      if (v === null) return null;
+      if (drag.handle.kind === 'move') return v - drag.start;
+      // Angle continu : on compte les tours quand on passe ±180°.
+      if (v - drag.last > 180) drag.turns -= 1;
+      else if (drag.last - v > 180) drag.turns += 1;
+      drag.last = v;
+      return v + drag.turns * 360 - drag.start;
+    };
+    window.addEventListener('pointermove', (e) => {
+      const drag = this.gizmoDrag;
+      if (drag) {
+        const value = valueOf(e);
+        if (value !== null) this.events.onGizmo?.({ phase: 'move', handle: drag.handle, value, shift: e.shiftKey });
+        return;
+      }
+      // Survol : la poignée visée s'allume.
+      if (!this.input.gizmo || e.target !== canvas) return;
+      this.raycaster.setFromCamera(this.ndc(e), this.rig.camera);
+      const handle = this.gizmo.pick(this.raycaster);
+      if (this.gizmo.highlight(handle)) this.requestRender();
+      canvas.style.cursor = handle ? 'grab' : '';
+    });
+    const finish = (e: PointerEvent) => {
+      const drag = this.gizmoDrag;
+      if (!drag) return;
+      const value = valueOf(e) ?? 0;
+      this.gizmoDrag = null;
+      this.rig.controls.enabled = true;
+      canvas.style.cursor = '';
+      this.events.onGizmo?.({ phase: 'end', handle: drag.handle, value, shift: e.shiftKey });
+      this.placeGizmo();
+    };
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+  }
+
+  /**
+   * Point écran d'une poignée du manipulateur (tests) : un point où un clic l'attrape vraiment
+   * (pour un anneau, celui qui n'est pas caché par un autre anneau à l'écran).
+   */
+  gizmoClientPoint(handle: GizmoHandle): { x: number; y: number } | null {
+    if (!this.gizmo.group.visible) return null;
+    const a = AXIS_VECTORS[handle.axis];
+    const s = this.gizmo.group.scale.x;
+    const o = this.gizmo.origin;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const toClient = (p: Vector3) => {
+      const q = p.clone().project(this.rig.camera);
+      return { x: rect.left + ((q.x + 1) / 2) * this.width, y: rect.top + ((1 - q.y) / 2) * this.height };
+    };
+    const grabs = (c: { x: number; y: number }) => {
+      this.raycaster.setFromCamera(this.ndc({ clientX: c.x, clientY: c.y } as PointerEvent), this.rig.camera);
+      const h = this.gizmo.pick(this.raycaster);
+      return h?.kind === handle.kind && h.axis === handle.axis;
+    };
+    const candidates: Vector3[] = [];
+    if (handle.kind === 'move') {
+      for (const t of [0.8, 0.6, 0.95, 0.4]) candidates.push(new Vector3(o.x + a.x * t * s, o.y + a.y * t * s, o.z + a.z * t * s));
+    } else {
+      const u = new Vector3(a.y, a.z, a.x);
+      const v = new Vector3(a.x, a.y, a.z).cross(u);
+      for (let k = 0; k < 24; k++) {
+        const ang = ((k + 0.5) / 24) * Math.PI * 2;
+        candidates.push(o.clone().addScaledVector(u, Math.cos(ang) * 0.62 * s).addScaledVector(v, Math.sin(ang) * 0.62 * s));
+      }
+    }
+    for (const p of candidates) {
+      const c = toClient(p);
+      if (grabs(c)) return c;
+    }
+    return null;
+  }
+
   private bindAssemblyDrag(): void {
     // Écouteur en phase de capture : il passe avant la rotation de la vue (OrbitControls).
     this.container.addEventListener(
@@ -1316,6 +1461,7 @@ export class Viewport {
   }
 
   private bindEvents(): void {
+    this.bindGizmo();
     this.bindAssemblyDrag();
     this.bindViewCube();
     const canvas = this.renderer.domElement;
@@ -1677,6 +1823,7 @@ export class Viewport {
     for (const { view } of this.sketchViews.values()) view.dispose();
     this.sessionView.dispose();
     this.grid.dispose();
+    this.gizmo.dispose();
     this.axes.dispose();
     this.rig.dispose();
     this.renderer.dispose();

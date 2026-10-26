@@ -490,6 +490,10 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
       name: str(v, io, 'name', ip),
       position: { x: num(v, pos, 'x', `${ip}.position`), y: num(v, pos, 'y', `${ip}.position`), z: num(v, pos, 'z', `${ip}.position`) },
     };
+    if (io.rotation !== undefined) {
+      const rot = obj(v, io.rotation, `${ip}.rotation`) ?? {};
+      instance.rotation = { x: num(v, rot, 'x', `${ip}.rotation`), y: num(v, rot, 'y', `${ip}.rotation`), z: num(v, rot, 'z', `${ip}.rotation`) };
+    }
     if (subassemblyId) {
       if (io.flexible === true) instance.flexible = true;
       if (io.jointValues !== undefined) {

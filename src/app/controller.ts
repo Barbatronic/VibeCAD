@@ -39,13 +39,14 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
-import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
+import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
 import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
 import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
+import { moveDefinition } from '../features/move/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { PartResult } from '../geometry/protocol';
@@ -64,8 +65,8 @@ import type { MeshData } from '../geometry/kernel';
 import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
-import { invertRigid4, transformDirection4, transformPoint4 } from '../math/mat4';
-import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
+import { eulerXYZ, invertRigid4, multiply4, rotationX4, rotationY4, rotationZ4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
+import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, instanceMatrix, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableCurves } from './projection';
 import { externalParts } from '../features/sketch/definition';
@@ -3337,6 +3338,116 @@ export class AppController {
     this.set({ history: recordAction(s.history, start, label), revision: s.revision + 1 });
     this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
     if (this.state.collisionCheck) void this.refreshCollisions();
+  }
+
+  // ----- Manipulateur (déplacer et tourner à la souris)
+
+  /** État au début d'un glisser du manipulateur. */
+  private gizmoStart:
+    | { kind: 'instance'; id: Id; name: string; matrix: Mat4; center: Vec3 }
+    | { kind: 'move'; feature: Feature }
+    | null = null;
+
+  /**
+   * Glisser d'une poignée du manipulateur : une pièce insérée libre (onglet Assemblage) ou l'étape
+   * « Déplacer » en cours. Pas aimantés : 1 mm et 15° (Maj : 0,1 mm et 1°).
+   */
+  gizmoDrag(e: { phase: 'start' | 'move' | 'end'; handle: { kind: 'move' | 'rotate'; axis: 'x' | 'y' | 'z' }; value: number; shift: boolean }): void {
+    const step = e.handle.kind === 'move' ? (e.shift ? 0.1 : 1) : e.shift ? 1 : 15;
+    const value = Math.round(e.value / step) * step + 0;
+    const axis = e.handle.axis;
+    const dir = { x: axis === 'x' ? 1 : 0, y: axis === 'y' ? 1 : 0, z: axis === 'z' ? 1 : 0 };
+    const label = e.handle.kind === 'move' ? `${axis.toUpperCase()} ${value > 0 ? '+' : ''}${formatNumber(value, e.shift ? 1 : 0)} mm` : `${formatNumber(value, 0)}° autour de ${axis.toUpperCase()}`;
+    if (e.phase === 'start') {
+      const s = this.state;
+      const sel = s.assemblySelection;
+      if (s.workspace === 'assembly' && sel?.kind === 'instance') {
+        const inst = s.doc.assembly?.instances.find((i) => i.id === sel.id);
+        const center = this.instanceCenter(sel.id);
+        if (!inst || !center) return;
+        this.gizmoStart = { kind: 'instance', id: inst.id, name: inst.name, matrix: instanceMatrix(inst), center };
+        this.liveStart = s.doc;
+      } else if (s.mode.kind === 'feature' && s.mode.draft.feature.type === 'move') {
+        this.gizmoStart = { kind: 'move', feature: s.mode.draft.feature };
+      }
+      this.set({ gizmoReadout: label });
+      return;
+    }
+    const start = this.gizmoStart;
+    if (!start) return;
+    if (start.kind === 'instance') {
+      const r = (value * Math.PI) / 180;
+      const rot = axis === 'x' ? rotationX4(r) : axis === 'y' ? rotationY4(r) : rotationZ4(r);
+      const c = start.center;
+      const m =
+        e.handle.kind === 'move'
+          ? multiply4(translation4(scale3(dir, value)), start.matrix)
+          : multiply4(translation4(c), multiply4(rot, multiply4(translation4({ x: -c.x, y: -c.y, z: -c.z }), start.matrix)));
+      const round = (v: number) => Math.round(v * 1e6) / 1e6 + 0;
+      const e3 = eulerXYZ(m);
+      const position = { x: round(m[12]!), y: round(m[13]!), z: round(m[14]!) };
+      const rotation = { x: round(e3.x), y: round(e3.y), z: round(e3.z) };
+      // Sans rotation, le champ est retiré (fichier inchangé pour une pièce seulement déplacée).
+      const turned = rotation.x || rotation.y || rotation.z;
+      const doc = updateInstance(this.state.doc, start.id, ({ rotation: _r, ...i }) => ({ ...i, position, ...(turned ? { rotation } : {}) }));
+      this.set({ doc, gizmoReadout: e.phase === 'end' ? null : label });
+      if (e.phase === 'end') {
+        this.gizmoStart = null;
+        this.commitLive(e.handle.kind === 'move' ? `Déplacer « ${start.name} »` : `Tourner « ${start.name} »`);
+      }
+      return;
+    }
+    // Étape « Déplacer » : translation, ou angle autour d'un axe (une étape tourne autour d'un seul axe).
+    const p0 = (start.feature as MoveFeature).params;
+    const AXIS = axis.toUpperCase() as 'X' | 'Y' | 'Z';
+    const params =
+      e.handle.kind === 'move'
+        ? { ...p0, translation: { x: p0.translation.x + dir.x * value, y: p0.translation.y + dir.y * value, z: p0.translation.z + dir.z * value } }
+        : { ...p0, axis: AXIS, angle: (p0.axis === AXIS ? p0.angle : 0) + value };
+    const feature = { ...start.feature, params } as MoveFeature;
+    this.updateDraft(() => feature);
+    const mode = this.state.mode;
+    if (mode.kind === 'feature') this.set({ mode: { kind: 'feature', draft: { ...mode.draft, fields: { ...mode.draft.fields, ...moveDefinition.tool!.initialFields(feature) }, errors: {} } } });
+    this.set({ gizmoReadout: e.phase === 'end' ? null : label });
+    if (e.phase === 'end') this.gizmoStart = null;
+  }
+
+  /** Centre (monde) d'une pièce insérée : milieu de la boîte englobante de ses pièces placées. */
+  instanceCenter(instanceId: Id): Vec3 | null {
+    const leaves = this.assemblyLeaves().filter((l) => l.instanceId === instanceId);
+    const pts: Vec3[] = [];
+    for (const leaf of leaves) {
+      const b = this.state.display[leaf.partId]?.result.analysis?.bbox;
+      if (!b) continue;
+      for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) pts.push(transformPoint4(leaf.matrix, { x, y, z }));
+    }
+    if (!pts.length) return null;
+    const mid = (k: 'x' | 'y' | 'z') => (Math.min(...pts.map((p) => p[k])) + Math.max(...pts.map((p) => p[k]))) / 2;
+    return { x: mid('x'), y: mid('y'), z: mid('z') };
+  }
+
+  renameJoint(jointId: Id, name: string): void {
+    const joint = this.state.doc.assembly?.joints.find((j) => j.id === jointId);
+    const t = name.trim();
+    if (!joint || !t || t === joint.name) return;
+    this.commit(updateJoint(this.state.doc, jointId, (j) => ({ ...j, name: t })), `Renommer la liaison « ${joint.name} »`);
+  }
+
+  /** Orientation d'une pièce insérée (degrés autour de X, Y, Z), saisie dans le panneau. */
+  rotateInstance(instanceId: Id, rotation: { x: number; y: number; z: number }): void {
+    const inst = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
+    if (!inst) return;
+    const keep = rotation.x || rotation.y || rotation.z;
+    // Comme avec les anneaux du manipulateur : la pièce tourne sur elle-même, son centre reste en place.
+    const center = this.instanceCenter(instanceId);
+    let position = inst.position;
+    if (center) {
+      const local = transformPoint4(invertRigid4(instanceMatrix(inst)), center);
+      const turned = transformPoint4(instanceMatrix({ position: { x: 0, y: 0, z: 0 }, rotation }), local);
+      const round = (v: number) => Math.round(v * 1e6) / 1e6 + 0;
+      position = { x: round(center.x - turned.x), y: round(center.y - turned.y), z: round(center.z - turned.z) };
+    }
+    this.commit(updateInstance(this.state.doc, instanceId, ({ rotation: _r, ...i }) => ({ ...i, position, ...(keep ? { rotation } : {}) })), 'Tourner une pièce de l’assemblage');
   }
 
   // ----- Engrenages et crémaillères entre liaisons

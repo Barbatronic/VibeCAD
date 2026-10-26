@@ -206,6 +206,11 @@ export interface AssemblyInstance {
   name: string;
   /** Position (mm) tant que la pièce n'est tenue par aucune liaison. */
   position: { x: number; y: number; z: number };
+  /**
+   * Orientation (degrés) tant que la pièce n'est tenue par aucune liaison : autour de X, puis de Y,
+   * puis de Z (axes fixes), autour de l'origine de la pièce. Facultative (absente : aucune).
+   */
+  rotation?: { x: number; y: number; z: number };
 }
 
 export interface JointEnd {

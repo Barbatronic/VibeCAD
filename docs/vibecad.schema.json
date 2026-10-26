@@ -2706,6 +2706,26 @@
                   }
                 },
                 "description": "Réglages propres à cette insertion des liaisons internes du bloc (par identifiant de liaison)"
+              },
+              "rotation": {
+                "type": "object",
+                "required": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "description": "Orientation (degrés) d'une pièce libre : autour de X, puis Y, puis Z (axes fixes), autour de son origine.",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                }
               }
             }
           }

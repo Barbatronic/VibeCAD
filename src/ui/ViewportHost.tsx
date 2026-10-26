@@ -227,7 +227,21 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   }
   const lockedFace = s.mode.kind === 'joint' && s.mode.lockedFace ? { partId: s.mode.lockedFace.instanceId, index: s.mode.lockedFace.index } : null;
   if (lockedFace) selection.push({ partId: lockedFace.partId, kind: 'face', index: lockedFace.index });
-  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors };
+  // Manipulateur : sur la pièce insérée choisie, si aucune liaison ne la tient (sinon c'est la liaison qui la place).
+  let gizmo: ViewportInput['gizmo'] = null;
+  if (s.mode.kind === 'model' && sel?.kind === 'instance' && !exploded && !assembly.joints.some((j) => j.moving.instanceId === sel.id)) {
+    const pts = leaves
+      .filter((l) => l.instanceId === sel.id)
+      .flatMap((leaf) => {
+        const b = s.display[leaf.partId]?.result.analysis?.bbox;
+        return b ? [b.min, b.max].flatMap((u) => [b.min, b.max].flatMap((v) => [b.min, b.max].map((w) => transformPoint4(leaf.matrix, { x: u.x, y: v.y, z: w.z })))) : [];
+      });
+    if (pts.length) {
+      const mid = (k: 'x' | 'y' | 'z') => (Math.min(...pts.map((p) => p[k])) + Math.max(...pts.map((p) => p[k]))) / 2;
+      gizmo = { origin: { x: mid('x'), y: mid('y'), z: mid('z') }, rings: true };
+    }
+  }
+  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors, gizmo };
 }
 
 /** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau affiché. */
@@ -511,7 +525,12 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges };
+  // Étape « Déplacer » en cours : manipulateur sur le centre de rotation, après le décalage.
+  const moving = s.mode.kind === 'feature' && s.mode.draft.feature.type === 'move' ? s.mode.draft.feature.params : null;
+  const gizmo = moving
+    ? { origin: { x: moving.center.x + moving.translation.x, y: moving.center.y + moving.translation.y, z: moving.center.z + moving.translation.z }, rings: true }
+    : null;
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges, gizmo };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -808,6 +827,7 @@ function Banner() {
   const info = useAppState(
     (s) => {
       if (s.mode.kind === 'sketch') return { kind: 'sketch', text: `Mode esquisse — outil ${TOOL_LABELS[s.mode.session.tool]}` };
+      if (s.gizmoReadout) return { kind: 'sketch', text: s.gizmoReadout };
       if (s.mode.kind === 'feature') return { kind: s.mode.draft.feature.type === 'pocket' || s.mode.draft.feature.type === 'hole' ? 'preview cut' : 'preview', text: 'Aperçu — non validé' };
       if (s.mode.kind === 'pick-support') return { kind: 'sketch', text: 'Choisissez un plan ou une face plane' };
       if (s.mode.kind === 'measure') return { kind: 'sketch', text: 'Mesure : cliquez des arêtes ou des faces' };
@@ -869,6 +889,7 @@ export function ViewportHost() {
         onPick: (pick, info) => c.handlePick(pick, info),
         onHover: (pick) => c.setHover(pick),
         onAssemblyDrag: (event) => c.assemblyDrag(event),
+        onGizmo: (event) => c.gizmoDrag(event),
         onPlanePick: (plane) => c.pickPlane(plane),
         onSketchPointer: (type, p, mods) => {
           if (type === 'move') c.updateSession((s) => pointerMove(s, p, mods));
