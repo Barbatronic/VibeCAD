@@ -105,7 +105,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
 - **Symétrie** : ajouter le reflet de toute la pièce, ou d'une seule étape (un trou, un plot…),
   par rapport au plan XY, XZ, YZ, à une face plane cliquée ou à un plan de construction.
 - **Déplacer** (niveau Intermédiaire) : décaler toute la pièce et/ou la faire pivoter autour d'un
-  axe X, Y ou Z passant par un point choisi, ou en ajouter une copie déplacée ; les faces gardent
+  axe X, Y ou Z passant par un point choisi (le centre de la pièce par défaut), au clavier ou avec
+  le **manipulateur** de la vue (flèches et anneaux), ou en ajouter une copie déplacée ; les faces gardent
   leurs références (un congé ou une esquisse posés ensuite restent valables).
 - **Découpe** (niveau Expert) : couper la pièce en deux par le plan XY, XZ, YZ (à la position
   choisie) ou par une face plane cliquée (décalée), et garder un côté ou les deux morceaux écartés

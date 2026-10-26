@@ -441,7 +441,8 @@ puisque le fichier est figé dans le projet).
 "assembly": {
   "instances": [
     { "id": "in-…", "partId": "part-…", "name": "Plaque", "position": { "x": 0, "y": 0, "z": 0 } },
-    { "id": "in-…", "partId": "part-…", "name": "Goupille", "position": { "x": 80, "y": 0, "z": 0 } }
+    { "id": "in-…", "partId": "part-…", "name": "Goupille", "position": { "x": 80, "y": 0, "z": 0 },
+      "rotation": { "x": 0, "y": 0, "z": 45 } }
   ],
   "joints": [
     { "id": "jt-…", "name": "Liaison 1", "kind": "revolute",
@@ -457,6 +458,10 @@ puisque le fichier est figé dans le projet).
   ]
 }
 ```
+
+`rotation` (facultatif) : orientation d'une pièce insérée qu'aucune liaison ne tient, en degrés
+autour de X, puis de Y, puis de Z (axes fixes), autour de l'origine de la pièce, appliquée avant
+`position`. Absente : aucune rotation.
 
 La première pièce insérée est fixe. `position` sert tant qu'une pièce n'est tenue par aucune
 liaison. Repères (`lcs`) : `face` (centre d'une face plane, axe = normale), `circle` (centre d'un

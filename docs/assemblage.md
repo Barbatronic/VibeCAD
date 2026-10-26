@@ -72,6 +72,22 @@ Création en trois gestes : outil **Liaison** → clic sur la pièce qui bouge (
 la pièce de référence (repère) → choix du type dans le panneau (Pivot par défaut si les deux
 repères sont des cercles, Fixe sinon).
 
+## Placer une pièce libre
+
+Une pièce insérée qu'aucune liaison ne tient se place à la main :
+
+- **Manipulateur** (à la façon de FreeCAD ou d'Orca), affiché sur la pièce sélectionnée : trois
+  **flèches** (X rouge, Y vert, Z bleu) pour la faire glisser le long d'un axe, trois **anneaux**
+  pour la faire tourner autour d'un axe passant par son centre. La poignée survolée s'allume en
+  jaune ; la valeur s'affiche en haut de la vue pendant le glisser. Pas aimantés : 1 mm et 15° ;
+  avec Maj, 0,1 mm et 1°. Un glisser = une étape d'annulation.
+- **Panneau de droite** : position (X, Y, Z) et orientation (degrés autour de X, puis Y, puis Z) ;
+  une orientation saisie fait aussi tourner la pièce sur elle-même (son centre reste en place).
+- Le même manipulateur sert à l'étape **Déplacer** de l'onglet Pièces (flèches : décalage ;
+  anneaux : axe et angle de rotation, autour du centre de la pièce).
+
+Le **nom d'une liaison** se modifie en haut de son panneau (clic sur le nom, Entrée pour valider).
+
 ## Faire bouger
 
 - **Curseurs** : pour la liaison sélectionnée, un curseur par mouvement libre (angle en degrés,
