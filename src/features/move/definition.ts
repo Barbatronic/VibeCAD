@@ -40,7 +40,13 @@ export const moveDefinition: FeatureDefinition<MoveFeature> = {
     input: 'part',
     requiresSolid: true,
     previewKind: 'modify',
-    create: (doc, part) => makeMoveFeature(doc, part),
+    // Centre de rotation : le milieu de la pièce (là où le manipulateur apparaît).
+    create: (doc, part, _input, context) => {
+      const f = makeMoveFeature(doc, part);
+      const b = context.partBounds;
+      const mid = (a: number, c: number) => Math.round(((a + c) / 2) * 100) / 100;
+      return b ? { ...f, params: { ...f.params, center: { x: mid(b.min.x, b.max.x), y: mid(b.min.y, b.max.y), z: mid(b.min.z, b.max.z) } } } : f;
+    },
     initialFields: (feature) => {
       const t = (v: number) => String(v).replace('.', ',');
       const p = feature.params;

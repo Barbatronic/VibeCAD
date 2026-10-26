@@ -19,11 +19,12 @@ test('déplacer : décaler puis faire pivoter la pièce d’un quart de tour', a
   await expect(page.locator('#draft-cx')).toBeVisible();
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
-  // Rotation de 90° autour de Z (centre à l'origine) puis décalage de 5 en X : 40 × 20 → 20 × 40.
+  // Rotation de 90° autour de Z, centre au milieu de la pièce (20 ; 10), puis décalage de 5 en X :
+  // 40 × 20 → 20 × 40, centré en (25 ; 10).
   await expect.poll(async () => {
     const b = await bbox(page);
     return b ? [b.min.x, b.max.x, b.min.y, b.max.y].map((v: number) => Math.round(v)) : null;
-  }).toEqual([-15, 5, 0, 40]);
+  }).toEqual([15, 35, -10, 30]);
   await expectVolume(page, 8000 * 2);
   await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('Déplacement 1');
 });
