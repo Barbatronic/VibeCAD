@@ -146,8 +146,25 @@ export interface SimulationStudy {
   keep?: StudyFace[];
 }
 
+/**
+ * Étude « Mécanisme » : couple (pivot, N·m) ou force (glissière, N) à fournir sur la liaison
+ * `jointId` pour faire bouger l'assemblage de `from` à `to` (degrés ou mm). `friction` : couple ou
+ * force de frottement constant ; `acceleration` : accélération voulue (rad/s² ou m/s²) ;
+ * `safety` : coefficient de sécurité (≥ 1).
+ */
+export interface MechanismStudy {
+  jointId: Id;
+  from: number;
+  to: number;
+  friction: number;
+  acceleration: number;
+  safety: number;
+}
+
 export interface SimulationSettings {
   studies: SimulationStudy[];
+  /** Étude « Mécanisme » de l'assemblage (facultative). */
+  mechanism?: MechanismStudy;
 }
 
 // ---------------------------------------------------------------------------

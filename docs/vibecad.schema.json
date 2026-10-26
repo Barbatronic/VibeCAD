@@ -450,6 +450,41 @@
                   "load"
                 ]
               }
+            },
+            "mechanism": {
+              "type": "object",
+              "required": [
+                "jointId",
+                "from",
+                "to",
+                "friction",
+                "acceleration",
+                "safety"
+              ],
+              "description": "Étude « Mécanisme » : couple (pivot, N·m) ou force (glissière, N) nécessaire sur la liaison jointId pour parcourir from → to (degrés ou mm).",
+              "properties": {
+                "jointId": {
+                  "$ref": "#/$defs/id"
+                },
+                "from": {
+                  "type": "number"
+                },
+                "to": {
+                  "type": "number"
+                },
+                "friction": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "acceleration": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "safety": {
+                  "type": "number",
+                  "minimum": 1
+                }
+              }
             }
           },
           "required": [

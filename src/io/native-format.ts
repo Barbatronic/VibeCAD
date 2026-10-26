@@ -364,6 +364,22 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
         };
       })
       .filter((st) => st.partId === ASSEMBLY_STUDY || partIds.has(st.partId)),
+    ...(o.mechanism !== undefined
+      ? (() => {
+          const mp = `${path}.mechanism`;
+          const mo = obj(v, o.mechanism, mp) ?? {};
+          return {
+            mechanism: {
+              jointId: str(v, mo, 'jointId', mp),
+              from: num(v, mo, 'from', mp),
+              to: num(v, mo, 'to', mp),
+              friction: num(v, mo, 'friction', mp, { min: 0 }),
+              acceleration: num(v, mo, 'acceleration', mp, { min: 0 }),
+              safety: num(v, mo, 'safety', mp, { min: 1 }),
+            },
+          };
+        })()
+      : {}),
   };
 }
 
