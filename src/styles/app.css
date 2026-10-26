@@ -2564,6 +2564,18 @@ select optgroup {
 .mech-key.required {
   border-top: 1px dashed var(--text-muted);
 }
+.mech-loads {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.mech-loads li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
 .mech-motors {
   margin: 4px 0 8px;
   padding: 0;

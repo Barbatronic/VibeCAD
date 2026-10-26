@@ -159,6 +159,8 @@ export interface MechanismStudy {
   friction: number;
   acceleration: number;
   safety: number;
+  /** Masses portées (kg), posées au centre de gravité de la pièce `instanceKey` (clé dépliée). */
+  loads?: { instanceKey: string; mass: number }[];
 }
 
 export interface SimulationSettings {

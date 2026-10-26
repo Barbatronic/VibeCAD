@@ -2251,7 +2251,10 @@ export class AppController {
     const part = findPart(this.state.doc, partId);
     const a = this.state.display[partId]?.result.analysis;
     if (!part || !a?.centroid || a.solidCount === 0) return null;
-    return { mass: massOf(a.volume, partMaterial(partMaterialId(part))) / 1000, centroid: a.centroid };
+    const material = partMaterial(partMaterialId(part));
+    // Inertie : mm⁵ (masse volumique 1) × g/cm³ → kg·m² (facteur 10⁻¹²).
+    const inertia = a.inertia ? a.inertia.map((v) => v * material.density * 1e-12) : null;
+    return { mass: massOf(a.volume, material) / 1000, centroid: a.centroid, inertia };
   };
 
   /** Clé du calcul : l'étude, l'assemblage et les formes (un changement rend le résultat périmé). */

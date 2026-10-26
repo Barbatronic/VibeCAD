@@ -22,7 +22,7 @@ describe('étude « Mécanisme » : couple nécessaire sur une liaison', () => {
     // Bras en PLA : masse en kg, centre de gravité en mm (repère de la pièce).
     const massOf: MassOf = (partId) => {
       const a = analysis.get(partId);
-      return a?.centroid ? { mass: (a.volume / 1000) * 1.24 / 1000, centroid: a.centroid } : null;
+      return a?.centroid ? { mass: (a.volume / 1000) * 1.24 / 1000, centroid: a.centroid, inertia: a.inertia!.map((v) => v * 1.24e-12) } : null;
     };
     expect(drivableJoints(assembly).map((d) => [d.joint.id, d.kind])).toEqual([['pivot', 'angle']]);
     const study = { ...defaultMechanismStudy(assembly.joints[0]!, 'angle'), safety: 1 };
@@ -42,9 +42,19 @@ describe('étude « Mécanisme » : couple nécessaire sur une liaison', () => {
     expect(Math.abs(at((peakAt + 90) % 360))).toBeLessThan(expected * 0.01);
     expect(at((peakAt + 180) % 360)).toBeCloseTo(-result.peak!.value, 4);
 
-    // Accélération de 10 rad/s² : + J α, J = m r² (masse ponctuelle au centre de gravité).
+    // Accélération de 10 rad/s² : + J α, J = m r² + inertie propre du bras autour de l'axe Y. Le
+    // trou près de l'axe éloigne un peu le centre de gravité : r vient du couple de pesanteur.
+    const r = Math.abs(result.peak!.value) / (m * 9.81);
+    expect(r).toBeGreaterThan(0.02);
+    expect(r).toBeLessThan(0.022);
     const fast = computeMechanism(assembly, { ...study, acceleration: 10, friction: 0.01, safety: 2 }, (id) => meshes.get(id), massOf)!;
-    expect(Math.abs(fast.peak!.value)).toBeCloseTo(expected + m * 0.02 ** 2 * 10, 4);
+    const J = m * r ** 2 + massOf(arm)!.inertia![4]!;
+    expect(Math.abs(fast.peak!.value)).toBeCloseTo(Math.abs(result.peak!.value) + J * 10, 7);
     expect(fast.required).toBeCloseTo((Math.abs(fast.peak!.value) + 0.01) * 2, 6);
+
+    // Masse portée de 50 g, posée au centre de gravité du bras : + 0,05 g r.
+    const loaded = computeMechanism(assembly, { ...study, loads: [{ instanceKey: 'bras', mass: 0.05 }] }, (id) => meshes.get(id), massOf)!;
+    expect(Math.abs(loaded.peak!.value)).toBeCloseTo(Math.abs(result.peak!.value) + 0.05 * 9.81 * r, 7);
+    expect(loaded.movingMass).toBeCloseTo(m + 0.05, 6);
   });
 });

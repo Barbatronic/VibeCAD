@@ -376,6 +376,15 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
               friction: num(v, mo, 'friction', mp, { min: 0 }),
               acceleration: num(v, mo, 'acceleration', mp, { min: 0 }),
               safety: num(v, mo, 'safety', mp, { min: 1 }),
+              ...(mo.loads !== undefined
+                ? {
+                    loads: arr(v, mo, 'loads', mp).map((l, i) => {
+                      const lp = `${mp}.loads[${i}]`;
+                      const lo = obj(v, l, lp) ?? {};
+                      return { instanceKey: str(v, lo, 'instanceKey', lp), mass: num(v, lo, 'mass', lp, { min: 0 }) };
+                    }),
+                  }
+                : {}),
             },
           };
         })()

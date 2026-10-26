@@ -21,6 +21,7 @@ test('mécanisme : couple sur le pivot d’un bras, courbe, moteurs, position su
   await expect(panel.getByText('Couple à fournir')).toBeVisible();
   const result = await appState(page, (s) => s.mechanismRun.result);
   const arm = await appState(page, (s) => s.display[s.doc.parts[1].id].result.analysis);
+  // Bras de levier : centre de gravité à 20 mm de l'axe (un peu plus : le trou est près de l'axe).
   const expected = (arm.volume / 1000) * 1.24 / 1000 * 9.81 * 0.02;
   expect(result.required).toBeCloseTo(expected, 4);
   // Bras léger en PLA : un micro-servo suffit.
@@ -29,6 +30,7 @@ test('mécanisme : couple sur le pivot d’un bras, courbe, moteurs, position su
   // Survol de la courbe : le bras est montré à cette position (sa matrice change).
   const before = await page.evaluate(() => [...(window as any).vibecad.controller.viewport.parts.get('bras').group.matrix.elements]);
   const chart = panel.locator('.mech-chart svg');
+  await chart.scrollIntoViewIfNeeded();
   const box = (await chart.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
   await expect.poll(() => appState(page, (s) => s.mechanismHover)).not.toBeNull();
@@ -39,4 +41,15 @@ test('mécanisme : couple sur le pivot d’un bras, courbe, moteurs, position su
   // Réglage changé : résultat signalé périmé.
   await panel.getByLabel('Frottement').fill('0,05');
   await expect(panel.getByText(/recalculez/)).toBeVisible();
+  await panel.getByLabel('Frottement').fill('0');
+
+  // Masse portée de 100 g sur le bras : le couple augmente de 0,1 × g × r.
+  await panel.getByRole('button', { name: 'Ajouter une masse portée' }).click();
+  await panel.getByLabel('Pièce qui porte la masse 1').selectOption({ label: 'Bras' });
+  await expect.poll(() => appState(page, (s) => s.doc.simulation?.mechanism?.loads?.[0]?.instanceKey)).toBe('bras');
+  await panel.getByRole('button', { name: 'Calculer le couple' }).click();
+  await expect.poll(() => appState(page, (s) => s.mechanismRun?.result?.movingMass)).toBeGreaterThan(0.1);
+  const loaded = await appState(page, (s) => s.mechanismRun.result.required);
+  const r = result.required / ((arm.volume / 1000) * 1.24 / 1000 * 9.81);
+  expect(loaded - result.required).toBeCloseTo(0.1 * 9.81 * r, 4);
 });

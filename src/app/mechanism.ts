@@ -6,8 +6,9 @@
  * fermées, engrenages et crémaillères compris) :
  * - poids : couple statique = dU/dq, U = Σ m g z (énergie potentielle, centre de gravité de
  *   chaque pièce placée) ; positif, il faut pousser la liaison dans le sens +q ;
- * - accélération voulue α : + J(q) α, inertie équivalente J = Σ m |dp/dq|² (masses ponctuelles au
- *   centre de gravité : l'inertie propre des pièces autour de leur centre est négligée) ;
+ * - accélération voulue α : + J(q) α, inertie équivalente J = Σ (m |dp/dq|² + ωᵀ I ω), avec ω la
+ *   vitesse de rotation propre de chaque pièce par unité de q et I sa matrice d'inertie ;
+ * - masses portées (`loads`) : ajoutées au centre de gravité de la pièce qui les porte ;
  * - frottement : couple (ou force) constant, toujours contre le mouvement.
  */
 import type { Assembly, AssemblyJoint, CadDocument, Id, MechanismStudy } from '../domain/model';
@@ -33,8 +34,11 @@ export const COMMON_MOTORS: { name: string; torque: number; note: string }[] = [
   { name: 'Moteur pas à pas NEMA 23 × 56', torque: 1.26, note: 'couple de maintien' },
 ];
 
-/** Masse (kg) et centre de gravité (mm, repère de la pièce) d'une pièce. */
-export type MassOf = (partId: Id) => { mass: number; centroid: Vec3 } | null;
+/**
+ * Masse (kg), centre de gravité (mm, repère de la pièce) et, si connue, matrice d'inertie autour du
+ * centre de gravité (kg·m², par lignes, repère de la pièce) d'une pièce.
+ */
+export type MassOf = (partId: Id) => { mass: number; centroid: Vec3; inertia?: number[] | null } | null;
 
 export interface MechanismSample {
   /** Position de la liaison motrice (degrés ou mm). */
@@ -107,17 +111,28 @@ export function computeMechanism(
   // Pas de dérivation : 0,25° ou 0,1 mm ; positions en unités SI (rad, m).
   const h = kind === 'angle' ? 0.25 : 0.1;
   const toSi = kind === 'angle' ? Math.PI / 180 : 1 / 1000;
-  /** Centres de gravité placés (m) et masses, à la position `q` ; null si l'assemblage ne se place pas. */
-  const pose = (q: number): { m: number; p: Vec3 }[] | null => {
+  // Masses portées (charges posées sur une pièce, à son centre de gravité).
+  const carried = new Map<string, number>();
+  for (const l of study.loads ?? []) if (l.mass > 0) carried.set(l.instanceKey, (carried.get(l.instanceKey) ?? 0) + l.mass);
+  /**
+   * Pièces placées à la position `q` : masse (avec la charge portée), centre de gravité (m),
+   * orientation et inertie propre ; null si l'assemblage ne se place pas.
+   */
+  const pose = (q: number): { m: number; p: Vec3; R: number[]; I: number[] | null }[] | null => {
     const a = withValue(assembly, joint.id, kind, q);
     const placement = solveAssembly(a, meshOf, { ...options, driver: joint.id });
     if ([...placement.issues.keys()].length > 0 && placement.issues.has(joint.id)) return null;
     const leaves = flattenAssembly(a, placement, meshOf, options);
     return leaves.flatMap((leaf) => {
       const mass = massOf(leaf.partId);
-      if (!mass || mass.mass <= 0) return [];
+      if (!mass) return [];
+      const m = mass.mass + (carried.get(leaf.key) ?? 0);
+      if (m <= 0) return [];
       const w = transformPoint4(leaf.matrix, mass.centroid);
-      return [{ m: mass.mass, p: { x: w.x / 1000, y: w.y / 1000, z: w.z / 1000 } }];
+      const M = leaf.matrix;
+      // Rotation (par lignes) extraite de la matrice de placement (par colonnes).
+      const R = [M[0]!, M[4]!, M[8]!, M[1]!, M[5]!, M[9]!, M[2]!, M[6]!, M[10]!];
+      return [{ m, p: { x: w.x / 1000, y: w.y / 1000, z: w.z / 1000 }, R, I: mass.inertia ?? null }];
     });
   };
   let movingMass = 0;
@@ -143,7 +158,13 @@ export function computeMechanism(
       dU += b.m * G * (a.p.z - b.p.z);
       const v2 = ((a.p.x - b.p.x) ** 2 + (a.p.y - b.p.y) ** 2 + (a.p.z - b.p.z) ** 2) / dq ** 2;
       inertia += b.m * v2;
-      if (v2 > 1e-12) moving += b.m;
+      // Rotation propre : ω (par unité de q) d'après les deux orientations, inertie autour du centre.
+      const w = rotationRate(b.R, a.R, dq);
+      if (b.I) {
+        const body = mulT(b.R, w);
+        inertia += dot(body, mul(b.I, body));
+      }
+      if (v2 > 1e-12 || dot(w, w) > 1e-12) moving += b.m;
     });
     movingMass = Math.max(movingMass, moving);
     const gravity = dU / dq;
@@ -163,4 +184,29 @@ export function computeMechanism(
     movingMass,
     failed,
   };
+}
+
+/** Produit matrice 3 × 3 (par lignes) × vecteur. */
+function mul(m: number[], v: number[]): number[] {
+  return [0, 1, 2].map((r) => m[3 * r]! * v[0]! + m[3 * r + 1]! * v[1]! + m[3 * r + 2]! * v[2]!);
+}
+/** Produit transposée × vecteur (repère du monde → repère de la pièce). */
+function mulT(m: number[], v: number[]): number[] {
+  return [0, 1, 2].map((c) => m[c]! * v[0]! + m[3 + c]! * v[1]! + m[6 + c]! * v[2]!);
+}
+const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/**
+ * Vitesse de rotation (rad par unité de q, repère du monde) entre deux orientations séparées de
+ * `dq` : vecteur rotation de Rb · Raᵀ.
+ */
+function rotationRate(Ra: number[], Rb: number[], dq: number): number[] {
+  // D = Rb Raᵀ
+  const D = [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => Rb[3 * r]! * Ra[3 * c]! + Rb[3 * r + 1]! * Ra[3 * c + 1]! + Rb[3 * r + 2]! * Ra[3 * c + 2]!));
+  const cos = Math.min(1, Math.max(-1, (D[0]! + D[4]! + D[8]! - 1) / 2));
+  const angle = Math.acos(cos);
+  if (angle < 1e-12) return [0, 0, 0];
+  const axis = [D[7]! - D[5]!, D[2]! - D[6]!, D[3]! - D[1]!];
+  const n = Math.hypot(axis[0]!, axis[1]!, axis[2]!) || 1;
+  return axis.map((v) => (v / n) * (angle / dq));
 }

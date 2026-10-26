@@ -8,7 +8,7 @@ import { COMMON_MOTORS, drivableJoints, type MechanismResult } from '../app/mech
 import type { MechanismStudy } from '../domain/model';
 import { formatNumber, readNumber } from '../domain/units';
 import { useAppState, useController } from './context';
-import { Button, Callout } from './components/controls';
+import { Button, Callout, IconButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 
@@ -26,9 +26,10 @@ export function MechanismPanel() {
       const study = c.mechanismStudy();
       const joints = drivableJoints(s.doc.assembly).map((d) => ({ id: d.joint.id, name: d.joint.name, kind: d.kind }));
       const run = s.mechanismRun;
-      return { study, joints, run, stale: !!run?.result && run.key !== c.mechanismKey(), hover: s.mechanismHover };
+      const leaves = c.assemblyLeaves().map((l) => ({ key: l.key, name: l.name }));
+      return { study, joints, run, stale: !!run?.result && run.key !== c.mechanismKey(), hover: s.mechanismHover, leaves };
     },
-    (a, b) => a.study === b.study && a.run === b.run && a.stale === b.stale && a.hover === b.hover && JSON.stringify(a.joints) === JSON.stringify(b.joints),
+    (a, b) => a.study === b.study && a.run === b.run && a.stale === b.stale && a.hover === b.hover && JSON.stringify([a.joints, a.leaves]) === JSON.stringify([b.joints, b.leaves]),
   );
   const { study, joints, run } = data;
   if (!study) return null;
@@ -80,6 +81,7 @@ export function MechanismPanel() {
           {field('Accélération', 'acceleration', angle ? 'rad/s²' : 'm/s²', { min: 0, step: 1 })}
         </div>
         <div class="limits-row">{field('Sécurité', 'safety', '×', { min: 1, step: 0.5 })}</div>
+        <LoadsEditor study={study} leaves={data.leaves} />
         <Button variant="primary" icon="simulate" onClick={() => void c.runMechanism()} disabled={!!run?.busy}>
           {run?.busy ? 'Calcul…' : 'Calculer le couple'}
         </Button>
@@ -87,10 +89,54 @@ export function MechanismPanel() {
         {data.stale ? <Callout kind="warning">Le projet ou les réglages ont changé : recalculez pour mettre la courbe à jour.</Callout> : null}
         {run?.result ? <MechanismResultView result={run.result} study={study} hover={data.hover} /> : null}
         <p class="field-help">
-          Calcul quasi statique : poids des pièces pleines, centre de gravité placé dans l’assemblage, accélération avec les masses ramenées à leur centre de gravité. La visserie et l’inertie propre des pièces ne sont pas comptées : prenez une marge (coefficient de sécurité).
+          Calcul quasi statique : poids des pièces pleines et des masses portées, centre de gravité placé dans l’assemblage, accélération avec l’inertie de chaque pièce (translation et rotation propre). La visserie et les effets de vitesse ne sont pas comptés : prenez une marge (coefficient de sécurité).
         </p>
       </div>
     </>
+  );
+}
+
+/** Masses portées : une charge (en grammes) posée au centre de gravité d'une pièce de l'assemblage. */
+function LoadsEditor({ study, leaves }: { study: MechanismStudy; leaves: { key: string; name: string }[] }) {
+  const c = useController();
+  const loads = study.loads ?? [];
+  const set = (next: MechanismStudy['loads']) => c.setMechanismStudy({ loads: next ?? [] });
+  return (
+    <div class="field">
+      <span class="field-label">Masses portées</span>
+      {loads.length === 0 ? <span class="field-help">Aucune : seul le poids des pièces compte.</span> : null}
+      <ul class="mech-loads" aria-label="Masses portées">
+        {loads.map((l, i) => (
+          <li key={i}>
+            <select class="select" aria-label={`Pièce qui porte la masse ${i + 1}`} value={l.instanceKey} onChange={(e) => set(loads.map((x, j) => (j === i ? { ...x, instanceKey: (e.target as HTMLSelectElement).value } : x)))}>
+              {leaves.map((leaf) => (
+                <option key={leaf.key} value={leaf.key}>
+                  {leaf.name}
+                </option>
+              ))}
+            </select>
+            <NumberInput
+              value={formatNumber(l.mass * 1000, 1)}
+              unit="g"
+              min={0}
+              step={10}
+              ariaLabel={`Masse portée ${i + 1}`}
+              onInput={(t) => {
+                const v = readNumber(t);
+                if (v !== null && v >= 0) set(loads.map((x, j) => (j === i ? { ...x, mass: v / 1000 } : x)));
+              }}
+            />
+            <IconButton icon="trash" small label={`Retirer la masse portée ${i + 1}`} onClick={() => set(loads.filter((_x, j) => j !== i))} />
+          </li>
+        ))}
+      </ul>
+      {leaves.length ? (
+        <Button icon="plus" small onClick={() => set([...loads, { instanceKey: leaves[leaves.length - 1]!.key, mass: 0.1 }])}>
+          Ajouter une masse portée
+        </Button>
+      ) : null}
+      <span class="field-help">Posée au centre de gravité de la pièce (objet tenu par une pince, plateau chargé…).</span>
+    </div>
   );
 }
 

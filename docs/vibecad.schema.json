@@ -483,6 +483,26 @@
                 "safety": {
                   "type": "number",
                   "minimum": 1
+                },
+                "loads": {
+                  "type": "array",
+                  "description": "Masses portées (kg) au centre de gravité d'une pièce de l'assemblage (clé dépliée).",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "instanceKey",
+                      "mass"
+                    ],
+                    "properties": {
+                      "instanceKey": {
+                        "type": "string"
+                      },
+                      "mass": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  }
                 }
               }
             }
