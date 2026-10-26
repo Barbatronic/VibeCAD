@@ -4,8 +4,9 @@
  * position de référence de l'assemblage (toutes les liaisons à zéro), pas de la position du
  * moment : une esquisse posée sur une pièce voisine ne bouge pas quand on anime le mécanisme.
  */
-import type { Assembly, AssemblyContext, Id } from '../domain/model';
-import { invertRigid4, multiply4, type Mat4 } from '../math/mat4';
+import type { Assembly, AssemblyContext, CadDocument, Feature, Id } from '../domain/model';
+import { invertRigid4, multiply4, transformDirection4, transformPoint4, type Mat4 } from '../math/mat4';
+import type { Frame3D } from '../math/frame';
 import type { MeshData } from '../geometry/kernel';
 import { subassemblyContent } from '../domain/subassemblies';
 import { flattenAssembly, solveAssembly, type PlacedLeaf, type SolveOptions } from './assembly';
@@ -85,3 +86,59 @@ export function activeContext(s: AppState): ActiveContext | null {
 
 /** Clé d'affichage d'une pièce voisine (préfixe `ctx:` + clé de la pièce dépliée). */
 export const CONTEXT_PREFIX = 'ctx:';
+
+/**
+ * Recalcule la position des voisines dans les références en contexte (faces d'appui, arêtes
+ * reprises), d'après l'assemblage du document en position de référence ; les liens figés et les
+ * voisines introuvables (insertion retirée) gardent leur dernière position. Renvoie le même objet
+ * si rien ne change.
+ */
+export function syncContexts(
+  doc: CadDocument,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  sketchesOf?: SolveOptions['sketchesOf'],
+): CadDocument {
+  const assembly = doc.assembly;
+  if (!assembly) return doc;
+  const cache = new Map<Id, ContextLeaf[] | null>();
+  const options: SolveOptions = { ...(sketchesOf ? { sketchesOf } : {}), subassemblyOf: (id) => subassemblyContent(doc, id) };
+  const update = (ctx: AssemblyContext): AssemblyContext => {
+    if (ctx.frozen) return ctx;
+    if (!cache.has(ctx.instanceId)) cache.set(ctx.instanceId, contextLeaves(assembly, ctx.instanceId, meshOf, options));
+    const leaf = cache.get(ctx.instanceId)?.find((l) => l.key === ctx.otherInstanceId);
+    return leaf && !sameMatrix(leaf.local, ctx.matrix) ? { ...ctx, matrix: [...leaf.local] } : ctx;
+  };
+  let changed = false;
+  const feature = (f: Feature): Feature => {
+    if (f.type !== 'sketch') return f;
+    const support = f.params.support;
+    const nextSupport = support.kind === 'face' && support.context ? { ...support, context: update(support.context) } : support;
+    let entitiesChanged = false;
+    const entities = f.params.entities.map((e) => {
+      if ((e.type !== 'line' && e.type !== 'circle') || !e.reference?.context) return e;
+      const context = update(e.reference.context);
+      if (context === e.reference.context) return e;
+      entitiesChanged = true;
+      return { ...e, reference: { ...e.reference, context } };
+    });
+    const supportChanged = nextSupport !== support && (nextSupport as { context?: AssemblyContext }).context !== (support as { context?: AssemblyContext }).context;
+    if (!supportChanged && !entitiesChanged) return f;
+    changed = true;
+    return { ...f, params: { ...f.params, support: supportChanged ? nextSupport : support, entities: entitiesChanged ? entities : f.params.entities } };
+  };
+  const parts = doc.parts.map((p) => {
+    const features = p.features.map(feature);
+    return features.some((f, i) => f !== p.features[i]) ? { ...p, features } : p;
+  });
+  return changed ? { ...doc, parts } : doc;
+}
+
+/** Repère `frame` déplacé par la matrice `m` (pour l'exprimer dans le repère d'une autre pièce). */
+export function frameInFrame(m: Mat4, frame: Frame3D): Frame3D {
+  return {
+    origin: transformPoint4(m, frame.origin),
+    xAxis: transformDirection4(m, frame.xAxis),
+    yAxis: transformDirection4(m, frame.yAxis),
+    normal: transformDirection4(m, frame.normal),
+  };
+}

@@ -5,7 +5,7 @@
  * pas être satisfaites, l'action est refusée avec un message et l'esquisse reste inchangée.
  */
 import { sameEdgeRef } from '../domain/document';
-import type { EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
+import type { AssemblyContext, EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
 import { ORIGIN_POINT_ID } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { expressionNames, formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
@@ -146,9 +146,10 @@ export const TOOL_HELP: Record<SketchTool, string> = {
 
 /** Arête de la pièce projetée sur le plan de l'esquisse, proposée par l'outil Projeter. */
 /** Arête reprenable ; `partId` : arête d'une autre pièce du projet. */
+/** Arête reprenable : de la pièce, d'une autre pièce (`partId`), ou d'une voisine dans l'assemblage (`context`). */
 export type ProjectableCurve =
-  | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef; partId?: Id }
-  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id };
+  | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
+  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id; context?: AssemblyContext };
 
 export interface SessionMessage {
   kind: 'info' | 'success' | 'error';
@@ -1808,7 +1809,7 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
   }
   sketch = {
     ...sketch,
-    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId } : {}) } } : e)),
+    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId, ...(curve.context ? { context: curve.context } : {}) } : {}) } } : e)),
   };
   const what = curve.kind === 'line' ? 'ses extrémités' : 'son centre';
   const { session } = commit(s, sketch, {

@@ -363,6 +363,15 @@ function HistorySection() {
                   )}
                   <span class="row-actions">
                     {f.type !== 'imported-solid' ? <IconButton icon="edit" label={`Modifier « ${f.name} »`} small onClick={() => c.editFeature(f.id)} /> : null}
+                    {f.type === 'sketch' && f.params.support.kind === 'face' && f.params.support.context ? (
+                      <IconButton
+                        icon="pivot"
+                        small
+                        pressed={!!f.params.support.context.frozen}
+                        label={f.params.support.context.frozen ? `Suivre de nouveau l’assemblage pour « ${f.name} »` : `Figer la place de la voisine pour « ${f.name} » (ne plus suivre l’assemblage)`}
+                        onClick={() => c.toggleContextFrozen(f.id)}
+                      />
+                    ) : null}
                     {f.type === 'sketch' || f.type === 'image' ? (
                       <IconButton icon={f.visible ? 'eye' : 'eye-off'} label={f.visible ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
                     ) : null}

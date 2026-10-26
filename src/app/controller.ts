@@ -95,7 +95,7 @@ import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
 import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
-import { activeContext, CONTEXT_PREFIX, contextOf } from './assembly-context';
+import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
@@ -537,9 +537,16 @@ export class AppController {
     // Une modification pendant l'animation d'un mécanisme l'arrête, à la position atteinte.
     if (this.animation) this.stopJointAnimation(false);
     const s = this.state;
+    // Conception en contexte : les voisines suivent l'assemblage modifié (même étape d'annulation).
+    doc = this.syncContexts(doc);
     this.set({ ...extra, doc, history: recordAction(s.history, s.doc, label), revision: s.revision + 1 });
     this.sanitize();
     this.afterChange();
+  }
+
+  /** Positions des voisines dans les références en contexte d'assemblage, recalculées. */
+  private syncContexts(doc: CadDocument): CadDocument {
+    return syncContexts(doc, (partId) => this.state.display[partId]?.mesh, this.sketchesOf);
   }
 
   private afterChange(): void {
@@ -694,6 +701,14 @@ export class AppController {
       const fitRequest = this.fitPending ? this.state.fitRequest + 1 : this.state.fitRequest;
       this.fitPending = false;
       this.set({ display, fitRequest, evaluating: this.deps.client.busy, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
+      // Une pièce a changé de forme : les repères des liaisons, donc la place des voisines, aussi.
+      // Report silencieux (sans nouvelle étape d'annulation), puis recalcul.
+      const synced = this.syncContexts(this.state.doc);
+      if (synced !== this.state.doc) {
+        this.set({ doc: synced, revision: this.state.revision + 1 });
+        this.afterChange();
+        return;
+      }
       if (this.state.section) void this.refreshSection();
       if (this.state.collisionCheck) void this.refreshCollisions();
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
@@ -811,6 +826,31 @@ export class AppController {
     this.set({ assemblyContext: null });
     this.setWorkspace('assembly');
     if (ctx && this.state.workspace === 'assembly') this.set({ assemblySelection: { kind: 'instance', id: ctx.instanceId } });
+  }
+
+  /**
+   * Fige (ou libère) la place des voisines dans une esquisse en contexte d'assemblage : figée, elle
+   * ne suit plus les changements de l'assemblage (la forme de la voisine, elle, est toujours suivie).
+   */
+  toggleContextFrozen(featureId: Id): void {
+    const found = findFeature(this.state.doc, featureId);
+    if (!found || found.feature.type !== 'sketch') return;
+    const sketch = found.feature;
+    const support = sketch.params.support;
+    const current = support.kind === 'face' ? support.context : undefined;
+    const refs = sketch.params.entities.filter((e) => (e.type === 'line' || e.type === 'circle') && e.reference?.context);
+    if (!current && refs.length === 0) return;
+    const frozen = !(current?.frozen ?? false);
+    const set = <T extends { frozen?: boolean }>(c: T): T => {
+      const { frozen: _f, ...rest } = c;
+      return (frozen ? { ...rest, frozen: true } : rest) as T;
+    };
+    const params = {
+      ...sketch.params,
+      support: support.kind === 'face' && support.context ? { ...support, context: set(support.context) } : support,
+      entities: sketch.params.entities.map((e) => ((e.type === 'line' || e.type === 'circle') && e.reference?.context ? { ...e, reference: { ...e.reference, context: set(e.reference.context) } } : e)),
+    };
+    this.commit(updateFeature<SketchFeature>(this.state.doc, featureId, (f) => ({ ...f, params })), frozen ? `Figer « ${sketch.name} » dans l’assemblage` : `Suivre l’assemblage pour « ${sketch.name} »`);
   }
 
   /** Esquisse de la pièce `targetPartId` posée sur la face d'une pièce voisine dans l'assemblage. */
@@ -1052,6 +1092,19 @@ export class AppController {
     const part = findPart(s.doc, partId);
     if (!part) return [];
     const own = projectableCurves(s.display[partId]?.mesh, frame, part, featureId);
+    // Conception dans l'assemblage : les arêtes des voisines, à leur place (repère de l'esquisse
+    // exprimé dans celui de la voisine), reprises avec le contexte.
+    const ctx = activeContext(s);
+    if (ctx && ctx.partId === partId) {
+      const neighbours = ctx.leaves.flatMap((leaf) => {
+        const p = findPart(s.doc, leaf.partId);
+        if (!p || p.id === partId || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
+        const local = frameInFrame(invertRigid4(leaf.local), frame);
+        const context = contextOf(ctx.instanceId, leaf);
+        return projectableCurves(s.display[p.id]?.mesh, local, p, featureId, true).map((c) => ({ ...c, context }));
+      });
+      return [...own, ...neighbours];
+    }
     const others = s.doc.parts
       .filter((p) => p.id !== partId && p.visible && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
       .flatMap((p) => projectableCurves(s.display[p.id]?.mesh, frame, p, featureId, true));

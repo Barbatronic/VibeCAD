@@ -59,8 +59,41 @@ test('conception dans l’assemblage : esquisse du bloc posée sur la plaque voi
     .poll(() => appState(page, (s) => s.display[s.activePartId]?.result.analysis?.bbox?.min.z))
     .toBeCloseTo(-15, 4);
 
+  // Projeter : les arêtes de la plaque voisine sont proposées, avec leur contexte d'assemblage.
+  await page.click('#tool-sketch');
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(async () => (await session(page))?.projectable?.some((c: any) => c.context?.matrix?.[14] === -20)).toBe(true);
+  await page.getByRole('button', { name: /Annuler/ }).last().click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('model');
+
   // Retour à l'assemblage : le contexte se ferme, le bloc reste sélectionné.
   await page.click('#leave-context');
   await expect(page.locator('#tab-assembly')).toHaveAttribute('aria-selected', 'true');
   expect(await appState(page, (s) => s.assemblyContext)).toBeNull();
+
+  // Bloc remonté de 10 mm dans l'assemblage : la plaque est 10 mm plus bas vue du bloc ; l'esquisse
+  // et le cylindre suivent.
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const inst = c.state.doc.assembly.instances[1];
+    c.moveInstance(inst.id, { ...inst.position, z: 30 });
+  });
+  await expect
+    .poll(() => appState(page, (s) => s.display[s.doc.parts[1].id]?.result.analysis?.bbox?.min.z))
+    .toBeCloseTo(-25, 4);
+
+  // Lien figé depuis l'historique : le bloc redescend, l'esquisse ne bouge plus.
+  await page.click('#tab-parts');
+  await page.locator('.part-select', { hasText: 'Bloc' }).click();
+  const history = page.getByRole('list', { name: /Étapes de construction/ });
+  await expect(history).toContainText('sur une voisine dans l’assemblage');
+  await page.getByRole('button', { name: /Figer la place de la voisine/ }).click();
+  await expect(history).toContainText('(figée)');
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const inst = c.state.doc.assembly.instances[1];
+    c.moveInstance(inst.id, { ...inst.position, z: 20 });
+  });
+  await page.waitForTimeout(800);
+  expect(await appState(page, (s) => s.display[s.doc.parts[1].id]?.result.analysis?.bbox?.min.z)).toBeCloseTo(-25, 4);
 });

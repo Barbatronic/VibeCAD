@@ -42,7 +42,9 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
         : s.kind === 'datum'
           ? 'sur un plan de construction'
           : s.partId
-            ? 'sur une face d’une autre pièce'
+            ? s.context
+              ? `sur une voisine dans l’assemblage${s.context.frozen ? ' (figée)' : ''}`
+              : 'sur une face d’une autre pièce'
             : 'sur une face';
     const { lines, circles } = countCurves(feature.params);
     const parts = [];
