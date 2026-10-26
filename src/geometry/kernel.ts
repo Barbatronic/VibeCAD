@@ -85,6 +85,11 @@ export interface ShapeAnalysis {
   valid: boolean;
   /** Centre de gravité du volume (matière homogène), null sans volume. */
   centroid: Vec3 | null;
+  /**
+   * Matrice d'inertie autour du centre de gravité, par lignes (9 valeurs), pour une masse
+   * volumique de 1 (mm⁵) : multiplier par la masse volumique pour l'inertie de la pièce.
+   */
+  inertia?: number[] | null;
 }
 
 export type FacePlaneLookup =

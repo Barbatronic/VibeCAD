@@ -793,11 +793,25 @@ export class OcctKernel implements GeometryKernel {
         for (const s of solids) s.delete();
         const volume = vp.Mass();
         let centroid: Vec3 | null = null;
+        let inertia: number[] | null = null;
         if (volume > 1e-12) {
           const c = scope.track(vp.CentreOfMass());
           centroid = { x: c.X(), y: c.Y(), z: c.Z() };
+          // Moments autour de six axes passant par le centre de gravité : X, Y, Z et trois
+          // diagonales ; nᵀ J n = moment autour de n donne les termes croisés de la matrice J.
+          const about = (x: number, y: number, z: number) => {
+            const ax = scope.track(new oc.gp_Ax1(this.pnt(scope, { x: c.X(), y: c.Y(), z: c.Z() }), this.dir(scope, { x, y, z })));
+            return vp.MomentOfInertia(ax);
+          };
+          const xx = about(1, 0, 0);
+          const yy = about(0, 1, 0);
+          const zz = about(0, 0, 1);
+          const xy = about(1, 1, 0) - (xx + yy) / 2;
+          const xz = about(1, 0, 1) - (xx + zz) / 2;
+          const yz = about(0, 1, 1) - (yy + zz) / 2;
+          inertia = [xx, xy, xz, xy, yy, yz, xz, yz, zz];
         }
-        return { volume, area: sp.Mass(), bbox, solidCount: solids.length, valid: this.isValid(shape), centroid };
+        return { volume, area: sp.Mass(), bbox, solidCount: solids.length, valid: this.isValid(shape), centroid, inertia };
       }),
     );
   }
