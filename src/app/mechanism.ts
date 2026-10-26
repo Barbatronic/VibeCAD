@@ -10,11 +10,14 @@
  *   centre de gravité : l'inertie propre des pièces autour de leur centre est négligée) ;
  * - frottement : couple (ou force) constant, toujours contre le mouvement.
  */
-import type { Assembly, AssemblyJoint, Id, MechanismStudy } from '../domain/model';
+import type { Assembly, AssemblyJoint, CadDocument, Id, MechanismStudy } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import { transformPoint4 } from '../math/mat4';
 import type { Vec3 } from '../math/vec';
 import { flattenAssembly, jointFreedoms, solveAssembly, type SolveOptions } from './assembly';
+
+/** Clé de l'étude « Mécanisme » dans le choix de l'objet étudié (atelier Simulation). */
+export const MECHANISM_STUDY = '@mechanism';
 
 /** Pesanteur (m/s²). */
 const G = 9.81;
@@ -72,8 +75,17 @@ export function defaultMechanismStudy(joint: AssemblyJoint, kind: 'angle' | 'off
   return { jointId: joint.id, from, to, friction: 0, acceleration: 0, safety: 2 };
 }
 
+/** Étude du projet si sa liaison mène encore, sinon l'étude par défaut de la première liaison. */
+export function mechanismStudyOf(doc: CadDocument): { study: MechanismStudy; kind: 'angle' | 'offset' } | null {
+  const drivable = drivableJoints(doc.assembly);
+  const saved = doc.simulation?.mechanism;
+  const found = saved && drivable.find((d) => d.joint.id === saved.jointId);
+  if (saved && found) return { study: saved, kind: found.kind };
+  return drivable[0] ? { study: defaultMechanismStudy(drivable[0].joint, drivable[0].kind), kind: drivable[0].kind } : null;
+}
+
 /** Assemblage avec la liaison motrice réglée sur `value`. */
-function withValue(assembly: Assembly, jointId: Id, kind: 'angle' | 'offset', value: number): Assembly {
+export function withValue(assembly: Assembly, jointId: Id, kind: 'angle' | 'offset', value: number): Assembly {
   return { ...assembly, joints: assembly.joints.map((j) => (j.id === jointId ? { ...j, [kind]: value } : j)) };
 }
 

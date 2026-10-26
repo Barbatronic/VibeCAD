@@ -1,5 +1,6 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
 import { DEFAULT_LIBRARIES, type LibraryCatalog } from './library';
+import type { MechanismResult } from './mechanism';
 import type { StepResource } from '../domain/model';
 import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
@@ -266,6 +267,12 @@ export interface AppState {
    * l'onglet Pièces, entourée des autres pièces de l'assemblage à leur place.
    */
   assemblyContext: { instanceId: Id } | null;
+  /**
+   * Étude « Mécanisme » : dernier calcul (`key` : étude et formes utilisées) et position survolée
+   * sur la courbe (l'assemblage y est montré).
+   */
+  mechanismRun: { key: string; result: MechanismResult | null; busy: boolean; error?: string } | null;
+  mechanismHover: number | null;
   /** Bibliothèques de composants (adresses des dépôts), retenues sur l'appareil. */
   libraries: string[];
   /** Catalogues chargés, dans l'ordre des bibliothèques. */
@@ -337,6 +344,8 @@ export function initialState(): AppState {
     rightPanelHidden: false,
     propertiesOpen: false,
     assemblyContext: null,
+    mechanismRun: null,
+    mechanismHover: null,
     libraries: [...DEFAULT_LIBRARIES],
     libraryCatalogs: [],
     toasts: [],

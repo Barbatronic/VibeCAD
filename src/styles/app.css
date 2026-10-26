@@ -2488,6 +2488,118 @@ select optgroup {
   color: var(--text);
 }
 
+/* ------------------------------------------------------------------ Étude « Mécanisme » */
+
+.mech-result {
+  margin-top: 12px;
+}
+.mech-chart {
+  margin: 0;
+}
+.mech-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  cursor: crosshair;
+}
+.mech-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.mech-zero {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+}
+.mech-tick,
+.mech-unit {
+  fill: var(--text-muted);
+  font-size: 9px;
+}
+.mech-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.mech-line.total {
+  stroke: var(--accent);
+}
+.mech-line.gravity {
+  stroke: var(--text-faint);
+}
+.mech-required {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+.mech-cross {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+.mech-dot {
+  fill: var(--accent);
+  stroke: var(--surface-solid, var(--surface));
+  stroke-width: 2;
+}
+.mech-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.mech-key {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-top: 2px solid var(--accent);
+}
+.mech-key.gravity {
+  border-top-color: var(--text-faint);
+}
+.mech-key.required {
+  border-top: 1px dashed var(--text-muted);
+}
+.mech-motors {
+  margin: 4px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.mech-motors li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.mech-motors li > svg {
+  width: 16px;
+  height: 16px;
+}
+.mech-motors li.is-ok > svg {
+  color: var(--success, #2e9a5e);
+}
+.mech-motors li.is-short > svg {
+  color: var(--danger);
+}
+.mech-motors li.is-short {
+  color: var(--text-muted);
+}
+.mech-motor-torque small {
+  color: var(--text-faint);
+}
+.mech-motor-verdict {
+  min-width: 70px;
+  text-align: right;
+  font-weight: 600;
+}
+
 /* ------------------------------------------------------------------ Composants (bibliothèques) */
 
 .modal.wide:has(.components-browser) {

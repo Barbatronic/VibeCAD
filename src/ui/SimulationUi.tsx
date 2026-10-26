@@ -5,6 +5,8 @@
  */
 import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
+import { drivableJoints, MECHANISM_STUDY } from '../app/mechanism';
+import { MechanismPanel } from './MechanismUi';
 import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
 import { exaggerationFor } from '../sim/study';
@@ -18,6 +20,20 @@ import { Icon } from './icons';
 const num = (t: string) => readNumber(t);
 
 export function SimulationTools() {
+  const c = useController();
+  const mechanism = useAppState(() => c.simulationPartId() === MECHANISM_STUDY);
+  const busy = useAppState((s) => !!s.mechanismRun?.busy);
+  if (mechanism) {
+    return (
+      <ToolGroup name="Mécanisme">
+        <ToolButton id="mech-run" icon="simulate" label="Calculer" hint="Calculer le couple (ou la force) sur toute la plage de la liaison motrice" pressed={busy} onClick={() => void c.runMechanism()} />
+      </ToolGroup>
+    );
+  }
+  return <StudyTools />;
+}
+
+function StudyTools() {
   const c = useController();
   const picking = useAppState((s) => (s.mode.kind === 'pick-sim-face' ? s.mode.role : null));
   const running = useAppState((s) => s.simulationRun?.status === 'running');
@@ -55,6 +71,7 @@ export function SimulationSection() {
       parts: s.doc.parts.filter((p) => s.display[p.id]?.mesh).map((p) => ({ id: p.id, name: p.name, color: p.color })),
       // Assemblage collé (niveau Expert), dès qu'il a deux pièces.
       assembly: (s.doc.assembly?.instances.length ?? 0) >= 2 && !!c.simulationSource(ASSEMBLY_STUDY),
+      mechanism: drivableJoints(s.doc.assembly).length > 0,
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
@@ -89,7 +106,32 @@ export function SimulationSection() {
               </button>
             </li>
           ) : null}
+          {data.mechanism ? (
+            <li>
+              <button
+                type="button"
+                role="radio"
+                id="sim-mechanism"
+                aria-checked={data.current === MECHANISM_STUDY}
+                class={`sim-part${data.current === MECHANISM_STUDY ? ' is-current' : ''}`}
+                title="Couple (pivot) ou force (glissière) nécessaire sur une liaison pour faire bouger l’assemblage"
+                onClick={() => c.setSimulationPart(MECHANISM_STUDY)}
+              >
+                <Icon name="pivot" />
+                <span>Mécanisme : couple sur une liaison</span>
+              </button>
+            </li>
+          ) : null}
         </ul>
+        {data.current === MECHANISM_STUDY ? (
+          <ol class="sim-steps field-help">
+            <li>Choisissez la <strong>liaison motrice</strong>, celle que le moteur entraîne, et sa plage.</li>
+            <li>Réglez le frottement, l’accélération voulue et la marge de sécurité.</li>
+            <li>
+              <strong>Calculer</strong> : la courbe du couple sur toute la plage ; survolez-la pour voir la position.
+            </li>
+          </ol>
+        ) : (
         <ol class="sim-steps field-help">
           <li>Choisissez le matériau.</li>
           <li>
@@ -102,6 +144,7 @@ export function SimulationSection() {
             <strong>Calculer</strong> : la pièce se déforme (en exagéré) et se colore, du bleu (tranquille) au rouge (très sollicité).
           </li>
         </ol>
+        )}
       </div>
     </section>
   );
@@ -109,6 +152,19 @@ export function SimulationSection() {
 
 /** Panneau de droite : réglages de l'étude, puis résultat. */
 export function SimulationRightPanel() {
+  const c = useController();
+  const mechanism = useAppState(() => c.simulationPartId() === MECHANISM_STUDY);
+  if (mechanism) {
+    return (
+      <aside class="panel right-panel" aria-label="Étude du mécanisme">
+        <MechanismPanel />
+      </aside>
+    );
+  }
+  return <StudyRightPanel />;
+}
+
+function StudyRightPanel() {
   const c = useController();
   const info = useAppState(
     (s) => {

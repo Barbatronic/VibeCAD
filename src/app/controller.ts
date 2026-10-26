@@ -39,7 +39,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -95,6 +95,8 @@ import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
 import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
+import { computeMechanism, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf } from './mechanism';
+import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
 import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
@@ -2216,10 +2218,71 @@ export class AppController {
   simulationPartId(): Id | null {
     const s = this.state;
     if (s.simulationPart === ASSEMBLY_STUDY && this.simulationSource(ASSEMBLY_STUDY)) return ASSEMBLY_STUDY;
+    if (s.simulationPart === MECHANISM_STUDY && drivableJoints(s.doc.assembly).length > 0) return MECHANISM_STUDY;
     const ok = (id: Id | null): id is Id => !!id && !!s.display[id]?.mesh && s.doc.parts.some((p) => p.id === id);
     if (ok(s.simulationPart)) return s.simulationPart;
     if (ok(s.activePartId)) return s.activePartId;
     return s.doc.parts.find((p) => ok(p.id))?.id ?? null;
+  }
+
+  // ----- Étude « Mécanisme » (voir docs/mecanisme.md)
+
+  /** Étude enregistrée si sa liaison mène encore, sinon l'étude par défaut de la première liaison. */
+  mechanismStudy(): MechanismStudy | null {
+    return mechanismStudyOf(this.state.doc)?.study ?? null;
+  }
+
+  /** Change un réglage de l'étude (une autre liaison repart de ses réglages par défaut). */
+  setMechanismStudy(patch: Partial<MechanismStudy>): void {
+    const current = this.mechanismStudy();
+    if (!current) return;
+    let next: MechanismStudy = { ...current, ...patch };
+    if (patch.jointId && patch.jointId !== current.jointId) {
+      const d = drivableJoints(this.state.doc.assembly).find((x) => x.joint.id === patch.jointId);
+      if (!d) return;
+      next = { ...defaultMechanismStudy(d.joint, d.kind), friction: current.friction, acceleration: current.acceleration, safety: current.safety };
+    }
+    const simulation = { studies: [], ...this.state.doc.simulation, mechanism: next };
+    this.commit({ ...this.state.doc, simulation }, 'Étude du mécanisme', { mechanismHover: null });
+  }
+
+  /** Masse (kg) et centre de gravité d'une pièce, d'après son volume et sa matière. */
+  private massOf = (partId: Id) => {
+    const part = findPart(this.state.doc, partId);
+    const a = this.state.display[partId]?.result.analysis;
+    if (!part || !a?.centroid || a.solidCount === 0) return null;
+    return { mass: massOf(a.volume, partMaterial(partMaterialId(part))) / 1000, centroid: a.centroid };
+  };
+
+  /** Clé du calcul : l'étude, l'assemblage et les formes (un changement rend le résultat périmé). */
+  mechanismKey(): string | null {
+    const study = this.mechanismStudy();
+    const assembly = this.state.doc.assembly;
+    if (!study || !assembly) return null;
+    const shapes = assembly.instances.map((i) => `${i.partId}:${this.state.display[i.partId]?.meshKey ?? '-'}:${findPart(this.state.doc, i.partId)?.material ?? ''}`).join('|');
+    return JSON.stringify([study, assembly.joints, assembly.instances.map((i) => [i.id, i.position]), assembly.couplings ?? [], shapes]);
+  }
+
+  /** Calcule le couple sur toute la plage de la liaison motrice. */
+  async runMechanism(): Promise<void> {
+    const study = this.mechanismStudy();
+    const assembly = this.state.doc.assembly;
+    const key = this.mechanismKey();
+    if (!study || !assembly || !key) return this.explain('Il faut un assemblage avec au moins une liaison pivot ou glissière.');
+    this.set({ mechanismRun: { key, result: null, busy: true } });
+    // Laisse l'affichage indiquer « calcul… » avant le calcul (sur le fil principal, quelques centaines de placements).
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const result = computeMechanism(assembly, study, (id) => this.state.display[id]?.mesh, this.massOf, this.solveOptions());
+      this.set({ mechanismRun: { key, result, busy: false, ...(result ? {} : { error: 'Liaison motrice introuvable.' }) } });
+    } catch (err) {
+      this.set({ mechanismRun: { key, result: null, busy: false, error: (err as Error).message } });
+    }
+  }
+
+  /** Position survolée sur la courbe : l'assemblage y est montré (null : position du projet). */
+  setMechanismHover(at: number | null): void {
+    if (this.state.mechanismHover !== at) this.set({ mechanismHover: at });
   }
 
   /** Ce qu'on étudie : le maillage de la pièce, ou les pièces de l'assemblage à leur place. */

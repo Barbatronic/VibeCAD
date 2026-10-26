@@ -1,0 +1,567 @@
+{
+  "format": "vibecad",
+  "schemaVersion": 1,
+  "generator": {
+    "name": "VibeCAD",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-26T00:00:00.000Z",
+  "document": {
+    "id": "doc-fvw1vat0",
+    "name": "Bras pendulaire",
+    "units": "mm",
+    "createdAt": "2026-10-26T04:05:27.110Z",
+    "modifiedAt": "2026-10-26T04:05:27.110Z",
+    "parts": [
+      {
+        "id": "part-q7uq7wjl",
+        "name": "Socle",
+        "color": "#4f86c6",
+        "visible": true,
+        "features": [
+          {
+            "id": "sk-8so8te34",
+            "type": "sketch",
+            "name": "Esquisse 1",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XZ",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 70,
+                  "y": 0
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 70,
+                  "y": 0
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 70,
+                  "y": 10
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 70,
+                  "y": 10
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": 0,
+                  "y": 10
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": 0,
+                  "y": 10
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 70,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 10,
+                  "id": "k10"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k11"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-du12p23m",
+            "type": "extrude",
+            "name": "Extrusion 1",
+            "params": {
+              "sketchId": "sk-8so8te34",
+              "distance": 5,
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-8so8te34"
+            ]
+          },
+          {
+            "id": "sk-hvox2ni1",
+            "type": "sketch",
+            "name": "Esquisse 2",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XZ",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 5,
+                  "y": 5
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 3
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 6,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 5,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 5,
+                  "id": "k3"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-5l1oaw0u",
+            "type": "pocket",
+            "name": "Poche 1",
+            "params": {
+              "sketchId": "sk-hvox2ni1",
+              "extent": {
+                "kind": "throughAll"
+              },
+              "direction": "symmetric"
+            },
+            "dependsOn": [
+              "sk-hvox2ni1"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "part-d6yva334",
+        "name": "Bras",
+        "color": "#e08a3c",
+        "visible": true,
+        "features": [
+          {
+            "id": "sk-jc1cqtdk",
+            "type": "sketch",
+            "name": "Esquisse 1",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XZ",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 50,
+                  "y": 0
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 50,
+                  "y": 0
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 50,
+                  "y": 10
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 50,
+                  "y": 10
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": 0,
+                  "y": 10
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": 0,
+                  "y": 10
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 50,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 10,
+                  "id": "k10"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k11"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-x62seoyi",
+            "type": "extrude",
+            "name": "Extrusion 1",
+            "params": {
+              "sketchId": "sk-jc1cqtdk",
+              "distance": 5,
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-jc1cqtdk"
+            ]
+          },
+          {
+            "id": "sk-jvsxox68",
+            "type": "sketch",
+            "name": "Esquisse 2",
+            "visible": true,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XZ",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 5,
+                  "y": 5
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 3
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 6,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 5,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 5,
+                  "id": "k3"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-2ibtuttu",
+            "type": "pocket",
+            "name": "Poche 1",
+            "params": {
+              "sketchId": "sk-jvsxox68",
+              "extent": {
+                "kind": "throughAll"
+              },
+              "direction": "symmetric"
+            },
+            "dependsOn": [
+              "sk-jvsxox68"
+            ]
+          }
+        ]
+      }
+    ],
+    "resources": {},
+    "assembly": {
+      "instances": [
+        {
+          "id": "socle",
+          "partId": "part-q7uq7wjl",
+          "name": "Socle",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "bras",
+          "partId": "part-d6yva334",
+          "name": "Bras",
+          "position": {
+            "x": 0,
+            "y": 20,
+            "z": 0
+          }
+        }
+      ],
+      "joints": [
+        {
+          "id": "pivot",
+          "name": "Pivot",
+          "kind": "revolute",
+          "base": {
+            "instanceId": "socle",
+            "lcs": {
+              "kind": "circle",
+              "edge": {
+                "faces": [
+                  {
+                    "featureId": "ex-du12p23m",
+                    "role": "start"
+                  },
+                  {
+                    "featureId": "po-5l1oaw0u",
+                    "role": "side",
+                    "entityId": "c1"
+                  }
+                ]
+              }
+            }
+          },
+          "moving": {
+            "instanceId": "bras",
+            "lcs": {
+              "kind": "circle",
+              "edge": {
+                "faces": [
+                  {
+                    "featureId": "ex-x62seoyi",
+                    "role": "end"
+                  },
+                  {
+                    "featureId": "po-2ibtuttu",
+                    "role": "side",
+                    "entityId": "c1"
+                  }
+                ]
+              }
+            }
+          },
+          "flip": false,
+          "angle": 0,
+          "offset": 0
+        }
+      ]
+    }
+  }
+}

@@ -35,6 +35,7 @@ import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type
 import { blockContent, explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
 import { subassemblyContent } from '../domain/subassemblies';
 import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
+import { MECHANISM_STUDY, mechanismStudyOf, withValue } from '../app/mechanism';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
@@ -353,6 +354,12 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
 export function buildViewportInput(s: AppState, simulation: { partId: string | null; source: StudySource | null } = { partId: null, source: null }): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
+  // Étude « Mécanisme » : l'assemblage, à la position survolée sur la courbe.
+  if (s.workspace === 'simulation' && simulation.partId === MECHANISM_STUDY) {
+    const m = mechanismStudyOf(s.doc);
+    const assembly = s.doc.assembly && m && s.mechanismHover !== null ? withValue(s.doc.assembly, m.study.jointId, m.kind, s.mechanismHover) : s.doc.assembly;
+    return buildAssemblyInput({ ...s, doc: { ...s.doc, ...(assembly ? { assembly } : {}) }, assemblySelection: m ? { kind: 'joint', id: m.study.jointId } : null, explode: 0 });
+  }
   if (s.workspace === 'simulation') return buildSimulationInput(s, simulation.partId, simulation.source);
   const mode = s.mode.kind;
   // Vue en coupe : les pièces coupées remplacent les pièces (hors esquisse et opération en cours).
@@ -849,7 +856,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.assemblyContext],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.assemblyContext, state.mechanismHover],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;
