@@ -66,3 +66,42 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   await expectVolume(page, PLATE_VOLUME + Math.PI * 25 * 2);
   await page.screenshot({ path: 'tests/output/e2e-bossage.png' });
 });
+
+test('les axes X et Y servent de référence : cote d’un cercle depuis l’axe Y, segment parallèle à l’axe X', async ({ page }) => {
+  await openApp(page);
+  await page.click('#tool-sketch');
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
+  await page.waitForTimeout(450);
+
+  await page.click('#sk-circle');
+  await clickSketch(page, 20, 10);
+  await clickSketch(page, 24, 10);
+  await page.keyboard.press('Escape');
+
+  // Cote : l'axe Y (loin de l'origine), puis le cercle.
+  await page.click('#sk-dimension');
+  await moveSketch(page, 0, 15);
+  await expect.poll(async () => (await session(page))?.hover?.id).toBe('axis-y');
+  await clickSketch(page, 0, 15);
+  await expect.poll(async () => (await session(page))?.picks).toEqual(['axis-y']);
+  await clickSketch(page, 24, 10);
+  const editor = page.getByRole('dialog', { name: 'Nouvelle cote' });
+  await expect(editor).toBeVisible();
+  await page.screenshot({ path: 'tests/output/e2e-cote-axe.png' });
+  await editor.getByRole('textbox').first().fill('35');
+  await editor.getByRole('textbox').first().press('Enter');
+  await expect.poll(async () => (await session(page))?.sketch.constraints.some((c: any) => c.type === 'pointLineDistance' && c.line === 'axis-y' && c.value === 35)).toBe(true);
+  await expect.poll(async () => (await session(page))?.sketch.entities.find((e: any) => e.type === 'point' && Math.abs(e.x - 35) < 1e-6)).toBeTruthy();
+
+  // Segment incliné rendu parallèle à l'axe X.
+  await page.keyboard.press('Escape');
+  await page.click('#sk-line');
+  await clickSketch(page, 5, -10);
+  await clickSketch(page, 25, -4);
+  await page.keyboard.press('Escape');
+  await clickTool(page, 'sk-parallel');
+  await clickSketch(page, 15, -7);
+  await clickSketch(page, 45, 0);
+  await expect.poll(async () => (await session(page))?.sketch.constraints.some((c: any) => c.type === 'parallel' && c.b === 'axis-x')).toBe(true);
+});

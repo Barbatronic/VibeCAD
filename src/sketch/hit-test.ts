@@ -1,5 +1,5 @@
 /** Détection de l'élément d'esquisse sous le curseur (coordonnées d'esquisse, tolérance en mm). */
-import { ORIGIN_POINT_ID, type SketchParams } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchParams } from '../domain/model';
 import { distance2, distanceToSegment2, type Vec2 } from '../math/vec';
 import { sampleBeziers, sampleEllipse } from './curves';
 import { arcContainsAngle, arcGeometry, ellipseOf, pointPosition, splineOf } from './model';
@@ -20,7 +20,7 @@ function polylineDistance(p: Vec2, pts: readonly Vec2[], closed: boolean): numbe
   return d;
 }
 
-/** Élément sous le curseur ; `curvesOnly` ignore les points (outil Couper). */
+/** Élément sous le curseur ; `curvesOnly` ignore les points et les axes (outil Couper). */
 export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includeOrigin = true, curvesOnly = false): SketchTarget | null {
   // Les points ont la priorité : ils sont petits et difficiles à viser.
   let bestPoint: { id: string; d: number } | null = null;
@@ -65,5 +65,12 @@ export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includ
       if (d <= tolerance && (!best || d < best.d)) best = { target: { kind: 'spline', id: e.id }, d };
     }
   }
-  return best?.target ?? null;
+  if (best) return best.target;
+  // Les axes passent en dernier : un trait dessiné dessus reste prioritaire.
+  if (includeOrigin && !curvesOnly) {
+    const dx = Math.abs(p.y);
+    const dy = Math.abs(p.x);
+    if (Math.min(dx, dy) <= tolerance) return { kind: 'line', id: dx <= dy ? AXIS_X_ID : AXIS_Y_ID };
+  }
+  return null;
 }

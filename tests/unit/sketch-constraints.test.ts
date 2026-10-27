@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EdgeRef, SketchConstraint, SketchParams } from '../../src/domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, type EdgeRef, type SketchConstraint, type SketchParams } from '../../src/domain/model';
 import { featureDependencies } from '../../src/features/registry';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 import { addFeature, createDocument, findPart, makeSketchFeature } from '../../src/domain/document';
@@ -8,6 +8,7 @@ import { addCircle, addConstraint, addLine, addRectangle, emptySketch, findCircl
 import { extractProfiles } from '../../src/sketch/profiles';
 import {
   confirmEditor,
+  deleteSelection,
   createSession,
   pointerDown,
   pointerMove,
@@ -326,5 +327,82 @@ describe('format natif', () => {
     expect(parsed.doc).toEqual(doc);
     // L'esquisse dépend de l'étape qui a créé l'arête reprise.
     expect(featureDependencies(findPart(parsed.doc, part.id)!.features[0]!)).toEqual(['ex-1']);
+  });
+});
+
+describe('axes X et Y de l’esquisse comme références', () => {
+  it('cote d’un point ou d’un cercle depuis un axe, angle d’un segment avec un axe', () => {
+    let { s, b, circle } = sessionWithShapes();
+    // Axe Y (loin de tout trait), puis le cercle : distance de son centre à l'axe.
+    s = click(s, 0, -20);
+    expect(s.picks).toEqual([AXIS_Y_ID]);
+    s = click(s, 65, 30);
+    expect(s.editor?.candidates[0]!.constraint).toMatchObject({ type: 'pointLineDistance', line: AXIS_Y_ID, value: 60 });
+    s = confirmEditor(setEditorText(s, '50'));
+    expect(pointPosition(s.sketch, findCircle(s.sketch, circle)!.center)!.x).toBeCloseTo(50, 9);
+    // Segment puis axe X : l'axe reste la référence, l'angle vaut 33,69°.
+    s = click(s, 15, 20);
+    s = click(s, -20, 0);
+    expect(s.editor?.candidates[0]!.constraint).toMatchObject({ type: 'angle', a: AXIS_X_ID, b });
+    s = confirmEditor(setEditorText(s, '30'));
+    const angle = s.sketch.constraints.find((k) => k.type === 'angle')!;
+    expect(measureConstraint(s.sketch, angle)).toBeCloseTo(30, 7);
+    // Deux axes : aucune cote.
+    s = click(s, -20, 0);
+    s = click(s, 0, -20);
+    expect(s.editor).toBeNull();
+  });
+
+  it('contraintes avec un axe (parallèle, colinéaire, point sur), refus des cas sans objet', () => {
+    let { s, b } = sessionWithShapes();
+    s = setTool(s, 'parallel');
+    s = click(s, 15, 20);
+    s = click(s, -20, 0);
+    expect(s.sketch.constraints.at(-1)).toMatchObject({ type: 'parallel', a: b, b: AXIS_X_ID });
+    expect(lineVec(s.sketch, b).y).toBeCloseTo(0, 9);
+    // Le segment, désormais horizontal, ne peut pas suivre l'axe Y ; l'axe X, si.
+    s = setTool(s, 'collinear');
+    s = click(s, 0, -20);
+    const m0 = lineVec(s.sketch, b);
+    s = click(s, (m0.a.x + m0.b.x) / 2, (m0.a.y + m0.b.y) / 2);
+    expect(s.message?.kind).toBe('error');
+    s = click(s, -20, 0);
+    const m = lineVec(s.sketch, b);
+    s = click(s, (m.a.x + m.b.x) / 2, (m.a.y + m.b.y) / 2);
+    expect(s.message?.kind).toBe('success');
+    const l = lineVec(s.sketch, b);
+    expect(l.a.y).toBeCloseTo(0, 9);
+    expect(l.b.y).toBeCloseTo(0, 9);
+    // Égalité ou horizontal sur un axe : refusés avec une explication.
+    const before = s.sketch.constraints.length;
+    s = setTool(s, 'equal');
+    s = click(s, -20, 0);
+    expect(s.message?.text).toMatch(/infini/);
+    s = setTool(s, 'horizontal');
+    s = click(s, -20, 0);
+    expect(s.message?.text).toMatch(/fixes/);
+    expect(s.sketch.constraints).toHaveLength(before);
+    // Sélection de l'axe : ni déplaçable ni supprimable ; ses contraintes restent.
+    s = setTool(s, 'select');
+    s = click(s, -20, 0);
+    expect(s.selection).toEqual([AXIS_X_ID]);
+    s = deleteSelection(s);
+    expect(s.sketch.constraints).toHaveLength(before);
+  });
+
+  it('format natif : une contrainte sur un axe est valide et relue telle quelle', () => {
+    const l = addLine(emptySketch(XY), { x: 5, y: 5 }, { x: 25, y: 9 });
+    const sk = add(add(l.sketch, { type: 'parallel', a: l.lineId, b: AXIS_X_ID }), { type: 'pointLineDistance', point: l.a, line: AXIS_X_ID, value: 7 });
+    let doc = createDocument('Axes');
+    const part = doc.parts[0]!;
+    doc = addFeature(doc, part.id, { ...makeSketchFeature(doc, part, XY), params: sk });
+    const parsed = parseNativeFile(serializeDocument(doc));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.doc).toEqual(doc);
+    expect(parsed.warnings).toEqual([]);
+    const res = solved(sk);
+    expect(lineVec(res.sketch, l.lineId).a.y).toBeCloseTo(7, 9);
+    expect(lineVec(res.sketch, l.lineId).b.y).toBeCloseTo(7, 9);
   });
 });

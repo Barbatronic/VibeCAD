@@ -4,8 +4,13 @@
  */
 import { nextLocalId } from '../domain/ids';
 import {
+  AXIS_X_END_ID,
+  AXIS_X_ID,
+  AXIS_Y_END_ID,
+  AXIS_Y_ID,
   constraintReferences,
   ORIGIN_POINT_ID,
+  VIRTUAL_SKETCH_IDS,
   type SketchArc,
   type SketchCircle,
   type SketchCurve,
@@ -34,7 +39,15 @@ export function findPoint(sketch: SketchParams, id: string): SketchPoint | undef
   return e?.type === 'point' ? e : undefined;
 }
 
+/** Axes de l'esquisse, vus comme des segments fixes (voir `AXIS_X_ID`). */
+const AXIS_LINES: Record<string, SketchLine> = {
+  [AXIS_X_ID]: { id: AXIS_X_ID, type: 'line', a: ORIGIN_POINT_ID, b: AXIS_X_END_ID },
+  [AXIS_Y_ID]: { id: AXIS_Y_ID, type: 'line', a: ORIGIN_POINT_ID, b: AXIS_Y_END_ID },
+};
+
+/** Segment `id`, ou l'un des axes de l'esquisse. */
 export function findLine(sketch: SketchParams, id: string): SketchLine | undefined {
+  if (AXIS_LINES[id]) return AXIS_LINES[id];
   const e = findEntity(sketch, id);
   return e?.type === 'line' ? e : undefined;
 }
@@ -96,6 +109,8 @@ export function arcContainsAngle(g: ArcGeometry, p: Vec2): boolean {
 /** Position d'un point (l'origine est toujours en 0, 0). */
 export function pointPosition(sketch: SketchParams, id: string): Vec2 | undefined {
   if (id === ORIGIN_POINT_ID) return { x: 0, y: 0 };
+  if (id === AXIS_X_END_ID) return { x: 1, y: 0 };
+  if (id === AXIS_Y_END_ID) return { x: 0, y: 1 };
   const p = findPoint(sketch, id);
   return p ? { x: p.x, y: p.y } : undefined;
 }
@@ -279,7 +294,7 @@ export function ownedPoints(entity: SketchEntity): string[] {
  */
 export function removeEntities(sketch: SketchParams, ids: Iterable<string>): SketchParams {
   const removed = new Set(ids);
-  removed.delete(ORIGIN_POINT_ID);
+  for (const id of VIRTUAL_SKETCH_IDS) removed.delete(id);
   let changed = true;
   while (changed) {
     changed = false;

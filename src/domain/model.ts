@@ -423,6 +423,19 @@ export interface EdgeRef {
 /** Identifiant réservé désignant l'origine fixe de l'esquisse (0, 0). */
 export const ORIGIN_POINT_ID = 'origin';
 
+/**
+ * Axes fixes de l'esquisse : droites virtuelles par l'origine, horizontale (X) et verticale (Y),
+ * qu'on vise comme un segment dans les cotes et contraintes. Chacune va de l'origine à un point
+ * virtuel posé à 1 mm sur l'axe (il ne sert qu'à donner la direction).
+ */
+export const AXIS_X_ID = 'axis-x';
+export const AXIS_Y_ID = 'axis-y';
+export const AXIS_X_END_ID = 'axis-x-end';
+export const AXIS_Y_END_ID = 'axis-y-end';
+export const isSketchAxis = (id: string): boolean => id === AXIS_X_ID || id === AXIS_Y_ID;
+/** Identifiants réservés, toujours présents dans une esquisse sans y être enregistrés. */
+export const VIRTUAL_SKETCH_IDS: ReadonlySet<string> = new Set([ORIGIN_POINT_ID, AXIS_X_ID, AXIS_Y_ID, AXIS_X_END_ID, AXIS_Y_END_ID]);
+
 export interface SketchPoint {
   id: string;
   type: 'point';

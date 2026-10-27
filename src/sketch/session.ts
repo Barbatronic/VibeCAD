@@ -6,7 +6,7 @@
  */
 import { sameEdgeRef } from '../domain/document';
 import type { AssemblyContext, EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
-import { ORIGIN_POINT_ID } from '../domain/model';
+import { isSketchAxis, ORIGIN_POINT_ID, VIRTUAL_SKETCH_IDS } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { expressionNames, formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
 import type { Frame3D } from '../math/frame';
@@ -442,7 +442,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const sweep = Math.max(-Math.PI * 2, Math.min(Math.PI * 2, s.arc.sweep + delta));
     return { ...s, cursor: p, snap, hover: null, arc: { ...s.arc, sweep, lastAngle: angle } };
   }
-  const hover = drawing ? null : hitTest(s.sketch, p, tolerance(s), true, s.tool === 'trim');
+  const hover = drawing ? null : hitTest(s.sketch, p, tolerance(s), true, s.tool === 'trim' || s.tool === 'offset');
   return { ...s, cursor: p, snap, hover };
 }
 
@@ -1276,7 +1276,7 @@ export function confirmInput(s: SketchSession): SketchSession {
 function anchorWeights(c: NewConstraint | SketchConstraint, sketch: SketchParams): Map<string, number> {
   const w = new Map<string, number>();
   const hold = (pointId: string | undefined) => {
-    if (!pointId || pointId === ORIGIN_POINT_ID) return;
+    if (!pointId || VIRTUAL_SKETCH_IDS.has(pointId)) return;
     w.set(`${pointId}.x`, 1e3);
     w.set(`${pointId}.y`, 1e3);
   };
@@ -1332,6 +1332,7 @@ interface PickTarget {
 
 function targetOf(sketch: SketchParams, id: string): PickTarget | null {
   if (id === ORIGIN_POINT_ID) return { kind: 'point', id };
+  if (isSketchAxis(id)) return { kind: 'line', id };
   const e = sketch.entities.find((x) => x.id === id);
   return e ? { kind: e.type, id } : null;
 }
@@ -1374,6 +1375,9 @@ function measurePointOf(sketch: SketchParams, t: PickTarget): string | null {
 /** Cotes possibles entre deux éléments cliqués l'un après l'autre. */
 function pairDimensionCandidates(s: SketchSession, first: PickTarget, second: PickTarget): { candidates: DimensionCandidate[]; anchor: Vec2 } | null {
   const sk = s.sketch;
+  // Un axe sert toujours de référence : la cote se mesure depuis lui.
+  if (isSketchAxis(first.id) && isSketchAxis(second.id)) return null;
+  if (isSketchAxis(second.id)) [first, second] = [second, first];
   // Deux segments : angle, ou distance s'ils sont parallèles.
   if (first.kind === 'line' && second.kind === 'line') {
     const la = lineGeometry(sk, first.id);
@@ -1472,6 +1476,9 @@ function dimensionClick(s: SketchSession, p: Vec2): SketchSession {
   if (!first || first.id === target.id) {
     if (target.kind === 'point') {
       return { ...s, picks: [target.id], message: info('Cliquez maintenant le second élément : un point (par exemple l’origine), un segment ou un cercle.') };
+    }
+    if (isSketchAxis(target.id)) {
+      return { ...s, picks: [target.id], message: info('Axe choisi : cliquez maintenant un point, un cercle (distance à l’axe) ou un segment (angle avec l’axe).') };
     }
     const single = singleDimensionCandidates(s, target);
     if (!single) return { ...s, picks: [] };
@@ -1772,6 +1779,10 @@ function buildConstraint(s: SketchSession, tool: ConstraintTool, picks: readonly
   const [a, b] = picks;
   if (!a) return nextPick(TOOL_HELP[tool]);
   const sk = s.sketch;
+  const axis = picks.find((t) => isSketchAxis(t.id));
+  if (axis && (tool === 'horizontal' || tool === 'vertical')) return invalid('Les axes sont fixes : cliquez sur un segment de votre dessin.');
+  if (axis && (tool === 'equal' || tool === 'midpoint')) return invalid('Un axe est infini : il n’a ni longueur ni milieu. Choisissez un segment de votre dessin.');
+  if (picks.length === 2 && picks.every((t) => isSketchAxis(t.id))) return invalid('Les deux axes sont fixes : choisissez au moins un élément de votre dessin.');
   switch (tool) {
     case 'horizontal':
     case 'vertical':
@@ -1926,6 +1937,7 @@ function isFixedTarget(sketch: SketchParams, target: SketchTarget): boolean {
     if (target.id === ORIGIN_POINT_ID) return true;
     return !!ownerOfPoint(sketch, target.id)?.reference;
   }
+  if (isSketchAxis(target.id)) return true;
   const e = sketch.entities.find((x) => x.id === target.id);
   return !!e && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && !!e.reference;
 }
@@ -1945,7 +1957,9 @@ function selectClick(s: SketchSession, p: Vec2, double: boolean): SketchSession 
   const already = s.selection.includes(id);
   const selection = already ? s.selection : [...s.selection, id];
   const fixed = isFixedTarget(s.sketch, target);
-  const message = fixed && target.id !== ORIGIN_POINT_ID ? info('Élément repris de la pièce : il est fixe et suit la pièce. Cotez ou contraignez votre dessin par rapport à lui.') : s.message;
+  const message = isSketchAxis(target.id)
+    ? info('Axe de l’esquisse (fixe) : choisissez aussi un élément de votre dessin, puis une contrainte (parallèle, perpendiculaire, colinéaire, point sur…).')
+    : fixed && target.id !== ORIGIN_POINT_ID ? info('Élément repris de la pièce : il est fixe et suit la pièce. Cotez ou contraignez votre dessin par rapport à lui.') : s.message;
   if (fixed) return { ...s, selection: already ? s.selection.filter((x) => x !== id) : selection, message, drag: null };
   return { ...s, selection, message, drag: { target, origin: p, base: s.sketch, moved: false, toggleOff: already } };
 }

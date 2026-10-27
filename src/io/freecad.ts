@@ -15,12 +15,12 @@
  * Voir docs/export-freecad.md.
  */
 import type { CadDocument, Feature, Id, Part, ProjectParameter, SketchConstraint, SketchParams } from '../domain/model';
-import { ORIGIN_POINT_ID } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../domain/model';
 import { expressionNames } from '../domain/units';
 import { holeDiameter } from '../features/hole/definition';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
-import { ellipseOf, pointPosition, standalonePoints } from '../sketch/model';
+import { ellipseOf, findLine, pointPosition, standalonePoints } from '../sketch/model';
 import { createZip } from './zip';
 
 /** Ce que le worker fournit pour une pièce (formes et repères calculés). */
@@ -304,7 +304,8 @@ function sketchCode(
   for (const list of occurrences.values()) for (let k = 1; k < list.length; k++) lines.push(`con(${v}, "Coincident", ${list[0]![0]}, ${list[0]![1]}, ${list[k]![0]}, ${list[k]![1]})`);
   for (const i of blocked) lines.push(`con(${v}, "Block", ${i})`);
   const pt = (id: string): [number, number] | null => (id === ORIGIN_POINT_ID ? [-1, 1] : (occurrences.get(id)?.[0] ?? null));
-  const geo = (id: string) => geoOf.get(id) ?? null;
+  // Axes de l'esquisse : géométries -1 (axe horizontal) et -2 (axe vertical) de FreeCAD.
+  const geo = (id: string) => (id === AXIS_X_ID ? -1 : id === AXIS_Y_ID ? -2 : (geoOf.get(id) ?? null));
   const index = new Map<string, number>();
   const push = (c: SketchConstraint, args: string) => {
     const k = `_c${index.size}`;
@@ -359,8 +360,8 @@ function sketchCode(
         break;
       }
       case 'collinear': {
-        const a = geo(c.a);
-        const b = geo(c.b);
+        // Le point posé sur l'autre droite est pris sur un segment, jamais sur un axe.
+        const [a, b] = geo(c.b)! < 0 ? [geo(c.b), geo(c.a)] : [geo(c.a), geo(c.b)];
         if (a !== null && b !== null) {
           push(c, `"Parallel", ${a}, ${b}`);
           lines.push(`con(${v}, "PointOnObject", ${b}, 1, ${a})`);
@@ -388,12 +389,12 @@ function sketchCode(
       case 'angle': {
         // Angle orienté (sens trigonométrique) de la direction de a vers celle de b, mesuré sur la
         // géométrie résolue : FreeCAD le retrouve tel quel.
-        const la = s.entities.find((e) => e.id === c.a);
-        const lb = s.entities.find((e) => e.id === c.b);
+        const la = findLine(s, c.a);
+        const lb = findLine(s, c.b);
         const a = geo(c.a);
         const b = geo(c.b);
-        if (la?.type !== 'line' || lb?.type !== 'line' || a === null || b === null) break;
-        const dir = (l: typeof la) => {
+        if (!la || !lb || a === null || b === null) break;
+        const dir = (l: NonNullable<typeof la>) => {
           const p = pointPosition(s, l.a)!;
           const q = pointPosition(s, l.b)!;
           return Math.atan2(q.y - p.y, q.x - p.x);

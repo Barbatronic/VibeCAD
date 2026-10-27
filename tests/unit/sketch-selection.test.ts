@@ -31,7 +31,8 @@ describe('esquisse : sélection', () => {
     // Quatre segments et leurs huit extrémités (reliées deux à deux) ; le cercle, dehors, n'est pas pris.
     expect(s.selection.length).toBe(12);
     expect(s.box).toBeNull();
-    s = pointerUp(pointerMove(pointerDown(pointerMove(s, { x: 50, y: 0 }), { x: 50, y: 0 }), { x: 70, y: 20 }));
+    // (Départ sous l’axe X : un clic sur l’axe le sélectionnerait.)
+    s = pointerUp(pointerMove(pointerDown(pointerMove(s, { x: 50, y: -2 }), { x: 50, y: -2 }), { x: 70, y: 20 }));
     // Le cercle et son centre.
     expect(s.selection.length).toBe(14);
   });

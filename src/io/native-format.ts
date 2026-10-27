@@ -36,7 +36,7 @@ import type {
 } from '../domain/model';
 import { PARAMETER_NAME } from '../domain/units';
 import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
-import { ASSEMBLY_STUDY, constraintReferences, ORIGIN_POINT_ID } from '../domain/model';
+import { ASSEMBLY_STUDY, constraintReferences, VIRTUAL_SKETCH_IDS } from '../domain/model';
 import { featureDependencies } from '../features/registry';
 import { closedDocument, subassemblyContains } from '../domain/subassemblies';
 import { APP_NAME, APP_VERSION } from '../meta';
@@ -1221,9 +1221,9 @@ function checkReferences(v: Validator, doc: CadDocument): void {
 
 function checkSketch(v: Validator, sketch: SketchParams, name: string, path: string): void {
   const entityIds = new Set<string>();
-  const points = new Set<string>([ORIGIN_POINT_ID]);
+  const points = new Set<string>(VIRTUAL_SKETCH_IDS);
   sketch.entities.forEach((e, i) => {
-    if (entityIds.has(e.id) || e.id === ORIGIN_POINT_ID) v.error(`${path}.params.entities[${i}].id`, `identifiant en double « ${e.id} »`);
+    if (entityIds.has(e.id) || VIRTUAL_SKETCH_IDS.has(e.id)) v.error(`${path}.params.entities[${i}].id`, `identifiant en double « ${e.id} »`);
     entityIds.add(e.id);
     if (e.type === 'point') points.add(e.id);
   });
@@ -1239,7 +1239,7 @@ function checkSketch(v: Validator, sketch: SketchParams, name: string, path: str
     if (constraintIds.has(c.id)) v.error(`${path}.params`, `contrainte en double « ${c.id} »`);
     constraintIds.add(c.id);
     const refs = constraintReferences(c);
-    if (refs.some((r) => r !== ORIGIN_POINT_ID && !entityIds.has(r))) {
+    if (refs.some((r) => !VIRTUAL_SKETCH_IDS.has(r) && !entityIds.has(r))) {
       v.warnings.push(`${name} : une contrainte vise un élément absent ; elle sera ignorée.`);
     }
   }

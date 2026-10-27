@@ -11,7 +11,7 @@
  * Après convergence, une réduction de Gauss-Jordan de J donne le nombre de degrés de liberté
  * et les éléments encore libres.
  */
-import { ORIGIN_POINT_ID, type SketchConstraint, type SketchParams } from '../domain/model';
+import { AXIS_X_END_ID, AXIS_X_ID, AXIS_Y_END_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchConstraint, type SketchParams } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { choleskySolve, rowReduce } from '../math/linalg';
 
@@ -145,6 +145,8 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
   const variables: VariableInfo[] = [];
   const points = new Map<string, PointRef>();
   points.set(ORIGIN_POINT_ID, { kind: 'const', x: 0, y: 0 });
+  points.set(AXIS_X_END_ID, { kind: 'const', x: 1, y: 0 });
+  points.set(AXIS_Y_END_ID, { kind: 'const', x: 0, y: 1 });
   // Les éléments repris de la pièce sont fixes : leurs points et rayons sont des constantes.
   const fixedPoints = new Set<string>();
   for (const e of sketch.entities) {
@@ -163,6 +165,8 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
     variables.push({ entityId: e.id, component: 'x' }, { entityId: e.id, component: 'y' });
   }
   const lines = new Map<string, LineRef>();
+  lines.set(AXIS_X_ID, { a: points.get(ORIGIN_POINT_ID)!, b: points.get(AXIS_X_END_ID)! });
+  lines.set(AXIS_Y_ID, { a: points.get(ORIGIN_POINT_ID)!, b: points.get(AXIS_Y_END_ID)! });
   const circles = new Map<string, CircleRef>();
   /** Ellipses : centre et petit rayon (seul le petit rayon se cote par « rayon » ou « diamètre »). */
   const ellipses = new Map<string, CircleRef>();

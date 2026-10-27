@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { addFeature, findPart, makeChamferFeature, makeFilletFeature, makeHoleFeature, makeMirrorFeature, makeMoveFeature, makePatternFeature, makePlaneFeature, makePocketFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
-import type { CadDocument, Feature, SketchFeature } from '../../src/domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, type CadDocument, type Feature, type SketchConstraint, type SketchFeature } from '../../src/domain/model';
 import { addPoint, addRectangle } from '../../src/sketch/model';
 import { applyParameters } from '../../src/features/parameters';
 import { RecomputeEngine } from '../../src/features/engine';
@@ -78,6 +78,29 @@ async function check(doc: CadDocument, name: string, expectFrozen = 0) {
 describe('export FreeCAD (script Python)', () => {
   it('plaque percée : esquisse cotée, protrusion, esquisse sur la face, cavité traversante', async () => {
     await check(buildPlateDocument().doc, 'freecad-plaque');
+  });
+
+  it('trou coté depuis les axes de l’esquisse : ils deviennent les axes H et V du Sketcher', async () => {
+    const { doc, ids } = buildPlateDocument();
+    const d: CadDocument = {
+      ...doc,
+      parts: doc.parts.map((p) => ({
+        ...p,
+        features: p.features.map((f): Feature => {
+          if (f.id !== ids.sketch2 || f.type !== 'sketch') return f;
+          const circle = f.params.entities.find((e) => e.type === 'circle')!;
+          const center = circle.type === 'circle' ? circle.center : '';
+          const constraints = f.params.constraints.map((c): SketchConstraint =>
+            c.type === 'distanceX' ? { id: c.id, type: 'pointLineDistance', point: center, line: AXIS_Y_ID, value: c.value } : c.type === 'distanceY' ? { id: c.id, type: 'pointLineDistance', point: center, line: AXIS_X_ID, value: c.value } : c,
+          );
+          return { ...f, params: { ...f.params, constraints } };
+        }),
+      })),
+    };
+    const { script } = await exportDoc(d);
+    expect(script).toMatch(/"Distance", \d+, 3, -2, /);
+    expect(script).toMatch(/"Distance", \d+, 3, -1, /);
+    await check(d, 'freecad-axes');
   });
 
   it('congé sur une arête verticale et chanfrein sur l’arête avant du dessus', async () => {

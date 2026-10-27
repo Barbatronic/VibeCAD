@@ -3,7 +3,7 @@
  * repliables. Un clic sur une ligne l'ajoute à la sélection (ou l'en retire), comme dans la vue ;
  * double-clic sur une cote : changer sa valeur.
  */
-import { constraintReferences, ORIGIN_POINT_ID, type SketchConstraint, type SketchEntity } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, constraintReferences, ORIGIN_POINT_ID, type SketchConstraint, type SketchEntity } from '../domain/model';
 import { formatAngle, formatLength } from '../domain/units';
 import { arcGeometry, ellipseOf, linePoints, pointPosition } from '../sketch/model';
 import { editDimension, selectConstraint, type SketchSession } from '../sketch/session';
@@ -35,7 +35,11 @@ const CONSTRAINT_NAMES: Record<SketchConstraint['type'], string> = {
 /** Noms lisibles et numérotés par type (« Segment 2 »), dans l'ordre de l'esquisse. */
 function entityNames(entities: SketchEntity[]): Map<string, string> {
   const count: Record<string, number> = {};
-  const names = new Map<string, string>([[ORIGIN_POINT_ID, 'Origine']]);
+  const names = new Map<string, string>([
+    [ORIGIN_POINT_ID, 'Origine'],
+    [AXIS_X_ID, 'Axe X'],
+    [AXIS_Y_ID, 'Axe Y'],
+  ]);
   for (const e of entities) {
     count[e.type] = (count[e.type] ?? 0) + 1;
     names.set(e.id, `${ENTITY_NAMES[e.type]} ${count[e.type]}`);

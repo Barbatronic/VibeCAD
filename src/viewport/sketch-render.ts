@@ -8,7 +8,7 @@ import type { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type SketchParams } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type SketchParams } from '../domain/model';
 import { formatAngle, formatLength } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
@@ -314,8 +314,14 @@ export class SketchView {
     // Axes et origine de l'esquisse (mode édition)
     if (edit) {
       const span = px * 4000;
-      thin.add([{ x: -span, y: 0 }, { x: span, y: 0 }], new Color(p.axisX));
-      thin.add([{ x: 0, y: -span }, { x: 0, y: span }], new Color(p.axisY));
+      // Un axe survolé ou choisi (cote, contrainte) s'épaissit comme un trait du dessin.
+      const axis = (id: string, seg: Segment, color: string) => {
+        const on = sel.has(id) || picks.has(id) || input.hover === id;
+        if (on) strong.add(seg, sel.has(id) || picks.has(id) ? cSel : cHover);
+        else thin.add(seg, new Color(color));
+      };
+      axis(AXIS_X_ID, [{ x: -span, y: 0 }, { x: span, y: 0 }], p.axisX);
+      axis(AXIS_Y_ID, [{ x: 0, y: -span }, { x: 0, y: span }], p.axisY);
       for (const seg of circleSegments({ x: 0, y: 0 }, 6 * px, 24)) strong.add(seg, sel.has(ORIGIN_POINT_ID) || input.hover === ORIGIN_POINT_ID ? cSel : cDim);
     }
 
