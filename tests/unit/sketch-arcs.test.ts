@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ORIGIN_POINT_ID } from '../../src/domain/model';
 import { originPlaneFrame } from '../../src/math/frame';
-import { addArc, addConstraint, addLine, arcGeometry, emptySketch, findArc, pointPosition } from '../../src/sketch/model';
+import { addArc, addConstraint, addLine, arcGeometry, arcPointAt, emptySketch, findArc, pointPosition } from '../../src/sketch/model';
 import { extractProfiles } from '../../src/sketch/profiles';
 import { solveSketch } from '../../src/sketch/solver';
 import {
@@ -109,5 +109,73 @@ describe('outil Rectangle centré', () => {
     const tangent = solveSketch(addConstraint(joined, { type: 'tangent', a: line.lineId, b: arc.arcId }).sketch);
     expect(tangent.converged).toBe(true);
     expect(tangent.dof).toBe(free.dof - 1);
+  });
+});
+
+describe('outil Arc 3 points', () => {
+  const arcOf = (s: SketchSession) => arcGeometry(s.sketch, s.sketch.entities.find((e) => e.type === 'arc') as never)!;
+
+  it('départ, arrivée, point de passage : demi-cercle au-dessus ou en dessous selon le passage', () => {
+    let s = setTool(newSession(), 'arc3');
+    s = click(s, -10, 0);
+    s = click(s, 10, 0);
+    expect(s.input?.labels).toEqual(['Rayon']);
+    s = click(s, 0, 10);
+    const g = arcOf(s);
+    expect(g.center.x).toBeCloseTo(0, 6);
+    expect(g.center.y).toBeCloseTo(0, 6);
+    expect(g.radius).toBeCloseTo(10, 6);
+    expect((g.sweep * 180) / Math.PI).toBeCloseTo(180, 4);
+    expect(arcPointAt(g, 0.5).y).toBeCloseTo(10, 6);
+
+    // Passage en dessous : l'arc est enregistré dans le sens trigonométrique, extrémités échangées.
+    let t = setTool(newSession(), 'arc3');
+    t = click(t, -10, 0);
+    t = click(t, 10, 0);
+    t = click(t, 6, -8);
+    const h = arcOf(t);
+    expect(h.radius).toBeCloseTo(10, 6);
+    expect(arcPointAt(h, 0.5).y).toBeCloseTo(-10, 6);
+    expect(h.start.x).toBeCloseTo(-10, 6);
+  });
+
+  it('grand arc quand le passage est au-delà, rayon tapé au clavier, points alignés refusés', () => {
+    let s = setTool(newSession(), 'arc3');
+    s = click(s, 0, 0);
+    s = click(s, 10, 0);
+    s = click(s, 5, 0);
+    expect(s.message?.kind).toBe('error');
+    expect(s.sketch.entities.some((e) => e.type === 'arc')).toBe(false);
+    // Passage (5, 10) : cercle de centre (5, 3,75), plus d'un demi-tour.
+    s = click(s, 5, 10);
+    const g = arcOf(s);
+    expect(g.center.y).toBeCloseTo(3.75, 6);
+    expect(g.sweep).toBeGreaterThan(Math.PI);
+
+    let t = setTool(newSession(), 'arc3');
+    t = click(t, 0, 0);
+    t = click(t, 10, 0);
+    t = move(t, 5, -3);
+    t = confirmInput(setInputValue(t, 0, '4'));
+    expect(t.input?.error).toMatch(/moitié/);
+    t = confirmInput(setInputValue(t, 0, '8'));
+    const h = arcOf(t);
+    expect(h.radius).toBeCloseTo(8, 9);
+    expect(h.sweep).toBeLessThan(Math.PI);
+    expect(arcPointAt(h, 0.5).y).toBeLessThan(0);
+    expect(t.sketch.constraints.some((c) => c.type === 'radius' && c.value === 8)).toBe(true);
+  });
+
+  it('accroche ses extrémités aux points existants', () => {
+    let s = setTool(newSession(), 'line');
+    s = click(s, -10, 0);
+    s = click(s, 10, 0);
+    s = setTool(s, 'arc3');
+    s = pointerUp(pointerDown(pointerMove(s, { x: -10, y: 0 }), { x: -10, y: 0 }));
+    s = pointerUp(pointerDown(pointerMove(s, { x: 10, y: 0 }), { x: 10, y: 0 }));
+    s = click(s, 0, 10);
+    expect(s.sketch.constraints.filter((c) => c.type === 'coincident')).toHaveLength(2);
+    const profile = extractProfiles(s.sketch);
+    expect(profile.ok && profile.regions[0]!.area).toBeCloseTo((Math.PI * 100) / 2, 6);
   });
 });

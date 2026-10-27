@@ -62,7 +62,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -87,6 +87,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   polygon: 'Polygone',
   circle: 'Cercle',
   arc: 'Arc',
+  arc3: 'Arc 3 points',
   slot: 'Oblong',
   ellipse: 'Ellipse',
   spline: 'Spline',
@@ -121,6 +122,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   slot: 'Oblong (rainure) : cliquez le centre du premier arrondi, puis celui du second, puis la largeur. Vous pouvez taper la longueur entre centres puis la largeur.',
   circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
   arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
+  arc3: 'Arc par 3 points : cliquez le point de départ, puis l’arrivée, puis un point par lequel l’arc doit passer. Vous pouvez taper le rayon à la dernière étape.',
   ellipse: 'Ellipse : cliquez le centre, puis le bout du grand axe, puis éloignez la souris pour régler la largeur et cliquez. Vous pouvez taper les deux axes (Tab pour passer de l’un à l’autre).',
   spline:
     'Spline : cliquez les points par lesquels la courbe doit passer. Cliquez le premier point pour la fermer ; Entrée, Échap ou un clic sur le dernier point la terminent ouverte.',
@@ -211,6 +213,8 @@ export interface SketchSession {
   start: SnapResult | null;
   /** Arc en cours : point de départ et rotation cumulée du curseur (signe : sens de l'arc). */
   arc: { start: SnapResult; sweep: number; lastAngle: number } | null;
+  /** Arc par 3 points : arrivée choisie (on choisit ensuite un point de passage). */
+  arc3: { end: SnapResult } | null;
   /** Oblong : second centre choisi (on règle ensuite la largeur). */
   slot: { end: SnapResult; length: number | null } | null;
   /** Ellipse : bout du grand axe choisi (on règle ensuite le petit rayon). */
@@ -272,6 +276,7 @@ export function createSession(args: {
     tool: args.sketch.entities.length === 0 ? 'rectangle' : 'select',
     start: null,
     arc: null,
+    arc3: null,
     slot: null,
     chainFirstPointId: null,
     chainLastPointId: null,
@@ -306,7 +311,7 @@ const success = (text: string): SessionMessage => ({ kind: 'success', text });
 const failure = (text: string): SessionMessage => ({ kind: 'error', text });
 
 function resetDraw(s: SketchSession): SketchSession {
-  return { ...s, start: null, arc: null, slot: null, ellipse: null, spline: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
+  return { ...s, start: null, arc: null, arc3: null, slot: null, ellipse: null, spline: null, chainFirstPointId: null, chainLastPointId: null, picks: [], input: null };
 }
 
 /** Applique une nouvelle esquisse après résolution ; refuse si les contraintes sont incompatibles. */
@@ -425,7 +430,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
+  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -462,6 +467,8 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return centerRectangleClick(s, computeSnap(s, p, !!opts.alt));
     case 'arc':
       return arcClick(s, computeSnap(s, p, !!opts.alt));
+    case 'arc3':
+      return arc3Click(s, computeSnap(s, p, !!opts.alt));
     case 'polygon':
       return polygonClick(s, computeSnap(s, p, !!opts.alt));
     case 'slot':
@@ -1061,6 +1068,97 @@ function finishArc(s: SketchSession, endSnap: SnapResult | null, angleDeg: numbe
   return resetDraw(session);
 }
 
+// ---------------------------------------------------------------------------
+// Arc par 3 points
+
+/** Centre du cercle passant par trois points (null s'ils sont alignés). */
+export function circleThrough(a: Vec2, b: Vec2, c: Vec2): { center: Vec2; radius: number } | null {
+  const d = 2 * cross2(sub2(b, a), sub2(c, a));
+  const scale = Math.max(distance2(a, b), distance2(a, c), distance2(b, c));
+  if (Math.abs(d) < 1e-9 * scale * scale) return null;
+  const ab = sub2(b, a);
+  const ac = sub2(c, a);
+  const ab2 = dot2(ab, ab);
+  const ac2 = dot2(ac, ac);
+  const center = { x: a.x + (ac.y * ab2 - ab.y * ac2) / d, y: a.y + (ab.x * ac2 - ac.x * ab2) / d };
+  return { center, radius: distance2(center, a) };
+}
+
+/** Arc de `start` à `end` passant par `through` : centre, angle de départ, ouverture signée. */
+function arc3Geometry(start: Vec2, end: Vec2, through: Vec2): { center: Vec2; radius: number; startAngle: number; sweep: number } | null {
+  const c = circleThrough(start, through, end);
+  if (!c) return null;
+  const ang = (p: Vec2) => Math.atan2(p.y - c.center.y, p.x - c.center.x);
+  const a0 = ang(start);
+  // Sens trigonométrique si départ, passage, arrivée tournent dans ce sens.
+  const ccw = cross2(sub2(through, start), sub2(end, start)) > 0;
+  let sweep = ang(end) - a0;
+  if (ccw) while (sweep <= 0) sweep += Math.PI * 2;
+  else while (sweep >= 0) sweep -= Math.PI * 2;
+  return { center: c.center, radius: c.radius, startAngle: a0, sweep };
+}
+
+/** Point de passage d'un arc de rayon `r` entre `start` et `end`, bombé du côté de `side`. */
+function arc3ThroughForRadius(start: Vec2, end: Vec2, r: number, side: Vec2 | null): Vec2 {
+  const m = midpoint2(start, end);
+  const u = normalize2(sub2(end, start));
+  let n = { x: -u.y, y: u.x };
+  if (side && dot2(sub2(side, m), n) < 0) n = scale2(n, -1);
+  const h = distance2(start, end) / 2;
+  const d = Math.sqrt(Math.max(r * r - h * h, 0));
+  return add2(m, scale2(n, r - d));
+}
+
+function arc3Click(s: SketchSession, snap: SnapResult): SketchSession {
+  if (!s.start) return { ...s, start: snap, message: info('Cliquez l’arrivée de l’arc.') };
+  if (!s.arc3) {
+    if (distance2(s.start.point, snap.point) < tolerance(s) / 2) return { ...s, message: failure('L’arrivée est confondue avec le départ : cliquez plus loin.') };
+    return {
+      ...s,
+      arc3: { end: snap },
+      input: { labels: ['Rayon'], values: [''], active: 0, error: null },
+      message: info('Cliquez un point par lequel l’arc doit passer, ou tapez le rayon puis Entrée.'),
+    };
+  }
+  return finishArc3(s, snap, null);
+}
+
+/** Termine l'arc par 3 points : point de passage cliqué, ou rayon tapé (bombé du côté du curseur). */
+function finishArc3(s: SketchSession, throughSnap: SnapResult | null, radius: number | null): SketchSession {
+  const start = s.start!;
+  const end = s.arc3!.end;
+  if (radius !== null && radius < distance2(start.point, end.point) / 2 - 1e-9) {
+    return { ...s, input: s.input && { ...s.input, error: `Le rayon doit valoir au moins la moitié de l’écart entre les extrémités (${formatLength(distance2(start.point, end.point) / 2)}).` } };
+  }
+  const through = radius !== null ? arc3ThroughForRadius(start.point, end.point, radius, s.snap?.point ?? s.cursor) : throughSnap!.point;
+  const g = arc3Geometry(start.point, end.point, through);
+  if (!g) return { ...s, message: failure('Les trois points sont alignés : cliquez le point de passage à côté du trait.') };
+  // Un arc est toujours enregistré dans le sens trigonométrique : on échange départ et arrivée si besoin.
+  const ccw = g.sweep > 0;
+  const [from, to] = ccw ? [start, end] : [end, start];
+  const a = addArc(s.sketch, g.center, from.point, to.point);
+  let sk = s.construction ? setConstruction(a.sketch, [a.arcId], true) : a.sketch;
+  if (from.pointId) sk = addConstraint(sk, { type: 'coincident', a: from.pointId, b: a.start }).sketch;
+  if (to.pointId) sk = addConstraint(sk, { type: 'coincident', a: to.pointId, b: a.end }).sketch;
+  if (throughSnap?.pointId) sk = addConstraint(sk, { type: 'pointOn', point: throughSnap.pointId, curve: a.arcId }).sketch;
+  if (radius !== null) sk = addConstraint(sk, { type: 'radius', circle: a.arcId, value: radius }).sketch;
+  const weights = new Map([
+    [`${a.start}.x`, 1e3],
+    [`${a.start}.y`, 1e3],
+    [`${a.end}.x`, 1e3],
+    [`${a.end}.y`, 1e3],
+  ]);
+  const { session } = commit(s, sk, {
+    weights,
+    message: success(
+      radius !== null
+        ? `Arc ajouté, de rayon ${formatLength(radius)}.`
+        : 'Arc ajouté. Cotez son rayon, ou reliez-le aux segments voisins (coïncidence, tangence).',
+    ),
+  });
+  return resetDraw(session);
+}
+
 export function setInputValue(s: SketchSession, index: number, text: string): SketchSession {
   if (!s.input) return s;
   const values = s.input.values.map((v, i) => (i === index ? text : v));
@@ -1159,6 +1257,7 @@ export function confirmInput(s: SketchSession): SketchSession {
     }
     return finishArc(s, null, values[0]!);
   }
+  if (s.tool === 'arc3' && s.arc3) return finishArc3(s, null, values[0]!);
   if (s.tool === 'line') {
     let dir = cursor ? normalize2(sub2(cursor, s.start.point)) : { x: 1, y: 0 };
     if (dir.x === 0 && dir.y === 0) dir = { x: 1, y: 0 };
@@ -2181,6 +2280,19 @@ export function sessionPreview(s: SketchSession): SessionPreview {
         text: `${formatAngle(Math.abs((sweep * 180) / Math.PI))} · R ${formatLength(r)}`,
       });
     }
+  } else if (s.tool === 'arc3') {
+    if (!s.arc3) {
+      out.lines.push([a, end]);
+      out.labels.push({ at: midpoint2(a, end), text: formatLength(distance2(a, end)), along: [a, end] });
+    } else {
+      const e = s.arc3.end.point;
+      const g = arc3Geometry(a, e, end);
+      if (!g) out.lines.push([a, e]);
+      else {
+        out.arcs.push({ center: g.center, radius: g.radius, startAngle: g.startAngle, sweep: g.sweep, arrow: false });
+        out.labels.push({ at: end, text: `R ${formatLength(g.radius)}` });
+      }
+    }
   }
   return out;
 }
@@ -2199,6 +2311,7 @@ export function drawInputCurrentValues(s: SketchSession): number[] {
   if (s.tool === 'offset') return [Math.abs(offsetDistanceAt(s, end)?.distance ?? 0)];
   if (s.tool === 'ellipse') return s.ellipse ? [round(2 * distance2(a, s.ellipse.major.point)), round(2 * ellipseMinor(a, s.ellipse.major.point, end))] : [round(2 * distance2(a, end)), 0];
   if (s.tool === 'slot') return s.slot ? [round(2 * slotHalfWidth(a, s.slot.end.point, end))] : [round(distance2(a, end))];
+  if (s.tool === 'arc3') return s.arc3 ? [round(arc3Geometry(a, s.arc3.end.point, end)?.radius ?? 0)] : [];
   if (s.tool === 'arc') return s.arc ? [round(Math.abs((s.arc.sweep * 180) / Math.PI))] : [round(distance2(a, end))];
   return [];
 }

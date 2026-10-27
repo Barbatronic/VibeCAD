@@ -20,7 +20,7 @@ const GLOSSARY: [string, string][] = [
   ['Polygone', 'Une forme à côtés égaux (triangle, carré, hexagone…) dont les sommets sont sur un cercle en pointillés : coter ce cercle fixe sa taille.'],
   ['Oblong', 'Une rainure aux deux bouts arrondis, comme un trou de vis qu’on peut régler.'],
   ['Couper', 'Retirer le morceau d’un trait jusqu’aux croisements voisins, pour réunir deux formes en un seul contour.'],
-  ['Arc', 'Une portion de cercle : on clique le centre, le départ, puis on tourne dans le sens voulu jusqu’à l’arrivée.'],
+  ['Arc', 'Une portion de cercle : on clique le centre, le départ, puis on tourne dans le sens voulu jusqu’à l’arrivée. Variante « Arc 3 points » : le départ, l’arrivée, puis un point par lequel il passe.'],
   ['Construction', 'Un trait en pointillés qui sert de repère pour coter ; il ne compte pas pour le volume.'],
   ['Projeter', 'Reprendre une arête de la pièce (le bord d’un trou, un côté) dans l’esquisse pour s’en servir comme repère.'],
   ['Frise', 'La bande d’icônes en bas de la vue : faites glisser le repère pour revoir la pièce à une étape plus ancienne.'],

@@ -53,6 +53,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:axis': 'intermediaire',
   'feature:shell': 'intermediaire',
   'sketch:arc': 'intermediaire',
+  'sketch:arc3': 'intermediaire',
   'feature:sheet': 'intermediaire',
   'feature:flange': 'intermediaire',
   'feature:fold': 'intermediaire',

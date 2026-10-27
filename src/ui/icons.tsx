@@ -274,6 +274,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M17.5 5.5l3 3.5-4 1.2" />
     </>
   ),
+  arc3: (
+    <>
+      <path d="M4.5 17a8.5 8.5 0 0115 0" />
+      <circle cx="4.5" cy="17" r="1.3" fill="currentColor" />
+      <circle cx="12" cy="12.5" r="1.3" fill="currentColor" />
+      <circle cx="19.5" cy="17" r="1.3" fill="currentColor" />
+    </>
+  ),
   circle: (
     <>
       <circle cx="12" cy="12" r="7.5" />

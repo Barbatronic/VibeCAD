@@ -181,7 +181,7 @@ export function installKeyboard(controller: AppController): () => void {
       return;
     }
     if (s.mode.kind === 'sketch') {
-      const tool = key === 'r' && e.shiftKey ? 'centerRectangle' : SKETCH_KEYS[key];
+      const tool = key === 'r' && e.shiftKey ? 'centerRectangle' : key === 'a' && e.shiftKey ? 'arc3' : SKETCH_KEYS[key];
       // Raccourci d'un outil masqué à ce niveau : ignoré.
       if (tool && allows(s.level, `sketch:${tool}`) && !s.mode.session.input?.values.some((v) => v)) {
         e.preventDefault();

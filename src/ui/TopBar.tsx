@@ -314,6 +314,7 @@ const SKETCH_SECTORS: { name: string; title: string; fold: number; tools: { tool
       { tool: 'polygon', icon: 'polygon' },
       { tool: 'circle', icon: 'circle', key: 'C', main: true },
       { tool: 'arc', icon: 'arc', key: 'A' },
+      { tool: 'arc3', icon: 'arc3', key: 'Maj+A' },
       { tool: 'slot', icon: 'slot' },
       { tool: 'ellipse', icon: 'ellipse' },
       { tool: 'spline', icon: 'spline' },
