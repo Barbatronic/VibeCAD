@@ -277,14 +277,17 @@ FHC ISO 10642). Faces créées : `side` + `<id du cercle>:<rang du côté du pro
 ```
 
 `sourceId` : l'étape répétée (extrusion, poche ou révolution placée avant) ; son volume ajouté ou
-retiré est refait à chaque exemplaire. `kind` : `linear` (le long de `axis`, tous les `spacing`
+retiré est refait à chaque exemplaire. `extraSourceIds` (facultatif) : d'autres étapes répétées
+aux mêmes emplacements ; toutes sont appliquées dans l'ordre de l'historique, chacune voyant les
+exemplaires des précédentes. `kind` : `linear` (le long de `axis`, tous les `spacing`
 mm ; `second` facultatif pour une grille) ou `circular` (autour de `axis` ; `angle` total en
 degrés, 360 = exemplaires répartis sur un tour). `count` compte l'original. `axis` :
 `{ "kind": "axis", "axis": "X" | "Y" | "Z" }` (passant par l'origine) ou
 `{ "kind": "edge", "edge": edgeRef }` (arête droite : sa direction ; bord circulaire : son axe ;
 le sens retenu rend positive la plus grande composante, `reversed` l'inverse). Les faces de la
 copie n° k portent `featureId` = la répétition, le rôle (`start`, `end`, `side` + élément) de la
-face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`). Erreurs :
+face d'origine et `index` = k (1, 2… ; en grille : i + j × `count`), plus 1000 × n pour la
+n-ième étape de `extraSourceIds` (n = 1, 2…). Erreurs :
 `PATTERN_SOURCE_MISSING`, `PATTERN_AXIS_INVALID`, `EDGE_LOST` ; avertissement
 `PATTERN_COPIES_OUTSIDE` quand des exemplaires d'une poche tombent hors de la pièce.
 

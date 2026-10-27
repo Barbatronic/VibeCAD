@@ -100,7 +100,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   d'essai recommandée.
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
   grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
-  droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu.
+  droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu. Plusieurs étapes peuvent
+  être répétées ensemble (un plot et son trou) : on les coche dans la liste des étapes à répéter.
 - **Plans de construction** (menu « Répétition ▾ », niveau Intermédiaire) : un plan décalé d'un plan
   d'origine, d'une face ou d'un autre plan, éventuellement incliné autour d'un axe X, Y, Z ou d'une
   arête cliquée (comme une porte sur ses gonds). Il est montré dans la vue 3D et sert de support

@@ -19,7 +19,7 @@ changer une cote dans FreeCAD et recalculer, comme dans VibeCAD.
 | Révolution (ajout / creux) | Révolution / Rainure (`Revolution` / `Groove`) autour de l'axe X ou Y de l'esquisse ou d'un de ses segments |
 | Congé, chanfrein | Congé, chanfrein (`Fillet`, `Chamfer`) ; les arêtes sont retrouvées par leur position |
 | Perçage | Perçage (`Hole`) : diamètre, à travers tout ou profondeur, lamage ou fraisure à 90° |
-| Répétition en ligne / en cercle | Répétition linéaire / circulaire, le long d'un axe, d'une arête ou d'un axe de construction |
+| Répétition en ligne / en cercle | Répétition linéaire / circulaire, le long d'un axe, d'une arête ou d'un axe de construction ; plusieurs étapes répétées ensemble deviennent plusieurs `Originals` |
 | Symétrie | Symétrie (`Mirrored`) d'une étape, ou de toute la pièce, par un plan d'origine, une face ou un plan de construction |
 | Forme toute faite | Primitive additive ou soustractive (boîte, cylindre, sphère, tore) |
 | Plan, axe de construction | Plan, droite de référence |
