@@ -21,7 +21,7 @@ grisés.
 | Niveau | Outils |
 | --- | --- |
 | **Débutant** | Esquisse : segment, rectangle, cercle, cote, coïncidence, horizontal, vertical. Extrusion, poche, formes toutes faites (boîte, cylindre, boule), mesure. Impression 3D. Parcours « plaque percée ». |
-| **Intermédiaire** | En plus : l'anneau, arc, rectangle centré, polygone, oblong, couper, projeter, construction, autres contraintes ; révolution, congé, chanfrein, coque, répétition, symétrie ; vue en coupe, centre de gravité ; onglet Assemblage ; découpe laser et documents ; parcours assemblage et fabrication. |
+| **Intermédiaire** | En plus : l'anneau, arc (par le centre ou par 3 points), rectangle centré, polygone, oblong, couper, projeter, construction, autres contraintes ; révolution, congé, chanfrein, coque, répétition, symétrie ; vue en coupe, centre de gravité ; onglet Assemblage ; découpe laser et documents ; parcours assemblage et fabrication. |
 | **Expert** (par défaut) | En plus : lissage, balayage, « Garder » (intersection), découpe en deux, dépouille, extrusion jusqu'à une face, décalage de contour, ellipse et spline (esquisse), épaissir, import de fichiers STEP et STL (menu Fichier). |
 
 À la **première ouverture** sur un ordinateur, une fenêtre propose de choisir le niveau (Expert

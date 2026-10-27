@@ -33,11 +33,13 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   matière.
 - **Esquisses** sur les plans XY, XZ, YZ ou sur une face plane : segment, rectangle (par deux
   coins ou par le centre, qui reste au milieu quand on cote), cercle, **arc de cercle** (centre,
-  départ, arrivée ; les contours mêlant segments et arcs donnent de vrais volumes), **polygone
+  départ, arrivée, ou bien par 3 points : départ, arrivée et un point de passage ; les contours mêlant segments et arcs donnent de vrais volumes), **polygone
   régulier** (centre et sommet, 3 à 32 côtés, inscrit dans un cercle de construction qu'on cote),
   **oblong** (rainure : deux centres et une largeur) ;
   sélection, déplacement, suppression ; accrochage à l'origine, aux points et à la grille avec
-  repères visuels et textuels. Outil **Couper** (T) : retirer le morceau d'un trait jusqu'aux
+  repères visuels et textuels. Les **axes X et Y** de l'esquisse se cliquent comme des segments
+  fixes : cote d'un point ou d'un cercle depuis un axe, angle avec un axe, parallèle,
+  perpendiculaire, colinéaire, point sur l'axe. Outil **Couper** (T) : retirer le morceau d'un trait jusqu'aux
   croisements voisins (le morceau est montré en rouge au survol), pour réunir deux formes en un
   seul contour ; les nouvelles extrémités restent posées sur le trait qui coupe. Outil
   **Décalage** (niveau Expert) : recopier un contour fermé à une distance choisie à la souris

@@ -153,7 +153,8 @@ Segments et cercles acceptent deux champs facultatifs :
 
 Les coordonnées enregistrées sont celles **résolues** par le solveur ; à l'ouverture, l'esquisse
 est résolue à nouveau à partir des contraintes. L'identifiant réservé `"origin"` désigne
-l'origine fixe (0, 0) de l'esquisse.
+l'origine fixe (0, 0) de l'esquisse ; `"axis-x"` et `"axis-y"` désignent ses axes horizontal et
+vertical, utilisables partout où une contrainte attend un segment (`line`, `a`, `b`, `curve`).
 
 **Contraintes** (`constraints`) :
 
