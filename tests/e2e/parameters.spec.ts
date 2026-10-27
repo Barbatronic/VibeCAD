@@ -28,7 +28,15 @@ test('paramètres : une épaisseur et une largeur nommées pilotent l’extrusio
   // L'extrusion prend « ep*2 » (10 mm).
   const history = page.getByRole('list', { name: /Étapes de construction/ });
   await history.locator('.feature-main', { hasText: 'Extrusion 1' }).dblclick();
-  await page.locator('#draft-distance').fill('ep*2');
+  // Le bouton « ƒ » ouvre la liste de tous les paramètres ; ↓ puis Entrée insère le second.
+  await page.locator('#draft-distance').fill('');
+  await page.getByRole('button', { name: 'Insérer un paramètre du projet' }).first().click();
+  await expect(page.getByRole('listbox', { name: 'Paramètres du projet' }).getByRole('option')).toHaveText([/ep/, /largeur/]);
+  await page.locator('#draft-distance').press('ArrowDown');
+  await page.locator('#draft-distance').press('ArrowUp');
+  await page.locator('#draft-distance').press('Enter');
+  await expect(page.locator('#draft-distance')).toHaveValue('ep');
+  await page.locator('#draft-distance').pressSequentially('*2');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, (1800 - HOLE) * 10);
@@ -39,9 +47,27 @@ test('paramètres : une épaisseur et une largeur nommées pilotent l’extrusio
   await page.waitForTimeout(450);
   await page.locator('.vp-dim', { hasText: '60 mm' }).dblclick();
   const editor = page.getByRole('dialog', { name: 'Modifier la cote' });
-  await editor.getByLabel('Valeur de la cote en millimètres').fill('largeur');
-  await editor.getByLabel('Valeur de la cote en millimètres').press('Enter');
+  // Le début du nom (casse ignorée) ouvre la liste, triée : « largeur » d'abord.
+  const field = editor.getByLabel('Valeur de la cote en millimètres');
+  await field.fill('');
+  await field.pressSequentially('LAR');
+  const list = page.getByRole('listbox', { name: 'Paramètres du projet' });
+  await expect(list.getByRole('option').first()).toHaveText(/largeur\s*= 60/);
+  await page.screenshot({ path: 'tests/output/e2e-parametres-liste.png' });
+  await field.press('Enter');
+  await expect(field).toHaveValue('largeur');
+  await expect(list).toBeHidden();
+  await field.press('Enter');
   await expect(editor).toBeHidden();
+  // La cote liée au paramètre change de couleur et porte un « ƒ ».
+  const linked = page.locator('.vp-dim.is-param');
+  await expect(linked).toHaveCount(1);
+  await expect(linked).toHaveText('60 mm');
+  expect(await linked.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('"ƒ"');
+  await page.keyboard.press('Space');
+  await expect(linked).not.toHaveClass(/is-selected/);
+  expect(await linked.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(14, 116, 144)');
+  await page.screenshot({ path: 'tests/output/e2e-parametres-cote.png' });
   await page.getByRole('button', { name: 'Terminer l’esquisse' }).click();
   await expectVolume(page, (1800 - HOLE) * 10);
 

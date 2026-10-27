@@ -18,6 +18,8 @@ export interface ViewportPalette {
   /** Géométrie reprise de la pièce (fixe). */
   sketchReference: string;
   dimension: string;
+  /** Cote calculée à partir des paramètres du projet. */
+  dimensionParameter: string;
   preview: string;
   previewAdd: string;
   previewCut: string;
@@ -43,6 +45,7 @@ const FALLBACK: ViewportPalette = {
   sketchHover: '#3d8bff',
   sketchReference: '#a03fc4',
   dimension: '#46505e',
+  dimensionParameter: '#0e7490',
   preview: '#6b7685',
   previewAdd: '#2fa36b',
   previewCut: '#d64545',
@@ -68,6 +71,7 @@ const TOKENS: Record<keyof ViewportPalette, string> = {
   sketchHover: '--vp-sketch-hover',
   sketchReference: '--vp-sketch-reference',
   dimension: '--vp-dimension',
+  dimensionParameter: '--vp-dimension-param',
   preview: '--vp-preview',
   previewAdd: '--vp-preview-add',
   previewCut: '--vp-preview-cut',

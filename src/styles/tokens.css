@@ -51,6 +51,7 @@
   --vp-sketch-hover: #3d8bff;
   --vp-sketch-reference: #a03fc4;
   --vp-dimension: #3f4a58;
+  --vp-dimension-param: #0e7490;
   --vp-preview: #5f6b7b;
   --vp-preview-add: #23a363;
   --vp-preview-cut: #d93c3c;
@@ -101,6 +102,7 @@
     --vp-sketch-hover: #9cc4ff;
     --vp-sketch-reference: #d68cf2;
     --vp-dimension: #c5ced9;
+    --vp-dimension-param: #5ad8f0;
     --vp-preview: #a7b2c0;
     --vp-plane: #6f9fe6;
     --vp-stale: #6d7682;
@@ -147,6 +149,7 @@
   --vp-sketch-hover: #9cc4ff;
   --vp-sketch-reference: #d68cf2;
   --vp-dimension: #c5ced9;
+  --vp-dimension-param: #5ad8f0;
   --vp-preview: #a7b2c0;
   --vp-plane: #6f9fe6;
   --vp-stale: #6d7682;

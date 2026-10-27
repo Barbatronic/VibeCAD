@@ -1231,6 +1231,67 @@ textarea {
   font-weight: 600;
 }
 
+/* Bouton « ƒ » : ouvrir la liste des paramètres du projet (voir number-input.tsx). */
+.input-with-unit .suggest-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--vp-dimension-param);
+  font: italic 700 15px/1 Georgia, 'Times New Roman', serif;
+  cursor: pointer;
+}
+
+.input-with-unit .suggest-toggle:hover,
+.input-with-unit .suggest-toggle.is-on {
+  background: var(--accent-soft);
+}
+
+/* Liste des paramètres proposés sous un champ numérique (posée dans <body>). */
+.suggest-list {
+  position: fixed;
+  z-index: 1000;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.suggest-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.suggest-list li[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.suggest-list .suggest-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.suggest-list .suggest-detail {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Petites flèches ▲▼ (aussi : molette au survol, flèches du clavier). */
 .input-with-unit .spin {
   display: flex;
@@ -1567,6 +1628,19 @@ details.advanced summary {
 .vp-dim:hover,
 .vp-glyph:hover {
   border-color: var(--vp-sketch-hover);
+}
+
+/* Cote calculée par une équation de paramètres : couleur à part et petit « ƒ ». */
+.vp-dim.is-param {
+  border-color: var(--vp-dimension-param);
+  color: var(--vp-dimension-param);
+}
+
+.vp-dim.is-param::before {
+  content: 'ƒ';
+  margin-right: 4px;
+  font: italic 700 0.85em/1 Georgia, 'Times New Roman', serif;
+  opacity: 0.85;
 }
 
 .vp-dim.is-selected,

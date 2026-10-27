@@ -239,6 +239,7 @@ export class SketchView {
     const cSel = new Color(p.sketchSelected);
     const cHover = new Color(p.sketchHover);
     const cDim = new Color(p.dimension);
+    const cParam = new Color(p.dimensionParameter);
     const cErr = new Color(p.error);
     const sel = input.selection ?? new Set<string>();
     const free = input.freeEntities ?? new Set<string>();
@@ -364,12 +365,14 @@ export class SketchView {
       for (const c of sketch.constraints) {
         const geom = dimensionGeometry(sketch, c, centroid, px);
         if (geom) {
-          const color = sel.has(c.id) ? cSel : input.hover === c.id ? cHover : cDim;
+          // Cote calculée par une équation de paramètres : autre couleur et petit « ƒ » (app.css).
+          const expression = 'expression' in c && c.expression ? c.expression : null;
+          const color = sel.has(c.id) ? cSel : input.hover === c.id ? cHover : expression ? cParam : cDim;
           for (const seg of geom.segments) thin.add(seg, color);
-          this.label(`c:${c.id}`, geom.text, geom.labelAt, `vp-dim${sel.has(c.id) ? ' is-selected' : ''}`, {
+          this.label(`c:${c.id}`, geom.text, geom.labelAt, `vp-dim${expression ? ' is-param' : ''}${sel.has(c.id) ? ' is-selected' : ''}`, {
             'data-constraint': c.id,
-            'aria-label': `${geom.description} : ${geom.text}. Double-cliquez ou appuyez sur Entrée pour modifier.`,
-            title: `${geom.description} — double-cliquez pour changer la valeur, faites glisser pour déplacer la cote`,
+            'aria-label': `${geom.description} : ${geom.text}${expression ? `, calculée par l’équation ${expression}` : ''}. Double-cliquez ou appuyez sur Entrée pour modifier.`,
+            title: `${geom.description}${expression ? ` (= ${expression})` : ''} — double-cliquez pour changer la valeur, faites glisser pour déplacer la cote`,
           }, true);
           continue;
         }
