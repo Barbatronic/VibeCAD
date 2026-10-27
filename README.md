@@ -57,7 +57,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   (panneau de gauche, sous les pièces) sont des nombres nommés, qui peuvent dépendre les uns des
   autres (`largeur = ep*12`) : changer un paramètre met à jour toutes les étapes et les cotes qui
   l'utilisent. Renommer un paramètre suit dans toutes les équations ; un paramètre utilisé ne peut
-  pas être supprimé (la liste de ce qui l'utilise est affichée).
+  pas être supprimé (la liste de ce qui l'utilise est affichée). Les noms ne tiennent pas compte
+  des majuscules (`Largeur` et `largeur` sont le même paramètre). Sous chaque champ, une liste
+  propose les paramètres dès qu'on tape le début d'un nom (triée du plus proche au plus lointain,
+  ↑ ↓ puis Entrée ou Tab), ou par le bouton **ƒ** du champ. Une cote calculée par une équation
+  s'affiche dans une autre couleur, précédée d'un petit **ƒ**.
 - **Contraintes** : coïncidence, horizontal, vertical, parallèle, perpendiculaire, égalité,
   colinéaire, tangence, point sur une courbe, milieu, concentrique ; par clics successifs ou sur
   la sélection. Affichage du nombre de degrés de liberté (vert = entièrement contraint).
