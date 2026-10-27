@@ -1,3 +1,4 @@
+import { patternSources } from '../../domain/document';
 import type { PatternAxis, PatternFeature } from '../../domain/model';
 import { issue, okStatus, type FeatureStatus } from '../../domain/status';
 import type { GeometryKernel, KernelShape } from '../../geometry/kernel';
@@ -5,6 +6,12 @@ import { frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationZ4, trans
 import { normalize3, scale3, sub3, type Vec3 } from '../../math/vec';
 import type { FeatureEvaluator } from '../evaluation';
 import { patternDefinition } from './definition';
+
+/**
+ * Numéro de copie des exemplaires de la n-ième étape répétée : n × ce pas + numéro de l'exemplaire
+ * (les faces des copies restent désignables de façon stable).
+ */
+export const PATTERN_INDEX_STRIDE = 1000;
 
 const WORLD: Record<'X' | 'Y' | 'Z', Vec3> = { X: { x: 1, y: 0, z: 0 }, Y: { x: 0, y: 1, z: 0 }, Z: { x: 0, y: 0, z: 1 } };
 
@@ -73,8 +80,12 @@ export const evaluatePattern: FeatureEvaluator<PatternFeature> = (feature, ctx) 
   const paramIssues = patternDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
   if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
-  const source = ctx.tools.get(feature.params.sourceId);
-  if (!source) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING', { relatedFeatureId: feature.params.sourceId }) };
+  const sources: { id: string; shape: KernelShape; mode: 'add' | 'cut' }[] = [];
+  for (const id of patternSources(feature.params)) {
+    const tool = ctx.tools.get(id);
+    if (!tool) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING', { relatedFeatureId: id }) };
+    sources.push({ id, ...tool });
+  }
   const p = feature.params;
   const first = resolvePatternAxis(ctx.kernel, ctx.shape, p.axis, ctx.axes);
   if ('error' in first) return { status: issue(feature.id, 'error', first.error) };
@@ -86,24 +97,29 @@ export const evaluatePattern: FeatureEvaluator<PatternFeature> = (feature, ctx) 
   }
   const placements = patternMatrices(p, first, second);
   const kernel = ctx.kernel;
-  // Tous les exemplaires en une seule opération booléenne (une suite d'opérations, chacune contre
-  // une pièce de plus en plus chargée, coûtait plusieurs centaines de ms pour une grille).
-  const copies = placements.map(({ index, matrix }) => kernel.transformed(source.shape, matrix, { featureId: feature.id, index }));
-  // Exemplaire hors de la pièce : sa boîte englobante ne touche pas celle de la pièce.
   const box = ctx.shapeAnalysis.bbox;
-  const outside =
-    source.mode === 'cut' && box
-      ? copies.filter((c) => {
-          const b = kernel.analyze(c).bbox;
-          return !b || b.max.x < box.min.x || b.min.x > box.max.x || b.max.y < box.min.y || b.min.y > box.max.y || b.max.z < box.min.z || b.min.z > box.max.z;
-        }).length
-      : 0;
-  let shape: KernelShape;
-  try {
-    shape = source.mode === 'add' ? kernel.fuseMany(ctx.shape, copies) : kernel.cutMany(ctx.shape, copies);
-  } finally {
-    copies.forEach((c) => kernel.dispose(c));
-  }
+  let outside = 0;
+  let shape: KernelShape = ctx.shape;
+  // Chaque étape répétée, dans l'ordre : ses exemplaires en une seule opération booléenne (une
+  // suite d'opérations, chacune contre une pièce de plus en plus chargée, coûtait plusieurs
+  // centaines de ms pour une grille). Une étape suivante voit les exemplaires des précédentes.
+  sources.forEach((source, n) => {
+    const copies = placements.map(({ index, matrix }) => kernel.transformed(source.shape, matrix, { featureId: feature.id, index: index + n * PATTERN_INDEX_STRIDE }));
+    // Exemplaire hors de la pièce : sa boîte englobante ne touche pas celle de la pièce.
+    if (source.mode === 'cut' && box) {
+      outside += copies.filter((c) => {
+        const b = kernel.analyze(c).bbox;
+        return !b || b.max.x < box.min.x || b.min.x > box.max.x || b.max.y < box.min.y || b.min.y > box.max.y || b.max.z < box.min.z || b.min.z > box.max.z;
+      }).length;
+    }
+    try {
+      const next = source.mode === 'add' ? kernel.fuseMany(shape, copies) : kernel.cutMany(shape, copies);
+      if (shape !== ctx.shape && next !== shape) kernel.dispose(shape);
+      shape = next;
+    } finally {
+      copies.forEach((c) => kernel.dispose(c));
+    }
+  });
   const analysis = kernel.analyze(shape);
   if (!analysis.valid || analysis.solidCount === 0) {
     if (shape !== ctx.shape) kernel.dispose(shape);
@@ -111,6 +127,6 @@ export const evaluatePattern: FeatureEvaluator<PatternFeature> = (feature, ctx) 
   }
   let status: FeatureStatus = okStatus(feature.id);
   if (outside > 0) status = issue(feature.id, 'warning', 'PATTERN_COPIES_OUTSIDE');
-  else if (source.mode === 'add' && analysis.solidCount > ctx.shapeAnalysis.solidCount) status = issue(feature.id, 'warning', 'DISJOINT_SOLID');
+  else if (sources.some((s) => s.mode === 'add') && analysis.solidCount > ctx.shapeAnalysis.solidCount) status = issue(feature.id, 'warning', 'DISJOINT_SOLID');
   return { status, shape, analysis };
 };

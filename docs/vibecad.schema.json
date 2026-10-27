@@ -865,6 +865,12 @@
                 "sourceId": {
                   "$ref": "#/$defs/id"
                 },
+                "extraSourceIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  }
+                },
                 "kind": {
                   "enum": [
                     "linear",

@@ -355,6 +355,11 @@ export function makeRevolveFeature(doc: CadDocument, part: Part, sketchId: Id, a
 /** Étapes qu'une répétition peut copier : celles qui ajoutent ou retirent un volume dessiné. */
 export const PATTERN_SOURCE_TYPES: readonly FeatureType[] = ['extrude', 'pocket', 'revolve', 'primitive', 'loft', 'sweep'];
 
+/** Étapes répétées par une répétition : la première, puis les autres. */
+export function patternSources(params: PatternParams): Id[] {
+  return [params.sourceId, ...(params.extraSourceIds ?? [])].filter(Boolean);
+}
+
 export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, kind: PatternParams['kind'] = 'linear'): PatternFeature {
   return {
     id: newFeatureId(doc, 'pattern'),

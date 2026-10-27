@@ -3417,6 +3417,14 @@ select optgroup {
   width: 100%;
 }
 
+/* Étapes à répéter : une case par étape possible. */
+.pattern-sources {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
 .pattern-second {
   margin: 4px 0 0;
   padding: 8px 10px;

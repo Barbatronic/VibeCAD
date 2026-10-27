@@ -1,4 +1,4 @@
-import { makePatternFeature, PATTERN_SOURCE_TYPES } from '../../domain/document';
+import { makePatternFeature, PATTERN_SOURCE_TYPES, patternSources } from '../../domain/document';
 import type { Part, PatternAxis, PatternFeature } from '../../domain/model';
 import { formatAngle, formatLength } from '../../domain/units';
 import { edgeDependencies } from '../blend-common';
@@ -45,12 +45,14 @@ export const patternDefinition: FeatureDefinition<PatternFeature> = {
     const p = feature.params;
     const edges = [p.axis, ...(p.second ? [p.second.axis] : [])].flatMap((a) => (a.kind === 'edge' ? [a.edge] : []));
     const datums = [p.axis, ...(p.second ? [p.second.axis] : [])].flatMap((a) => (a.kind === 'datum' ? [a.featureId] : []));
-    return Array.from(new Set([p.sourceId, ...edgeDependencies(edges), ...datums].filter(Boolean)));
+    return Array.from(new Set([...patternSources(p), ...edgeDependencies(edges), ...datums].filter(Boolean)));
   },
   validate(feature) {
     const p = feature.params;
     const issues: ParamIssue[] = [];
     if (!p.sourceId) issues.push({ field: 'sourceId', message: 'Choisissez l’étape à répéter.' });
+    const sources = patternSources(p);
+    if (new Set(sources).size !== sources.length) issues.push({ field: 'sourceId', message: 'Une même étape est choisie deux fois.' });
     const count = validatePatternCount(p.count);
     if (count) issues.push({ field: 'count', message: count });
     if (p.kind === 'linear') {
@@ -73,12 +75,13 @@ export const patternDefinition: FeatureDefinition<PatternFeature> = {
   },
   summary(feature) {
     const p = feature.params;
+    const many = patternSources(p).length > 1 ? `${patternSources(p).length} étapes, ` : '';
     if (p.kind === 'circular') {
       const angle = p.angle >= 360 ? 'tour complet' : formatAngle(p.angle);
-      return `${p.count} × autour de ${describePatternAxis(p.axis)} (${angle})`;
+      return `${many}${p.count} × autour de ${describePatternAxis(p.axis)} (${angle})`;
     }
     const first = `${p.count} × ${formatLength(p.spacing)}`;
-    return p.second ? `grille ${first} et ${p.second.count} × ${formatLength(p.second.spacing)}` : `${first} le long de ${describePatternAxis(p.axis)}`;
+    return `${many}${p.second ? `grille ${first} et ${p.second.count} × ${formatLength(p.second.spacing)}` : `${first} le long de ${describePatternAxis(p.axis)}`}`;
   },
   tool: {
     input: 'part',

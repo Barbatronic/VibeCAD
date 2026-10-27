@@ -15,6 +15,7 @@
  * Voir docs/export-freecad.md.
  */
 import type { CadDocument, Feature, Id, Part, ProjectParameter, SketchConstraint, SketchParams } from '../domain/model';
+import { patternSources } from '../domain/document';
 import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../domain/model';
 import { expressionNames } from '../domain/units';
 import { holeDiameter } from '../features/hole/definition';
@@ -101,7 +102,7 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
     case 'hole':
       return true;
     case 'pattern':
-      return !f.params.second && inBody.has(f.params.sourceId);
+      return !f.params.second && patternSources(f.params).every((id) => inBody.has(id));
     case 'mirror':
       return f.params.source.kind === 'part' || inBody.has(f.params.source.featureId);
     default:
@@ -575,9 +576,10 @@ export function freecadScript(input: FreecadInput): string {
           break;
         }
         case 'pattern': {
-          const src = objects.get(f.params.sourceId);
+          const originals = patternSources(f.params).map((id) => objects.get(id));
           const ax = axisRef(f.params.axis, f.id);
-          if (!src || !ax) break;
+          if (originals.some((o) => !o) || !ax) break;
+          const src = originals.join(', ');
           lines.push('DOC.recompute()');
           if (f.params.kind === 'linear') {
             lines.push(`${v} = ${body}.newObject("PartDesign::LinearPattern", "LinearPattern")`, label, `${v}.Originals = [${src}]`, `${v}.Direction = ${ax}`, `${v}.Mode = "Spacing"`, `${v}.Offset = ${num(f.params.spacing)}`, `${v}.Occurrences = ${f.params.count}`);

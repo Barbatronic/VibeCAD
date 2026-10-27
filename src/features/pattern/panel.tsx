@@ -1,5 +1,5 @@
 /** Panneau des paramètres d'une répétition. */
-import { PATTERN_SOURCE_TYPES } from '../../domain/document';
+import { PATTERN_SOURCE_TYPES, patternSources } from '../../domain/document';
 import type { PatternFeature } from '../../domain/model';
 import { parseLength, readNumber } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
@@ -15,6 +15,19 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
   const sources = props.part.features.filter((x, i) => PATTERN_SOURCE_TYPES.includes(x.type) && (own < 0 || i < own));
   const pick = draft.fields.pick ?? '';
   const axes = datumAxesBefore(props.part, f.id);
+  const chosen = new Set(patternSources(p));
+  /** Coche ou décoche une étape ; les étapes gardent l'ordre de l'historique. */
+  const toggleSource = (id: string) =>
+    update((x) => {
+      const now = new Set(patternSources(x.params));
+      if (now.has(id)) now.delete(id);
+      else now.add(id);
+      const ordered = sources.map((s) => s.id).filter((s) => now.has(s));
+      if (ordered.length === 0) return x;
+      const [sourceId, ...extra] = ordered;
+      const { extraSourceIds: _old, ...rest } = x.params;
+      return { ...x, params: { ...rest, sourceId: sourceId!, ...(extra.length ? { extraSourceIds: extra } : {}) } };
+    });
   const countField = (name: 'count' | 'count2', label: string, apply: (n: number) => PatternFeature) => (
     <LengthField
       id={`draft-${name}`}
@@ -50,20 +63,26 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
   );
   return (
     <>
-      <div class="field">
-        <label class="field-label" for="draft-source">
-          Étape à répéter
-        </label>
-        <select id="draft-source" class="select" value={p.sourceId} onChange={(e) => update((x) => withParams(x, { sourceId: (e.target as HTMLSelectElement).value }))}>
-          {sources.length === 0 ? <option value="">Aucune extrusion, poche ou révolution avant</option> : null}
-          {sources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <span class="field-help">Le volume ajouté (extrusion, révolution) ou retiré (poche, trou) par cette étape est refait à chaque exemplaire.</span>
-      </div>
+      <fieldset class="field pattern-sources">
+        <legend class="field-label">Étapes à répéter</legend>
+        {sources.length === 0 ? <span class="field-help">Aucune extrusion, poche ou révolution avant cette étape.</span> : null}
+        {sources.map((s) => (
+          <label key={s.id} class="checkbox-row">
+            <input
+              type="checkbox"
+              checked={chosen.has(s.id)}
+              // La dernière étape cochée reste cochée : une répétition copie au moins une étape.
+              disabled={chosen.has(s.id) && chosen.size === 1}
+              onChange={() => toggleSource(s.id)}
+            />
+            <span>{s.name}</span>
+          </label>
+        ))}
+        <span class="field-help">
+          Le volume ajouté (extrusion, révolution) ou retiré (poche, trou) par chaque étape cochée est refait à chaque exemplaire. Cochez-en plusieurs pour les répéter
+          ensemble (un plot et son trou, par exemple).
+        </span>
+      </fieldset>
       <Segmented<PatternFeature['params']['kind']>
         label="Disposition"
         value={p.kind}

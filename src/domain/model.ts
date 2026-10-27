@@ -698,6 +698,8 @@ export interface PatternDirection {
  */
 export interface PatternParams {
   sourceId: Id;
+  /** Autres étapes répétées avec la première, aux mêmes emplacements (dans l'ordre de l'historique). */
+  extraSourceIds?: Id[];
   kind: 'linear' | 'circular';
   /** Linéaire : direction ; circulaire : axe de rotation. */
   axis: PatternAxis;

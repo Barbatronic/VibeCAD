@@ -8,9 +8,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, findPart, makeChamferFeature, makeFilletFeature, makeHoleFeature, makeMirrorFeature, makeMoveFeature, makePatternFeature, makePlaneFeature, makePocketFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, findPart, makeChamferFeature, makeExtrudeFeature, makeFilletFeature, makeHoleFeature, makeMirrorFeature, makeMoveFeature, makePatternFeature, makePlaneFeature, makePocketFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature } from '../../src/domain/document';
 import { AXIS_X_ID, AXIS_Y_ID, type CadDocument, type Feature, type SketchConstraint, type SketchFeature } from '../../src/domain/model';
 import { addPoint, addRectangle } from '../../src/sketch/model';
+import { solveSketch } from '../../src/sketch/solver';
 import { applyParameters } from '../../src/features/parameters';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -101,6 +102,21 @@ describe('export FreeCAD (script Python)', () => {
     expect(script).toMatch(/"Distance", \d+, 3, -2, /);
     expect(script).toMatch(/"Distance", \d+, 3, -1, /);
     await check(d, 'freecad-axes');
+  });
+
+  it('répétition de deux étapes ensemble (trou et plot) : LinearPattern à deux Originals', async () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = findPart(doc, ids.partId)!;
+    const sketch = part.features.find((f) => f.id === ids.sketch2) as SketchFeature;
+    const bossSketch = solveSketch({ ...sketch.params, constraints: sketch.params.constraints.map((c) => (c.type === 'diameter' ? { ...c, value: 10 } : c)) }).sketch;
+    let d = addFeature(doc, ids.partId, { ...sketch, id: 'sk-boss', name: 'Plot', params: bossSketch });
+    const boss = makeExtrudeFeature(d, findPart(d, ids.partId)!, 'sk-boss', 8);
+    d = addFeature(d, ids.partId, boss);
+    const pat = makePatternFeature(d, findPart(d, ids.partId)!, ids.pocket, 'linear');
+    d = addFeature(d, ids.partId, { ...pat, params: { ...pat.params, count: 3, spacing: 15, extraSourceIds: [boss.id] } });
+    const { script } = await exportDoc(d);
+    expect(script).toMatch(/\.Originals = \[\w+, \w+\]/);
+    await check(d, 'freecad-repetition-multiple');
   });
 
   it('congé sur une arête verticale et chanfrein sur l’arête avant du dessus', async () => {

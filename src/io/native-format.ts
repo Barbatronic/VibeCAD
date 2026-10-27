@@ -863,6 +863,9 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         type,
         params: {
           sourceId: str(v, p, 'sourceId', pp),
+          ...(Array.isArray(p.extraSourceIds) && p.extraSourceIds.length > 0
+            ? { extraSourceIds: p.extraSourceIds.map((x, i) => (typeof x === 'string' && x ? x : (v.error(`${pp}.extraSourceIds[${i}]`, 'identifiant d’étape attendu'), ''))) }
+            : {}),
           kind: oneOf(v, p, 'kind', pp, ['linear', 'circular'] as const),
           axis: readPatternAxis(v, p.axis, `${pp}.axis`),
           count: num(v, p, 'count', pp, { integer: true, min: 1 }),

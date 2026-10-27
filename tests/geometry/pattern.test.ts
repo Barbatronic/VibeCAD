@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { addFeature, createDocument, findPart, makeExtrudeFeature, makePatternFeature, makePocketFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
 import { ORIGIN_POINT_ID, type CadDocument, type Id, type PatternFeature, type PatternParams } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
+import { PATTERN_INDEX_STRIDE } from '../../src/features/pattern/evaluate';
+import { featureDependencies } from '../../src/features/registry';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import Ajv2020 from 'ajv/dist/2020';
 import { readFileSync } from 'node:fs';
@@ -114,6 +116,41 @@ describe('répétition', () => {
     const copyTop = mesh.faces.filter((f) => f.tags.some((t) => t.featureId === patternId && t.role === 'end' && t.index === 1));
     expect(copyTop).toHaveLength(1);
     expect(copyTop[0]!.plane!.origin.z).toBeCloseTo(10, 6);
+  });
+
+  it('plusieurs étapes répétées ensemble : le trou et un plot, aux mêmes emplacements', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = findPart(doc, ids.partId)!;
+    const sketch = part.features.find((f) => f.id === ids.sketch2)!;
+    // Plot Ø 10 × 8 mm sur le dessus, qui recouvre le trou.
+    const boss = makeExtrudeFeature(doc, part, ids.sketch2, 8);
+    if (sketch.type !== 'sketch') throw new Error('esquisse attendue');
+    const bossSketch = solveSketch({ ...sketch.params, constraints: sketch.params.constraints.map((c) => (c.type === 'diameter' ? { ...c, value: 10 } : c)) }).sketch;
+    let d = addFeature(doc, ids.partId, { ...sketch, id: 'sk-boss', name: 'Plot', params: bossSketch });
+    d = addFeature(d, ids.partId, { ...boss, params: { ...boss.params, sketchId: 'sk-boss' } });
+    const before = evaluate(d).res.analysis!.volume;
+    const { doc: d2, patternId } = withPattern(d, ids.partId, ids.pocket, { count: 3, spacing: 15, extraSourceIds: [boss.id] });
+    const { res, engine } = evaluate(d2);
+    expect(res.statuses.at(-1)).toMatchObject({ state: 'ok' });
+    expect(res.analysis!.solidCount).toBe(1);
+    // Deux trous de plus, deux plots de plus.
+    expect(res.analysis!.volume).toBeCloseTo(before - 2 * HOLE + 2 * Math.PI * 25 * 8, 3);
+    // Faces des copies du plot : numéros décalés de PATTERN_INDEX_STRIDE.
+    const mesh = engine.meshOf(res, { linearDeflection: 0.05, angularDeflection: 0.3 })!;
+    const bossTop = mesh.faces.filter((f) => f.tags.some((t) => t.featureId === patternId && t.role === 'end' && t.index === PATTERN_INDEX_STRIDE + 1));
+    expect(bossTop).toHaveLength(1);
+    expect(bossTop[0]!.plane!.origin.z).toBeCloseTo(13, 6);
+    // Les dépendances comptent toutes les étapes ; une étape absente est signalée.
+    expect(featureDependencies(findPart(d2, ids.partId)!.features.at(-1)!)).toEqual(expect.arrayContaining([ids.pocket, boss.id]));
+    const { doc: d3 } = withPattern(d, ids.partId, ids.pocket, { extraSourceIds: ['introuvable'] });
+    expect(evaluate(d3).res.statuses.at(-1)).toMatchObject({ state: 'error', code: 'PATTERN_SOURCE_MISSING', relatedFeatureId: 'introuvable' });
+    // Aller-retour du format natif et schéma publié.
+    const text = serializeDocument(d2, '2026-10-27T12:00:00.000Z');
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc).toEqual(d2);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    validate(JSON.parse(text));
+    expect(validate.errors ?? []).toEqual([]);
   });
 
   it('étape à répéter absente ou placée après : erreur expliquée', () => {
