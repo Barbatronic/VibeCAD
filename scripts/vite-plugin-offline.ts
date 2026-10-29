@@ -7,7 +7,8 @@ import type { Plugin } from 'vite';
  * Plugin de build pour le mode hors ligne :
  * - génère `sw.js` à partir du modèle `src/workers/service-worker.template.js`, avec la liste
  *   exacte des fichiers du build (JS, CSS, WASM, aides, icônes) à mettre en cache ;
- * - ajoute une politique de sécurité (CSP) qui interdit tout chargement externe à l'exécution.
+ * - ajoute une politique de sécurité (CSP) qui interdit tout chargement externe à l'exécution, sauf
+ *   la lecture des bibliothèques de composants hébergées sur GitHub (raw.githubusercontent.com).
  *
  * En développement (`npm run dev`), aucun service worker n'est installé.
  */
@@ -26,9 +27,10 @@ export function offlinePlugin(): Plugin {
         "default-src 'self'",
         "script-src 'self' 'wasm-unsafe-eval'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
+        // Bibliothèques de composants hébergées sur GitHub : catalogue, fichiers et vignettes.
+        "img-src 'self' data: blob: https://raw.githubusercontent.com",
         "font-src 'self'",
-        "connect-src 'self'",
+        "connect-src 'self' https://raw.githubusercontent.com",
         "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'self'",
