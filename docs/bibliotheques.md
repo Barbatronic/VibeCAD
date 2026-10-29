@@ -23,6 +23,10 @@ ou dans un assemblage.
   (`https://github.com/compte/dépôt`, ou `…/tree/branche/dossier`, ou un dossier web contenant
   `index.json`), retirer. La liste est retenue sur l'appareil. Par défaut :
   [Barbatronic/VibeCAD-Components](https://github.com/Barbatronic/VibeCAD-Components).
+- **Version publiée** (build de production) : sa politique de sécurité (CSP) n'autorise que les
+  bibliothèques hébergées sur GitHub (lues sur `raw.githubusercontent.com`). Une bibliothèque
+  posée sur un autre site ne se charge qu'en développement (`npm run dev`), ou après avoir ajouté
+  son adresse à `connect-src` et `img-src` dans `scripts/vite-plugin-offline.ts`.
 
 ## Organisation d'une bibliothèque
 

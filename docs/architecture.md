@@ -243,7 +243,8 @@ Pendant le réglage d'une extrusion ou d'une poche, rien n'est enregistré avant
 - **Service worker** (`workers/service-worker.template.js`, généré au build avec la liste exacte
   des fichiers) : met en cache l'application, l'aide, les licences et le noyau WASM. La barre
   d'état indique la progression puis « Hors ligne : prêt ». Une politique CSP interdit tout
-  chargement externe en production.
+  chargement externe en production, sauf la lecture des bibliothèques de composants hébergées sur
+  GitHub (`raw.githubusercontent.com` : catalogue, fichiers, vignettes).
 
 ## Ce que fait chaque fichier clé
 
