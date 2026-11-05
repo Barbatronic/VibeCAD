@@ -151,7 +151,7 @@ export function HelpDrawer() {
         <h3>Dessiner une esquisse</h3>
         <ol>
           <li>« Esquisse », puis choisir un plan (XY = dessus) ou double-cliquer une face plane.</li>
-          <li>Dessiner avec Segment, Rectangle ou Cercle. Les points s’accrochent à l’origine, aux points existants et à la grille : un repère et un mot (« Origine », « Extrémité »…) l’indiquent.</li>
+          <li>Dessiner avec Segment, Rectangle ou Cercle. Les points s’accrochent à l’origine, aux axes, aux points existants et à la grille : un repère et un mot (« Origine », « Axe X », « Extrémité »…) l’indiquent. Sur l’origine, un axe ou un point, le lien est gardé par une contrainte.</li>
           <li>Pendant le tracé, taper directement les dimensions au clavier (Tab pour passer au champ suivant, Entrée pour valider). La virgule est acceptée : 12,5.</li>
           <li>Ajouter des cotes avec l’outil Cote : un segment (longueur), un cercle (diamètre), deux points (distance horizontale, verticale ou alignée).</li>
           <li>Double-cliquer une cote pour changer sa valeur. Échap annule l’outil en cours.</li>

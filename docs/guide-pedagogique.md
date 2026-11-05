@@ -113,8 +113,9 @@ séance d'observation (20 à 30 minutes) :
 
 ## Points d'attention connus
 
-- Le clic doit tomber près de l'origine pour s'y accrocher : le repère « Origine » s'affiche
-  quand c'est le cas.
+- Le clic doit tomber près de l'origine ou d'un axe pour s'y accrocher : le repère « Origine »,
+  « Axe X » ou « Axe Y » s'affiche quand c'est le cas, et le point y reste lié. Alt maintenu
+  désactive l'accrochage.
 - Le double-clic sur une cote ouvre sa modification ; un simple clic la sélectionne.
 - Échap annule l'outil en cours, puis revient à la sélection ; il ne ferme pas l'esquisse (pour
   éviter de perdre un dessin par erreur).
