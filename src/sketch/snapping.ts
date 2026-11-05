@@ -1,20 +1,22 @@
 /**
- * Accrochages pendant le dessin : origine, points existants, alignement horizontal/vertical
- * par rapport au point de départ, grille. Chaque accrochage porte un libellé lisible : l'aide
+ * Accrochages pendant le dessin : origine, points existants, axes de l'esquisse, alignement
+ * horizontal/vertical par rapport au point de départ, grille. Chaque accrochage porte un libellé lisible : l'aide
  * visuelle ne repose pas uniquement sur la couleur.
  */
-import { ORIGIN_POINT_ID, type SketchParams } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchParams } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { distance2, type Vec2 } from '../math/vec';
 import { ownerOfPoint } from './model';
 
-export type SnapKind = 'origin' | 'point' | 'center' | 'horizontal' | 'vertical' | 'grid' | 'free';
+export type SnapKind = 'origin' | 'point' | 'center' | 'axis' | 'horizontal' | 'vertical' | 'grid' | 'free';
 
 export interface SnapResult {
   point: Vec2;
   kind: SnapKind;
   /** Point existant visé (crée une coïncidence) : identifiant de point ou `origin`. */
   pointId?: string;
+  /** Axe de l'esquisse sur lequel le point est posé (crée une contrainte « point sur »). */
+  axisId?: string;
   label: string;
 }
 
@@ -22,6 +24,7 @@ export const SNAP_LABELS: Record<SnapKind, string> = {
   origin: 'Origine',
   point: 'Extrémité',
   center: 'Centre',
+  axis: 'Axe',
   horizontal: 'Horizontal',
   vertical: 'Vertical',
   grid: 'Grille',
@@ -43,6 +46,20 @@ export interface SnapOptions {
 
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
 const cleanZero = (v: number) => (Math.abs(v) < 1e-12 ? 0 : v);
+const originSnap = (): SnapResult => ({ point: { x: 0, y: 0 }, kind: 'origin', pointId: ORIGIN_POINT_ID, label: SNAP_LABELS.origin });
+
+/** Le point `p` est-il sur l'axe `axisId` ? */
+const isOnAxis = (p: Vec2, axisId: string) => Math.abs(axisId === AXIS_X_ID ? p.y : p.x) < 1e-9;
+
+/** Axe que rejoint le point : celui visé par le curseur, sinon celui où l'alignement ou la grille l'ont amené. */
+function targetAxis(p: Vec2, cursor: Vec2, tol: number): string | undefined {
+  const toX = Math.abs(cursor.y);
+  const toY = Math.abs(cursor.x);
+  if (toX <= tol && (toY > tol || toX <= toY)) return AXIS_X_ID;
+  if (toY <= tol) return AXIS_Y_ID;
+  if (isOnAxis(p, AXIS_X_ID)) return AXIS_X_ID;
+  return isOnAxis(p, AXIS_Y_ID) ? AXIS_Y_ID : undefined;
+}
 
 export function snapPoint(sketch: SketchParams, cursor: Vec2, options: SnapOptions): SnapResult {
   if (options.disabled) return { point: cursor, kind: 'free', label: '' };
@@ -51,10 +68,9 @@ export function snapPoint(sketch: SketchParams, cursor: Vec2, options: SnapOptio
   // 1. Origine et points existants (le plus proche gagne).
   let best: SnapResult | null = null;
   let bestDist = tol;
-  const origin = { x: 0, y: 0 };
-  if (!options.exclude?.has(ORIGIN_POINT_ID) && distance2(cursor, origin) <= bestDist) {
-    best = { point: origin, kind: 'origin', pointId: ORIGIN_POINT_ID, label: SNAP_LABELS.origin };
-    bestDist = distance2(cursor, origin);
+  if (!options.exclude?.has(ORIGIN_POINT_ID) && distance2(cursor, originSnap().point) <= bestDist) {
+    best = originSnap();
+    bestDist = distance2(cursor, best.point);
   }
   for (const e of sketch.entities) {
     if (e.type !== 'point' || options.exclude?.has(e.id)) continue;
@@ -98,7 +114,20 @@ export function snapPoint(sketch: SketchParams, cursor: Vec2, options: SnapOptio
       kind = 'grid';
     }
   }
-  return { point: p, kind, label: SNAP_LABELS[kind] };
+
+  // 4. Axes de l'esquisse : le point s'y pose sur le lieu de l'alignement ou de la grille.
+  const axisId = targetAxis(p, cursor, tol);
+  if (!axisId) return { point: p, kind, label: SNAP_LABELS[kind] };
+  const onX = axisId === AXIS_X_ID;
+  const point = onX ? { x: cleanZero(p.x), y: 0 } : { x: 0, y: cleanZero(p.y) };
+  if (point.x === 0 && point.y === 0 && !options.exclude?.has(ORIGIN_POINT_ID)) return originSnap();
+  // Départ déjà sur cet axe : le tracé le suit, l'alignement suffit à y rester.
+  const along: SnapKind = onX ? 'horizontal' : 'vertical';
+  if (ref && isOnAxis(ref, axisId)) return { point, kind: along, label: SNAP_LABELS[along] };
+  const axisLabel = `${SNAP_LABELS.axis} ${onX ? 'X' : 'Y'}`;
+  // Un alignement perpendiculaire à l'axe reste valable ; parallèle, l'axe le remplace.
+  if (kind === (onX ? 'vertical' : 'horizontal')) return { point, kind, axisId, label: `${SNAP_LABELS[kind]} · ${axisLabel}` };
+  return { point, kind: 'axis', axisId, label: axisLabel };
 }
 
 /** Pas de grille adapté au zoom : le plus petit pas qui laisse au moins `minPixels` entre deux lignes. */

@@ -428,6 +428,13 @@ export function toggleSnapToGrid(s: SketchSession): SketchSession {
   return { ...s, snapToGrid: !s.snapToGrid, message: info(s.snapToGrid ? 'Aimantation à la grille désactivée.' : 'Aimantation à la grille activée.') };
 }
 
+/** Relie le point `id` à ce que visait l'accrochage : un point existant ou un axe de l'esquisse. */
+function attachToSnap(sketch: SketchParams, snap: SnapResult, id: string): SketchParams {
+  if (snap.pointId) return addConstraint(sketch, { type: 'coincident', a: snap.pointId, b: id }).sketch;
+  if (snap.axisId) return addConstraint(sketch, { type: 'pointOn', point: id, curve: snap.axisId }).sketch;
+  return sketch;
+}
+
 function computeSnap(s: SketchSession, p: Vec2, alt: boolean): SnapResult {
   return snapPoint(s.sketch, p, {
     tolerance: tolerance(s),
@@ -544,7 +551,7 @@ function textClick(s: SketchSession, snap: SnapResult): SketchSession {
   if (text.trim() === '' || !(height > 0)) return { ...s, message: failure(textProblem(text, height)!) };
   const r = addText(s.sketch, snap.point, text, height);
   let sk = s.construction ? setConstruction(r.sketch, [r.textId], true) : r.sketch;
-  if (snap.pointId) sk = addConstraint(sk, { type: 'coincident', a: snap.pointId, b: r.anchor }).sketch;
+  sk = attachToSnap(sk, snap, r.anchor);
   const warning = textProblem(text, height);
   const { session } = commit(s, sk, {
     message: warning
@@ -601,8 +608,8 @@ function ellipseClick(s: SketchSession, snap: SnapResult): SketchSession {
 function createEllipse(s: SketchSession, center: SnapResult, major: SnapResult, minor: number, axes: { major: number; minor: number } | null): SketchSession {
   const r = addEllipse(s.sketch, center.point, major.point, minor);
   let sk = s.construction ? setConstruction(r.sketch, [r.ellipseId], true) : r.sketch;
-  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: r.center }).sketch;
-  if (major.pointId && !axes) sk = addConstraint(sk, { type: 'coincident', a: major.pointId, b: r.major }).sketch;
+  sk = attachToSnap(sk, center, r.center);
+  if (!axes) sk = attachToSnap(sk, major, r.major);
   if (axes) {
     sk = addConstraint(sk, { type: 'distance', a: r.center, b: r.major, value: axes.major / 2 }).sketch;
     sk = addConstraint(sk, { type: 'diameter', circle: r.ellipseId, value: axes.minor }).sketch;
@@ -647,7 +654,7 @@ function createSpline(s: SketchSession, pts: SnapResult[], closed: boolean): Ske
   const r = addSpline(s.sketch, pts.map((p) => p.point), closed);
   let sk = s.construction ? setConstruction(r.sketch, [r.splineId], true) : r.sketch;
   pts.forEach((p, i) => {
-    if (p.pointId) sk = addConstraint(sk, { type: 'coincident', a: p.pointId, b: r.points[i]! }).sketch;
+    sk = attachToSnap(sk, p, r.points[i]!);
   });
   const { session } = commit(s, sk, {
     message: success(`Spline ${closed ? 'fermée' : 'ouverte'} de ${pts.length} points ajoutée. Faites glisser ses points pour la modeler.`),
@@ -730,9 +737,8 @@ function createLine(s: SketchSession, start: SnapResult, end: SnapResult, length
   let sk = s.sketch;
   const r = addLine(sk, start.point, end.point);
   sk = s.construction ? setConstruction(r.sketch, [r.lineId], true) : r.sketch;
-  const startRef = s.chainLastPointId ?? start.pointId;
-  if (startRef) sk = addConstraint(sk, { type: 'coincident', a: startRef, b: r.a }).sketch;
-  if (end.pointId) sk = addConstraint(sk, { type: 'coincident', a: end.pointId, b: r.b }).sketch;
+  sk = attachToSnap(sk, s.chainLastPointId ? { ...start, pointId: s.chainLastPointId } : start, r.a);
+  sk = attachToSnap(sk, end, r.b);
   if (end.kind === 'horizontal') sk = addConstraint(sk, { type: 'horizontal', line: r.lineId }).sketch;
   if (end.kind === 'vertical') sk = addConstraint(sk, { type: 'vertical', line: r.lineId }).sketch;
   if (length !== null) sk = addConstraint(sk, { type: 'length', line: r.lineId, value: length }).sketch;
@@ -781,8 +787,8 @@ function rectangleClick(s: SketchSession, snap: SnapResult): SketchSession {
 function createRectangle(s: SketchSession, start: SnapResult, end: SnapResult, size: { w: number; h: number } | null): SketchSession {
   const r = addRectangle(s.sketch, start.point, end.point);
   let sk = s.construction ? setConstruction(r.sketch, r.lines, true) : r.sketch;
-  if (start.pointId) sk = addConstraint(sk, { type: 'coincident', a: start.pointId, b: r.corners[0] }).sketch;
-  if (end.pointId) sk = addConstraint(sk, { type: 'coincident', a: end.pointId, b: r.corners[2] }).sketch;
+  sk = attachToSnap(sk, start, r.corners[0]);
+  sk = attachToSnap(sk, end, r.corners[2]);
   if (size) {
     sk = addConstraint(sk, { type: 'length', line: r.lines[0], value: size.w }).sketch;
     sk = addConstraint(sk, { type: 'length', line: r.lines[3], value: size.h }).sketch;
@@ -802,8 +808,8 @@ function createRectangle(s: SketchSession, start: SnapResult, end: SnapResult, s
 /** Point seul : posé là où l'on clique (accroché à la grille, aligné…), pas sur un point existant. */
 function pointClick(s: SketchSession, snap: SnapResult): SketchSession {
   if (snap.pointId) return { ...s, message: failure('Il y a déjà un point ici : cliquez ailleurs.') };
-  const { sketch } = addPoint(s.sketch, snap.point);
-  const { session } = commit(s, sketch, { message: success('Point ajouté. Placez-le avec des cotes depuis l’origine (outil Cote : le point puis l’origine).') });
+  const added = addPoint(s.sketch, snap.point);
+  const { session } = commit(s, attachToSnap(added.sketch, snap, added.id), { message: success('Point ajouté. Placez-le avec des cotes depuis l’origine (outil Cote : le point puis l’origine).') });
   return resetDraw(session);
 }
 
@@ -824,7 +830,7 @@ function circleClick(s: SketchSession, snap: SnapResult): SketchSession {
 function createCircle(s: SketchSession, center: SnapResult, radius: number, diameter: number | null): SketchSession {
   const c = addCircle(s.sketch, center.point, radius);
   let sk = s.construction ? setConstruction(c.sketch, [c.circleId], true) : c.sketch;
-  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: c.center }).sketch;
+  sk = attachToSnap(sk, center, c.center);
   if (diameter !== null) sk = addConstraint(sk, { type: 'diameter', circle: c.circleId, value: diameter }).sketch;
   const message =
     diameter !== null
@@ -877,7 +883,7 @@ function createCenterRectangle(s: SketchSession, center: SnapResult, hw: number,
   }
   sk = addConstraint(sk, { type: 'midpoint', point: mid.id, line: d1.lineId }).sketch;
   sk = addConstraint(sk, { type: 'midpoint', point: mid.id, line: d2.lineId }).sketch;
-  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: mid.id }).sketch;
+  sk = attachToSnap(sk, center, mid.id);
   if (size) {
     sk = addConstraint(sk, { type: 'length', line: r.lines[0], value: size.w }).sketch;
     sk = addConstraint(sk, { type: 'length', line: r.lines[3], value: size.h }).sketch;
@@ -957,7 +963,7 @@ function createPolygon(s: SketchSession, center: SnapResult, vertex: Vec2, sides
     // Égalités en chaîne (chaque côté égal au suivant) : une marque « = » par côté, pas une pile sur le premier.
     if (k > 0) sk = addConstraint(sk, { type: 'equal', a: lines[k - 1]!.id, b: l.id }).sketch;
   }
-  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: circle.center }).sketch;
+  sk = attachToSnap(sk, center, circle.center);
   if (diameter !== null) sk = addConstraint(sk, { type: 'diameter', circle: circle.circleId, value: diameter }).sketch;
   const weights = new Map([
     [`${circle.center}.x`, 1e3],
@@ -1039,8 +1045,8 @@ function createSlot(s: SketchSession, c1: SnapResult, c2: SnapResult, width: num
     for (const arc of [arcStart.arcId, arcEnd.arcId]) sk = addConstraint(sk, { type: 'tangent', a: line, b: arc }).sketch;
   }
   sk = addConstraint(sk, { type: 'equal', a: arcStart.arcId, b: arcEnd.arcId }).sketch;
-  if (c1.pointId) sk = addConstraint(sk, { type: 'coincident', a: c1.pointId, b: arcStart.center }).sketch;
-  if (c2.pointId) sk = addConstraint(sk, { type: 'coincident', a: c2.pointId, b: arcEnd.center }).sketch;
+  sk = attachToSnap(sk, c1, arcStart.center);
+  sk = attachToSnap(sk, c2, arcEnd.center);
   if (size.length !== null) sk = addConstraint(sk, { type: 'distance', a: arcStart.center, b: arcEnd.center, value: size.length }).sketch;
   if (size.width !== null) sk = addConstraint(sk, { type: 'diameter', circle: arcStart.arcId, value: size.width }).sketch;
   const weights = new Map([
@@ -1098,7 +1104,7 @@ function finishArc(s: SketchSession, endSnap: SnapResult | null, angleDeg: numbe
   const a0 = Math.atan2(startPt.y - c.y, startPt.x - c.x);
   let ccw = arcState.sweep >= 0;
   let endPt: Vec2;
-  let endId: string | undefined;
+  let endRef: SnapResult | null = null;
   if (angleDeg !== null) {
     const a = a0 + ((ccw ? 1 : -1) * angleDeg * Math.PI) / 180;
     endPt = { x: c.x + r * Math.cos(a), y: c.y + r * Math.sin(a) };
@@ -1106,19 +1112,20 @@ function finishArc(s: SketchSession, endSnap: SnapResult | null, angleDeg: numbe
     const p = endSnap!.point;
     const d = Math.max(distance2(c, p), 1e-9);
     endPt = endSnap!.pointId ? p : { x: c.x + ((p.x - c.x) * r) / d, y: c.y + ((p.y - c.y) * r) / d };
-    endId = endSnap!.pointId;
+    // L'arrivée reste sur le cercle : le lien à un axe n'a de sens que si le cercle passe par là.
+    endRef = endSnap!.axisId && distance2(endPt, p) > tolerance(s) ? null : endSnap!;
     if (Math.abs(arcState.sweep) < 1e-6) ccw = true;
   }
   if (distance2(endPt, startPt) < tolerance(s) / 4 && Math.abs(arcState.sweep) < Math.PI) {
     return { ...s, message: failure('L’arrivée est confondue avec le départ : tournez davantage avant de cliquer.') };
   }
   // Un arc est toujours enregistré dans le sens trigonométrique : on échange départ et arrivée si besoin.
-  const [from, to, fromId, toId] = ccw ? [startPt, endPt, arcState.start.pointId, endId] : [endPt, startPt, endId, arcState.start.pointId];
+  const [from, to, fromRef, toRef] = ccw ? [startPt, endPt, arcState.start, endRef] : [endPt, startPt, endRef, arcState.start];
   const a = addArc(s.sketch, c, from, to);
   let sk = s.construction ? setConstruction(a.sketch, [a.arcId], true) : a.sketch;
-  if (center.pointId) sk = addConstraint(sk, { type: 'coincident', a: center.pointId, b: a.center }).sketch;
-  if (fromId) sk = addConstraint(sk, { type: 'coincident', a: fromId, b: a.start }).sketch;
-  if (toId) sk = addConstraint(sk, { type: 'coincident', a: toId, b: a.end }).sketch;
+  sk = attachToSnap(sk, center, a.center);
+  if (fromRef) sk = attachToSnap(sk, fromRef, a.start);
+  if (toRef) sk = attachToSnap(sk, toRef, a.end);
   const weights = new Map([
     [`${a.center}.x`, 1e3],
     [`${a.center}.y`, 1e3],
@@ -1200,8 +1207,8 @@ function finishArc3(s: SketchSession, throughSnap: SnapResult | null, radius: nu
   const [from, to] = ccw ? [start, end] : [end, start];
   const a = addArc(s.sketch, g.center, from.point, to.point);
   let sk = s.construction ? setConstruction(a.sketch, [a.arcId], true) : a.sketch;
-  if (from.pointId) sk = addConstraint(sk, { type: 'coincident', a: from.pointId, b: a.start }).sketch;
-  if (to.pointId) sk = addConstraint(sk, { type: 'coincident', a: to.pointId, b: a.end }).sketch;
+  sk = attachToSnap(sk, from, a.start);
+  sk = attachToSnap(sk, to, a.end);
   if (throughSnap?.pointId) sk = addConstraint(sk, { type: 'pointOn', point: throughSnap.pointId, curve: a.arcId }).sketch;
   if (radius !== null) sk = addConstraint(sk, { type: 'radius', circle: a.arcId, value: radius }).sketch;
   const weights = new Map([

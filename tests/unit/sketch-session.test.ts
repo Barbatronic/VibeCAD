@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ORIGIN_POINT_ID } from '../../src/domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../../src/domain/model';
 import { originPlaneFrame } from '../../src/math/frame';
 import { emptySketch, findCircle, pointPosition } from '../../src/sketch/model';
 import { extractProfiles } from '../../src/sketch/profiles';
@@ -168,5 +168,94 @@ describe('session d’esquisse (parcours de la plaque)', () => {
     expect(s.tool).toBe('rectangle');
     s = escape(s);
     expect(s.tool).toBe('select');
+  });
+});
+
+describe('accrochage aux axes de l’esquisse', () => {
+  const axisLinks = (s: SketchSession, axis: string) => s.sketch.constraints.filter((c) => c.type === 'pointOn' && c.curve === axis);
+  const positionOf = (s: SketchSession, id: string) => pointPosition(s.sketch, id)!;
+  const drawn = (s: SketchSession, tool: Parameters<typeof setTool>[1], ...clicks: [number, number][]) =>
+    clicks.reduce((session, [x, y]) => click(session, x, y), setTool(s, tool));
+
+  it('relie le début d’un segment à l’axe visé, et le point suit l’axe après le dessin', () => {
+    let s = drawn(newSession(), 'line', [20.1, 0.2]);
+    expect(s.start).toMatchObject({ kind: 'axis', axisId: AXIS_X_ID, label: 'Axe X' });
+    expect(s.start!.point.y).toBe(0);
+    s = escape(click(s, 35, 18));
+    expect(axisLinks(s, AXIS_X_ID)).toHaveLength(1);
+    const [link] = axisLinks(s, AXIS_X_ID);
+    expect(link?.type === 'pointOn' && positionOf(s, link.point).y).toBeCloseTo(0, 9);
+  });
+
+  it('relie un coin de rectangle à chaque axe visé', () => {
+    const s = drawn(newSession(), 'rectangle', [20, 0.1], [-0.1, 30]);
+    expect(s.message?.kind).toBe('success');
+    expect(axisLinks(s, AXIS_X_ID)).toHaveLength(1);
+    expect(axisLinks(s, AXIS_Y_ID)).toHaveLength(1);
+  });
+
+  it('s’applique au centre d’un cercle, à un point seul et au centre d’un rectangle', () => {
+    expect(axisLinks(drawn(newSession(), 'circle', [0.1, 15], [5, 15]), AXIS_Y_ID)).toHaveLength(1);
+    expect(axisLinks(drawn(newSession(), 'point', [12, 0.2]), AXIS_X_ID)).toHaveLength(1);
+    expect(axisLinks(drawn(newSession(), 'centerRectangle', [12, 0.2], [20, 8]), AXIS_X_ID)).toHaveLength(1);
+  });
+
+  it('préfère l’origine, et un point existant, à l’axe', () => {
+    expect(drawn(newSession(), 'line', [0.2, 0.2]).start?.kind).toBe('origin');
+    const s = drawn(drawn(newSession(), 'point', [12, 0]), 'line', [12.1, 0.1]);
+    expect(s.start).toMatchObject({ kind: 'point' });
+    expect(s.start?.axisId).toBeUndefined();
+  });
+
+  it('crée le lien quand la grille pose le point sur l’axe sans que le curseur y soit', () => {
+    const s = setPixelSize(newSession(), 0.4); // grille de 10 mm, tolérance de 4 mm
+    expect(s.gridStep).toBe(10);
+    expect(drawn(s, 'line', [30, 4.5]).start).toMatchObject({ kind: 'axis', axisId: AXIS_X_ID, point: { x: 30, y: 0 } });
+    expect(drawn(s, 'line', [30, 5.5]).start?.axisId).toBeUndefined();
+    expect(drawn(s, 'line', [4.5, 4.5]).start?.kind).toBe('origin');
+  });
+
+  it('garde un alignement perpendiculaire à l’axe', () => {
+    const s = drawn(newSession(), 'line', [10, 20], [10.1, 0.2]);
+    expect(s.sketch.constraints.filter((c) => c.type === 'vertical')).toHaveLength(1);
+    expect(axisLinks(s, AXIS_X_ID)).toHaveLength(1);
+  });
+
+  it('ne double pas le lien d’un segment qui suit l’axe : son alignement le garde dessus', () => {
+    const s = drawn(newSession(), 'line', [10, 0.1], [30, 0.1]);
+    expect(s.sketch.constraints.filter((c) => c.type === 'horizontal')).toHaveLength(1);
+    expect(axisLinks(s, AXIS_X_ID)).toHaveLength(1);
+    expect(s.dof).toBe(2);
+  });
+
+  it('garde l’arrivée sur l’axe quand la longueur est tapée le long de celui-ci', () => {
+    const typed = (s: SketchSession) => confirmInput(setInputValue(s, 0, '25'));
+    const along = typed(pointerMove(drawn(newSession(), 'line', [10, 0.1]), { x: 40, y: 0.1 }));
+    expect(along.sketch.constraints.filter((c) => c.type === 'horizontal')).toHaveLength(1);
+    expect(axisLinks(along, AXIS_X_ID)).toHaveLength(1);
+    // Une longueur qui n'atteint pas l'axe visé ne crée pas de lien.
+    const short = typed(pointerMove(drawn(newSession(), 'line', [10, 40]), { x: 10, y: 0.1 }));
+    expect(axisLinks(short, AXIS_X_ID)).toHaveLength(0);
+    expect(short.sketch.constraints.filter((c) => c.type === 'vertical')).toHaveLength(1);
+  });
+
+  it('pose l’arrivée d’un arc sur l’axe seulement si le cercle y passe', () => {
+    const arc = (centerY: number) => {
+      const s = drawn(newSession(), 'arc', [5, centerY], [25, centerY]);
+      return click(pointerMove(s, { x: 24, y: centerY / 2 }), 24.4, 0.1);
+    };
+    const touching = arc(5);
+    expect(touching.message?.kind).toBe('success');
+    expect(axisLinks(touching, AXIS_X_ID)).toHaveLength(1);
+    const [link] = axisLinks(touching, AXIS_X_ID);
+    expect(link?.type === 'pointOn' && positionOf(touching, link.point).y).toBeCloseTo(0, 6);
+    const tooFar = arc(30);
+    expect(tooFar.message?.kind).toBe('success');
+    expect(axisLinks(tooFar, AXIS_X_ID)).toHaveLength(0);
+  });
+
+  it('ne s’accroche à rien avec Alt', () => {
+    const s = click(setTool(newSession(), 'line'), 20, 0.2, { alt: true });
+    expect(s.start).toMatchObject({ kind: 'free' });
   });
 });

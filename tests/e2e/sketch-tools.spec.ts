@@ -105,3 +105,37 @@ test('les axes X et Y servent de référence : cote d’un cercle depuis l’axe
   await clickSketch(page, 45, 0);
   await expect.poll(async () => (await session(page))?.sketch.constraints.some((c: any) => c.type === 'parallel' && c.b === 'axis-x')).toBe(true);
 });
+
+test('un clic sur un axe y relie le point : le repère l’annonce et le dessin reste extrudable', async ({ page }) => {
+  await openApp(page);
+  await page.click('#tool-sketch');
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
+  await page.waitForTimeout(450);
+
+  // Rectangle : un coin sur l'axe X, le coin opposé sur l'axe Y.
+  await moveSketch(page, 30, 0);
+  await expect(page.locator('.vp-tag-snap', { hasText: 'Axe X' })).toBeVisible();
+  await page.screenshot({ path: 'tests/output/e2e-accroche-axe.png' });
+  await clickSketch(page, 30, 0);
+  await clickSketch(page, 0, 20);
+  await expect
+    .poll(async () => (await session(page))?.sketch.constraints.filter((c: any) => c.type === 'pointOn').map((c: any) => c.curve).sort())
+    .toEqual(['axis-x', 'axis-y']);
+
+  // Le lien tient : une cote de largeur garde le coin sur l'axe X.
+  await page.click('#sk-dimension');
+  await clickSketch(page, 15, 0);
+  await page.getByRole('dialog', { name: 'Nouvelle cote' }).getByRole('textbox').first().fill('40');
+  await page.getByRole('dialog', { name: 'Nouvelle cote' }).getByRole('textbox').first().press('Enter');
+  await expect.poll(async () => (await session(page))?.message?.kind).not.toBe('error');
+  await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'point').every((e: any) => e.x > -1e-6 && e.y > -1e-6)).toBe(true);
+  await page.screenshot({ path: 'tests/output/e2e-accroche-axe-cote.png' });
+
+  await finishSketch(page);
+  await page.click('#tool-extrude');
+  await page.locator('#draft-distance').fill('5');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expectVolume(page, 40 * 20 * 5);
+});
