@@ -8,6 +8,8 @@ import type { CadDocument, SketchParams } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
+import { importSvgShape } from '../../src/io/svg-import';
+import { otsuThreshold, traceBitmap } from '../../src/io/trace-bitmap';
 import { addRectangle, addStamp } from '../../src/sketch/model';
 import { extractProfiles, profileArea } from '../../src/sketch/profiles';
 import { solveSketch } from '../../src/sketch/solver';
@@ -49,5 +51,27 @@ describe('tampons extrudés', () => {
     const volume = evaluate(doc).volume;
     expect(evaluate(parsed.doc).volume).toBeCloseTo(volume, 6);
     expect(volume).toBeLessThan(60 * 60 * 5);
+  }, 60000);
+
+  it.each(['fill', 'lines'] as const)('un dessin à la main vectorisé (%s) donne un solide valide', (mode) => {
+    // Fleur au trait tremblé et d'épaisseur variable, comme un feutre tenu à la main.
+    const size = 400;
+    const data = new Uint8Array(size * size).fill(230);
+    const dot = (cx: number, cy: number, r: number) => {
+      for (let y = Math.floor(cy - r); y <= cy + r; y++) {
+        for (let x = Math.floor(cx - r); x <= cx + r; x++) if (Math.hypot(x - cx, y - cy) <= r) data[y * size + x] = 30;
+      }
+    };
+    for (let t = 0; t < Math.PI * 2; t += 0.002) {
+      const r = 120 + 40 * Math.cos(7 * t) + 2.5 * Math.sin(t * 13) + 1.2 * Math.sin(t * 37);
+      dot(200 + r * Math.cos(t), 200 + r * Math.sin(t), 3 + 0.6 * Math.sin(t * 5));
+    }
+    const image = { width: size, height: size, data };
+    const r = importSvgShape(traceBitmap(image, { threshold: otsuThreshold(image), invert: false, mode, thicken: 0, despeckle: 20, smoothing: 0.4 }), 'dessin');
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const doc = extruded((s) => addStamp(s, { x: 0, y: 0 }, r.shape, 60).sketch, 3);
+    const area = profileArea(extractProfiles(doc.parts[0]!.features[0]!.params as SketchParams));
+    expect(evaluate(doc).volume).toBeCloseTo(area * 3, -1);
   }, 60000);
 });

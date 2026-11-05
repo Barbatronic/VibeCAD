@@ -57,8 +57,9 @@ import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
 import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
-import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
+import { pickFile, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile } from '../persistence/files';
 import { importSvgShape } from '../io/svg-import';
+import type { StampShape } from '../sketch/stamp';
 import { chooseStamp, createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
@@ -1133,14 +1134,28 @@ export class AppController {
     if (next !== mode.session) this.set({ mode: { kind: 'sketch', session: next } });
   }
 
-  /** Tampon : lit un fichier SVG choisi par l'utilisateur et en fait la forme courante. */
+  /** Ferme la fenêtre de vectorisation et applique la forme obtenue (rien si `shape` est null). */
+  finishTrace(shape: StampShape | null): void {
+    this.set({ dialog: null });
+    if (shape) this.updateSession((s) => chooseStamp(s, shape));
+  }
+
+  /** Tampon : ouvre la fenêtre d'import, avec le tracé exact d'un SVG et le dessin à vectoriser. */
   async importStamp(): Promise<void> {
-    const file = await pickFile('.svg,image/svg+xml');
+    const file = await pickFile('.svg,image/svg+xml,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp');
     if (!file) return;
+    const name = file.name.replace(/\.[^.]+$/, '');
+    if (!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml') {
+      const image = await readGrayImage(file);
+      if (!image) return this.toast('error', `« ${file.name} » n’est pas une image lisible (SVG, PNG, JPEG ou WebP).`);
+      return this.set({ dialog: { kind: 'trace-stamp', name, image, exact: null } });
+    }
     if (file.size > 2_000_000) return this.toast('error', 'Ce fichier SVG est trop lourd (2 Mo au plus) : simplifiez le dessin.');
-    const result = importSvgShape(await file.text(), file.name.replace(/\.svg$/i, ''));
-    if (!result.ok) return this.toast('error', result.error);
-    this.updateSession((s) => chooseStamp(s, result.shape, result.warnings.join(' ')));
+    const text = await file.text();
+    const exact = importSvgShape(text, name);
+    const image = await renderSvgGray(text);
+    if (!image && !exact.ok) return this.toast('error', exact.error);
+    this.set({ dialog: { kind: 'trace-stamp', name: exact.ok ? exact.shape.name : name, image, exact } });
   }
 
   finishSketch(): void {

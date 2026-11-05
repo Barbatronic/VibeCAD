@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { importSvgShape, MAX_STAMP_PIECES } from '../../src/io/svg-import';
+import { importSvgShape, MAX_STAMP_PIECES, sizedSvg } from '../../src/io/svg-import';
 import { addStamp, emptySketch } from '../../src/sketch/model';
 import { extractProfiles, profileArea } from '../../src/sketch/profiles';
 import { isValidOutline, layoutStamp } from '../../src/sketch/stamp';
@@ -138,6 +138,27 @@ describe('import SVG', () => {
   it('ne se laisse pas perturber par du contenu actif : seul le contour ressort', () => {
     const r = load('<script>alert(1)</script><circle cx="50" cy="50" r="40" onclick="alert(1)"/>');
     expect(r.shape.outline).toMatch(/^[-\d.eMLCZ ]+$/);
+  });
+});
+
+describe('SVG dessiné en image', () => {
+  it('fixe la taille en gardant les proportions du viewBox', () => {
+    const r = sizedSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="10cm" height="5cm" stroke-width="2"><rect/></svg>', 900)!;
+    expect([r.width, r.height]).toEqual([900, 450]);
+    expect(r.svg).toContain('<svg width="900" height="450" xmlns');
+    expect(r.svg).toContain('stroke-width="2"');
+    expect(r.svg).not.toContain('10cm');
+  });
+
+  it('crée le viewBox d’un fichier qui n’a que des dimensions', () => {
+    const r = sizedSvg('<svg width="50" height="100"><rect/></svg>', 800)!;
+    expect([r.width, r.height]).toEqual([400, 800]);
+    expect(r.svg).toContain('viewBox="0 0 50 100"');
+  });
+
+  it('prend un carré quand rien n’indique la taille, et refuse ce qui n’est pas un SVG', () => {
+    expect(sizedSvg('<svg width="100%" height="100%"><rect/></svg>', 900)).toMatchObject({ width: 900, height: 900 });
+    expect(sizedSvg('bonjour', 900)).toBeNull();
   });
 });
 

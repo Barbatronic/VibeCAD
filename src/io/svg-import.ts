@@ -477,6 +477,27 @@ function normalize(subpaths: Subpath[]): { outline: string; pieces: number } | n
 }
 
 /**
+ * Même SVG avec une taille explicite en pixels (plus grand côté `side`), pour que le navigateur le
+ * dessine en image : sans cela, un fichier sans dimensions n'aurait pas de taille utilisable.
+ */
+export function sizedSvg(svg: string, side: number): { svg: string; width: number; height: number } | null {
+  const tag = /<svg\b(?:[^>"']|"[^"]*"|'[^']*')*>/.exec(svg)?.[0];
+  if (!tag) return null;
+  const attr = (name: string) => new RegExp(`\\s${name}\\s*=\\s*["']([^"']*)["']`).exec(tag)?.[1];
+  const box = (attr('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
+  const hasBox = box.length === 4 && box[2]! > 0 && box[3]! > 0;
+  const [w, h] = hasBox ? [box[2]!, box[3]!] : [parseFloat(attr('width') ?? ''), parseFloat(attr('height') ?? '')];
+  const known = w! > 0 && h! > 0 && !/%/.test(`${attr('width')}${attr('height')}`);
+  const [sw, sh] = hasBox || known ? [w!, h!] : [1, 1];
+  const scale = side / Math.max(sw, sh);
+  const width = Math.max(1, Math.round(sw * scale));
+  const height = Math.max(1, Math.round(sh * scale));
+  const viewBox = !hasBox && known ? ` viewBox="0 0 ${w} ${h}"` : '';
+  const sized = tag.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/g, '').replace(/^<svg/, `<svg width="${width}" height="${height}"${viewBox}`);
+  return { svg: svg.replace(tag, sized), width, height };
+}
+
+/**
  * Même contour en polylignes très fines : le contrôle courant de l'esquisse échantillonne peu les
  * courbes, et laisserait passer ici un croisement léger que le noyau refuserait à l'extrusion.
  */
@@ -490,8 +511,12 @@ function flattened(outline: string, pieces: number): string {
     .join(' ');
 }
 
-/** Lit le texte d'un fichier SVG et vérifie que la forme obtenue peut former un volume. */
-export function importSvgShape(svg: string, fallbackName: string): SvgImportResult {
+/**
+ * Lit le texte d'un fichier SVG et vérifie que la forme obtenue peut former un volume.
+ * Ce contrôle peut prendre quelques secondes sur un grand dessin : `preview` le saute, pour un
+ * aperçu réglé en direct.
+ */
+export function importSvgShape(svg: string, fallbackName: string, options: { preview?: boolean } = {}): SvgImportResult {
   if (!/<svg[\s>]/.test(svg)) return { ok: false, error: 'Ce fichier n’est pas un dessin SVG.' };
   const found = collect(svg);
   const shape = normalize(found.subpaths);
@@ -505,6 +530,7 @@ export function importSvgShape(svg: string, fallbackName: string): SvgImportResu
   }
   const title = /<title[^>]*>([^<]+)<\/title>/.exec(svg)?.[1];
   const named: StampShape = { name: (title && decodeTitle(title)) || fallbackName, outline: shape.outline };
+  if (options.preview) return { ok: true, shape: named, warnings: found.warnings };
   const check = extractProfiles(addStamp(emptySketch({ kind: 'plane', plane: 'XY', offset: 0 }), { x: 0, y: 0 }, { ...named, outline: flattened(shape.outline, shape.pieces) }, 100).sketch);
   if (!check.ok) {
     if (check.code === 'PROFILE_OVERLAPPING') return { ok: false, error: 'Des formes de ce dessin se chevauchent : fusionnez-les d’abord (Inkscape : tout sélectionner, puis Chemin > Union).' };

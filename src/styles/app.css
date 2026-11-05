@@ -1374,6 +1374,84 @@ textarea {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
+.modal.wide:has(.trace-layout) {
+  width: min(1040px, 100%);
+}
+
+.trace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.trace-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: start;
+}
+
+.trace-views figure {
+  margin: 0;
+}
+
+.trace-views figure.trace-hidden {
+  display: none;
+}
+
+.trace-views:has(.trace-hidden) {
+  grid-template-columns: minmax(0, 320px);
+}
+
+.trace-views figcaption {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.trace-views canvas,
+.trace-result {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.trace-views canvas {
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.trace-result {
+  aspect-ratio: 1;
+  padding: 8px;
+  color: #19212c;
+}
+
+.trace-result svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.trace-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trace-controls input[type='range'] {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .trace-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .stamp-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));

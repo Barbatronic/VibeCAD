@@ -1,4 +1,6 @@
 /** État global de l'application (interface). Le document en est la seule partie enregistrée. */
+import type { SvgImportResult } from '../io/svg-import';
+import type { GrayImage } from '../io/trace-bitmap';
 import { DEFAULT_LIBRARIES, type LibraryCatalog } from './library';
 import type { MechanismResult } from './mechanism';
 import type { StepResource } from '../domain/model';
@@ -140,6 +142,11 @@ export type Dialog =
   | { kind: 'recovery'; autosave: Omit<AutosaveRecord, 'text'>; savedAt: string | null }
   | { kind: 'unsaved'; action: 'new' | 'open-project' | 'open-file' | 'open-draft'; payload?: string }
   | { kind: 'about' }
+  /**
+   * Import d'un dessin en forme de tampon. `image` : le dessin à vectoriser (null si un SVG n'a pas
+   * pu être dessiné). `exact` : pour un SVG, ce que donne la lecture directe de son tracé.
+   */
+  | { kind: 'trace-stamp'; name: string; image: GrayImage | null; exact: SvgImportResult | null }
   | { kind: 'problem'; title: string; message: string; details: string[] }
   | { kind: 'confirm-leave-sketch' }
   /** Première ouverture : choix du niveau de l'interface. */

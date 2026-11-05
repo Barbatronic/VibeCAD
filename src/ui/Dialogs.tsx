@@ -1,3 +1,4 @@
+import { TraceStampDialog } from './TraceStampDialog';
 import { useState } from 'preact/hooks';
 import { formatLength, formatVolume } from '../domain/units';
 import { NATIVE_EXTENSION } from '../io/native-format';
@@ -619,6 +620,8 @@ export function Dialogs() {
       return <PreferencesDialog />;
     case 'components':
       return <ComponentsDialog />;
+    case 'trace-stamp':
+      return <TraceStampDialog />;
     default:
       return null;
   }

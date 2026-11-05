@@ -13,13 +13,19 @@ import { useField } from './SketchTextFields';
 
 const fmt = (v: number) => formatLength(v, 2, false);
 
+/** Image d'un contour normalisé (y vers le haut : retourné pour l'écran). */
+export function StampPicture({ outline }: { outline: string }) {
+  return (
+    <svg viewBox="-0.55 -0.55 1.1 1.1" aria-hidden="true">
+      <path d={outline} transform="scale(1 -1)" fill-rule="evenodd" />
+    </svg>
+  );
+}
+
 function StampTile({ shape, active, onPick }: { shape: StampShape; active: boolean; onPick: () => void }) {
   return (
     <button type="button" class="stamp-tile" aria-pressed={active} title={shape.name} aria-label={shape.name} onClick={onPick}>
-      {/* Le contour normalisé a y vers le haut : on le retourne pour l'écran. */}
-      <svg viewBox="-0.55 -0.55 1.1 1.1" aria-hidden="true">
-        <path d={shape.outline} transform="scale(1 -1)" fill-rule="evenodd" />
-      </svg>
+      <StampPicture outline={shape.outline} />
     </button>
   );
 }
@@ -58,8 +64,9 @@ export function SketchStampFields({ session }: { session: SketchSession }) {
         </div>
       ) : null}
       <Button small icon="open" onClick={() => void c.importStamp()}>
-        Importer un SVG…
+        Importer un dessin…
       </Button>
+      <p class="field-help">Un fichier SVG, ou la photo d’un dessin en noir et blanc (PNG, JPEG, WebP).</p>
       <LengthField
         id="sketch-stamp-size"
         label="Taille (plus grand côté)"

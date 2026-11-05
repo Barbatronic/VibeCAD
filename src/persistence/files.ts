@@ -3,6 +3,8 @@
  * fichier. La File System Access API (navigateurs Chromium) est une amélioration progressive :
  * elle permet de réenregistrer directement dans le même fichier.
  */
+import { sizedSvg } from '../io/svg-import';
+import type { GrayImage } from '../io/trace-bitmap';
 
 export interface SaveTarget {
   /** Nom du fichier choisi (affiché dans la barre d'état). */
@@ -112,4 +114,56 @@ export function pickFile(accept: string): Promise<File | null> {
 
 export async function readFileBytes(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());
+}
+
+/** Plus grand côté (pixels) d'une image à vectoriser : assez fin, et le réglage reste fluide. */
+const TRACE_MAX_SIDE = 900;
+
+/** Niveaux de gris d'une image dessinée sur fond blanc. */
+function grayOf(source: CanvasImageSource, width: number, height: number): GrayImage {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(source, 0, 0, width, height);
+  const rgba = ctx.getImageData(0, 0, width, height).data;
+  const data = new Uint8Array(width * height);
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(0.299 * rgba[i * 4]! + 0.587 * rgba[i * 4 + 1]! + 0.114 * rgba[i * 4 + 2]!);
+  return { width, height, data };
+}
+
+/** Image d'un fichier en niveaux de gris ; null si elle est illisible. */
+export async function readGrayImage(file: File): Promise<GrayImage | null> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return null;
+  }
+  const scale = Math.min(1, TRACE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const image = grayOf(bitmap, Math.max(1, Math.round(bitmap.width * scale)), Math.max(1, Math.round(bitmap.height * scale)));
+  bitmap.close();
+  return image;
+}
+
+/**
+ * SVG dessiné par le navigateur, en niveaux de gris ; null s'il n'y parvient pas. Passé par une
+ * balise image, le fichier ne peut ni exécuter de script ni charger de ressource.
+ */
+export async function renderSvgGray(svg: string): Promise<GrayImage | null> {
+  const sized = sizedSvg(svg, TRACE_MAX_SIDE);
+  if (!sized) return null;
+  const url = URL.createObjectURL(new Blob([sized.svg], { type: 'image/svg+xml' }));
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return grayOf(img, sized.width, sized.height);
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
