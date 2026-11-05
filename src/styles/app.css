@@ -2043,6 +2043,8 @@ details.advanced summary {
 .modal {
   width: min(560px, 100%);
   max-height: calc(100vh - 32px);
+  /* Tablettes et téléphones : 100vh compte la barre d'adresse, le bas de la fenêtre sortirait de l'écran. */
+  max-height: calc(100dvh - 32px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
