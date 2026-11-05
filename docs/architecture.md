@@ -45,6 +45,7 @@ annuler/rétablir, persistance et mode hors ligne.
 | `math/` | vecteurs, repères de plans, algèbre linéaire | tout le reste |
 | `domain/` | modèle du document, opérations pures, unités, tolérances, statuts | DOM, Three.js, noyau, features |
 | `sketch/` | contenu d'esquisse, solveur, profils fermés, accrochages, session d'édition | DOM, Three.js, noyau |
+| `stamps/` | galerie de tampons : fichiers `.svg` chargés automatiquement | — |
 | `features/` | une fonction par dossier : `definition.ts` (domaine), `evaluate.ts` (via l'interface du noyau), `panel.tsx` (interface) ; moteur de recalcul `engine.ts` | adaptateur OCCT, viewport, app |
 | `geometry/` | `kernel.ts` (interface documentée du noyau), `protocol.ts` (messages du worker), `client.ts` (côté interface) ; `occt/` (seul code qui connaît Open CASCADE) | ui, viewport |
 | `sim/` | simulation : découpe en cubes, éléments finis, étude d'une pièce, matériaux, lancement dans le worker | tout le reste (fonctions pures sur des tableaux) |

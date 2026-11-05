@@ -49,6 +49,10 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   **Ellipse** et **spline** (niveau Expert) : ellipse par son centre, le bout du grand axe et sa
   largeur ; spline lisse passant par des points cliqués, ouverte ou fermée, modelée en faisant
   glisser ses points ; extrudables, et une spline peut servir de chemin de balayage.
+  Outil **Tampon** : une forme de la galerie (fleur, cœur, étoile, chat…) posée en un clic par son
+  centre, avec sa taille et sa rotation, en un seul élément toujours fermé, prêt pour l'extrusion
+  ou la poche. **Importer un SVG…** en fait autant d'un dessin trouvé ailleurs ; le contour est
+  enregistré dans le projet. Voir [Ajouter un tampon](docs/ajouter-une-fonction.md#ajouter-un-tampon).
   Outil **Texte** : une ligne de lettres (police Open Sans Bold, accents français compris) posée
   d'un clic par son coin bas gauche ; contenu, hauteur des majuscules et inclinaison se changent
   dans le panneau quand le texte est sélectionné. Les lettres forment de vrais contours (trous
@@ -285,6 +289,7 @@ src/
   domain/                document, pièces, fonctions, unités, tolérances, statuts (sans DOM ni noyau)
   commands/              annuler / rétablir
   sketch/                modèle d'esquisse, solveur de contraintes, profils, accrochages, éditeur
+  stamps/                galerie de tampons : un fichier .svg par forme, chargé automatiquement
   geometry/              interface du noyau, protocole du worker, client ; occt/ = adaptateur Open CASCADE
   workers/               worker de calcul, service géométrique, service worker (hors ligne)
   features/              une fonction = un dossier : définition, évaluation, panneau (sketch, extrude, pocket, imported)
@@ -336,6 +341,9 @@ Chantiers prévus : voir la [feuille de route](docs/feuille-de-route.md).
 
 - Congés et chanfreins : rayon / distance constants ; une arête est désignée par ses deux faces
   voisines, donc deux arêtes séparées entre les mêmes faces sont traitées ensemble.
+- Tampon : un SVG dont les formes se chevauchent ou se croisent est refusé (à fusionner d'abord,
+  Inkscape : Chemin > Union) ; les épaisseurs de trait d'un SVG ne sont pas reprises, seul le
+  tracé compte ; les formes importées se retrouvent dans leur projet, pas d'un projet à l'autre.
 - Texte : une seule ligne et une seule police ; les caractères absents de la police (hors
   français et ASCII) sont remplacés par « ? ». Les outils Couper et Décalage ne s'appliquent pas
   à un texte.

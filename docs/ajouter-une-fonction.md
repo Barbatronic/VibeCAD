@@ -91,3 +91,18 @@ Exemple réel : le GLB (`src/io/gltf.ts`, test `tests/unit/gltf.test.ts`).
 - Messages en français, sans jargon ; détail technique éventuel dans une zone repliée.
 - Ne jamais remplacer une opération CAO par un effet visuel : si le noyau ne permet pas une
   opération, exposer la limite.
+
+## Ajouter un tampon
+
+Déposer un fichier `.svg` dans `src/stamps/` : il apparaît dans la galerie de l'outil Tampon, sans
+autre changement. Le test `tests/unit/svg-import.test.ts` vérifie chaque fichier du dossier, et
+`tests/geometry/stamps.test.ts` en fait un vrai solide.
+
+- Le `<title>` du fichier donne le nom affiché.
+- La forme doit être **pleine et fermée**. Pour un trou (l'œil d'un chat), un contour à l'intérieur
+  d'un autre. Les contours ne doivent ni se chevaucher, ni se croiser : fusionner d'abord
+  (Inkscape : Chemin > Union).
+- Une forme en plusieurs morceaux séparés donne plusieurs pièces une fois extrudée.
+
+La lecture est dans `src/io/svg-import.ts`, sans DOM : seul le contour normalisé sort du fichier. Le
+même module sert au bouton « Importer un SVG… » pendant l'utilisation.
