@@ -12,7 +12,7 @@ changer une cote dans FreeCAD et recalculer, comme dans VibeCAD.
 | VibeCAD | FreeCAD |
 | --- | --- |
 | Pièce | Corps Part Design (`PartDesign::Body`) |
-| Esquisse | Esquisse Sketcher, placée comme dans VibeCAD : segments, cercles, arcs, ellipses, splines, points ; traits de construction ; arêtes projetées (construction, bloquées) |
+| Esquisse | Esquisse Sketcher, placée comme dans VibeCAD : segments, cercles, arcs, ellipses, splines, points ; textes (lettres en segments et B-splines, point d'ancrage) ; traits de construction ; arêtes projetées (construction, bloquées) |
 | Contraintes et cotes | Coïncidence, horizontal, vertical, parallèle, perpendiculaire, égalité, colinéaire (parallèle + point sur), tangence, point sur, milieu (symétrie), longueur, distance, distances horizontale et verticale, diamètre, rayon, angle, distance point-droite |
 | Extrusion | Protrusion (`Pad`) : longueur, sens inversé, symétrique, deux côtés |
 | Poche | Cavité (`Pocket`) : profondeur ou à travers tout, sens inversé, symétrique |

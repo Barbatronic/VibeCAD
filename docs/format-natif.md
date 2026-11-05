@@ -140,6 +140,7 @@ recalculé à l'ouverture.
 | `arc` | `center`, `start`, `end` : points ; l'arc va de `start` à `end` dans le sens trigonométrique. Le rayon est la distance centre–départ ; le solveur maintient l'arrivée à la même distance. Les cotes `radius` / `diameter` acceptent un arc dans leur champ `circle` |
 | `ellipse` | `center`, `major` : points (centre, bout du grand axe : rayon et orientation) ; `minorRadius` : demi-axe perpendiculaire. Les cotes `radius` / `diameter` visent alors le petit axe ; le grand axe se cote par une distance entre `center` et `major` |
 | `spline` | `points` : au moins deux points par lesquels passe la courbe ; `closed` : fermée ou non. Courbe de Catmull-Rom uniforme, enregistrée comme une suite de courbes de Bézier cubiques (extrémités d'une spline ouverte : tangente naturelle). Une spline ouverte relie ses deux extrémités dans un contour, comme un segment |
+| `text` | `anchor` : point en bas à gauche de la première lettre, sur la ligne de base ; `text` : la ligne de texte ; `height` : hauteur des majuscules (mm) ; `angle` (facultatif) : inclinaison en degrés, sens trigonométrique. Chaque contour de lettre (police Open Sans Bold intégrée) compte dans le profil ; la face latérale engendrée par un morceau de lettre est nommée `<texte>:<lettre>.<contour>.<morceau>` |
 
 Segments et cercles acceptent deux champs facultatifs :
 

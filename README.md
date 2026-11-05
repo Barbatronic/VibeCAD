@@ -48,6 +48,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   **Ellipse** et **spline** (niveau Expert) : ellipse par son centre, le bout du grand axe et sa
   largeur ; spline lisse passant par des points cliqués, ouverte ou fermée, modelée en faisant
   glisser ses points ; extrudables, et une spline peut servir de chemin de balayage.
+  Outil **Texte** : une ligne de lettres (police Open Sans Bold, accents français compris) posée
+  d'un clic par son coin bas gauche ; contenu, hauteur des majuscules et inclinaison se changent
+  dans le panneau quand le texte est sélectionné. Les lettres forment de vrais contours (trous
+  des « o », « a »… compris) : extrusion pour des lettres en relief, poche pour graver un nom.
+  Le point d'ancrage se cote et se contraint comme un point.
 - **Cotes** : longueur, diamètre, rayon, distances horizontale / verticale / alignée, distance
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites
@@ -330,6 +335,9 @@ Chantiers prévus : voir la [feuille de route](docs/feuille-de-route.md).
 
 - Congés et chanfreins : rayon / distance constants ; une arête est désignée par ses deux faces
   voisines, donc deux arêtes séparées entre les mêmes faces sont traitées ensemble.
+- Texte : une seule ligne et une seule police ; les caractères absents de la police (hors
+  français et ASCII) sont remplacés par « ? ». Les outils Couper et Décalage ne s'appliquent pas
+  à un texte.
 - Projection : segments et cercles parallèles au plan de l'esquisse (pas encore d'ellipses ni de
   courbes quelconques). Une arête projetée qui disparaît garde sa dernière position (signalé).
 - La position de la frise de l'historique n'est pas enregistrée dans le fichier : un projet
