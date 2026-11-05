@@ -22,6 +22,7 @@ import { holeDiameter } from '../features/hole/definition';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
 import { ellipseOf, findLine, pointPosition, standalonePoints } from '../sketch/model';
+import { textContours } from '../sketch/text';
 import { createZip } from './zip';
 
 /** Ce que le worker fournit pour une pièce (formes et repères calculés). */
@@ -284,6 +285,22 @@ function sketchCode(
       const i = add(`Part.Ellipse(${vec(p1)}, ${vec(p2)}, ${vec(el.center)})`, construction);
       geoOf.set(e.id, i);
       at(e.center, i, 3);
+    } else if (e.type === 'text') {
+      // Texte : ses lettres en segments et courbes (Béziers converties en B-splines), puis son point d'ancrage.
+      const anchor = pointPosition(s, e.anchor);
+      if (!anchor) continue;
+      for (const c of textContours(s, e)) {
+        for (const piece of c.pieces) {
+          if (piece.kind === 'line') add(`Part.LineSegment(${vec(piece.start)}, ${vec(piece.end)})`, construction);
+          else {
+            lines.push(`_bz = Part.BezierCurve()`, `_bz.setPoles([${piece.bezier.map(vec).join(', ')}])`);
+            add('_bz.toBSpline()', construction);
+          }
+        }
+      }
+      const i = add(`Part.Point(${vec(anchor)})`, false);
+      geoOf.set(e.id, i);
+      at(e.anchor, i, 1);
     } else if (e.type === 'spline') {
       const pts = e.points.map((id) => pointPosition(s, id)).filter((p): p is Vec2 => !!p);
       if (pts.length < 2) continue;

@@ -9,7 +9,7 @@ import { arcGeometry, ellipseOf, linePoints, pointPosition } from '../sketch/mod
 import { editDimension, selectConstraint, type SketchSession } from '../sketch/session';
 import { useController } from './context';
 
-const ENTITY_NAMES: Record<SketchEntity['type'], string> = { point: 'Point', line: 'Segment', circle: 'Cercle', arc: 'Arc', ellipse: 'Ellipse', spline: 'Spline' };
+const ENTITY_NAMES: Record<SketchEntity['type'], string> = { point: 'Point', line: 'Segment', circle: 'Cercle', arc: 'Arc', ellipse: 'Ellipse', spline: 'Spline', text: 'Texte' };
 
 const CONSTRAINT_NAMES: Record<SketchConstraint['type'], string> = {
   coincident: 'Coïncidence',
@@ -60,6 +60,7 @@ function entityDetail(session: SketchSession, e: SketchEntity): string {
     const g = ellipseOf(sk, e);
     text = g ? `${formatLength(2 * g.a, 2, false)} × ${formatLength(2 * g.b)}` : '';
   } else if (e.type === 'spline') text = `${e.points.length} points${e.closed ? ', fermée' : ''}`;
+  else if (e.type === 'text') text = `« ${e.text} », ${formatLength(e.height)}`;
   else {
     const g = arcGeometry(sk, e);
     text = g ? `R ${formatLength(g.radius)}, ${formatAngle((g.sweep * 180) / Math.PI)}` : '';

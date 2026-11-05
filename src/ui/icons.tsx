@@ -382,6 +382,8 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   ellipse: <ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-20 12 12)" />,
+  /** Texte : une lettre A posée sur sa ligne de base. */
+  text: <path d="M5 19.5L12 4.5l7 15M7.8 14h8.4M3 19.5h18" />,
   spline: (
     <>
       <path d="M3 17c3-9 6-9 9-4s6 4 9-5" />

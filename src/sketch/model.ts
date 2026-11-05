@@ -22,6 +22,7 @@ import {
   type SketchParams,
   type SketchPoint,
   type SketchSupport,
+  type SketchText,
 } from '../domain/model';
 import type { Vec2 } from '../math/vec';
 import { ellipseGeometry, splineBeziers, type Bezier, type EllipseGeometry } from './curves';
@@ -208,6 +209,27 @@ export function addSpline(sketch: SketchParams, through: (string | Vec2)[], clos
   return { sketch: { ...sk, entities: [...sk.entities, spline] }, splineId, points: ids };
 }
 
+/** Texte posé à `anchor` (bas gauche, sur la ligne de base), hauteur des majuscules `height` (mm). */
+export function addText(sketch: SketchParams, anchor: Vec2, text: string, height: number, angle = 0): { sketch: SketchParams; textId: string; anchor: string } {
+  const r = addPoint(sketch, anchor);
+  const textId = nextLocalId('txt', entityIds(r.sketch));
+  const entity: SketchText = { id: textId, type: 'text', anchor: r.id, text, height, ...(angle ? { angle } : {}) };
+  return { sketch: { ...r.sketch, entities: [...r.sketch.entities, entity] }, textId, anchor: r.id };
+}
+
+/** Modifie le contenu, la hauteur ou l'inclinaison d'un texte. */
+export function updateText(sketch: SketchParams, id: string, patch: Partial<Pick<SketchText, 'text' | 'height' | 'angle'>>): SketchParams {
+  return {
+    ...sketch,
+    entities: sketch.entities.map((e) => {
+      if (e.id !== id || e.type !== 'text') return e;
+      const next: SketchText = { ...e, ...patch };
+      if (!next.angle) delete next.angle;
+      return next;
+    }),
+  };
+}
+
 /** Géométrie d'une ellipse de l'esquisse. */
 export function ellipseOf(sketch: SketchParams, e: SketchEllipse): EllipseGeometry | undefined {
   const c = pointPosition(sketch, e.center);
@@ -285,6 +307,7 @@ export function ownedPoints(entity: SketchEntity): string[] {
   if (entity.type === 'arc') return [entity.center, entity.start, entity.end];
   if (entity.type === 'ellipse') return [entity.center, entity.major];
   if (entity.type === 'spline') return [...entity.points];
+  if (entity.type === 'text') return [entity.anchor];
   return [];
 }
 

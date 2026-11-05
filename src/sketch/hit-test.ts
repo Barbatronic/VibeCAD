@@ -3,6 +3,15 @@ import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchParams } from '../dom
 import { distance2, distanceToSegment2, type Vec2 } from '../math/vec';
 import { sampleBeziers, sampleEllipse } from './curves';
 import { arcContainsAngle, arcGeometry, ellipseOf, pointPosition, splineOf } from './model';
+import { textFrame } from './text';
+
+/** Vrai si `p` est dans le polygone convexe `pts` (sens trigonométrique). */
+function insideConvex(p: Vec2, pts: readonly Vec2[]): boolean {
+  return pts.every((a, i) => {
+    const b = pts[(i + 1) % pts.length]!;
+    return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x) >= 0;
+  });
+}
 
 export type SketchTarget =
   | { kind: 'point'; id: string }
@@ -10,7 +19,8 @@ export type SketchTarget =
   | { kind: 'circle'; id: string; onEdge: boolean }
   | { kind: 'arc'; id: string }
   | { kind: 'ellipse'; id: string }
-  | { kind: 'spline'; id: string };
+  | { kind: 'spline'; id: string }
+  | { kind: 'text'; id: string };
 
 /** Distance d'un point à une polyligne. */
 function polylineDistance(p: Vec2, pts: readonly Vec2[], closed: boolean): number {
@@ -63,6 +73,12 @@ export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includ
       if (bz.length === 0) continue;
       const d = polylineDistance(p, sampleBeziers(bz, 24), false);
       if (d <= tolerance && (!best || d < best.d)) best = { target: { kind: 'spline', id: e.id }, d };
+    } else if (e.type === 'text') {
+      // Texte : tout son cadre est une cible (les lettres seules sont trop fines à viser).
+      const frame = textFrame(sketch, e);
+      if (!frame) continue;
+      const d = insideConvex(p, frame) ? tolerance * 0.9 : polylineDistance(p, frame, true);
+      if (d <= tolerance && (!best || d < best.d)) best = { target: { kind: 'text', id: e.id }, d };
     }
   }
   if (best) return best.target;

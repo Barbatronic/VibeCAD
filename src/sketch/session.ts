@@ -16,6 +16,7 @@ import { addOffsetLoop, loopOfCurve, offsetSegments, signedDistanceToLoop } from
 import type { ProfileLoop } from './profiles';
 import { ellipseGeometry, ellipsePoint, sampleBeziers, sampleEllipse, splineBeziers } from './curves';
 import { hitTest, type SketchTarget } from './hit-test';
+import { contourPolyline, layoutText, textFrame, unsupportedChars } from './text';
 import {
   addArc,
   addCircle,
@@ -25,6 +26,8 @@ import {
   addRectangle,
   addEllipse,
   addSpline,
+  addText,
+  updateText,
   arcGeometry,
   arcPointAt,
   arePointsCoincident,
@@ -62,7 +65,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'text' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -91,6 +94,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   slot: 'Oblong',
   ellipse: 'Ellipse',
   spline: 'Spline',
+  text: 'Texte',
   trim: 'Couper',
   offset: 'Décalage',
   project: 'Projeter',
@@ -126,6 +130,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   ellipse: 'Ellipse : cliquez le centre, puis le bout du grand axe, puis éloignez la souris pour régler la largeur et cliquez. Vous pouvez taper les deux axes (Tab pour passer de l’un à l’autre).',
   spline:
     'Spline : cliquez les points par lesquels la courbe doit passer. Cliquez le premier point pour la fermer ; Entrée, Échap ou un clic sur le dernier point la terminent ouverte.',
+  text: 'Texte : écrivez le texte et choisissez sa hauteur dans le panneau de droite, puis cliquez où le poser (coin bas gauche de la première lettre). Les lettres forment des contours : extrudez-les en relief ou creusez-les avec une poche.',
   trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
   offset:
     'Décalage : cliquez un trait d’un contour fermé, puis éloignez la souris vers l’extérieur ou l’intérieur et cliquez, ou tapez la distance puis Entrée. Le contour recopié reste à cette distance.',
@@ -180,6 +185,13 @@ export interface DimensionEditor {
   anchor: Vec2;
 }
 
+export interface TextOptions {
+  text: string;
+  height: number;
+}
+
+export const DEFAULT_TEXT_OPTIONS: TextOptions = { text: 'Texte', height: 10 };
+
 export interface DrawInput {
   labels: string[];
   values: string[];
@@ -221,6 +233,8 @@ export interface SketchSession {
   ellipse: { major: SnapResult } | null;
   /** Spline : points de passage déjà cliqués. */
   spline: SnapResult[] | null;
+  /** Outil Texte : texte et hauteur des majuscules (mm) du prochain texte posé. */
+  textOptions: TextOptions;
   chainFirstPointId: string | null;
   chainLastPointId: string | null;
   /** Éléments choisis l'un après l'autre par l'outil Cote ou une contrainte. */
@@ -293,6 +307,7 @@ export function createSession(args: {
     box: null,
     ellipse: null,
     spline: null,
+    textOptions: DEFAULT_TEXT_OPTIONS,
     labelDrag: null,
     editor: null,
     message: res.converged ? null : { kind: 'error', text: 'Certaines contraintes de cette esquisse sont incompatibles : supprimez-en une.' },
@@ -430,7 +445,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline';
+  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline' || s.tool === 'text';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -477,6 +492,8 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return ellipseClick(s, computeSnap(s, p, !!opts.alt));
     case 'spline':
       return splineClick(s, computeSnap(s, p, !!opts.alt));
+    case 'text':
+      return textClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
       return projectClick(s, p);
     case 'trim':
@@ -509,6 +526,49 @@ export function pointerUp(s: SketchSession): SketchSession {
 
 // ---------------------------------------------------------------------------
 // Outils de dessin
+
+// ---------------------------------------------------------------------------
+// Texte
+
+/** Message d'erreur si le texte ou la hauteur ne conviennent pas, sinon null. */
+function textProblem(text: string, height: number): string | null {
+  if (text.trim() === '') return 'Le texte est vide : écrivez au moins une lettre.';
+  if (!(height > 0)) return 'La hauteur du texte doit être supérieure à 0.';
+  const missing = unsupportedChars(text);
+  if (missing.length) return `Caractère${missing.length > 1 ? 's' : ''} non disponible${missing.length > 1 ? 's' : ''} : ${missing.join(' ')} (remplacé${missing.length > 1 ? 's' : ''} par « ? »).`;
+  return null;
+}
+
+function textClick(s: SketchSession, snap: SnapResult): SketchSession {
+  const { text, height } = s.textOptions;
+  if (text.trim() === '' || !(height > 0)) return { ...s, message: failure(textProblem(text, height)!) };
+  const r = addText(s.sketch, snap.point, text, height);
+  let sk = s.construction ? setConstruction(r.sketch, [r.textId], true) : r.sketch;
+  if (snap.pointId) sk = addConstraint(sk, { type: 'coincident', a: snap.pointId, b: r.anchor }).sketch;
+  const warning = textProblem(text, height);
+  const { session } = commit(s, sk, {
+    message: warning
+      ? failure(warning)
+      : success('Texte ajouté. Sélectionnez-le pour changer ses lettres, sa hauteur ou son inclinaison ; cotez son point d’ancrage pour le placer.'),
+  });
+  return resetDraw({ ...session, tool: 'select', selection: [r.textId] });
+}
+
+/** Réglages du prochain texte posé (outil Texte). */
+export function setTextOptions(s: SketchSession, patch: Partial<TextOptions>): SketchSession {
+  return { ...s, textOptions: { ...s.textOptions, ...patch } };
+}
+
+/** Change le contenu, la hauteur ou l'inclinaison (degrés) d'un texte de l'esquisse. */
+export function editText(s: SketchSession, id: string, patch: { text?: string; height?: number; angle?: number }): SketchSession {
+  const e = s.sketch.entities.find((x) => x.id === id);
+  if (!e || e.type !== 'text') return s;
+  const text = patch.text ?? e.text;
+  const height = patch.height ?? e.height;
+  if (text.trim() === '' || !(height > 0)) return { ...s, message: failure(textProblem(text, height)!) };
+  const next = updateText(s.sketch, id, patch);
+  return commit(s, next, { message: textProblem(text, height) ? failure(textProblem(text, height)!) : null }).session;
+}
 
 // ---------------------------------------------------------------------------
 // Ellipse et spline
@@ -609,6 +669,7 @@ function offsetClick(s: SketchSession, p: Vec2): SketchSession {
   if (s.picks.length === 0) {
     const target = hitTest(s.sketch, p, tolerance(s), true, true);
     if (!target || target.kind === 'point') return { ...s, message: info('Cliquez un trait d’un contour fermé (segment, cercle ou arc).') };
+    if (target.kind === 'text') return { ...s, message: info('Le décalage ne s’applique pas à un texte : changez plutôt sa hauteur (sélectionnez-le).') };
     const found = loopOfCurve(s.sketch, target.id);
     if ('error' in found) return { ...s, message: failure(found.error) };
     return {
@@ -637,6 +698,7 @@ function createOffset(s: SketchSession, loop: ProfileLoop, distance: number): Sk
 function trimClick(s: SketchSession, p: Vec2): SketchSession {
   const target = hitTest(s.sketch, p, tolerance(s), true, true);
   if (!target || target.kind === 'point') return { ...s, message: info('Cliquez sur un trait (segment, cercle ou arc) pour en retirer un morceau.') };
+  if (target.kind === 'text') return { ...s, message: info('Un texte ne se coupe pas : sélectionnez-le pour changer ses lettres, ou supprimez-le.') };
   const entity = s.sketch.entities.find((e) => e.id === target.id);
   if (entity && entity.type !== 'point' && entity.reference) return { ...s, message: info('Une arête reprise de la pièce ne se coupe pas : elle suit la pièce.') };
   const out = trimAt(s.sketch, target.id, p);
@@ -1334,7 +1396,15 @@ function targetOf(sketch: SketchParams, id: string): PickTarget | null {
   if (id === ORIGIN_POINT_ID) return { kind: 'point', id };
   if (isSketchAxis(id)) return { kind: 'line', id };
   const e = sketch.entities.find((x) => x.id === id);
+  if (e?.type === 'text') return { kind: 'point', id: e.anchor };
   return e ? { kind: e.type, id } : null;
+}
+
+/** Élément visé pour une cote ou une contrainte : un texte se cote par son point d'ancrage. */
+function pickAt(s: SketchSession, p: Vec2): PickTarget | null {
+  const hit = hitTest(s.sketch, p, tolerance(s));
+  if (!hit) return null;
+  return hit.kind === 'text' ? targetOf(s.sketch, hit.id) : { kind: hit.kind, id: hit.id };
 }
 
 function dimensionCandidatesForPoints(s: SketchSession, a: string, b: string): DimensionCandidate[] | null {
@@ -1467,11 +1537,11 @@ function openCreateEditor(s: SketchSession, candidates: DimensionCandidate[], an
 }
 
 function dimensionClick(s: SketchSession, p: Vec2): SketchSession {
-  const hit = hitTest(s.sketch, p, tolerance(s));
+  const hit = pickAt(s, p);
   if (!hit) {
     return { ...s, picks: [], message: info('Cliquez sur un segment, un cercle ou un point (l’origine compte comme un point).') };
   }
-  const target: PickTarget = { kind: hit.kind, id: hit.id };
+  const target: PickTarget = hit;
   const first = s.picks.length === 1 ? targetOf(s.sketch, s.picks[0]!) : null;
   if (!first || first.id === target.id) {
     if (target.kind === 'point') {
@@ -1865,11 +1935,11 @@ function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): Ske
 }
 
 function constraintToolClick(s: SketchSession, p: Vec2, tool: ConstraintTool): SketchSession {
-  const hit = hitTest(s.sketch, p, tolerance(s));
+  const hit = pickAt(s, p);
   if (!hit) return { ...s, picks: [], message: info(TOOL_HELP[tool]) };
   const previous = s.picks.map((id) => targetOf(s.sketch, id)).filter((t): t is PickTarget => t !== null);
   if (previous.some((t) => t.id === hit.id)) return s;
-  const picks = [...previous, { kind: hit.kind, id: hit.id }];
+  const picks = [...previous, hit];
   const built = buildConstraint(s, tool, picks);
   if (built.kind === 'invalid') return { ...s, message: info(built.hint) };
   if (built.kind === 'next') return { ...s, picks: picks.map((t) => t.id), message: info(built.hint) };
@@ -2001,6 +2071,9 @@ export function entitiesInBox(sketch: SketchParams, lo: Vec2, hi: Vec2): string[
     } else if (e.type === 'ellipse') {
       const g = ellipseOf(sketch, e);
       if (g && sampleEllipse(g, 32).every(inside)) out.push(e.id);
+    } else if (e.type === 'text') {
+      const frame = textFrame(sketch, e);
+      if (frame && frame.every(inside)) out.push(e.id);
     } else {
       const bz = splineOf(sketch, e);
       if (bz.length > 0 && sampleBeziers(bz, 8).every(inside)) out.push(e.id);
@@ -2052,8 +2125,8 @@ function dragTo(s: SketchSession, p: Vec2, alt: boolean): SketchSession {
       weights.set(`${id}.y`, 1e4);
     }
     moved = movePoints(base, moves);
-  } else if (t.kind === 'ellipse' || t.kind === 'spline') {
-    // Ellipse ou spline glissée : tous ses points suivent la souris.
+  } else if (t.kind === 'ellipse' || t.kind === 'spline' || t.kind === 'text') {
+    // Ellipse, spline ou texte glissé : tous ses points suivent la souris.
     const e = base.entities.find((x) => x.id === t.id);
     if (!e || e.type === 'point') return s;
     const delta = sub2(p, drag.origin);
@@ -2204,6 +2277,15 @@ export function sessionPreview(s: SketchSession): SessionPreview {
         }
       }
       out.labels.push({ at: s.cursor, text: `${at.distance > 0 ? 'extérieur' : 'intérieur'} ${formatLength(Math.abs(at.distance))}` });
+    }
+    return out;
+  }
+  if (s.tool === 'text') {
+    const at = s.snap?.point ?? s.cursor;
+    if (!at || s.textOptions.text.trim() === '' || !(s.textOptions.height > 0)) return out;
+    for (const c of layoutText(s.textOptions.text, at, s.textOptions.height)) {
+      const pts = contourPolyline(c, 4);
+      pts.forEach((q, k) => out.lines.push([q, pts[(k + 1) % pts.length]!]));
     }
     return out;
   }

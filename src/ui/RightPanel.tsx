@@ -15,6 +15,7 @@ import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
 import { SketchLists } from './SketchLists';
+import { SketchTextFields } from './SketchTextFields';
 import { PropertiesPanel } from './PropertiesPanel';
 import { allows } from '../app/levels';
 
@@ -98,6 +99,8 @@ function SketchPanel({ session }: { session: SketchSession }) {
             </Callout>
           ) : null
         ) : null}
+
+        <SketchTextFields session={session} />
 
         {selectedDims.length === 1 ? (
           <div class="field">

@@ -512,8 +512,23 @@ export interface SketchSpline extends CurveFlags {
   closed: boolean;
 }
 
-export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline;
-export type SketchCurve = SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline;
+/**
+ * Texte : une ligne de lettres dont le contour devient un vrai profil (gravure, lettres en
+ * relief). `anchor` est le point d'esquisse en bas à gauche de la première lettre (sur la ligne
+ * de base) ; `height` est la hauteur des majuscules en mm ; `angle` l'inclinaison de la ligne en
+ * degrés (sens trigonométrique, 0 : horizontale).
+ */
+export interface SketchText extends CurveFlags {
+  id: string;
+  type: 'text';
+  anchor: string;
+  text: string;
+  height: number;
+  angle?: number;
+}
+
+export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText;
+export type SketchCurve = SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText;
 
 interface ConstraintBase<T extends string> {
   id: string;

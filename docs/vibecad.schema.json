@@ -2451,6 +2451,45 @@
                     "description": "Trait de construction : ignoré pour le volume."
                   }
                 }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "anchor",
+                  "text",
+                  "height"
+                ],
+                "description": "Texte d’une ligne (police Open Sans Bold) : ses lettres forment des contours fermés. « anchor » : point en bas à gauche de la première lettre, sur la ligne de base.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "text"
+                  },
+                  "anchor": {
+                    "type": "string",
+                    "description": "Identifiant du point d’ancrage."
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Hauteur des majuscules (mm)."
+                  },
+                  "angle": {
+                    "type": "number",
+                    "description": "Inclinaison de la ligne de texte (degrés, sens trigonométrique)."
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  }
+                }
               }
             ]
           }

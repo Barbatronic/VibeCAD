@@ -12,6 +12,7 @@ import { TOLERANCES } from '../domain/tolerances';
 import { cross2, distance2, distanceToSegment2, sub2, type Vec2 } from '../math/vec';
 import { bezierPoint, ellipsePoint, reverseBeziers, sampleBeziers, sampleEllipse, type Bezier } from './curves';
 import { ellipseOf, pointPosition, splineOf } from './model';
+import { textContours } from './text';
 
 export type ProfileSegment =
   | { kind: 'line'; entityId: string; start: Vec2; end: Vec2 }
@@ -150,6 +151,26 @@ export function extractProfiles(sketch: SketchParams): ProfileResult {
   for (const e of sketch.entities) {
     // Les traits de construction et la géométrie reprise de la pièce ne forment pas le volume.
     if (e.type !== 'point' && isConstructionCurve(e)) continue;
+    if (e.type === 'text') {
+      // Texte : chaque contour de lettre est un contour fermé (droites et Béziers exactes).
+      for (const c of textContours(sketch, e)) {
+        const vertices: Vec2[] = [];
+        const loopEdges: LoopEdge[] = [];
+        for (const piece of c.pieces) {
+          if (piece.kind === 'line') {
+            vertices.push(piece.start);
+            loopEdges.push({ kind: 'line', entityId: piece.id, start: piece.start, end: piece.end });
+          } else {
+            const samples = sampleBeziers([piece.bezier], 4);
+            samples.pop();
+            vertices.push(...samples);
+            loopEdges.push({ kind: 'spline', entityId: piece.id, start: piece.bezier[0], end: piece.bezier[3], beziers: [piece.bezier] });
+          }
+        }
+        if (vertices.length >= 3) loops.push({ kind: 'polygon', vertices, edges: loopEdges });
+      }
+      continue;
+    }
     if (e.type === 'ellipse') {
       const g = ellipseOf(sketch, e);
       if (!g || g.a <= tol || g.b <= tol) continue;
@@ -393,7 +414,24 @@ function segmentCircleIntersect(a: Vec2, b: Vec2, center: Vec2, r: number): Vec2
   return null;
 }
 
+/** Boîte englobante d'un contour (agrandie de la tolérance). */
+function loopBox(l: RawLoop): { lo: Vec2; hi: Vec2 } {
+  if (l.kind === 'circle') return { lo: { x: l.center.x - l.radius - tol, y: l.center.y - l.radius - tol }, hi: { x: l.center.x + l.radius + tol, y: l.center.y + l.radius + tol } };
+  let lx = Infinity, ly = Infinity, hx = -Infinity, hy = -Infinity;
+  for (const v of l.vertices) {
+    lx = Math.min(lx, v.x);
+    ly = Math.min(ly, v.y);
+    hx = Math.max(hx, v.x);
+    hy = Math.max(hy, v.y);
+  }
+  return { lo: { x: lx - tol, y: ly - tol }, hi: { x: hx + tol, y: hy + tol } };
+}
+
 function loopsIntersect(l1: RawLoop, l2: RawLoop): Vec2 | null {
+  // Contours éloignés (cas courant, ex. lettres d'un texte) : rien à tester.
+  const b1 = loopBox(l1);
+  const b2 = loopBox(l2);
+  if (b1.hi.x < b2.lo.x || b2.hi.x < b1.lo.x || b1.hi.y < b2.lo.y || b2.hi.y < b1.lo.y) return null;
   if (l1.kind === 'circle' && l2.kind === 'circle') {
     const d = distance2(l1.center, l2.center);
     if (d <= l1.radius + l2.radius + tol && d >= Math.abs(l1.radius - l2.radius) - tol) {

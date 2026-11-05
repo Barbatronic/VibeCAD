@@ -6,6 +6,7 @@ import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
 import { partMaterialId } from '../../src/domain/part-material';
 import { setPartMaterial, makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
+import { addText } from '../../src/sketch/model';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
 describe('format natif .vibecad', () => {
@@ -109,6 +110,19 @@ describe('format natif .vibecad', () => {
     const text = serializeDocument(next);
     const parsed = parseNativeFile(text);
     expect(parsed.ok && parsed.doc.parts[0]!.features.slice(-3)).toEqual(next.parts[0]!.features.slice(-3));
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('conserve un texte d’esquisse (lettres, hauteur, inclinaison ; schéma respecté)', () => {
+    const { doc } = buildPlateDocument();
+    const part = doc.parts[0]!;
+    const base = makeSketchFeature(doc, part, { kind: 'plane', plane: 'XY', offset: 0 });
+    const params = addText(base.params, { x: 5, y: 8 }, 'Équipe n°3', 6, 15).sketch;
+    const next = { ...doc, parts: [{ ...part, features: [...part.features, { ...base, params }] }] };
+    const text = serializeDocument(next);
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.parts[0]!.features.at(-1)).toEqual(next.parts[0]!.features.at(-1));
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
     expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });

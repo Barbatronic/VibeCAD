@@ -10,10 +10,11 @@ hébergement public, clé USB pour un atelier…) doit respecter les obligations
 | replicad-opencascadejs (configuration de build OCCT → WASM) | 1.1.0 | LGPL 2.1 (`LGPL-2.1-only`) | idem |
 | three.js | 0.186.1 | MIT | `dist/assets/index-*.js` |
 | Preact | 10.29.8 | MIT | `dist/assets/index-*.js` |
+| Open Sans Bold (contours des lettres de l'outil Texte) | 1.10 (2011) | Apache 2.0 | `dist/assets/index-*.js` (données de `src/sketch/font-data.ts`) |
 
 Les textes de licence sont dans le dossier [`licenses/`](licenses/) :
 [`LGPL-2.1.txt`](licenses/LGPL-2.1.txt), [`three.js-MIT.txt`](licenses/three.js-MIT.txt),
-[`preact-MIT.txt`](licenses/preact-MIT.txt).
+[`preact-MIT.txt`](licenses/preact-MIT.txt), [`OpenSans-Apache-2.0.txt`](licenses/OpenSans-Apache-2.0.txt).
 
 ## Noyau géométrique Open CASCADE (LGPL 2.1)
 
@@ -57,3 +58,11 @@ bibliothèque LGPL chargée dynamiquement.
 
 Aucune police, icône ou ressource n'est chargée depuis Internet. L'interface utilise les polices
 du système ; les icônes sont dessinées dans le code (`src/ui/icons.tsx`, licence MIT de VibeCAD).
+
+L'outil Texte de l'esquisse embarque les contours des lettres d'**Open Sans Bold**
+(« Digitized data copyright (c) 2010-2011, Google Corporation. », licence Apache 2.0, texte
+dans [`licenses/OpenSans-Apache-2.0.txt`](licenses/OpenSans-Apache-2.0.txt)). Seuls les
+contours d'environ 140 caractères sont repris, sous forme de données (`src/sketch/font-data.ts`,
+produit par `scripts/generate-font.mjs`), pas le fichier de police. Modification signalée
+conformément à la licence : la cédille de « ç » et « Ç » est abaissée d'un petit écart pour
+ne pas chevaucher la lettre (un profil d'esquisse refuse les contours qui se chevauchent).
