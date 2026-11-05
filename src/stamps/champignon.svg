@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Champignon</title>
+  <path d="M50 8 C76 8 94 30 94 52 C94 58 88 60 82 58 C74 55 68 55 64 56 L68 88 C68 94 32 94 32 88 L36 56 C32 55 26 55 18 58 C12 60 6 58 6 52 C6 30 24 8 50 8 Z"/>
+  <circle cx="34" cy="32" r="7"/>
+  <circle cx="62" cy="24" r="6"/>
+  <circle cx="72" cy="42" r="5"/>
+</svg>

@@ -14,7 +14,8 @@ import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
 import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, pointPosition, splineOf, standalonePoints } from '../sketch/model';
 import { sampleBeziers, sampleEllipse } from '../sketch/curves';
-import { contourPolyline, textContours } from '../sketch/text';
+import { outlineContours } from '../sketch/stamp';
+import { contourPolyline } from '../sketch/text';
 import type { ProjectableCurve, SessionPreview } from '../sketch/session';
 import type { SnapResult } from '../sketch/snapping';
 import type { ViewportPalette } from './colors';
@@ -268,8 +269,9 @@ export class SketchView {
       let style: { color: Color; strong: boolean };
       // Polyligne fine → segments à tracer.
       const chain = (pts: Vec2[], closed: boolean): Segment[] => pts.slice(0, closed ? pts.length : -1).map((q, i) => [q, pts[(i + 1) % pts.length]!] as Segment);
-      if (e.type === 'text') {
-        segs = textContours(sketch, e).flatMap((c) => chain(contourPolyline(c, 6), true));
+      if (e.type === 'text' || e.type === 'stamp') {
+        // Les courbes d'un tampon sont longues : plus de points que pour une lettre.
+        segs = outlineContours(sketch, e).flatMap((c) => chain(contourPolyline(c, e.type === 'stamp' ? 16 : 6), true));
         style = entityColor([e.anchor], e.id);
       } else if (e.type === 'ellipse') {
         const g = ellipseOf(sketch, e);

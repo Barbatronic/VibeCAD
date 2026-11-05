@@ -319,6 +319,7 @@ const SKETCH_SECTORS: { name: string; title: string; fold: number; tools: { tool
       { tool: 'ellipse', icon: 'ellipse' },
       { tool: 'spline', icon: 'spline' },
       { tool: 'text', icon: 'text' },
+      { tool: 'stamp', icon: 'stamp', main: true },
     ],
   },
   {

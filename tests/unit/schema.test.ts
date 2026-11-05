@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
 import { addResource, newResourceId } from '../../src/domain/document';
 import { serializeDocument } from '../../src/io/native-format';
+import { addStamp } from '../../src/sketch/model';
 import { buildPlateDocument } from '../helpers/plate';
 
 const schema = JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8'));
@@ -25,6 +26,16 @@ describe('schéma JSON publié du format .vibecad', () => {
     });
     const file = JSON.parse(serializeDocument(doc));
     const ok = validate(file);
+    expect(validate.errors ?? []).toEqual([]);
+    expect(ok).toBe(true);
+  });
+
+  it('valide un tampon d’esquisse', () => {
+    const { doc } = buildPlateDocument();
+    const sketch = doc.parts[0]!.features.find((f) => f.type === 'sketch')!;
+    if (sketch.type !== 'sketch') return;
+    sketch.params = addStamp(sketch.params, { x: 90, y: 90 }, { name: 'Essai', outline: 'M 0 0 L 1 0 L 1 1 Z' }, 30, 45).sketch;
+    const ok = validate(JSON.parse(serializeDocument(doc)));
     expect(validate.errors ?? []).toEqual([]);
     expect(ok).toBe(true);
   });

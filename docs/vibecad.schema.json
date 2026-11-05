@@ -2490,6 +2490,51 @@
                     "description": "Trait de construction : ignoré pour le volume."
                   }
                 }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "anchor",
+                  "name",
+                  "outline",
+                  "size"
+                ],
+                "description": "Tampon : forme vectorielle posée en un seul élément. Son contour est enregistré dans l’élément.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "stamp"
+                  },
+                  "anchor": {
+                    "type": "string",
+                    "description": "Identifiant du point d’ancrage : le centre de la forme."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Nom lisible de la forme."
+                  },
+                  "outline": {
+                    "type": "string",
+                    "description": "Contour normalisé : « M x y L x y C x y x y x y Z », y vers le haut, centré sur (0, 0), plus grand côté égal à 1."
+                  },
+                  "size": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Plus grand côté (mm)."
+                  },
+                  "angle": {
+                    "type": "number",
+                    "description": "Rotation (degrés, sens trigonométrique)."
+                  },
+                  "construction": {
+                    "type": "boolean",
+                    "description": "Trait de construction : ignoré pour le volume."
+                  }
+                }
               }
             ]
           }

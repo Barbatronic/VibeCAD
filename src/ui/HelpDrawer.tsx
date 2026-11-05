@@ -151,6 +151,7 @@ export function HelpDrawer() {
         <h3>Dessiner une esquisse</h3>
         <ol>
           <li>« Esquisse », puis choisir un plan (XY = dessus) ou double-cliquer une face plane.</li>
+          <li>Pour une forme toute faite (fleur, cœur, étoile, chat…), prendre l’outil Tampon, choisir la forme dans le panneau de droite puis cliquer pour la poser. « Importer un SVG… » ajoute un dessin trouvé ailleurs.</li>
           <li>Dessiner avec Segment, Rectangle ou Cercle. Les points s’accrochent à l’origine, aux axes, aux points existants et à la grille : un repère et un mot (« Origine », « Axe X », « Extrémité »…) l’indiquent. Sur l’origine, un axe ou un point, le lien est gardé par une contrainte.</li>
           <li>Pendant le tracé, taper directement les dimensions au clavier (Tab pour passer au champ suivant, Entrée pour valider). La virgule est acceptée : 12,5.</li>
           <li>Ajouter des cotes avec l’outil Cote : un segment (longueur), un cercle (diamètre), deux points (distance horizontale, verticale ou alignée).</li>

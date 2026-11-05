@@ -4,20 +4,24 @@ import { originPlaneFrame } from '../../src/math/frame';
 import { emptySketch, findCircle, pointPosition } from '../../src/sketch/model';
 import { extractProfiles } from '../../src/sketch/profiles';
 import {
+  chooseStamp,
   confirmEditor,
   confirmInput,
   createSession,
   deleteSelection,
   editDimension,
+  editStamp,
   escape,
   pointerDown,
   pointerMove,
   pointerUp,
   redo,
+  selectedStamp,
   setEditorChoice,
   setEditorText,
   setInputValue,
   setPixelSize,
+  setStampOptions,
   setTool,
   undo,
   type SketchSession,
@@ -257,5 +261,59 @@ describe('accrochage aux axes de l’esquisse', () => {
   it('ne s’accroche à rien avec Alt', () => {
     const s = click(setTool(newSession(), 'line'), 20, 0.2, { alt: true });
     expect(s.start).toMatchObject({ kind: 'free' });
+  });
+});
+
+describe('outil Tampon', () => {
+  const fleur = { name: 'Essai', outline: 'M -0.5 -0.5 L 0.5 -0.5 L 0.5 0.5 L -0.5 0.5 Z' };
+  const stampTool = (s: SketchSession) => setStampOptions(setTool(s, 'stamp'), { shape: fleur });
+  const stamps = (s: SketchSession) => s.sketch.entities.filter((e) => e.type === 'stamp');
+
+  it('demande une forme avant de poser', () => {
+    const s = click(setTool(newSession(), 'stamp'), 40, 40);
+    expect(s.message?.kind).toBe('error');
+    expect(stamps(s)).toHaveLength(0);
+  });
+
+  it('pose un tampon par son centre et garde l’outil pour en poser d’autres', () => {
+    let s = click(stampTool(newSession()), 40, 40);
+    s = click(s, -40, 40);
+    expect(s.tool).toBe('stamp');
+    expect(stamps(s)).toHaveLength(2);
+    const profile = extractProfiles(s.sketch);
+    expect(profile.ok && profile.regions).toHaveLength(2);
+    expect(profile.ok && profile.regions[0]!.area).toBeCloseTo(900, 6);
+  });
+
+  it('s’accroche à l’origine et aux axes par son centre', () => {
+    let s = click(stampTool(newSession()), 0.1, 0.1);
+    expect(s.sketch.constraints.filter((c) => c.type === 'coincident')).toHaveLength(1);
+    s = click(s, 60, 0.2);
+    expect(s.sketch.constraints.filter((c) => c.type === 'pointOn' && c.curve === AXIS_X_ID)).toHaveLength(1);
+  });
+
+  it('un tampon sélectionné change de forme, de taille et de rotation, et s’annule', () => {
+    let s = click(stampTool(newSession()), 40, 40);
+    s = escape(s);
+    s = click(setTool(s, 'select'), 40, 40);
+    s = pointerUp(s);
+    const stamp = selectedStamp(s);
+    expect(stamp?.name).toBe('Essai');
+    s = chooseStamp(s, { name: 'Autre', outline: 'M -0.5 -0.5 L 0.5 -0.5 L 0 0.5 Z' });
+    s = editStamp(s, stamp!.id, { size: 50, angle: 30 });
+    expect(selectedStamp(s)).toMatchObject({ name: 'Autre', size: 50, angle: 30 });
+    s = undo(undo(s));
+    expect(stamps(s)[0]).toMatchObject({ name: 'Essai', size: 30 });
+  });
+
+  it('un tampon glissé suit la souris, et se supprime avec son point', () => {
+    let s = click(stampTool(newSession()), 40, 40);
+    s = click(setTool(s, 'select'), 40, 40);
+    s = pointerMove(s, { x: 70, y: 55 });
+    s = pointerUp(s);
+    const stamp = stamps(s)[0]!;
+    expect(stamp.type === 'stamp' && pointPosition(s.sketch, stamp.anchor)).toMatchObject({ x: 70, y: 55 });
+    s = deleteSelection(s);
+    expect(s.sketch.entities).toHaveLength(0);
   });
 });

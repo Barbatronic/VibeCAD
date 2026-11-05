@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Chat</title>
+  <path d="M14 10 L34 28 C44 24 56 24 66 28 L86 10 L88 50 C94 72 74 90 50 90 C26 90 6 72 12 50 Z"/>
+  <ellipse cx="34" cy="54" rx="6" ry="8"/>
+  <ellipse cx="66" cy="54" rx="6" ry="8"/>
+  <path d="M44 68 L56 68 L50 75 Z"/>
+</svg>

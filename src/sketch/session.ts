@@ -5,7 +5,7 @@
  * pas être satisfaites, l'action est refusée avec un message et l'esquisse reste inchangée.
  */
 import { sameEdgeRef } from '../domain/document';
-import type { AssemblyContext, EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams } from '../domain/model';
+import type { AssemblyContext, EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams, SketchStamp } from '../domain/model';
 import { isSketchAxis, ORIGIN_POINT_ID, VIRTUAL_SKETCH_IDS } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { expressionNames, formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
@@ -16,7 +16,8 @@ import { addOffsetLoop, loopOfCurve, offsetSegments, signedDistanceToLoop } from
 import type { ProfileLoop } from './profiles';
 import { ellipseGeometry, ellipsePoint, sampleBeziers, sampleEllipse, splineBeziers } from './curves';
 import { hitTest, type SketchTarget } from './hit-test';
-import { contourPolyline, layoutText, textFrame, unsupportedChars } from './text';
+import { layoutStamp, outlineFrame, type StampShape } from './stamp';
+import { contourPolyline, layoutText, unsupportedChars } from './text';
 import {
   addArc,
   addCircle,
@@ -26,7 +27,9 @@ import {
   addRectangle,
   addEllipse,
   addSpline,
+  addStamp,
   addText,
+  updateStamp,
   updateText,
   arcGeometry,
   arcPointAt,
@@ -65,7 +68,7 @@ export type ConstraintTool =
   | 'midpoint'
   | 'concentric';
 
-export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'text' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
+export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'text' | 'stamp' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
 
 export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'coincident',
@@ -95,6 +98,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   ellipse: 'Ellipse',
   spline: 'Spline',
   text: 'Texte',
+  stamp: 'Tampon',
   trim: 'Couper',
   offset: 'Décalage',
   project: 'Projeter',
@@ -131,6 +135,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   spline:
     'Spline : cliquez les points par lesquels la courbe doit passer. Cliquez le premier point pour la fermer ; Entrée, Échap ou un clic sur le dernier point la terminent ouverte.',
   text: 'Texte : écrivez le texte et choisissez sa hauteur dans le panneau de droite, puis cliquez où le poser (coin bas gauche de la première lettre). Les lettres forment des contours : extrudez-les en relief ou creusez-les avec une poche.',
+  stamp: 'Tampon : choisissez une forme dans le panneau de droite, puis cliquez où la poser. Réglez sa taille et sa rotation avant ou après.',
   trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
   offset:
     'Décalage : cliquez un trait d’un contour fermé, puis éloignez la souris vers l’extérieur ou l’intérieur et cliquez, ou tapez la distance puis Entrée. Le contour recopié reste à cette distance.',
@@ -192,6 +197,15 @@ export interface TextOptions {
 
 export const DEFAULT_TEXT_OPTIONS: TextOptions = { text: 'Texte', height: 10 };
 
+/** Réglages du prochain tampon posé. */
+export interface StampOptions {
+  shape: StampShape | null;
+  size: number;
+  angle: number;
+}
+
+export const DEFAULT_STAMP_OPTIONS: StampOptions = { shape: null, size: 30, angle: 0 };
+
 export interface DrawInput {
   labels: string[];
   values: string[];
@@ -235,6 +249,8 @@ export interface SketchSession {
   spline: SnapResult[] | null;
   /** Outil Texte : texte et hauteur des majuscules (mm) du prochain texte posé. */
   textOptions: TextOptions;
+  /** Outil Tampon : forme, taille et rotation du prochain tampon posé. */
+  stampOptions: StampOptions;
   chainFirstPointId: string | null;
   chainLastPointId: string | null;
   /** Éléments choisis l'un après l'autre par l'outil Cote ou une contrainte. */
@@ -308,6 +324,7 @@ export function createSession(args: {
     ellipse: null,
     spline: null,
     textOptions: DEFAULT_TEXT_OPTIONS,
+    stampOptions: DEFAULT_STAMP_OPTIONS,
     labelDrag: null,
     editor: null,
     message: res.converged ? null : { kind: 'error', text: 'Certaines contraintes de cette esquisse sont incompatibles : supprimez-en une.' },
@@ -452,7 +469,7 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
     const projectHover = nearestProjectable(s, p);
     return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
   }
-  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline' || s.tool === 'text';
+  const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline' || s.tool === 'text' || s.tool === 'stamp';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
   if (s.tool === 'arc' && s.start && s.arc) {
     // Rotation cumulée : le sens de l'arc suit le mouvement de la souris.
@@ -501,6 +518,8 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
       return splineClick(s, computeSnap(s, p, !!opts.alt));
     case 'text':
       return textClick(s, computeSnap(s, p, !!opts.alt));
+    case 'stamp':
+      return stampClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
       return projectClick(s, p);
     case 'trim':
@@ -575,6 +594,42 @@ export function editText(s: SketchSession, id: string, patch: { text?: string; h
   if (text.trim() === '' || !(height > 0)) return { ...s, message: failure(textProblem(text, height)!) };
   const next = updateText(s.sketch, id, patch);
   return commit(s, next, { message: textProblem(text, height) ? failure(textProblem(text, height)!) : null }).session;
+}
+
+/** Pose un tampon et garde l'outil : un tampon, ça se répète. */
+function stampClick(s: SketchSession, snap: SnapResult): SketchSession {
+  const { shape, size, angle } = s.stampOptions;
+  if (!shape) return { ...s, message: failure('Choisissez d’abord une forme dans le panneau de droite.') };
+  const r = addStamp(s.sketch, snap.point, shape, size, angle);
+  const sk = s.construction ? setConstruction(r.sketch, [r.stampId], true) : r.sketch;
+  return commit(s, attachToSnap(sk, snap, r.anchor), {
+    message: success(`Tampon « ${shape.name} » posé. Cliquez encore pour en poser un autre, ou Échap pour terminer.`),
+  }).session;
+}
+
+/** Réglages du prochain tampon posé (outil Tampon). */
+export function setStampOptions(s: SketchSession, patch: Partial<StampOptions>): SketchSession {
+  return { ...s, stampOptions: { ...s.stampOptions, ...patch } };
+}
+
+/** Tampon seul sélectionné, ou son centre (hors outil Tampon) : ses réglages sont modifiables. */
+export function selectedStamp(s: SketchSession): SketchStamp | null {
+  if (s.tool === 'stamp' || s.selection.length !== 1) return null;
+  const id = s.selection[0];
+  return s.sketch.entities.find((e): e is SketchStamp => e.type === 'stamp' && (e.id === id || e.anchor === id)) ?? null;
+}
+
+/** Choisit une forme : pour le tampon sélectionné, sinon pour le prochain posé. */
+export function chooseStamp(s: SketchSession, shape: StampShape, note = ''): SketchSession {
+  const target = selectedStamp(s);
+  if (target) return editStamp(s, target.id, { name: shape.name, outline: shape.outline });
+  const next = setStampOptions(s.tool === 'stamp' ? s : setTool(s, 'stamp'), { shape: { name: shape.name, outline: shape.outline } });
+  return { ...next, message: info(`Forme « ${shape.name} » choisie : cliquez dans l’esquisse pour la poser. ${note}`.trim()) };
+}
+
+/** Change la forme, la taille ou la rotation (degrés) d'un tampon de l'esquisse. */
+export function editStamp(s: SketchSession, id: string, patch: { name?: string; outline?: string; size?: number; angle?: number }): SketchSession {
+  return commit(s, updateStamp(s.sketch, id, patch), { message: null }).session;
 }
 
 // ---------------------------------------------------------------------------
@@ -676,7 +731,7 @@ function offsetClick(s: SketchSession, p: Vec2): SketchSession {
   if (s.picks.length === 0) {
     const target = hitTest(s.sketch, p, tolerance(s), true, true);
     if (!target || target.kind === 'point') return { ...s, message: info('Cliquez un trait d’un contour fermé (segment, cercle ou arc).') };
-    if (target.kind === 'text') return { ...s, message: info('Le décalage ne s’applique pas à un texte : changez plutôt sa hauteur (sélectionnez-le).') };
+    if (target.kind === 'text') return { ...s, message: info('Le décalage ne s’applique pas à un texte ou à un tampon : changez plutôt sa taille (sélectionnez-le).') };
     const found = loopOfCurve(s.sketch, target.id);
     if ('error' in found) return { ...s, message: failure(found.error) };
     return {
@@ -705,7 +760,7 @@ function createOffset(s: SketchSession, loop: ProfileLoop, distance: number): Sk
 function trimClick(s: SketchSession, p: Vec2): SketchSession {
   const target = hitTest(s.sketch, p, tolerance(s), true, true);
   if (!target || target.kind === 'point') return { ...s, message: info('Cliquez sur un trait (segment, cercle ou arc) pour en retirer un morceau.') };
-  if (target.kind === 'text') return { ...s, message: info('Un texte ne se coupe pas : sélectionnez-le pour changer ses lettres, ou supprimez-le.') };
+  if (target.kind === 'text') return { ...s, message: info('Un texte ou un tampon ne se coupe pas : sélectionnez-le pour le modifier, ou supprimez-le.') };
   const entity = s.sketch.entities.find((e) => e.id === target.id);
   if (entity && entity.type !== 'point' && entity.reference) return { ...s, message: info('Une arête reprise de la pièce ne se coupe pas : elle suit la pièce.') };
   const out = trimAt(s.sketch, target.id, p);
@@ -1403,7 +1458,7 @@ function targetOf(sketch: SketchParams, id: string): PickTarget | null {
   if (id === ORIGIN_POINT_ID) return { kind: 'point', id };
   if (isSketchAxis(id)) return { kind: 'line', id };
   const e = sketch.entities.find((x) => x.id === id);
-  if (e?.type === 'text') return { kind: 'point', id: e.anchor };
+  if (e?.type === 'text' || e?.type === 'stamp') return { kind: 'point', id: e.anchor };
   return e ? { kind: e.type, id } : null;
 }
 
@@ -2078,8 +2133,8 @@ export function entitiesInBox(sketch: SketchParams, lo: Vec2, hi: Vec2): string[
     } else if (e.type === 'ellipse') {
       const g = ellipseOf(sketch, e);
       if (g && sampleEllipse(g, 32).every(inside)) out.push(e.id);
-    } else if (e.type === 'text') {
-      const frame = textFrame(sketch, e);
+    } else if (e.type === 'text' || e.type === 'stamp') {
+      const frame = outlineFrame(sketch, e);
       if (frame && frame.every(inside)) out.push(e.id);
     } else {
       const bz = splineOf(sketch, e);
@@ -2292,6 +2347,16 @@ export function sessionPreview(s: SketchSession): SessionPreview {
     if (!at || s.textOptions.text.trim() === '' || !(s.textOptions.height > 0)) return out;
     for (const c of layoutText(s.textOptions.text, at, s.textOptions.height)) {
       const pts = contourPolyline(c, 4);
+      pts.forEach((q, k) => out.lines.push([q, pts[(k + 1) % pts.length]!]));
+    }
+    return out;
+  }
+  if (s.tool === 'stamp') {
+    const at = s.snap?.point ?? s.cursor;
+    const { shape, size, angle } = s.stampOptions;
+    if (!at || !shape) return out;
+    for (const c of layoutStamp(shape.outline, at, size, angle)) {
+      const pts = contourPolyline(c, 12);
       pts.forEach((q, k) => out.lines.push([q, pts[(k + 1) % pts.length]!]));
     }
     return out;

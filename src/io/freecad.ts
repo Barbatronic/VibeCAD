@@ -22,7 +22,7 @@ import { holeDiameter } from '../features/hole/definition';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
 import { ellipseOf, findLine, pointPosition, standalonePoints } from '../sketch/model';
-import { textContours } from '../sketch/text';
+import { outlineContours } from '../sketch/stamp';
 import { createZip } from './zip';
 
 /** Ce que le worker fournit pour une pièce (formes et repères calculés). */
@@ -285,11 +285,11 @@ function sketchCode(
       const i = add(`Part.Ellipse(${vec(p1)}, ${vec(p2)}, ${vec(el.center)})`, construction);
       geoOf.set(e.id, i);
       at(e.center, i, 3);
-    } else if (e.type === 'text') {
-      // Texte : ses lettres en segments et courbes (Béziers converties en B-splines), puis son point d'ancrage.
+    } else if (e.type === 'text' || e.type === 'stamp') {
+      // Texte ou tampon : ses contours en segments et courbes (Béziers converties en B-splines), puis son point d'ancrage.
       const anchor = pointPosition(s, e.anchor);
       if (!anchor) continue;
-      for (const c of textContours(s, e)) {
+      for (const c of outlineContours(s, e)) {
         for (const piece of c.pieces) {
           if (piece.kind === 'line') add(`Part.LineSegment(${vec(piece.start)}, ${vec(piece.end)})`, construction);
           else {

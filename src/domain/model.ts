@@ -527,8 +527,23 @@ export interface SketchText extends CurveFlags {
   angle?: number;
 }
 
-export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText;
-export type SketchCurve = SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText;
+/**
+ * Tampon : forme vectorielle posée en un seul élément. `anchor` est le centre de la forme, `size`
+ * son plus grand côté (mm) et `angle` sa rotation (degrés, sens trigonométrique). `outline` porte
+ * le contour normalisé lui-même (voir sketch/stamp.ts) : le projet ne dépend pas de la galerie.
+ */
+export interface SketchStamp extends CurveFlags {
+  id: string;
+  type: 'stamp';
+  anchor: string;
+  name: string;
+  outline: string;
+  size: number;
+  angle?: number;
+}
+
+export type SketchEntity = SketchPoint | SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText | SketchStamp;
+export type SketchCurve = SketchLine | SketchCircle | SketchArc | SketchEllipse | SketchSpline | SketchText | SketchStamp;
 
 interface ConstraintBase<T extends string> {
   id: string;

@@ -12,7 +12,7 @@ import { TOLERANCES } from '../domain/tolerances';
 import { cross2, distance2, distanceToSegment2, sub2, type Vec2 } from '../math/vec';
 import { bezierPoint, ellipsePoint, reverseBeziers, sampleBeziers, sampleEllipse, type Bezier } from './curves';
 import { ellipseOf, pointPosition, splineOf } from './model';
-import { textContours } from './text';
+import { outlineContours } from './stamp';
 
 export type ProfileSegment =
   | { kind: 'line'; entityId: string; start: Vec2; end: Vec2 }
@@ -151,9 +151,9 @@ export function extractProfiles(sketch: SketchParams): ProfileResult {
   for (const e of sketch.entities) {
     // Les traits de construction et la géométrie reprise de la pièce ne forment pas le volume.
     if (e.type !== 'point' && isConstructionCurve(e)) continue;
-    if (e.type === 'text') {
-      // Texte : chaque contour de lettre est un contour fermé (droites et Béziers exactes).
-      for (const c of textContours(sketch, e)) {
+    if (e.type === 'text' || e.type === 'stamp') {
+      // Texte ou tampon : chaque contour est fermé (droites et Béziers exactes).
+      for (const c of outlineContours(sketch, e)) {
         const vertices: Vec2[] = [];
         const loopEdges: LoopEdge[] = [];
         for (const piece of c.pieces) {

@@ -58,7 +58,8 @@ import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
 import { pickFile, readFileBytes, safeFileName, saveFile } from '../persistence/files';
-import { createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
+import { importSvgShape } from '../io/svg-import';
+import { chooseStamp, createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
 import type { MeshData } from '../geometry/kernel';
@@ -1130,6 +1131,16 @@ export class AppController {
     if (mode.kind !== 'sketch') return;
     const next = fn(mode.session);
     if (next !== mode.session) this.set({ mode: { kind: 'sketch', session: next } });
+  }
+
+  /** Tampon : lit un fichier SVG choisi par l'utilisateur et en fait la forme courante. */
+  async importStamp(): Promise<void> {
+    const file = await pickFile('.svg,image/svg+xml');
+    if (!file) return;
+    if (file.size > 2_000_000) return this.toast('error', 'Ce fichier SVG est trop lourd (2 Mo au plus) : simplifiez le dessin.');
+    const result = importSvgShape(await file.text(), file.name.replace(/\.svg$/i, ''));
+    if (!result.ok) return this.toast('error', result.error);
+    this.updateSession((s) => chooseStamp(s, result.shape, result.warnings.join(' ')));
   }
 
   finishSketch(): void {

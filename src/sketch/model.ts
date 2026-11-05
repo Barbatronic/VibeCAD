@@ -22,6 +22,7 @@ import {
   type SketchParams,
   type SketchPoint,
   type SketchSupport,
+  type SketchStamp,
   type SketchText,
 } from '../domain/model';
 import type { Vec2 } from '../math/vec';
@@ -230,6 +231,27 @@ export function updateText(sketch: SketchParams, id: string, patch: Partial<Pick
   };
 }
 
+/** Tampon centré sur `anchor`, de plus grand côté `size` (mm). */
+export function addStamp(sketch: SketchParams, anchor: Vec2, shape: { name: string; outline: string }, size: number, angle = 0): { sketch: SketchParams; stampId: string; anchor: string } {
+  const r = addPoint(sketch, anchor);
+  const stampId = nextLocalId('stp', entityIds(r.sketch));
+  const entity: SketchStamp = { id: stampId, type: 'stamp', anchor: r.id, name: shape.name, outline: shape.outline, size, ...(angle ? { angle } : {}) };
+  return { sketch: { ...r.sketch, entities: [...r.sketch.entities, entity] }, stampId, anchor: r.id };
+}
+
+/** Modifie la forme, la taille ou la rotation d'un tampon. */
+export function updateStamp(sketch: SketchParams, id: string, patch: Partial<Pick<SketchStamp, 'name' | 'outline' | 'size' | 'angle'>>): SketchParams {
+  return {
+    ...sketch,
+    entities: sketch.entities.map((e) => {
+      if (e.id !== id || e.type !== 'stamp') return e;
+      const next: SketchStamp = { ...e, ...patch };
+      if (!next.angle) delete next.angle;
+      return next;
+    }),
+  };
+}
+
 /** Géométrie d'une ellipse de l'esquisse. */
 export function ellipseOf(sketch: SketchParams, e: SketchEllipse): EllipseGeometry | undefined {
   const c = pointPosition(sketch, e.center);
@@ -307,7 +329,7 @@ export function ownedPoints(entity: SketchEntity): string[] {
   if (entity.type === 'arc') return [entity.center, entity.start, entity.end];
   if (entity.type === 'ellipse') return [entity.center, entity.major];
   if (entity.type === 'spline') return [...entity.points];
-  if (entity.type === 'text') return [entity.anchor];
+  if (entity.type === 'text' || entity.type === 'stamp') return [entity.anchor];
   return [];
 }
 

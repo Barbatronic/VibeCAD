@@ -37,6 +37,7 @@ import type {
 import { PARAMETER_NAME } from '../domain/units';
 import { designation, FASTENER_TYPES, fastenerType, lengthsOf, METRIC_SIZES, sizesOf } from '../domain/fasteners';
 import { ASSEMBLY_STUDY, constraintReferences, VIRTUAL_SKETCH_IDS } from '../domain/model';
+import { isValidOutline } from '../sketch/stamp';
 import { featureDependencies } from '../features/registry';
 import { closedDocument, subassemblyContains } from '../domain/subassemblies';
 import { APP_NAME, APP_VERSION } from '../meta';
@@ -1055,7 +1056,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
     const ep = `${path}.entities[${i}]`;
     const o = obj(v, e, ep);
     if (!o) return;
-    const type = oneOf(v, o, 'type', ep, ['point', 'line', 'circle', 'arc', 'ellipse', 'spline', 'text'] as const);
+    const type = oneOf(v, o, 'type', ep, ['point', 'line', 'circle', 'arc', 'ellipse', 'spline', 'text', 'stamp'] as const);
     const id = str(v, o, 'id', ep);
     if (type === 'point') {
       entities.push({ id, type, x: num(v, o, 'x', ep), y: num(v, o, 'y', ep) });
@@ -1084,6 +1085,11 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       const text = typeof o.text === 'string' ? o.text : (v.error(`${ep}.text`, 'texte attendu'), '');
       const angle = o.angle === undefined ? 0 : num(v, o, 'angle', ep);
       entities.push({ id, type, anchor: str(v, o, 'anchor', ep), text, height: num(v, o, 'height', ep, { min: 0 }), ...(angle ? { angle } : {}), ...flags });
+    } else if (type === 'stamp') {
+      const outline = str(v, o, 'outline', ep);
+      if (!isValidOutline(outline)) v.error(`${ep}.outline`, 'contour de tampon illisible');
+      const angle = o.angle === undefined ? 0 : num(v, o, 'angle', ep);
+      entities.push({ id, type, anchor: str(v, o, 'anchor', ep), name: str(v, o, 'name', ep), outline, size: num(v, o, 'size', ep, { min: 0 }), ...(angle ? { angle } : {}), ...flags });
     }
     else entities.push({ id, type, center: str(v, o, 'center', ep), radius: num(v, o, 'radius', ep, { min: 0 }), ...flags });
   });
@@ -1241,6 +1247,7 @@ function checkSketch(v: Validator, sketch: SketchParams, name: string, path: str
     if (e.type === 'ellipse' && (!points.has(e.center) || !points.has(e.major))) v.error(`${path}.params`, `l’ellipse « ${e.id} » vise un point absent`);
     if (e.type === 'spline' && e.points.some((id) => !points.has(id))) v.error(`${path}.params`, `la spline « ${e.id} » vise un point absent`);
     if (e.type === 'text' && !points.has(e.anchor)) v.error(`${path}.params`, `le texte « ${e.id} » vise un point d’ancrage absent`);
+    if (e.type === 'stamp' && !points.has(e.anchor)) v.error(`${path}.params`, `le tampon « ${e.id} » vise un point d’ancrage absent`);
   }
   const constraintIds = new Set<string>();
   for (const c of sketch.constraints) {

@@ -12,7 +12,7 @@ import { useController } from './context';
 
 const fmt = (v: number) => formatLength(v, 2, false);
 
-function useField(value: string, key: string): [string, (t: string) => void, string | null, (e: string | null) => void] {
+export function useField(value: string, key: string): [string, (t: string) => void, string | null, (e: string | null) => void] {
   const [text, setText] = useState(value);
   const [error, setError] = useState<string | null>(null);
   // Autre texte sélectionné, ou valeur changée ailleurs (annuler) : on reprend la valeur réelle.

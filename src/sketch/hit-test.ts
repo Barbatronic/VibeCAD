@@ -3,7 +3,7 @@ import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchParams } from '../dom
 import { distance2, distanceToSegment2, type Vec2 } from '../math/vec';
 import { sampleBeziers, sampleEllipse } from './curves';
 import { arcContainsAngle, arcGeometry, ellipseOf, pointPosition, splineOf } from './model';
-import { textFrame } from './text';
+import { outlineFrame } from './stamp';
 
 /** Vrai si `p` est dans le polygone convexe `pts` (sens trigonométrique). */
 function insideConvex(p: Vec2, pts: readonly Vec2[]): boolean {
@@ -73,9 +73,9 @@ export function hitTest(sketch: SketchParams, p: Vec2, tolerance: number, includ
       if (bz.length === 0) continue;
       const d = polylineDistance(p, sampleBeziers(bz, 24), false);
       if (d <= tolerance && (!best || d < best.d)) best = { target: { kind: 'spline', id: e.id }, d };
-    } else if (e.type === 'text') {
-      // Texte : tout son cadre est une cible (les lettres seules sont trop fines à viser).
-      const frame = textFrame(sketch, e);
+    } else if (e.type === 'text' || e.type === 'stamp') {
+      // Texte ou tampon : tout son cadre est une cible (les contours seuls sont trop fins à viser).
+      const frame = outlineFrame(sketch, e);
       if (!frame) continue;
       const d = insideConvex(p, frame) ? tolerance * 0.9 : polylineDistance(p, frame, true);
       if (d <= tolerance && (!best || d < best.d)) best = { target: { kind: 'text', id: e.id }, d };
