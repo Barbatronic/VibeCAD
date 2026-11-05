@@ -105,4 +105,7 @@ autre changement. Le test `tests/unit/svg-import.test.ts` vérifie chaque fichie
 - Une forme en plusieurs morceaux séparés donne plusieurs pièces une fois extrudée.
 
 La lecture est dans `src/io/svg-import.ts`, sans DOM : seul le contour normalisé sort du fichier. Le
-même module sert au bouton « Importer un SVG… » pendant l'utilisation.
+même module sert au bouton « Importer un dessin… » pendant l'utilisation. Une photo y passe aussi :
+`src/io/trace-bitmap.ts` la transforme d'abord en texte SVG, puis la lecture et les contrôles
+habituels s'appliquent. Un SVG à retravailler suit ce chemin après avoir été dessiné en image par
+le navigateur (balise image : ni script, ni ressource externe).

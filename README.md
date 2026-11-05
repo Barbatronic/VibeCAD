@@ -51,8 +51,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   glisser ses points ; extrudables, et une spline peut servir de chemin de balayage.
   Outil **Tampon** : une forme de la galerie (fleur, cœur, étoile, chat…) posée en un clic par son
   centre, avec sa taille et sa rotation, en un seul élément toujours fermé, prêt pour l'extrusion
-  ou la poche. **Importer un SVG…** en fait autant d'un dessin trouvé ailleurs ; le contour est
-  enregistré dans le projet. Voir [Ajouter un tampon](docs/ajouter-une-fonction.md#ajouter-un-tampon).
+  ou la poche. **Importer un dessin…** en fait autant d'un fichier SVG, d'une photo ou d'un scan
+  (PNG, JPEG, WebP) : la fenêtre règle le noir et blanc, retire les taches, épaissit et lisse les
+  traits, gomme ce qui gêne, et donne une forme pleine ou les traits seuls. Un SVG garde son tracé
+  exact, ou se retravaille de la même façon, ce qui accepte aussi les formes qui se chevauchent.
+  Tout se calcule dans le navigateur, et le contour est enregistré dans le projet. Voir [Ajouter un tampon](docs/ajouter-une-fonction.md#ajouter-un-tampon).
   Outil **Texte** : une ligne de lettres (police Open Sans Bold, accents français compris) posée
   d'un clic par son coin bas gauche ; contenu, hauteur des majuscules et inclinaison se changent
   dans le panneau quand le texte est sélectionné. Les lettres forment de vrais contours (trous
@@ -341,9 +344,9 @@ Chantiers prévus : voir la [feuille de route](docs/feuille-de-route.md).
 
 - Congés et chanfreins : rayon / distance constants ; une arête est désignée par ses deux faces
   voisines, donc deux arêtes séparées entre les mêmes faces sont traitées ensemble.
-- Tampon : un SVG dont les formes se chevauchent ou se croisent est refusé (à fusionner d'abord,
-  Inkscape : Chemin > Union) ; les épaisseurs de trait d'un SVG ne sont pas reprises, seul le
-  tracé compte ; les formes importées se retrouvent dans leur projet, pas d'un projet à l'autre.
+- Tampon : le tracé exact d'un SVG exige des formes qui ne se chevauchent pas, sinon il faut le
+  retravailler (contour recalculé depuis une image de 900 pixels, donc moins précis) ; les formes
+  importées se retrouvent dans leur projet, pas d'un projet à l'autre.
 - Texte : une seule ligne et une seule police ; les caractères absents de la police (hors
   français et ASCII) sont remplacés par « ? ». Les outils Couper et Décalage ne s'appliquent pas
   à un texte.
