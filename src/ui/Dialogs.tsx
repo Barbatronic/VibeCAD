@@ -418,6 +418,28 @@ function ProblemDialog() {
   );
 }
 
+function SlicerHelpDialog() {
+  const c = useController();
+  const close = () => c.setDialog(null);
+  return (
+    <Modal title="Ouvrir le plateau directement dans le slicer" onClose={close} footer={<Button variant="primary" onClick={close}>Compris</Button>}>
+      <p>Le plateau vient d’être téléchargé en 3MF. Un réglage du navigateur, à faire une seule fois, et chaque envoi s’ouvrira tout seul dans votre slicer.</p>
+      <ul>
+        <li>
+          <strong>Chrome</strong> : ouvrez la liste des téléchargements, en haut à droite, puis le menu du fichier : <em>Toujours ouvrir les fichiers de ce type</em>.
+        </li>
+        <li>
+          <strong>Firefox</strong> : même chose, clic droit sur le fichier : <em>Toujours ouvrir les fichiers similaires</em>.
+        </li>
+        <li>
+          <strong>Opera</strong> : ce réglage n’existe pas à notre connaissance. Cliquez sur le fichier dans la liste des téléchargements pour l’ouvrir.
+        </li>
+      </ul>
+      <p>Si le mauvais logiciel s’ouvre, choisissez votre slicer comme application par défaut des fichiers 3MF dans votre système.</p>
+    </Modal>
+  );
+}
+
 function AboutDialog() {
   const c = useController();
   const open = useAppState((s) => s.dialog?.kind === 'about');
@@ -620,6 +642,8 @@ export function Dialogs() {
       return <PreferencesDialog />;
     case 'components':
       return <ComponentsDialog />;
+    case 'slicer-help':
+      return <SlicerHelpDialog />;
     case 'trace-stamp':
       return <TraceStampDialog />;
     default:

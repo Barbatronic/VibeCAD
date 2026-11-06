@@ -197,6 +197,7 @@ export class AppController {
     if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
+    if (await this.deps.projects?.getSetting<boolean>('slicerHelpSeen').catch(() => undefined)) this.set({ slicerHelpSeen: true });
     const libraries = await this.deps.projects?.getSetting<string[]>('libraries').catch(() => undefined);
     if (Array.isArray(libraries) && libraries.every((l) => typeof l === 'string')) this.set({ libraries });
   }
@@ -460,6 +461,8 @@ export class AppController {
     this.setDisplayStyle('shaded-edges');
     this.setEdgeWidth(1);
     this.setMascot({ hidden: true, collapsed: false, dismissed: null });
+    this.set({ slicerHelpSeen: false });
+    void this.deps.projects?.setSetting('slicerHelpSeen', false).catch(() => undefined);
   }
 
   /** Change le niveau de l'interface ; ce qui n'est plus montré est refermé. */
@@ -1959,7 +1962,9 @@ export class AppController {
   }
 
   /** Export 3MF d'un plateau d'impression, ou de tous (un fichier par plateau). */
-  private async exportPlates(which: number | 'all'): Promise<void> {
+  private sendingToSlicer = false;
+
+  private async exportPlates(which: number | 'all', forSlicer = false): Promise<boolean> {
     const s = this.state;
     const layout = this.printLayout();
     const plates = which === 'all' ? Array.from({ length: layout.plates }, (_v, i) => i) : [which];
@@ -1980,15 +1985,37 @@ export class AppController {
           download: true,
         });
         if (target) {
-          this.toast('success', `Fichier 3MF « ${target.name} » téléchargé : ${on.length} pièce(s)${layout.plates > 1 ? ` (plateau ${plate + 1} sur ${layout.plates})` : ''}, en millimètres.`, warnings.length ? { detail: warnings.join('\n') } : {});
+          const where = layout.plates > 1 ? ` (plateau ${plate + 1} sur ${layout.plates})` : '';
+          const options = { ...(warnings.length ? { detail: warnings.join('\n') } : {}), ...(forSlicer ? { actionLabel: 'Ouvrir automatiquement…', action: () => this.setDialog({ kind: 'slicer-help' }) } : {}) };
+          this.toast('success', forSlicer ? `Plateau envoyé : ${on.length} pièce(s)${where}.` : `Fichier 3MF « ${target.name} » téléchargé : ${on.length} pièce(s)${where}, en millimètres.`, options);
         }
       }
       this.set({ dialog: null });
+      return true;
     } catch (err) {
       const now = this.state.dialog;
       if (now?.kind === 'export') this.set({ dialog: { ...now, busy: false } });
       this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
+      return false;
     }
+  }
+
+  /**
+   * Impression 3D : télécharge le plateau affiché en un clic. Une page web ne peut pas lancer un
+   * logiciel avec un fichier : c'est le navigateur, une fois réglé, qui ouvre le téléchargement.
+   * Ce réglage est expliqué au premier envoi.
+   */
+  async sendToSlicer(): Promise<void> {
+    const avail = exportAvailability(this.state);
+    if (!avail.ok) return this.explain(avail.reason);
+    if (this.printLayout().placements.length === 0) return this.explain('Le plateau est vide : indiquez au moins un exemplaire à imprimer.');
+    if (this.sendingToSlicer) return;
+    this.sendingToSlicer = true;
+    const sent = await this.exportPlates(this.printPlate(), true);
+    this.sendingToSlicer = false;
+    if (!sent || this.state.slicerHelpSeen) return;
+    this.set({ slicerHelpSeen: true, dialog: { kind: 'slicer-help' } });
+    void this.deps.projects?.setSetting('slicerHelpSeen', true).catch(() => undefined);
   }
 
   /**
@@ -2040,7 +2067,10 @@ export class AppController {
     this.set({ dialog: { ...d, busy: true } });
     const s = this.state;
     const parts = s.doc.parts.filter((p) => d.partIds.includes(p.id));
-    if (d.plate !== undefined && d.format === '3mf') return this.exportPlates(d.plate);
+    if (d.plate !== undefined && d.format === '3mf') {
+      await this.exportPlates(d.plate);
+      return;
+    }
     const baseName = d.assembly ? `${s.doc.name} - assemblage` : parts.length === 1 ? parts[0]!.name : s.doc.name;
     // Assemblage : chaque pièce insérée est exportée à sa place.
     const placement = d.assembly ? this.assemblyPlacement() : null;

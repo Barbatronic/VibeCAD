@@ -147,3 +147,44 @@ test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomencl
   expect(rows).toHaveLength(2);
   expect(rows[1]).toMatch(/^1;Pièce 1;1;60 × 30 × 5;/);
 });
+
+test('envoyer au slicer : un clic télécharge le plateau, le réglage du navigateur est expliqué une fois', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.click('#tab-fabrication');
+  await expect(page.getByRole('list', { name: 'Pièces à imprimer' })).toBeVisible();
+
+  const first = page.waitForEvent('download');
+  await page.click('#fab-send-slicer');
+  const file = await first;
+  expect(file.suggestedFilename()).toMatch(/plateau\.3mf$/);
+  await file.saveAs('tests/output/envoi-slicer.3mf');
+  const zip = await readZip(new Uint8Array(readFileSync('tests/output/envoi-slicer.3mf')));
+  expect(zip.has('3D/3dmodel.model')).toBe(true);
+
+  const help = page.getByRole('dialog', { name: 'Ouvrir le plateau directement dans le slicer' });
+  await expect(help).toBeVisible();
+  await expect(help).toContainText('Toujours ouvrir les fichiers de ce type');
+  await page.screenshot({ path: 'tests/output/e2e-envoi-slicer.png' });
+  await help.getByRole('button', { name: 'Compris' }).click();
+
+  // Les envois suivants partent sans fenêtre ; l'explication reste à portée de main.
+  const second = page.waitForEvent('download');
+  await page.click('#fab-send-slicer');
+  await second;
+  await expect(help).toBeHidden();
+  await page.getByRole('button', { name: 'Ouvrir automatiquement…' }).first().click();
+  await expect(help).toBeVisible();
+  await help.getByRole('button', { name: 'Compris' }).click();
+
+  // Même envoi depuis le bas du panneau du plateau.
+  const third = page.waitForEvent('download');
+  await page.locator('.right-panel').getByRole('button', { name: 'Envoyer au slicer' }).click();
+  expect((await third).suggestedFilename()).toMatch(/plateau\.3mf$/);
+  await page.screenshot({ path: 'tests/output/e2e-envoi-panneau.png' });
+
+  // Le choix est retenu sur l'appareil.
+  await page.reload();
+  await page.waitForFunction(() => (window as any).vibecad?.controller);
+  await expect.poll(() => appState(page, (s) => s.slicerHelpSeen)).toBe(true);
+});

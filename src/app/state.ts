@@ -142,6 +142,8 @@ export type Dialog =
   | { kind: 'recovery'; autosave: Omit<AutosaveRecord, 'text'>; savedAt: string | null }
   | { kind: 'unsaved'; action: 'new' | 'open-project' | 'open-file' | 'open-draft'; payload?: string }
   | { kind: 'about' }
+  /** Comment faire ouvrir le 3MF envoyé par le navigateur. */
+  | { kind: 'slicer-help' }
   /**
    * Import d'un dessin en forme de tampon. `image` : le dessin à vectoriser (null si un SVG n'a pas
    * pu être dessiné). `exact` : pour un SVG, ce que donne la lecture directe de son tracé.
@@ -189,6 +191,8 @@ export interface AppState {
    * conseil refermé par l'utilisateur (il ne se rouvre que si le conseil change).
    */
   mascot: { hidden: boolean; collapsed: boolean; dismissed: string | null };
+  /** L'explication de l'envoi au slicer a déjà été montrée sur cet appareil. */
+  slicerHelpSeen: boolean;
   /** Niveau de l'interface (outils montrés), retenu sur l'appareil. */
   level: Level;
   /** Bulles d'explication présentées par le chat au survol (sinon info-bulles simples). */
@@ -339,6 +343,7 @@ export function initialState(): AppState {
     assemblySelection: null,
     // Le chat (Java) est un réglage de l'environnement des jeunes : masqué tant qu'on ne l'a pas coché.
     mascot: { hidden: true, collapsed: false, dismissed: null },
+    slicerHelpSeen: false,
     preview: null,
     kernel: { status: 'loading' },
     project: { savedAt: null, savedRevision: null, file: null, autosave: { kind: 'idle' }, storageAvailable: true },

@@ -34,7 +34,12 @@ export function FabricationTools() {
         ) : null}
       </ToolGroup>
       <ToolGroup name="Exporter">
-        {tab === 'print' ? <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} /> : null}
+        {tab === 'print' ? (
+          <>
+            <ToolButton id="fab-send-slicer" icon="print3d" label="Envoyer au slicer" hint="Envoyer le plateau affiché à votre logiciel d’impression (OrcaSlicer, PrusaSlicer, Bambu Studio, Cura…)" onClick={() => void c.sendToSlicer()} />
+            <ToolButton id="fab-export-3mf" icon="export" label="Exporter 3MF" hint="Exporter le plateau préparé en 3MF" onClick={() => c.showExportDialog('3mf')} />
+          </>
+        ) : null}
         {tab === 'laser' ? (
           <>
             <ToolButton id="fab-export-svg" icon="export" label="SVG" hint="Exporter les plaques en SVG (1:1, mm), un fichier par matériau" onClick={() => void c.exportLaser('svg')} />
@@ -448,8 +453,8 @@ function PrintRightPanel() {
       </div>
       <div class="panel-content">
         <p class="vocab">
-          <strong>Impression 3D</strong> : choisissez pour chaque pièce la face posée sur le plateau et le nombre d’exemplaires, puis exportez le
-          plateau en 3MF pour votre logiciel d’impression (PrusaSlicer, Bambu Studio, Cura…).
+          <strong>Impression 3D</strong> : choisissez pour chaque pièce la face posée sur le plateau et le nombre d’exemplaires, puis envoyez le
+          plateau à votre logiciel d’impression, le slicer (OrcaSlicer, PrusaSlicer, Bambu Studio, Cura…).
         </p>
         <div class="field">
           <span class="field-label">Taille du plateau (X × Y × hauteur)</span>
@@ -505,7 +510,10 @@ function PrintRightPanel() {
         ))}
       </div>
       <div class="panel-actions">
-        <Button variant="primary" icon="export" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => c.showExportDialog('3mf')}>
+        <Button variant="primary" icon="print3d" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => void c.sendToSlicer()}>
+          {info.plates > 1 ? `Envoyer le plateau ${info.plate + 1} au slicer` : 'Envoyer au slicer'}
+        </Button>
+        <Button icon="export" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => c.showExportDialog('3mf')}>
           {info.plates > 1 ? 'Exporter les plateaux (3MF)' : 'Exporter le plateau (3MF)'}
         </Button>
       </div>
