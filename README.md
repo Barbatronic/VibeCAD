@@ -164,8 +164,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   ou taraudage), les longueurs sont celles de la norme, et elle apparaît dans la nomenclature.
   Voir [docs/assemblage.md](docs/assemblage.md).
 - **Fabrication** (onglet à part) : préparer le plateau d'impression 3D (face posée, exemplaires,
-  échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière) et l'exporter
-  en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
+  échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière), puis **l'envoyer
+  au slicer** en un clic (téléchargement que le navigateur peut ouvrir tout seul) ou l'exporter en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,
   préréglages contreplaqué et acrylique 3 et 5 mm en 300 × 200 mm ; contour d'une face, trait de
   coupe compensé, placement sur plaques, imbrication optimisée, « Plaques en grand » pour déplacer
   et tourner les pièces à la souris) en SVG et DXF ;
