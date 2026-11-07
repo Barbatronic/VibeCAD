@@ -196,6 +196,8 @@ const EDGE_PICK_PX = 6;
 const VIEW_CUBE_SIZE = 156;
 const VIEW_CUBE_MARGIN = 8;
 const CLICK_MOVE_PX = 5;
+/** Déplacement d'un doigt (px) au-delà duquel un appui devient un glisser. */
+const TOUCH_DRAG_PX = 8;
 
 function emptyInput(): ViewportInput {
   return { mode: 'model', parts: [], tool: null, sketches: [], session: null, selection: [], measure: null };
@@ -240,6 +242,15 @@ export class Viewport {
   private width = 1;
   private height = 1;
   private down: { x: number; y: number; button: number; time: number } | null = null;
+  /** Doigts posés sur la vue. */
+  private readonly touchIds = new Set<number>();
+  /** Plusieurs doigts posés depuis le dernier lever complet : c'est un geste de vue, pas un clic. */
+  private multiTouch = false;
+  /**
+   * Esquisse au doigt : l'appui n'est transmis qu'une fois sûr qu'il ne s'agit pas d'un geste à deux
+   * doigts (zoom, déplacement) : au lever pour un toucher, ou dès que le doigt glisse.
+   */
+  private touchPending: { id: number; start: PointerEvent; started: boolean } | null = null;
   private lastClick: { x: number; y: number; time: number } | null = null;
   private hoverPending: PointerEvent | null = null;
   private lastPixelSize = 0;
@@ -1475,6 +1486,8 @@ export class Viewport {
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
+    window.addEventListener('pointerup', this.releaseTouch);
+    window.addEventListener('pointercancel', this.releaseTouch);
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
@@ -1555,13 +1568,54 @@ export class Viewport {
   private onPointerDown = (e: PointerEvent): void => {
     const now = performance.now();
     this.down = { x: e.clientX, y: e.clientY, button: e.button, time: now };
-    if (this.input.mode === 'sketch' && e.button === 0) {
-      const last = this.lastSketchDown;
-      const double = !!last && now - last.time < 400 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 6;
-      this.lastSketchDown = double ? null : { x: e.clientX, y: e.clientY, time: now };
-      const p = this.sketchPoint(e);
-      if (p) this.events.onSketchPointer('down', p, { shift: e.shiftKey, alt: e.altKey, double });
+    if (e.pointerType === 'touch') {
+      // Premier doigt d'un nouveau contact : un lever perdu ne doit pas bloquer les touchers suivants.
+      if (e.isPrimary) {
+        this.touchIds.clear();
+        this.multiTouch = false;
+      }
+      this.touchIds.add(e.pointerId);
+      if (this.touchIds.size > 1) {
+        this.multiTouch = true;
+        // Un glisser commencé par le premier doigt s'arrête là ; un simple appui est oublié.
+        const pending = this.touchPending;
+        if (pending?.started) this.sketchPointer('up', e);
+        this.touchPending = null;
+        return;
+      }
+      if (this.input.mode === 'sketch' && !this.multiTouch) {
+        this.touchPending = { id: e.pointerId, start: e, started: false };
+        return;
+      }
     }
+    if (this.input.mode === 'sketch' && e.button === 0) this.sketchDown(e);
+  };
+
+  /** Appui dans l'esquisse, avec reconnaissance du double-clic (deux appuis proches). */
+  private sketchDown(e: PointerEvent): void {
+    const now = performance.now();
+    const last = this.lastSketchDown;
+    const double = !!last && now - last.time < 400 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < (e.pointerType === 'touch' ? 24 : 6);
+    this.lastSketchDown = double ? null : { x: e.clientX, y: e.clientY, time: now };
+    const p = this.sketchPoint(e);
+    if (p) this.events.onSketchPointer('down', p, { shift: e.shiftKey, alt: e.altKey, double });
+  }
+
+  private sketchPointer(type: 'move' | 'up', e: PointerEvent): void {
+    const p = this.sketchPoint(e);
+    if (p) this.events.onSketchPointer(type, p, { shift: e.shiftKey, alt: e.altKey });
+  }
+
+  /** Doigt levé ou perdu : la fin d'un geste à plusieurs doigts est attendue avant tout nouveau clic. */
+  private releaseTouch = (e: PointerEvent): void => {
+    if (e.pointerType !== 'touch') return;
+    this.touchIds.delete(e.pointerId);
+    if (e.type === 'pointercancel' && this.touchPending?.id === e.pointerId) {
+      // Glisser interrompu par le navigateur : il se termine là où le doigt était.
+      if (this.touchPending.started) this.sketchPointer('up', e);
+      this.touchPending = null;
+    }
+    if (this.touchIds.size === 0) queueMicrotask(() => (this.multiTouch = false));
   };
 
   private onPointerMove = (e: PointerEvent): void => {
@@ -1582,6 +1636,19 @@ export class Viewport {
       }
     }
     if (this.input.mode === 'sketch') {
+      if (e.pointerType === 'touch') {
+        const pending = this.touchPending;
+        if (!pending || pending.id !== e.pointerId || this.multiTouch) return;
+        if (!pending.started) {
+          if (Math.hypot(e.clientX - pending.start.clientX, e.clientY - pending.start.clientY) < TOUCH_DRAG_PX) return;
+          // Le doigt glisse : c'est un glisser, qui part de l'endroit où il s'est posé.
+          pending.started = true;
+          this.sketchPointer('move', pending.start);
+          this.sketchDown(pending.start);
+        }
+        this.sketchPointer('move', e);
+        return;
+      }
       if (e.buttons !== 0 && e.buttons !== 1) return;
       const p = this.sketchPoint(e);
       if (p) this.events.onSketchPointer('move', p, { shift: e.shiftKey, alt: e.altKey });
@@ -1593,6 +1660,24 @@ export class Viewport {
   private onPointerUp = (e: PointerEvent): void => {
     const down = this.down;
     this.down = null;
+    if (e.pointerType === 'touch') {
+      const pending = this.touchPending;
+      const gesture = this.multiTouch;
+      this.releaseTouch(e);
+      // Un geste à plusieurs doigts ne clique rien en se terminant.
+      if (gesture) return;
+      if (this.input.mode === 'sketch') {
+        if (!pending || pending.id !== e.pointerId) return;
+        this.touchPending = null;
+        if (!pending.started) {
+          // Toucher bref : la position d'abord (accrochages), puis l'appui et le lever.
+          this.sketchPointer('move', pending.start);
+          this.sketchDown(pending.start);
+        }
+        this.sketchPointer('up', e);
+        return;
+      }
+    }
     if (this.input.mode === 'sketch') {
       // Un relâchement sans appui sur la vue (appui sur un libellé de cote) est ignoré.
       if (e.button === 0 && down) {
@@ -1602,9 +1687,11 @@ export class Viewport {
       return;
     }
     if (!down || down.button !== 0) return;
-    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_MOVE_PX) return;
+    // Un doigt bouge plus qu'une souris : tolérances plus larges pour un toucher et un double toucher.
+    const touch = e.pointerType === 'touch';
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > (touch ? TOUCH_DRAG_PX : CLICK_MOVE_PX)) return;
     const now = performance.now();
-    const double = !!this.lastClick && now - this.lastClick.time < 380 && Math.hypot(e.clientX - this.lastClick.x, e.clientY - this.lastClick.y) < 8;
+    const double = !!this.lastClick && now - this.lastClick.time < (touch ? 450 : 380) && Math.hypot(e.clientX - this.lastClick.x, e.clientY - this.lastClick.y) < (touch ? 24 : 8);
     this.lastClick = double ? null : { x: e.clientX, y: e.clientY, time: now };
     if (this.input.mode === 'pick-support') {
       const plane = this.pickOriginPlane(e);
