@@ -240,6 +240,17 @@ export class CameraRig {
     return { center, distance: (radius / Math.sin(half)) * 1.1 };
   }
 
+  /**
+   * Distance de vue de face qui fait tenir un rectangle de `width` × `height` (mm) dans la zone
+   * libre entre les panneaux, quelle que soit sa forme (écran large ou tablette en hauteur).
+   */
+  distanceToShow(width: number, height: number): number {
+    const freeW = Math.max(this.width * 0.3, this.width - this.insetLeft - this.insetRight);
+    const freeH = Math.max(this.height * 0.3, this.height - this.insetTop);
+    const pixel = Math.max(width / freeW, height / freeH);
+    return (pixel * this.fullHeight()) / 2 / Math.tan(MathUtils.degToRad(FOV / 2));
+  }
+
   /** Avance la transition en cours ; renvoie vrai si une image doit être redessinée. */
   tick(now: number): boolean {
     const t = this.transition;

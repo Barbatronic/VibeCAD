@@ -609,21 +609,27 @@ export class Viewport {
     };
     this.rig.setProjection('orthographic');
     const f = session.frame;
-    let center: Vec2 = { x: 0, y: 0 };
-    let radius = 40;
+    // Zone à montrer : le dessin avec une marge ; pour une esquisse vide, l'origine et la place
+    // pour dessiner à sa droite. Elle tient dans la zone libre, qu'elle soit large ou haute.
+    let lo: Vec2;
+    let hi: Vec2;
     const pts = session.sketch.entities.flatMap((e) => (e.type === 'point' ? [e] : []));
     if (pts.length > 0) {
       const xs = pts.map((p) => p.x);
       const ys = pts.map((p) => p.y);
-      center = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
-      radius = Math.max(20, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * 0.75);
+      const margin = Math.max(10, 0.2 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+      lo = { x: Math.min(...xs) - margin, y: Math.min(...ys) - margin };
+      hi = { x: Math.max(...xs) + margin, y: Math.max(...ys) + margin };
     } else {
       const box = this.contentBounds();
-      radius = box ? Math.max(55, box.getSize(new Vector3()).length() * 0.6) : 55;
-      center = { x: radius * 0.55, y: radius * 0.3 };
+      const r = box ? Math.max(55, box.getSize(new Vector3()).length() * 0.6) : 55;
+      lo = { x: -0.25 * r, y: -0.25 * r };
+      hi = { x: 1.35 * r, y: 0.85 * r };
     }
+    const center = { x: (lo.x + hi.x) / 2, y: (lo.y + hi.y) / 2 };
     const target = frameToWorld(f, center);
-    this.rig.look(new Vector3(f.normal.x, f.normal.y, f.normal.z), new Vector3(f.yAxis.x, f.yAxis.y, f.yAxis.z), new Vector3(target.x, target.y, target.z), radius * 2.6, true);
+    const distance = this.rig.distanceToShow(hi.x - lo.x, hi.y - lo.y);
+    this.rig.look(new Vector3(f.normal.x, f.normal.y, f.normal.z), new Vector3(f.yAxis.x, f.yAxis.y, f.yAxis.z), new Vector3(target.x, target.y, target.z), distance, true);
     this.lastPixelSize = 0;
   }
 
