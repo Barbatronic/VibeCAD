@@ -65,6 +65,9 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   d'un point à un segment ou entre segments parallèles, **angle** entre deux segments. Les deux
   éléments se cliquent l'un après l'autre. Saisie au clavier (virgule décimale acceptée), petites
   flèches ▲▼ ou molette de la souris (Maj : ×10, Alt : ×0,1) dans tous les champs de valeur.
+- **Tablette tactile** (Chrome sur Android) : dessin au doigt, zoom et déplacement à deux doigts,
+  y compris dans l'esquisse, double toucher sur une face pour y ouvrir une esquisse. Voir
+  [docs/navigateurs.md](docs/navigateurs.md#tablette-tactile).
 - **Paramètres et équations** (niveau Intermédiaire) : tous les champs de valeur et les cotes
   acceptent un calcul (`60/2`, `(largeur - 2*marge)/2`, `pi`). Les **paramètres du projet**
   (panneau de gauche, sous les pièces) sont des nombres nommés, qui peuvent dépendre les uns des

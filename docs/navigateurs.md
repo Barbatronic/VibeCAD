@@ -17,6 +17,26 @@ moment. Les fonctions absentes de Safari (réenregistrer dans le même fichier, 
 ont une solution de repli ; un essai sur un vrai Mac ou iPad reste conseillé avant un usage en
 classe.
 
+## Tablette tactile
+
+Visée : **Chrome sur Android**. Le parcours `tests/e2e/tablet.spec.ts` (Chromium, écran tactile
+émulé de 1180 × 820) dessine au doigt, zoome et déplace la vue d'esquisse à deux doigts, glisse un
+point, extrude, puis ouvre une esquisse sur une face par un double toucher. Il n'a pas encore été
+confirmé sur une vraie tablette, ni sur iPad (Safari).
+
+| Geste | Vue 3D | Esquisse |
+| --- | --- | --- |
+| Toucher | sélectionner une face, une arête | clic de l'outil (poser un point, un coin…) |
+| Double toucher | esquisse sur la face touchée | comme un double-clic |
+| Un doigt qui glisse | tourner autour du modèle | glisser un élément, ou tracer un cadre de sélection |
+| Deux doigts pincés / écartés | zoom | zoom |
+| Deux doigts qui glissent | déplacer la vue | déplacer la vue |
+
+Dans l'esquisse, un appui n'agit qu'une fois sûr qu'il ne s'agit pas d'un geste à deux doigts : un
+toucher compte au lever du doigt, un glisser dès que le doigt bouge. Un zoom ne pose donc jamais de
+point par erreur. Sans souris, les repères d'accrochage (« Origine », « Axe X »…) n'apparaissent
+qu'une fois le doigt posé, et la touche Alt (sans accrochage) n'a pas d'équivalent.
+
 ## Technologies requises
 
 - **WebGL 2** (affichage 3D). Sans accélération matérielle, le rendu logiciel fonctionne mais
@@ -50,5 +70,5 @@ classe.
   (`backdrop-filter`) est géré par tous les navigateurs visés ; sans lui, le fond reste
   simplement translucide.
 - **Écrans étroits** (< 980 px) : le panneau des pièces se replie (bouton au début de la barre) ; en
-  dessous de 720 px, le panneau des paramètres s'affiche en bas. L'usage visé reste un
-  ordinateur avec souris.
+  dessous de 720 px, le panneau des paramètres s'affiche en bas. La vue d'esquisse se cadre
+  dans la zone libre entre les panneaux : l'origine reste visible, même sur une tablette.
