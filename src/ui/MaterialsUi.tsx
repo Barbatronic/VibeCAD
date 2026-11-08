@@ -8,6 +8,7 @@ import { engraveColors, FINISH_LABELS, FINISHES, MAKE_PROCESSES, PROCESS_LABELS,
 import { massOf, PART_MATERIALS, partMaterial, partMaterialId } from '../domain/part-material';
 import { formatNumber } from '../domain/units';
 import { Button } from './components/controls';
+import { libraryMaterials } from '../app/library';
 import { useAppState, useController } from './context';
 import { Icon } from './icons';
 
@@ -33,6 +34,7 @@ export function MaterialsSection() {
       }),
       project: s.doc.materials ?? [],
       mine: s.materialCatalogue,
+      libs: libraryMaterials(s.libraryCatalogs),
       current: c.docsPart(),
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -40,7 +42,8 @@ export function MaterialsSection() {
   const inProject = new Set(data.project.map((m) => m.id));
   const starters = STARTER_MATERIALS.filter((m) => !inProject.has(m.id));
   const mine = data.mine.filter((m) => !inProject.has(m.id));
-  const find = (id: string) => [...data.project, ...STARTER_MATERIALS, ...data.mine].find((m) => m.id === id) ?? null;
+  const libs = data.libs.map((l) => ({ ...l, sheets: l.sheets.filter((m) => !inProject.has(m.id)) })).filter((l) => l.sheets.length);
+  const find = (id: string) => [...data.project, ...data.mine, ...data.libs.flatMap((l) => l.sheets), ...STARTER_MATERIALS].find((m) => m.id === id) ?? null;
   return (
     <section class="panel-section grow" aria-labelledby="mat-title">
       <div class="panel-header">
@@ -89,6 +92,15 @@ export function MaterialsSection() {
                       ))}
                     </optgroup>
                   ) : null}
+                  {libs.map((l) => (
+                    <optgroup key={l.library} label={`Bibliothèque ${l.library}`}>
+                      {l.sheets.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                   <optgroup label="Catalogue VibeCAD">
                     {starters.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -121,7 +133,7 @@ function Brush() {
     (s) => ({
       brush: s.brush === 'erase' ? 'erase' : (s.brush?.id ?? null),
       project: (s.doc.materials ?? []).filter((m) => m.process === 'print'),
-      mine: s.materialCatalogue.filter((m) => m.process === 'print'),
+      mine: [...s.materialCatalogue, ...libraryMaterials(s.libraryCatalogs).flatMap((l) => l.sheets)].filter((m) => m.process === 'print'),
       printed: s.doc.parts.some((p) => s.doc.materials?.find((m) => m.id === p.make)?.process === 'print'),
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -353,3 +365,4 @@ export function MaterialsRightPanel() {
     </aside>
   );
 }
+

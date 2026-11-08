@@ -4,6 +4,7 @@
  * (<id>.vibecad paramétrique, <id>.step, vignette <id>.png, fiche <id>.json). Voir
  * docs/bibliotheques.md et le dépôt Barbatronic/VibeCAD-Components.
  */
+import { sheetProblems, toSheet, type MaterialSheet } from '../domain/material-sheets';
 
 export const DEFAULT_LIBRARIES = ['https://github.com/Barbatronic/VibeCAD-Components'];
 
@@ -31,6 +32,11 @@ export interface LibraryIndex {
   description: string;
   license?: string;
   collections: LibraryCollection[];
+  /**
+   * Fiches matière partagées (bobines, plaques d'un atelier…), au format du catalogue exporté par
+   * VibeCAD. Leurs identifiants sont préfixés par le nom de la bibliothèque, pour rester uniques.
+   */
+  materials: MaterialSheet[];
 }
 
 export type LibraryCatalog =
@@ -94,7 +100,13 @@ export function parseLibraryIndex(raw: unknown): LibraryIndex {
     });
     return components.length ? [{ id: str(co.id), name: str(co.name, str(co.id)), description: str(co.description), components }] : [];
   });
-  return { name: str(o.name, 'Bibliothèque'), description: str(o.description), ...(typeof o.license === 'string' ? { license: o.license } : {}), collections };
+  const name = str(o.name, 'Bibliothèque');
+  const prefix = `lib-${name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-`;
+  const materials = (Array.isArray(o.materials) ? o.materials : []).flatMap((m): MaterialSheet[] => {
+    const s = toSheet(m);
+    return s && sheetProblems(s).length === 0 ? [{ ...s, id: s.id.startsWith(prefix) ? s.id : `${prefix}${s.id}` }] : [];
+  });
+  return { name, description: str(o.description), ...(typeof o.license === 'string' ? { license: o.license } : {}), collections, materials };
 }
 
 /** Composants qui répondent à une recherche (nom, description, mots-clés), sans accents ni casse. */
@@ -118,4 +130,9 @@ export async function fetchLibrary(source: string, fetcher: typeof fetch = fetch
     const message = err instanceof TypeError ? 'Bibliothèque injoignable (réseau coupé ou adresse fausse).' : (err as Error).message;
     return { source, status: 'error', error: message };
   }
+}
+
+/** Fiches matière des bibliothèques chargées, avec le nom de leur bibliothèque. */
+export function libraryMaterials(catalogs: readonly LibraryCatalog[]): { library: string; sheets: MaterialSheet[] }[] {
+  return catalogs.flatMap((c) => (c.status === 'ready' && c.index.materials.length ? [{ library: c.index.name, sheets: c.index.materials }] : []));
 }

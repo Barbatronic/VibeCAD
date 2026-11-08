@@ -98,7 +98,7 @@ import { StudyError, type StudyErrorCode } from '../sim/study';
 import { topologySurface } from '../sim/topology';
 import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
-import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
+import { libraryMaterials, fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
 import { computeMechanism, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf } from './mechanism';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
@@ -237,6 +237,11 @@ export class AppController {
     const paint = paintFace(part.paint, ref, sheet?.id ?? null, part.make);
     if (JSON.stringify(paint ?? null) === JSON.stringify(part.paint ?? null)) return;
     this.commit(setPaint(this.state.doc, partId, paint, sheet ?? undefined), sheet ? `Peindre une face de « ${part.name} » en ${sheet.name}` : `Rendre sa matière à une face de « ${part.name} »`);
+  }
+
+  /** Fiches de tous les catalogues : le sien, ceux des bibliothèques, ceux livrés avec VibeCAD. */
+  allCatalogueSheets(): MaterialSheet[] {
+    return [...this.state.materialCatalogue, ...libraryMaterials(this.state.libraryCatalogs).flatMap((l) => l.sheets), ...STARTER_MATERIALS];
   }
 
   /** Ouvre l'atelier Fabrication sur les matières des pièces. */
@@ -1740,7 +1745,7 @@ export class AppController {
     // Gravure colorée : une matière choisie dans un catalogue entre dans le projet ; l'ancienne en sort si elle ne sert plus.
     if (draft.feature.type === 'engrave') {
       const id = draft.feature.params.material;
-      const sheet = id && !doc.materials?.some((m) => m.id === id) ? [...STARTER_MATERIALS, ...this.state.materialCatalogue].find((m) => m.id === id) : undefined;
+      const sheet = id && !doc.materials?.some((m) => m.id === id) ? this.allCatalogueSheets().find((m) => m.id === id) : undefined;
       if (sheet) doc = { ...doc, materials: [...(doc.materials ?? []), { ...sheet }] };
       doc = pruneSheets(doc);
     }
@@ -2386,6 +2391,8 @@ export class AppController {
     const closed = workspace !== 'assembly' && this.state.doc.editingSubassembly ? { doc: closedDocument(this.state.doc), explode: 0 } : {};
     // Fabrication : on commence toujours par décider comment chaque pièce est fabriquée.
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}), ...(workspace === 'fabrication' ? { fabricationTab: 'materials' as const } : {}), brush: null });
+    // Les bibliothèques peuvent proposer des matières : on les charge (une fois par session).
+    if (workspace === 'fabrication') void this.loadLibraries();
   }
 
   // ----- Paramètres du projet

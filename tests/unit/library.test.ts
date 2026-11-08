@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchLibrary, libraryBaseUrl, matchesSearch, parseLibraryIndex } from '../../src/app/library';
+import { fetchLibrary, libraryBaseUrl, libraryMaterials, matchesSearch, parseLibraryIndex } from '../../src/app/library';
 import { createDocument, setPartMaterial } from '../../src/domain/document';
 import { copyPartsInto } from '../../src/domain/part-copy';
 import { buildPlateDocument } from '../helpers/plate';
@@ -85,5 +85,28 @@ describe('bibliothèques de composants', () => {
     // Composant de bibliothèque : esquisses masquées, le reste visible.
     const hidden = copyPartsInto(target, withMaterial, undefined, { hideSketches: true }).doc.parts.at(-1)!;
     expect(hidden.features.map((f) => (f.type === 'sketch' ? f.visible : null))).toEqual(original.features.map((f) => (f.type === 'sketch' ? false : null)));
+  });
+});
+
+describe('bibliothèques : fiches matière partagées', () => {
+  const base = { format: 'vibecad-library', version: 1, name: 'Atelier Été', collections: [] };
+
+  it('lit les fiches valides, avec un identifiant préfixé par la bibliothèque', () => {
+    const lib = parseLibraryIndex({
+      ...base,
+      materials: [
+        { id: 'pla-vert', name: 'PLA vert du club', base: 'pla', process: 'print', color: '#2e9e4f' },
+        { id: 'cassee', name: 'Sans couleur', base: 'pla', process: 'print', color: 'vert' },
+        'pas une fiche',
+      ],
+    });
+    expect(lib.materials).toEqual([{ id: 'lib-atelier-ete-pla-vert', name: 'PLA vert du club', base: 'pla', process: 'print', color: '#2e9e4f' }]);
+    expect(libraryMaterials([{ source: 's', status: 'ready', base: 'b', index: lib }])).toEqual([{ library: 'Atelier Été', sheets: lib.materials }]);
+  });
+
+  it('une bibliothèque sans fiche n’en propose aucune', () => {
+    const lib = parseLibraryIndex(base);
+    expect(lib.materials).toEqual([]);
+    expect(libraryMaterials([{ source: 's', status: 'ready', base: 'b', index: lib }, { source: 't', status: 'loading' }])).toEqual([]);
   });
 });

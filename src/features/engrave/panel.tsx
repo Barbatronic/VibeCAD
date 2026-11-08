@@ -16,7 +16,8 @@ export function EngravePanel(props: FeaturePanelProps<EngraveFeature>) {
     (s) => {
       const project = (s.doc.materials ?? []).filter((m) => m.process === 'print');
       const known = new Set(project.map((m) => m.id));
-      const others = [...s.materialCatalogue, ...STARTER_MATERIALS].filter((m) => m.process === 'print' && !known.has(m.id));
+      const fromLibraries = s.libraryCatalogs.flatMap((c) => (c.status === 'ready' ? c.index.materials : []));
+      const others = [...s.materialCatalogue, ...fromLibraries, ...STARTER_MATERIALS].filter((m) => m.process === 'print' && !known.has(m.id));
       const printed = s.doc.materials?.find((m) => m.id === props.part.make)?.process === 'print';
       return { project, others, printed };
     },
