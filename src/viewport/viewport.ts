@@ -620,20 +620,24 @@ export class Viewport {
     };
     this.rig.setProjection('orthographic');
     const f = session.frame;
-    // Zone à montrer : le dessin avec une marge ; pour une esquisse vide, l'origine et la place
-    // pour dessiner à sa droite. Elle tient dans la zone libre, qu'elle soit large ou haute.
+    // Zone à montrer (« cadrer tout ») : le dessin et la pièce vue de face dans le plan de l'esquisse,
+    // avec une marge ; sans rien à montrer, l'origine et la place pour dessiner à sa droite. Elle tient
+    // dans la zone libre, qu'elle soit large ou haute.
     let lo: Vec2;
     let hi: Vec2;
-    const pts = session.sketch.entities.flatMap((e) => (e.type === 'point' ? [e] : []));
-    if (pts.length > 0) {
-      const xs = pts.map((p) => p.x);
-      const ys = pts.map((p) => p.y);
-      const margin = Math.max(10, 0.2 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+    const seen: Vec2[] = session.sketch.entities.flatMap((e) => (e.type === 'point' ? [{ x: e.x, y: e.y }] : []));
+    const box = this.contentBounds();
+    if (box) {
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) seen.push(worldToFrame(f, { x, y, z }));
+    }
+    if (seen.length > 0) {
+      const xs = seen.map((p) => p.x);
+      const ys = seen.map((p) => p.y);
+      const margin = Math.max(10, 0.15 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
       lo = { x: Math.min(...xs) - margin, y: Math.min(...ys) - margin };
       hi = { x: Math.max(...xs) + margin, y: Math.max(...ys) + margin };
     } else {
-      const box = this.contentBounds();
-      const r = box ? Math.max(55, box.getSize(new Vector3()).length() * 0.6) : 55;
+      const r = 55;
       lo = { x: -0.25 * r, y: -0.25 * r };
       hi = { x: 1.35 * r, y: 0.85 * r };
     }
