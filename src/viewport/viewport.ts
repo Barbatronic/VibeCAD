@@ -73,6 +73,8 @@ export interface ViewPartInput {
   finish?: 'matte' | 'satin' | 'glossy' | 'metal';
   /** Couleur de chaque face du maillage (chants brûlés, couleurs d'impression). */
   faceColors?: string[];
+  /** Hauteur de couche (mm) d'une pièce imprimée en 3D : stries d'impression sur les flancs. */
+  layers?: number;
   /** Marquages de surface (gravures sans profondeur), en coordonnées de la pièce : traits et surfaces. */
   markings?: PartMarkings;
 }
@@ -517,7 +519,7 @@ export class Viewport {
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
       const edgeWidth = this.input.edgeWidth ?? 1;
-      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}`;
+      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -531,7 +533,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers);
         obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;

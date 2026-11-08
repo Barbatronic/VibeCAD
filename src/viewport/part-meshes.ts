@@ -127,6 +127,8 @@ export class PartObject {
     markings?: PartMarkings,
     /** Aspect de la matière (rendu « matières réelles ») ; absent : l'aspect habituel. */
     private readonly finish?: 'matte' | 'satin' | 'glossy' | 'metal',
+    /** Hauteur de couche (mm) d'une pièce imprimée : stries visibles sur les flancs ; absente : surface lisse. */
+    private readonly layers?: number,
   ) {
     // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
     const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
@@ -237,9 +239,12 @@ export class PartObject {
         return new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.3, depthWrite: false });
       default:
         // Matière translucide (acrylique, PETG transparent) : on voit au travers, un peu brillante.
-        return this.opacity < 1
-          ? new MeshStandardMaterial({ ...base, color, transparent: true, opacity: this.opacity, depthWrite: false, roughness: Math.min(base.roughness, 0.25) })
-          : new MeshStandardMaterial({ ...base, color });
+        return withLayers(
+          this.opacity < 1
+            ? new MeshStandardMaterial({ ...base, color, transparent: true, opacity: this.opacity, depthWrite: false, roughness: Math.min(base.roughness, 0.25) })
+            : new MeshStandardMaterial({ ...base, color }),
+          this.layers,
+        );
     }
   }
 
@@ -338,4 +343,38 @@ export class PartObject {
       (m.material as Material).dispose();
     }
   }
+}
+
+/**
+ * Couches d'impression 3D : des cordons empilés selon l'axe Z de la pièce (sens d'impression),
+ * dessinés par le shader (relief et sillon assombri), sans toucher à la géométrie. Absents des faces
+ * horizontales ; ils s'estompent quand ils deviennent plus fins qu'un pixel, pour éviter le moiré.
+ */
+function withLayers(material: MeshStandardMaterial, height: number | undefined): MeshStandardMaterial {
+  if (!height || height <= 0) return material;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.layerHeight = { value: height };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vLayerZ;\nvarying float vLayerNz;\nvarying vec3 vLayerAxis;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLayerZ = position.z;\nvLayerNz = normal.z;\nvLayerAxis = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float layerHeight;\nvarying float vLayerZ;\nvarying float vLayerNz;\nvarying vec3 vLayerAxis;')
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        float layerZ = vLayerZ / layerHeight;
+        float layerW = fwidth(layerZ);
+        float layerOn = (1.0 - smoothstep(0.85, 0.98, abs(vLayerNz))) * (1.0 - smoothstep(0.25, 0.6, layerW));
+        float layerF = fract(layerZ);
+        // Cordon arrondi : la normale penche vers le haut puis vers le bas sur chaque couche.
+        normal = normalize(normal + vLayerAxis * (0.55 * layerOn * cos(3.14159265 * layerF)));
+        float layerGroove = 1.0 - smoothstep(0.0, 0.18 + layerW, min(layerF, 1.0 - layerF));
+        diffuseColor.rgb *= 1.0 - 0.22 * layerGroove * layerOn;`,
+      );
+  };
+  material.customProgramCacheKey = () => `layers-${height}`;
+  return material;
 }

@@ -247,18 +247,23 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors, gizmo };
 }
 
+/** Hauteur de couche affichée des pièces imprimées (mm). */
+const PRINT_LAYER = 0.2;
+
 /**
  * Couleur et opacité d'une pièce à l'écran : sa couleur de conception, ou celle de sa fiche matière
  * (rendu réel). L'atelier Fabrication montre toujours les matières.
  */
-function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish'> {
+function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish' | 'layers'> {
   if (!part) return { color: '#888888' };
   const mode = s.workspace === 'fabrication' ? 'materials' : s.colorMode;
   const look = displayLook(s.doc, part, mode);
   const marks = markingsOf(s, part, mode);
   const finish = mode === 'materials' ? sheetOf(s.doc, part)?.finish : undefined;
-  const base = { ...(look.opacity < 1 ? look : { color: look.color }), ...(marks ? { markings: marks } : {}), ...(finish ? { finish } : {}) };
   const sheet = mode === 'materials' ? sheetOf(s.doc, part) : undefined;
+  // Impression 3D : les couches se voient (0,2 mm, la hauteur courante).
+  const layers = sheet?.process === 'print' ? PRINT_LAYER : undefined;
+  const base = { ...(look.opacity < 1 ? look : { color: look.color }), ...(marks ? { markings: marks } : {}), ...(finish ? { finish } : {}), ...(layers ? { layers } : {}) };
   // Impression : faces peintes, ou creusées par une gravure colorée, dans d'autres matières.
   const engraves = engraveColors(part);
   if (sheet?.process === 'print' && (part.paint || engraves.length) && mesh) {
