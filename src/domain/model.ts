@@ -5,6 +5,7 @@
  */
 import type { PlaneName } from '../math/frame';
 import type { FastenerKind, MetricSize } from './fasteners';
+import type { MaterialSheet } from './material-sheets';
 
 export type { PlaneName } from '../math/frame';
 
@@ -13,11 +14,18 @@ export type Id = string;
 /** Seule unité de longueur prise en charge : le millimètre. */
 export type LengthUnit = 'mm';
 
+/** Faces d'une pièce peintes dans une autre fiche matière (impression multicouleur). */
+export interface PartPaint {
+  faces: { ref: FaceRef; material: Id }[];
+}
+
 export interface CadDocument {
   id: Id;
   name: string;
   units: LengthUnit;
   parts: Part[];
+  /** Fiches matière utilisées par les pièces (voir `domain/material-sheets.ts`), copiées du catalogue. */
+  materials?: MaterialSheet[];
   /** Ressources embarquées (contenu géométrique des imports), référencées par identifiant. */
   resources: Record<Id, Resource>;
   /** Assemblage des pièces (facultatif : absent tant qu'on n'utilise pas l'onglet Assemblage). */
@@ -71,6 +79,11 @@ export interface LaserMaterial {
   /** Largeur du trait de coupe (mm). */
   kerf: number;
   /**
+   * Plaque d'une fiche matière (procédé laser) : nom et épaisseur viennent de la fiche ; plaque, trait
+   * de coupe et rangement se règlent ici. Identifiant : celui de la fiche.
+   */
+  fromSheet?: boolean;
+  /**
    * Placements choisis (plaques en grand, « Optimiser ») : exemplaire d'une pièce, plaque, centre
    * (mm) et angle (degrés). Absent : rangement automatique par rangées.
    */
@@ -89,7 +102,13 @@ export interface LaserPlacement {
 
 export interface FabricationSettings {
   /** Les pièces qui ne tiennent pas sur un plateau passent sur le suivant. */
-  print: { bed: { x: number; y: number; z: number }; spacing: number; items: PrintItem[] };
+  print: {
+    bed: { x: number; y: number; z: number };
+    spacing: number;
+    items: PrintItem[];
+    /** Emplacements de l'AMS : la fiche matière chargée dans chacun (le 1er = emplacement 1). */
+    ams?: Id[];
+  };
   laser: { materials: LaserMaterial[]; spacing: number; engraveNames?: boolean; items: LaserItem[] };
 }
 
@@ -314,11 +333,18 @@ export interface Part {
    * ses études de simulation. Facultatif : absente, celle de sa tôle, sinon le PLA.
    */
   material?: string;
+  /**
+   * Fiche matière de la pièce (identifiant dans `CadDocument.materials`) : procédé, couleur réelle.
+   * Quand elle est présente, `material` vaut la base de la fiche.
+   */
+  make?: Id;
+  /** Pièce imprimée : faces peintes dans d'autres matières (voir `domain/paint.ts`). */
+  paint?: PartPaint;
   /** Historique de construction, évalué dans l'ordre. */
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -339,6 +365,28 @@ export type SketchFeature = FeatureBase<'sketch', SketchParams> & {
 };
 export type ExtrudeFeature = FeatureBase<'extrude', ExtrudeParams>;
 export type PocketFeature = FeatureBase<'pocket', PocketParams>;
+
+/**
+ * Gravure : le dessin d'une esquisse posée sur une face, marqué en surface (`depth` 0) ou creusé de
+ * `depth` mm dans la matière. Sa fonction dépend du procédé de la pièce : calque de gravure en
+ * découpe laser (et autre couleur en impression 3D, plus tard). Voir docs/conception-matieres.md.
+ */
+export interface EngraveParams {
+  sketchId: Id;
+  depth: number;
+  /**
+   * Gravure laser : `fill` balaie toute la surface du dessin, `outline` suit seulement son trait.
+   * Absent : `outline` (premières gravures).
+   */
+  mode?: 'outline' | 'fill';
+  /**
+   * Impression 3D : fiche matière de la zone gravée (une autre couleur). Le fond et les parois du
+   * creux la prennent : il faut donc une profondeur. Absente : la matière de la pièce.
+   */
+  material?: Id;
+}
+
+export type EngraveFeature = FeatureBase<'engrave', EngraveParams>;
 export type RevolveFeature = FeatureBase<'revolve', RevolveParams>;
 export type ImportedSolidFeature = FeatureBase<'imported-solid', ImportedSolidParams>;
 export type FilletFeature = FeatureBase<'fillet', FilletParams>;

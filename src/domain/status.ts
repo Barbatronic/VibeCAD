@@ -22,6 +22,7 @@ export type FeatureIssueCode =
   | 'SKETCH_FAILED'
   | 'INVALID_PARAMETER'
   | 'POCKET_WITHOUT_SOLID'
+  | 'ENGRAVE_WITHOUT_SOLID'
   | 'POCKET_REMOVES_NOTHING'
   | 'POCKET_REMOVES_EVERYTHING'
   | 'DISJOINT_SOLID'
@@ -111,6 +112,7 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SKETCH_FAILED: "L’esquisse utilisée par cette opération contient une erreur. Corrigez d’abord l’esquisse.",
   INVALID_PARAMETER: 'Un paramètre de cette opération n’est pas valide.',
   POCKET_WITHOUT_SOLID: "Une poche retire de la matière : créez d’abord un volume avec une extrusion.",
+  ENGRAVE_WITHOUT_SOLID: 'Une gravure se fait sur une pièce : créez d’abord un volume avec une extrusion.',
   POCKET_REMOVES_NOTHING:
     "La poche ne retire aucune matière. Vérifiez le sens (bouton « Inverser ») ou la position du contour.",
   POCKET_REMOVES_EVERYTHING: 'Cette poche retirerait toute la matière de la pièce.',

@@ -3,9 +3,11 @@
  * fournies par un résolveur injecté (`DependencyResolver`), pour que le domaine ne dépende pas
  * du registre des fonctions.
  */
+import { pruneSheets } from './material-sheets';
 import { createId } from './ids';
 import { DEFAULT_SHEET_MATERIAL, defaultBendRadius, sheetMaterial } from './sheet-metal';
 import type {
+  EngraveFeature,
   JointCoupling,
   VolumeOperation,
   SweepFeature,
@@ -65,6 +67,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   sketch: 'Esquisse',
   extrude: 'Extrusion',
   pocket: 'Poche',
+  engrave: 'Gravure',
   revolve: 'Révolution',
   'imported-solid': 'Solide importé',
   fillet: 'Congé',
@@ -100,7 +103,13 @@ function allIds(doc: CadDocument): Set<string> {
     for (const f of p.features) ids.add(f.id);
   }
   for (const r of Object.keys(doc.resources)) ids.add(r);
+  for (const m of doc.materials ?? []) ids.add(m.id);
   return ids;
+}
+
+/** Identifiant d'une nouvelle fiche matière du projet. */
+export function newMaterialId(doc: CadDocument): Id {
+  return createId('mat', allIds(doc));
 }
 
 export function createDocument(name = 'Projet sans titre'): CadDocument {
@@ -169,7 +178,8 @@ export function setPartMaterial(doc: CadDocument, partId: Id, material: string):
 }
 
 export function removePart(doc: CadDocument, partId: Id): CadDocument {
-  let next: CadDocument = { ...doc, parts: doc.parts.filter((p) => p.id !== partId) };
+  // Une matière que seule cette pièce utilisait quitte aussi le projet.
+  let next: CadDocument = pruneSheets({ ...doc, parts: doc.parts.filter((p) => p.id !== partId) });
   // Les insertions de cette pièce dans l'assemblage (et leurs liaisons) disparaissent avec elle.
   const gone = (doc.assembly?.instances ?? []).filter((i) => i.partId === partId).map((i) => i.id);
   for (const id of gone) next = removeInstance(next, id);
@@ -319,7 +329,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', engrave: 'gr', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -485,6 +495,11 @@ export function makeLoftFeature(doc: CadDocument, part: Part, sketchIds: Id[]): 
 
 export function makeSweepFeature(doc: CadDocument, part: Part, profileId: Id, pathId: Id): SweepFeature {
   return { id: newFeatureId(doc, 'sweep'), type: 'sweep', name: nextFeatureName(part, 'sweep'), params: { profileId, pathId, operation: 'add' } };
+}
+
+/** Gravure du dessin d'une esquisse : marquage de surface par défaut. */
+export function makeEngraveFeature(doc: CadDocument, part: Part, sketchId: Id, depth = 0): EngraveFeature {
+  return { id: newFeatureId(doc, 'engrave'), type: 'engrave', name: nextFeatureName(part, 'engrave'), params: { sketchId, depth, mode: 'fill' } };
 }
 
 export function makePocketFeature(

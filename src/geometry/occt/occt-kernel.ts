@@ -605,6 +605,65 @@ export class OcctKernel implements GeometryKernel {
     return this.boolean('cut', base, tool);
   }
 
+  imprint(baseIn: KernelShape, toolIn: KernelShape): KernelShape {
+    const a = asOcct(baseIn);
+    const b = asOcct(toolIn);
+    const oc = this.oc;
+    return this.guard('marquage', () =>
+      withScope((scope) => {
+        const marks = b.faces.filter((f) => f.tags.some((t) => t.role === 'end'));
+        if (marks.length === 0) throw new KernelError('Rien à marquer.');
+        // Découpeur seul : contrairement aux opérations booléennes, les faces coplanaires ne sont
+        // pas refusionnées, la zone du dessin reste une face à part.
+        const op = scope.track(new oc.BRepAlgoAPI_Splitter());
+        const args = scope.track(new oc.NCollection_List_TopoDS_Shape());
+        args.Append(a.shape);
+        const tools = scope.track(new oc.NCollection_List_TopoDS_Shape());
+        for (const m of marks) tools.Append(m.face);
+        op.SetArguments(args);
+        op.SetTools(tools);
+        op.SetNonDestructive(true);
+        op.Build(scope.track(new oc.Message_ProgressRange()));
+        try {
+          if (op.HasErrors() || !op.IsDone()) throw new KernelError('Le marquage a échoué.');
+          const raw = scope.track(op.Shape());
+          const solids = this.explore(raw, 'solid').map((s) => scope.track(s));
+          if (solids.length !== 1) throw new KernelError('Le marquage a coupé la pièce en morceaux.');
+          const solid = solids[0]!.Oriented(solids[0]!.Orientation());
+          const faces = this.taggedFaces(solid);
+          // Étiquettes reprises de la pièce, morceau par morceau.
+          for (const tf of a.faces) {
+            if (tf.tags.length === 0 || op.IsDeleted(tf.face)) continue;
+            const modified = this.listToArray(scope.track(op.Modified(tf.face)));
+            for (const m of modified.length ? modified : [tf.face]) {
+              if (modified.length) scope.track(m);
+              const i = this.indexOfFace(faces, m);
+              if (i >= 0) addTags(faces[i]!.tags, tf.tags);
+            }
+          }
+          // Morceaux du dessin : même aire et même centre qu'une face d'arrivée du prisme.
+          const props = (f: TopoDS_Shape) => {
+            const p = scope.track(new oc.GProp_GProps());
+            oc.BRepGProp.SurfaceProperties(f, p, false, false);
+            const c = scope.track(p.CentreOfMass());
+            return { area: p.Mass(), x: c.X(), y: c.Y(), z: c.Z() };
+          };
+          for (const m of marks) {
+            const pm = props(m.face);
+            const tol = Math.max(1e-6, Math.sqrt(pm.area) * 1e-6);
+            for (const f of faces) {
+              const pf = props(f.face);
+              if (Math.abs(pf.area - pm.area) <= tol * Math.sqrt(pm.area) && Math.hypot(pf.x - pm.x, pf.y - pm.y, pf.z - pm.z) <= tol) addTags(f.tags, m.tags);
+            }
+          }
+          return new OcctShape(solid, faces);
+        } finally {
+          op.Clear();
+        }
+      }),
+    );
+  }
+
   fuseMany(base: KernelShape, tools: readonly KernelShape[]): KernelShape {
     return this.boolean('fuse', base, tools);
   }

@@ -28,6 +28,7 @@ import {
   makeImageFeature,
   makeImportedSolidFeature,
   makeSketchFeature,
+  newMaterialId,
   newResourceId,
   removeFeaturesCascade,
   removePart,
@@ -49,7 +50,7 @@ import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
 import { moveDefinition } from '../features/move/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
-import type { PartResult } from '../geometry/protocol';
+import type { ExportPlacement, PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
 import { bytesToBase64, createStepResource, verifyResources } from '../io/resources';
 import { meshesToBinaryStl, STL_UNIT_NOTE } from '../io/stl';
@@ -75,8 +76,9 @@ import { externalParts } from '../features/sketch/definition';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
-import { fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
+import { amsSlots, fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, optimizedPlacements, type LaserLayout } from './laser';
+import { partEngravings, type Engraving } from './engravings';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
 import { billOfMaterials, bomCsv, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type ProjectedView, type ViewName } from './drawings';
 import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
@@ -100,8 +102,11 @@ import { fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
 import { computeMechanism, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf } from './mechanism';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
+import { createId } from '../domain/ids';
+import { paintFace } from '../domain/paint';
+import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
-import { isDirty, type AppState, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
+import { isDirty, type AppState, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -198,8 +203,120 @@ export class AppController {
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
     if (await this.deps.projects?.getSetting<boolean>('slicerHelpSeen').catch(() => undefined)) this.set({ slicerHelpSeen: true });
+    if ((await this.deps.projects?.getSetting<string>('colorMode').catch(() => undefined)) === 'materials') this.set({ colorMode: 'materials' });
+    const catalogue = await this.deps.projects?.getSetting<unknown[]>('materialCatalogue').catch(() => undefined);
+    if (Array.isArray(catalogue)) this.set({ materialCatalogue: catalogue.map(toSheet).filter((m): m is MaterialSheet => !!m && sheetProblems(m).length === 0) });
     const libraries = await this.deps.projects?.getSetting<string[]>('libraries').catch(() => undefined);
     if (Array.isArray(libraries) && libraries.every((l) => typeof l === 'string')) this.set({ libraries });
+  }
+
+  // ----- Matières (voir docs/conception-matieres.md)
+
+  /** Couleurs de conception ou matières réelles, dans tous les ateliers. */
+  setColorMode(colorMode: ColorMode): void {
+    this.set({ colorMode });
+    void this.deps.projects?.setSetting('colorMode', colorMode).catch(() => undefined);
+  }
+
+  /** Pinceau : la fiche à poser sur les faces touchées, la gomme, ou arrêter (null). */
+  setBrush(brush: MaterialSheet | 'erase' | null): void {
+    this.set({ brush });
+  }
+
+  /** Face touchée avec le pinceau : elle prend la matière choisie, ou reprend celle de sa pièce (gomme). */
+  private paintPick(pick: ModelPick | null): void {
+    const brush = this.state.brush;
+    if (!brush || !pick || pick.kind !== 'face') return;
+    const partId = pick.partId.split(':')[1] ?? pick.partId;
+    const part = findPart(this.state.doc, partId);
+    const face = this.state.display[partId]?.mesh?.faces[pick.index];
+    const ref = part && face ? pickFaceReference(face.tags, part) : null;
+    if (!part || !ref) return;
+    if (sheetOf(this.state.doc, part)?.process !== 'print') return this.explain(`Seule une pièce imprimée se peint : choisissez d’abord une matière d’impression 3D pour « ${part.name} ».`);
+    const sheet = brush === 'erase' ? null : brush;
+    const paint = paintFace(part.paint, ref, sheet?.id ?? null, part.make);
+    if (JSON.stringify(paint ?? null) === JSON.stringify(part.paint ?? null)) return;
+    this.commit(setPaint(this.state.doc, partId, paint, sheet ?? undefined), sheet ? `Peindre une face de « ${part.name} » en ${sheet.name}` : `Rendre sa matière à une face de « ${part.name} »`);
+  }
+
+  /** Ouvre l'atelier Fabrication sur les matières des pièces. */
+  showMaterials(): void {
+    this.setWorkspace('fabrication');
+    if (this.state.workspace === 'fabrication') this.setFabricationTab('materials');
+  }
+
+  /** Fiche matière d'une pièce (copiée dans le projet si elle vient d'un catalogue) ; null : aucune. */
+  setPartSheet(partId: Id, sheet: MaterialSheet | null): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || (part.make ?? null) === (sheet?.id ?? null)) return;
+    this.commit(assignSheet(this.state.doc, partId, sheet), sheet ? `« ${part.name} » en ${sheet.name}` : `« ${part.name} » sans matière choisie`);
+  }
+
+  /** Nouvelle fiche, à compléter, donnée à la pièce et ouverte dans le panneau des matières. */
+  createSheetFor(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    const from = sheetOf(this.state.doc, part);
+    const id = newMaterialId(this.state.doc);
+    const sheet: MaterialSheet = from ? { ...from, id, name: `${from.name} (variante)` } : { id, name: 'Nouvelle matière', base: part.material ?? 'pla', process: 'print', color: part.color };
+    this.commit(assignSheet(this.state.doc, partId, sheet), `Nouvelle matière pour « ${part.name} »`);
+    this.set({ openSheet: id, rightPanelHidden: false });
+  }
+
+  setOpenSheet(id: Id | null): void {
+    this.set({ openSheet: id });
+  }
+
+  /** Modifie une fiche du projet (les pièces qui l'utilisent suivent). */
+  updateProjectSheet(sheet: MaterialSheet): void {
+    const before = this.state.doc.materials?.find((m) => m.id === sheet.id);
+    if (!before || JSON.stringify(before) === JSON.stringify(sheet)) return;
+    const problems = sheetProblems(sheet);
+    if (problems.length) return this.explain(`Fiche non modifiée : ${problems.join(', ')}.`);
+    this.commit(updateSheet(this.state.doc, sheet), `Modifier la matière « ${sheet.name} »`);
+  }
+
+  /** Retire une fiche du projet ; ses pièces n'ont plus de matière choisie. */
+  removeProjectSheet(sheetId: Id): void {
+    const sheet = this.state.doc.materials?.find((m) => m.id === sheetId);
+    if (!sheet) return;
+    this.commit(removeSheet(this.state.doc, sheetId), `Retirer la matière « ${sheet.name} » de ses pièces`);
+  }
+
+  /** Garde une fiche dans le catalogue personnel de l'appareil (remplace celle de même identifiant). */
+  keepSheetInCatalogue(sheet: MaterialSheet): void {
+    const own = sheet.id.startsWith('my-') ? sheet : { ...sheet, id: createId('my', new Set(this.state.materialCatalogue.map((m) => m.id))) };
+    const list = [...this.state.materialCatalogue.filter((m) => m.id !== own.id), own];
+    this.saveCatalogue(list);
+    this.toast('success', `« ${own.name} » est dans votre catalogue : vous la retrouverez dans vos autres projets.`);
+  }
+
+  removeSheetFromCatalogue(sheetId: Id): void {
+    this.saveCatalogue(this.state.materialCatalogue.filter((m) => m.id !== sheetId));
+  }
+
+  private saveCatalogue(list: MaterialSheet[]): void {
+    this.set({ materialCatalogue: list });
+    void this.deps.projects?.setSetting('materialCatalogue', list).catch(() => undefined);
+  }
+
+  /** Enregistre le catalogue personnel dans un fichier, pour le passer à un autre appareil. */
+  async exportCatalogue(): Promise<void> {
+    const list = this.state.materialCatalogue;
+    if (list.length === 0) return this.explain('Votre catalogue est vide : gardez d’abord une matière du projet.');
+    await this.download(new Blob([catalogueText(list)], { type: 'application/json' }), 'Mes matières VibeCAD', 'json', `${list.length} matière(s).`);
+  }
+
+  /** Ajoute au catalogue personnel les fiches d'un fichier exporté. */
+  async importCatalogue(): Promise<void> {
+    const file = await pickFile('.json,application/json');
+    if (!file) return;
+    const read = readCatalogue(await file.text());
+    if (!read) return this.toast('error', `« ${file.name} » n’est pas un catalogue de matières.`);
+    const byId = new Map(this.state.materialCatalogue.map((m) => [m.id, m]));
+    for (const s of read.sheets) byId.set(s.id, s);
+    this.saveCatalogue([...byId.values()]);
+    this.toast('success', `${read.sheets.length} matière(s) ajoutée(s) à votre catalogue${read.rejected ? `, ${read.rejected} écartée(s) (incomplètes)` : ''}.`);
   }
 
   // ----- Bibliothèques de composants (voir docs/bibliotheques.md)
@@ -282,7 +399,12 @@ export class AppController {
       const taken = new Set(this.state.doc.parts.map((p) => p.name));
       let name = base;
       for (let n = 2; taken.has(name); n++) name = `${base} (${n})`;
-      const doc = name === base ? copy.doc : renamePart(copy.doc, partId, name);
+      let doc = name === base ? copy.doc : renamePart(copy.doc, partId, name);
+      // Matière : les fiches du composant s'il en a, sinon une fiche « achetée » d'après sa matière (acier, aluminium).
+      doc = importSheetsFor(doc, partId, parsed.doc.materials);
+      const inserted = findPart(doc, partId)!;
+      const bought = inserted.make ? undefined : STARTER_MATERIALS.find((m) => m.process === 'bought' && m.base === inserted.material);
+      if (bought) doc = assignSheet(doc, partId, bought);
       const inAssembly = this.state.workspace === 'assembly';
       if (!inAssembly) this.fitPending = true;
       this.commit(doc, `Insérer le composant « ${name} »`, {
@@ -1615,6 +1737,13 @@ export class AppController {
     const reason = this.draftBlockReason();
     if (reason) return this.explain(reason);
     let doc = this.draftDocument(draft);
+    // Gravure colorée : une matière choisie dans un catalogue entre dans le projet ; l'ancienne en sort si elle ne sert plus.
+    if (draft.feature.type === 'engrave') {
+      const id = draft.feature.params.material;
+      const sheet = id && !doc.materials?.some((m) => m.id === id) ? [...STARTER_MATERIALS, ...this.state.materialCatalogue].find((m) => m.id === id) : undefined;
+      if (sheet) doc = { ...doc, materials: [...(doc.materials ?? []), { ...sheet }] };
+      doc = pruneSheets(doc);
+    }
     // Comme dans FreeCAD, l'esquisse utilisée par un nouveau volume est masquée (elle reste dans l'historique).
     if (draft.isNew) {
       for (const dep of featureDependencies(draft.feature)) {
@@ -1968,6 +2097,8 @@ export class AppController {
     const s = this.state;
     const layout = this.printLayout();
     const plates = which === 'all' ? Array.from({ length: layout.plates }, (_v, i) => i) : [which];
+    // Matières imprimées du plateau : leur emplacement AMS part dans le 3MF (s'il y en a au moins une).
+    const slots = amsSlots(s.doc, this.fabrication().print);
     try {
       for (const plate of plates) {
         const on = layout.placements.filter((p) => p.plate === plate);
@@ -1975,7 +2106,7 @@ export class AppController {
         const { bytes, warnings } = await this.deps.client.export3mf(
           s.doc,
           partIds,
-          on.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix })),
+          on.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, ...this.filamentOf(p.partId, slots) })),
         );
         const name = layout.plates > 1 ? `${s.doc.name} - plateau ${plate + 1}` : `${s.doc.name} - plateau`;
         const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/3mf' }), safeFileName(name, '.3mf'), {
@@ -1998,6 +2129,38 @@ export class AppController {
       this.toast('error', 'L’export a échoué.', { detail: (err as Error).message });
       return false;
     }
+  }
+
+  /** Matières imprimées du plateau, dans l'ordre des emplacements de l'AMS. */
+  amsSlots(): MaterialSheet[] {
+    return amsSlots(this.state.doc, this.fabrication().print);
+  }
+
+  /** Emplacement AMS d'une pièce pour l'export (rien si aucune matière imprimée n'est choisie). */
+  private filamentOf(partId: Id, slots: readonly MaterialSheet[]): Pick<ExportPlacement, 'filament' | 'faceFilaments' | 'engraveFilaments'> {
+    if (slots.length === 0) return {};
+    const part = findPart(this.state.doc, partId);
+    const slotOf = (id: Id | undefined) => {
+      const index = id ? slots.findIndex((m) => m.id === id) : -1;
+      return index >= 0 ? index + 1 : 1;
+    };
+    const printed = sheetOf(this.state.doc, part ?? { make: undefined })?.process === 'print';
+    const painted = printed ? (part?.paint?.faces ?? []) : [];
+    const engraved = printed && part ? engraveColors(part) : [];
+    return {
+      filament: slotOf(part?.make),
+      ...(painted.length ? { faceFilaments: painted.map((f) => ({ ref: f.ref, filament: slotOf(f.material) })) } : {}),
+      ...(engraved.length ? { engraveFilaments: engraved.map((e) => ({ featureId: e.featureId, filament: slotOf(e.material) })) } : {}),
+    };
+  }
+
+  /** Charge une matière dans un emplacement de l'AMS (celle qui y était prend son ancienne place). */
+  setAmsSlot(sheetId: Id, slot: number): void {
+    const order = amsSlots(this.state.doc, this.fabrication().print).map((m) => m.id);
+    const from = order.indexOf(sheetId);
+    if (from < 0 || slot < 0 || slot >= order.length || from === slot) return;
+    [order[from], order[slot]] = [order[slot]!, order[from]!];
+    this.updateFabrication((f) => ({ ...f, print: { ...f.print, ams: order } }), `Emplacement AMS ${slot + 1}`);
   }
 
   /**
@@ -2221,7 +2384,8 @@ export class AppController {
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     // Les autres onglets (fabrication, simulation…) travaillent sur l'assemblage principal.
     const closed = workspace !== 'assembly' && this.state.doc.editingSubassembly ? { doc: closedDocument(this.state.doc), explode: 0 } : {};
-    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}) });
+    // Fabrication : on commence toujours par décider comment chaque pièce est fabriquée.
+    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}), ...(workspace === 'fabrication' ? { fabricationTab: 'materials' as const } : {}), brush: null });
   }
 
   // ----- Paramètres du projet
@@ -2601,7 +2765,7 @@ export class AppController {
     if ((tab === 'laser' && !this.can('fabrication:laser')) || (tab === 'docs' && !this.can('fabrication:docs'))) {
       return this.explain('Cet outil est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     }
-    this.set({ fabricationTab: tab, mode: this.state.mode.kind === 'pick-fab-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
+    this.set({ fabricationTab: tab, mode: this.state.mode.kind === 'pick-fab-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1, brush: tab === 'materials' ? this.state.brush : null });
   }
 
   /** Réglages de fabrication complétés (une ligne par pièce ayant un volume). */
@@ -2632,7 +2796,15 @@ export class AppController {
       s.doc.parts,
       (id) => s.display[id]?.result.flat?.mesh ?? s.display[id]?.mesh,
       (id) => s.display[id]?.result.flat?.bends.flatMap((b) => b.lines.map((l) => ({ point: l.point, dir: l.dir, angle: b.angle }))),
+      (id) => this.engravingsOf(id),
     );
+  }
+
+  /** Dessins des opérations Gravure d'une pièce, en 3D (pas sur une tôle dépliée). */
+  private engravingsOf(partId: Id): Engraving[] {
+    const d = this.state.display[partId];
+    const part = findPart(this.state.doc, partId);
+    return d && part && !d.result.flat ? partEngravings(part, d.result.sketches) : [];
   }
 
   /** Plaques en grand (édition du placement des pièces d'un matériau), ou fermeture. */
@@ -2690,7 +2862,7 @@ export class AppController {
     const group = this.laserLayout().materials.find((g) => g.material.id === materialId);
     if (!group) return null;
     const sheets = Array.from({ length: group.sheets }, (_v, i) => ({
-      items: group.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name }, ...(p.bends ? { bends: p.bends } : {}) })),
+      items: group.placed.filter((p) => p.sheet === i).map((p) => ({ loops: p.loops, label: { at: p.labelAt, text: p.name }, ...(p.bends ? { bends: p.bends } : {}), ...(p.engrave ? { engrave: p.engrave } : {}) })),
     }));
     return { sheet: group.material.sheet, sheets, engraveNames: !!f.engraveNames };
   }
@@ -2766,8 +2938,10 @@ export class AppController {
 
   private drawingCache = new Map<string, { page: DrawingPage; scale: number }>();
 
+  /** Pièce montrée seule (Matières, Documents) ; la vue se recadre sur elle. */
   setFabricationPart(partId: Id): void {
-    this.set({ fabricationPart: partId });
+    if (this.state.fabricationPart === partId) return;
+    this.set({ fabricationPart: partId, fitRequest: this.state.fitRequest + 1 });
   }
 
   private hasSolid(partId: Id): boolean {
@@ -2893,8 +3067,8 @@ export class AppController {
     await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
   }
 
-  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv', message: string): Promise<void> {
-    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV' };
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON' };
     try {
       const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
       if (target) this.toast('success', `« ${target.name} » — ${message}`);
@@ -2911,6 +3085,7 @@ export class AppController {
 
   private fabricationPick(pick: ModelPick | null): void {
     const mode = this.state.mode;
+    if (this.state.brush && this.state.fabricationTab === 'materials' && mode.kind === 'model') return this.paintPick(pick);
     if (mode.kind !== 'pick-fab-face' && this.state.fabricationTab === 'docs') {
       if (pick?.kind === 'face') this.setFabricationPart(pick.partId.split(':')[1] ?? pick.partId);
       return;

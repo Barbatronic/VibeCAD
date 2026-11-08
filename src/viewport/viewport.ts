@@ -47,7 +47,7 @@ import type { Vec2, Vec3 } from '../math/vec';
 import { CameraRig, type Projection, type StandardView } from './camera-rig';
 import { readPalette, type ViewportPalette } from './colors';
 import { AxesView, frameMatrix, PlaneGrid } from './grid';
-import { fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type PartAppearance } from './part-meshes';
+import { markingsKey, type PartMarkings, fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type PartAppearance } from './part-meshes';
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
@@ -67,6 +67,14 @@ export interface ViewPartInput {
   appearance: PartAppearance;
   /** Placement (matrice 4 × 4 par colonnes) : pièces d'un assemblage. */
   matrix?: number[];
+  /** Opacité (< 1 : matière translucide, comme un acrylique transparent). */
+  opacity?: number;
+  /** Aspect de surface de la matière (rendu « matières réelles »). */
+  finish?: 'matte' | 'satin' | 'glossy' | 'metal';
+  /** Couleur de chaque face du maillage (chants brûlés, couleurs d'impression). */
+  faceColors?: string[];
+  /** Marquages de surface (gravures sans profondeur), en coordonnées de la pièce : traits et surfaces. */
+  markings?: PartMarkings;
 }
 
 /** Repère affiché dans la vue (liaison d'assemblage) : origine et axe Z. */
@@ -509,7 +517,7 @@ export class Viewport {
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
       const edgeWidth = this.input.edgeWidth ?? 1;
-      const signature = `${p.meshKey}|${p.color}|${p.appearance}|${style}|${edgeWidth}`;
+      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -523,7 +531,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish);
         obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;

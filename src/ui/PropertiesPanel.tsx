@@ -3,7 +3,8 @@
  * d'état) : matière, volume, masse, encombrement, centre de gravité.
  */
 import { allows } from '../app/levels';
-import { massOf, PART_MATERIALS, partMaterial, partMaterialId } from '../domain/part-material';
+import { PROCESS_LABELS, sheetOf } from '../domain/material-sheets';
+import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { formatLength, formatNumber, formatVolume } from '../domain/units';
 import { useAppState, useController } from './context';
 import { Button } from './components/controls';
@@ -13,6 +14,7 @@ export function PropertiesPanel() {
   const c = useController();
   const part = useAppState((s) => s.doc.parts.find((p) => p.id === s.activePartId) ?? s.doc.parts[0]);
   const analysis = useAppState((s) => (part ? s.display[part.id]?.result.analysis : null));
+  const sheet = useAppState((s) => (part ? sheetOf(s.doc, part) : undefined));
   const showCentroid = useAppState((s) => s.showCentroid);
   const canCentroid = useAppState((s) => allows(s.level, 'view-centroid'));
   if (!part) return null;
@@ -27,26 +29,16 @@ export function PropertiesPanel() {
       </div>
       <div class="panel-content">
         <div class="field">
-          <span class="field-label" id="part-material-label">
-            Matière
-          </span>
-          <div class="material-grid" role="radiogroup" aria-labelledby="part-material-label">
-            {PART_MATERIALS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                role="radio"
-                id={`part-material-${m.id}`}
-                aria-checked={m.id === material.id}
-                class="material-chip"
-                onClick={() => c.setPartMaterial(part.id, m.id)}
-              >
-                <span class="material-name">{m.name}</span>
-                <span class="material-density">{formatNumber(m.density, 2)} g/cm³</span>
-              </button>
-            ))}
+          <span class="field-label">Matière</span>
+          <div class="part-sheet">
+            {sheet ? <span class="color-swatch" style={{ background: sheet.color, width: '16px', height: '16px' }} /> : null}
+            <strong id="part-sheet-name">{sheet ? sheet.name : `Non choisie (comptée en ${material.name})`}</strong>
+            {sheet ? <span class="field-help">{PROCESS_LABELS[sheet.process]}</span> : null}
           </div>
-          <span class="field-help">Elle donne la masse ci-dessous, et le matériau proposé dans l’atelier Simulation.</span>
+          <Button small icon="material" onClick={() => c.showMaterials()}>
+            Choisir dans Fabrication › Matières
+          </Button>
+          <span class="field-help">Elle donne la masse ci-dessous, le matériau proposé dans l’atelier Simulation, et la couleur réelle de la pièce.</span>
         </div>
         {solid ? (
           <dl class="props-list" aria-live="polite">

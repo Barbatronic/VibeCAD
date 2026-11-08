@@ -42,6 +42,7 @@ const CAT_LINES: Partial<Record<FeatureIssueCode, string>> = {
   SUPPORT_AMBIGUOUS: 'Plusieurs faces pourraient porter cette esquisse : choisis la bonne.',
   INVALID_PARAMETER: 'Une valeur ne convient pas : ouvre l’étape et corrige-la.',
   POCKET_WITHOUT_SOLID: 'Une poche retire de la matière : il faut d’abord un volume (une extrusion).',
+  ENGRAVE_WITHOUT_SOLID: 'Une gravure se fait sur une pièce : il faut d’abord un volume (une extrusion).',
   POCKET_REMOVES_NOTHING: 'La poche ne touche pas la pièce : vérifie son sens ou sa profondeur.',
   POCKET_REMOVES_EVERYTHING: 'La poche enlèverait toute la pièce : réduis-la.',
   DISJOINT_SOLID: 'Ce volume ne touche pas le reste de la pièce : il forme un morceau séparé.',

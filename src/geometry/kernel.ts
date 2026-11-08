@@ -273,6 +273,12 @@ export interface GeometryKernel {
   fuse(base: KernelShape, tool: KernelShape): KernelShape;
   cut(base: KernelShape, tool: KernelShape): KernelShape;
   /**
+   * Marquage : les faces de `base` sont découpées selon les faces d'arrivée (rôle `end`) du prisme
+   * `tool`, sans changer le volume. Les morceaux qui correspondent au dessin reçoivent aussi les
+   * étiquettes de ces faces (ils deviennent des faces à part, coloriables).
+   */
+  imprint(base: KernelShape, tool: KernelShape): KernelShape;
+  /**
    * Ajout ou retrait de plusieurs volumes en une seule opération (exemplaires d'une répétition) :
    * bien plus rapide qu'une suite d'opérations, chacune contre une pièce de plus en plus chargée.
    */

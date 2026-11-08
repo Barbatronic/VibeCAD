@@ -23,6 +23,7 @@ import { evaluateExtrude } from './extrude/evaluate';
 import { evaluateFillet } from './fillet/evaluate';
 import { evaluateImportedSolid } from './imported/evaluate';
 import { evaluatePocket } from './pocket/evaluate';
+import { evaluateEngrave } from './engrave/evaluate';
 import { evaluateRevolve } from './revolve/evaluate';
 import { evaluatePattern } from './pattern/evaluate';
 import { evaluateSketch } from './sketch/evaluate';
@@ -43,6 +44,7 @@ export const FEATURE_EVALUATORS: Evaluators = {
   plane: evaluatePlane,
   axis: evaluateAxis,
   pocket: evaluatePocket,
+  engrave: evaluateEngrave,
   revolve: evaluateRevolve,
   loft: evaluateLoft,
   sweep: evaluateSweep,

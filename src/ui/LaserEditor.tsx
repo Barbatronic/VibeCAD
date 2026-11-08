@@ -73,7 +73,19 @@ export function LaserEditor() {
   const current = Math.min(sheet, sheets - 1);
   const key = (p: PlacedOutline) => `${p.partId}#${p.copy}`;
   // Pièce tirée : affichée à sa position en cours (enregistrée au relâchement).
-  const pieces = group.placed.map((p) => (drag && drag.moved && key(p) === drag.key ? { ...p, placement: { ...p.placement, x: drag.x, y: drag.y }, loops: placeLoops(p.local, { ...p.placement, x: drag.x, y: drag.y }) } : p));
+  // Pièce glissée : ses contours et ses gravures suivent (une translation, l'angle ne change pas).
+  const shift = (loops: { x: number; y: number }[][], dx: number, dy: number) => loops.map((l) => l.map((q) => ({ x: q.x + dx, y: q.y + dy })));
+  const pieces = group.placed.map((p) => {
+    if (!(drag && drag.moved && key(p) === drag.key)) return p;
+    const dx = drag.x - p.placement.x;
+    const dy = drag.y - p.placement.y;
+    return {
+      ...p,
+      placement: { ...p.placement, x: drag.x, y: drag.y },
+      loops: placeLoops(p.local, { ...p.placement, x: drag.x, y: drag.y }),
+      ...(p.engrave ? { engrave: p.engrave.map((m) => ({ fill: m.fill, loops: shift(m.loops, dx, dy) })) } : {}),
+    };
+  });
   latest.current = { pieces, selected };
   const problems = placementProblems(pieces, group.material.sheet);
   const onSheet = pieces.map((p, i) => ({ p, i })).filter(({ p }) => p.sheet === current);
@@ -207,6 +219,9 @@ export function LaserEditor() {
             return (
               <g key={key(p)} class={`laser-piece${bad ? ' is-bad' : ''}${key(p) === selected ? ' is-selected' : ''}`} onPointerDown={(e) => onPieceDown(e as PointerEvent, p)} data-piece={key(p)}>
                 <path d={path(p.loops)} fill-rule="evenodd" />
+                {(p.engrave ?? []).map((m, j) => (
+                  <path key={`g${j}`} class={`laser-engrave${m.fill ? ' is-fill' : ''}`} d={path(m.loops)} fill-rule="evenodd" />
+                ))}
                 {(p.bends ?? []).map((b, j) => (
                   <line key={j} class="laser-bend" x1={sx(b.a.x)} y1={sy(b.a.y)} x2={sx(b.b.x)} y2={sy(b.b.y)} />
                 ))}

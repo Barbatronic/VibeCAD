@@ -11,6 +11,7 @@ import type { RollbackState } from './rollback';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
 import type { CadDocument, Id, JointEnd } from '../domain/model';
+import type { MaterialSheet } from '../domain/material-sheets';
 import type { FastenerKind } from '../domain/fasteners';
 import type { FeatureDraft } from '../features/panel-types';
 import type { MeshData } from '../geometry/kernel';
@@ -89,7 +90,10 @@ export interface TopologyRun {
 }
 
 /** Sous-onglet de Fabrication. */
-export type FabricationTab = 'print' | 'laser' | 'docs';
+export type FabricationTab = 'materials' | 'print' | 'laser' | 'docs';
+
+/** Couleurs des pièces : celles de conception, ou celles de leur fiche matière (rendu réel). */
+export type ColorMode = 'design' | 'materials';
 
 /** Visserie : un ou plusieurs éléments (un groupe d'éléments identiques de la liste). */
 export type AssemblySelection = { kind: 'instance'; id: Id } | { kind: 'joint'; id: Id } | { kind: 'fasteners'; ids: Id[] } | { kind: 'coupling'; id: Id } | null;
@@ -261,6 +265,14 @@ export interface AppState {
   projection: Projection;
   /** Mode d'affichage des pièces (préférence de l'appareil). */
   displayStyle: DisplayStyle;
+  /** Couleurs de conception ou matières réelles, dans tous les ateliers (retenu sur l'appareil). */
+  colorMode: ColorMode;
+  /** Catalogue personnel de fiches matière (retenu sur l'appareil). */
+  materialCatalogue: MaterialSheet[];
+  /** Fiche du projet ouverte dans Fabrication › Matières. */
+  openSheet: Id | null;
+  /** Pinceau (Fabrication › Matières) : fiche posée sur les faces touchées, gomme, ou rien. */
+  brush: MaterialSheet | 'erase' | null;
   /** Épaisseur des arêtes des pièces, en pixels (préférence de l'appareil). */
   edgeWidth: number;
   dialog: Dialog | null;
@@ -326,7 +338,7 @@ export function initialState(): AppState {
     collisions: null,
     sectionParts: null,
     workspace: 'parts',
-    fabricationTab: 'print',
+    fabricationTab: 'materials',
     assemblyHand: false,
     explode: 0,
     jointAnimation: null,
@@ -350,6 +362,10 @@ export function initialState(): AppState {
     offline: { status: 'dev' },
     projection: 'perspective',
     displayStyle: 'shaded-edges',
+    colorMode: 'design',
+    materialCatalogue: [],
+    openSheet: null,
+    brush: null,
     edgeWidth: 1,
     dialog: null,
     helpOpen: false,

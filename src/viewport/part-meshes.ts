@@ -13,6 +13,8 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   ShaderMaterial,
+  ShapeUtils,
+  Vector2,
   type Material,
 } from 'three';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
@@ -78,6 +80,26 @@ export function fatLineMaterial(color: string, width: number, opts: { dashed?: b
   return m;
 }
 
+type P3 = { x: number; y: number; z: number };
+const cross = (a: P3, b: P3): P3 => {
+  const c = { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+  const l = Math.hypot(c.x, c.y, c.z) || 1;
+  return { x: c.x / l, y: c.y / l, z: c.z / l };
+};
+
+/** Gravures sans profondeur d'une pièce : contours en trait, régions remplies (avec leurs trous). */
+export interface PartMarkings {
+  lines: P3[][];
+  fills: { outer: P3[]; holes: P3[][]; normal: P3 }[];
+  color: string;
+}
+
+/** Clé courte d'un marquage, pour savoir s'il faut reconstruire la pièce affichée. */
+export function markingsKey(m: PartMarkings): string {
+  const first = (l: P3[]) => `${l.length}:${l[0]?.x.toFixed(3)},${l[0]?.y.toFixed(3)},${l[0]?.z.toFixed(3)}`;
+  return `${m.color}|${m.lines.map(first).join(';')}|${m.fills.map((f) => first(f.outer)).join(';')}`;
+}
+
 export class PartObject {
   readonly group = new Group();
   readonly faces: Mesh;
@@ -85,6 +107,8 @@ export class PartObject {
   readonly edges: LineSegments2;
   /** Premier triangle de chaque face, pour retrouver la face d'un triangle touché. */
   private readonly faceTriangleStarts: number[];
+  /** Marquages de surface (gravures sans profondeur) : traits et surfaces. */
+  readonly markings: (LineSegments2 | Mesh)[] = [];
 
   constructor(
     readonly partId: Id,
@@ -95,6 +119,14 @@ export class PartObject {
     palette: ViewportPalette,
     style: DisplayStyle = 'shaded-edges',
     edgeWidth = 1,
+    /** Opacité de la matière (< 1 : translucide) ; seulement pour une pièce affichée normalement. */
+    private readonly opacity = 1,
+    /** Couleur de chaque face (chants brûlés d'une découpe, couleurs d'impression) ; absente : la couleur de la pièce. */
+    faceColors?: readonly string[],
+    /** Marquages de surface (gravures sans profondeur), sur la face. */
+    markings?: PartMarkings,
+    /** Aspect de la matière (rendu « matières réelles ») ; absent : l'aspect habituel. */
+    private readonly finish?: 'matte' | 'satin' | 'glossy' | 'metal',
   ) {
     // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
     const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
@@ -104,7 +136,16 @@ export class PartObject {
     geometry.setIndex(new BufferAttribute(data.indices, 1));
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
-    this.faces = new Mesh(geometry, styled === 'shaded-edges' || styled === 'shaded' ? this.faceMaterial(color, appearance, palette) : this.styledFaceMaterial(color, styled, palette));
+    const shaded = styled === 'shaded-edges' || styled === 'shaded';
+    let material: Material | Material[] = shaded ? this.faceMaterial(color, appearance, palette) : this.styledFaceMaterial(color, styled, palette);
+    if (faceColors && shaded && appearance === 'normal') {
+      // Un matériau par couleur, et un groupe de triangles par face.
+      const distinct = Array.from(new Set(faceColors));
+      (material as Material).dispose();
+      material = distinct.map((c) => this.faceMaterial(c, appearance, palette));
+      data.faces.forEach((f, i) => geometry.addGroup(f.start, f.count, Math.max(0, distinct.indexOf(faceColors[i] ?? color))));
+    }
+    this.faces = new Mesh(geometry, material);
     this.faces.userData = { partId, kind: 'part-faces' };
     const edgeGeometry = new LineSegmentsGeometry();
     edgeGeometry.setPositions(data.edgePositions);
@@ -132,10 +173,55 @@ export class PartObject {
       this.group.add(hidden);
     }
     this.faceTriangleStarts = data.faces.map((f) => f.start / 3);
+    if (markings && appearance !== 'ghost') this.addMarkings(markings, Math.max(1.5, edgeWidth * 1.6));
+  }
+
+  /** Gravures sans profondeur : traits (contour) et surfaces (remplissage), juste au-dessus de la face. */
+  private addMarkings(markings: PartMarkings, width: number): void {
+    const lift = (p: P3, n: P3, d: number) => ({ x: p.x + n.x * d, y: p.y + n.y * d, z: p.z + n.z * d });
+    if (markings.lines.length) {
+      const pos: number[] = [];
+      for (const loop of markings.lines) {
+        loop.forEach((p, i) => {
+          const q = loop[(i + 1) % loop.length]!;
+          pos.push(p.x, p.y, p.z, q.x, q.y, q.z);
+        });
+      }
+      const g = new LineSegmentsGeometry();
+      g.setPositions(pos);
+      const lines = new LineSegments2(g, fatLineMaterial(markings.color, width));
+      lines.userData = { partId: this.partId, kind: 'part-markings' };
+      lines.renderOrder = 3;
+      this.markings.push(lines);
+      this.group.add(lines);
+    }
+    if (markings.fills.length) {
+      // Chaque région est triangulée dans son plan (repère tiré de la normale), trous compris.
+      const pos: number[] = [];
+      for (const r of markings.fills) {
+        const n = r.normal;
+        const u = Math.abs(n.x) < 0.9 ? cross({ x: 1, y: 0, z: 0 }, n) : cross({ x: 0, y: 1, z: 0 }, n);
+        const v = cross(n, u);
+        const flat = (p: P3) => new Vector2(p.x * u.x + p.y * u.y + p.z * u.z, p.x * v.x + p.y * v.y + p.z * v.z);
+        const all = [r.outer, ...r.holes];
+        const tris = ShapeUtils.triangulateShape(r.outer.map(flat), r.holes.map((h) => h.map(flat)));
+        const points = all.flat().map((p) => lift(p, n, 0.02));
+        for (const t of tris) for (const k of t) pos.push(points[k]!.x, points[k]!.y, points[k]!.z);
+      }
+      const g = new BufferGeometry();
+      g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+      const mesh = new Mesh(g, new MeshBasicMaterial({ color: markings.color, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      mesh.userData = { partId: this.partId, kind: 'part-markings' };
+      mesh.renderOrder = 2;
+      this.markings.push(mesh);
+      this.group.add(mesh);
+    }
   }
 
   private faceMaterial(color: string, appearance: PartAppearance, palette: ViewportPalette): Material {
-    const base = { roughness: 0.62, metalness: 0.04, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
+    // Sans carte d'environnement, un métal très réfléchissant paraîtrait noir : reflet modéré.
+    const surface = { matte: { roughness: 0.85, metalness: 0 }, satin: { roughness: 0.62, metalness: 0.04 }, glossy: { roughness: 0.28, metalness: 0.02 }, metal: { roughness: 0.4, metalness: 0.3 } }[this.finish ?? 'satin'];
+    const base = { ...surface, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
     switch (appearance) {
       case 'stale':
         return new MeshStandardMaterial({ ...base, color: palette.stale, transparent: true, opacity: 0.55 });
@@ -150,7 +236,10 @@ export class PartObject {
       case 'dimmed':
         return new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.3, depthWrite: false });
       default:
-        return new MeshStandardMaterial({ ...base, color });
+        // Matière translucide (acrylique, PETG transparent) : on voit au travers, un peu brillante.
+        return this.opacity < 1
+          ? new MeshStandardMaterial({ ...base, color, transparent: true, opacity: this.opacity, depthWrite: false, roughness: Math.min(base.roughness, 0.25) })
+          : new MeshStandardMaterial({ ...base, color });
     }
   }
 
@@ -179,6 +268,7 @@ export class PartObject {
   setResolution(width: number, height: number): void {
     (this.edges.material as LineMaterial).resolution.set(width, height);
     if (this.hiddenEdges) (this.hiddenEdges.material as LineMaterial).resolution.set(width, height);
+    for (const m of this.markings) if (m instanceof LineSegments2) (m.material as LineMaterial).resolution.set(width, height);
   }
 
   private styledFaceMaterial(color: string, style: DisplayStyle, palette: ViewportPalette): Material {
@@ -239,9 +329,13 @@ export class PartObject {
 
   dispose(): void {
     this.faces.geometry.dispose();
-    (this.faces.material as Material).dispose();
+    for (const m of ([] as Material[]).concat(this.faces.material)) m.dispose();
     this.edges.geometry.dispose();
     (this.edges.material as Material).dispose();
     if (this.hiddenEdges) (this.hiddenEdges.material as Material).dispose();
+    for (const m of this.markings) {
+      m.geometry.dispose();
+      (m.material as Material).dispose();
+    }
   }
 }

@@ -166,6 +166,11 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   M12, sans filetage) posée d'un clic dans les trous : la taille vient du trou (passage ISO 273
   ou taraudage), les longueurs sont celles de la norme, et elle apparaît dans la nomenclature.
   Voir [docs/assemblage.md](docs/assemblage.md).
+- **Matières** (atelier Fabrication › Matières) : pour chaque pièce, une **fiche matière** (« PLA
+  blanc », « Acrylique transparent 3 mm »…) qui dit comment elle est fabriquée et donne sa couleur
+  réelle, sa masse et son matériau de simulation ; fiches livrées, **catalogue personnel**
+  réutilisable d'un projet à l'autre (import / export), et affichage « **Matières réelles** » dans
+  tous les ateliers. Voir [docs/conception-matieres.md](docs/conception-matieres.md).
 - **Fabrication** (onglet à part) : préparer le plateau d'impression 3D (face posée, exemplaires,
   échelle, taille du plateau, plusieurs plateaux si besoin, estimation de matière), puis **l'envoyer
   au slicer** en un clic (téléchargement que le navigateur peut ouvrir tout seul) ou l'exporter en 3MF ; préparer la découpe laser par matériau (épaisseurs différentes dans un même projet,

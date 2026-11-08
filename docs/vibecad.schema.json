@@ -169,6 +169,13 @@
                       }
                     }
                   }
+                },
+                "ams": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Fiches matière des emplacements de l’AMS, dans l’ordre."
                 }
               },
               "description": "Impression 3D : les pièces qui ne tiennent pas sur un plateau passent sur le suivant (plateaux calculés, non enregistrés)."
@@ -249,6 +256,10 @@
                             }
                           }
                         }
+                      },
+                      "fromSheet": {
+                        "type": "boolean",
+                        "description": "Plaque d’une fiche matière (même identifiant)."
                       }
                     }
                   }
@@ -337,6 +348,10 @@
                       }
                     }
                   }
+                },
+                "fromSheet": {
+                  "type": "boolean",
+                  "description": "Plaque d’une fiche matière (même identifiant)."
                 }
               },
               "description": "Découpe laser : une « page » par matériau. Les champs sheet, thickness et kerf (une seule plaque) viennent des premières versions et sont convertis en un matériau à la lecture."
@@ -510,6 +525,82 @@
           "required": [
             "studies"
           ]
+        },
+        "materials": {
+          "type": "array",
+          "description": "Fiches matière utilisées par les pièces, copiées du catalogue (voir docs/conception-matieres.md).",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "base",
+              "process",
+              "color"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "enum": [
+                  "pla",
+                  "petg",
+                  "abs",
+                  "tpu",
+                  "plywood",
+                  "acrylic",
+                  "aluminium",
+                  "steel"
+                ]
+              },
+              "process": {
+                "type": "string",
+                "enum": [
+                  "print",
+                  "laser",
+                  "machining",
+                  "bought"
+                ]
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0.2,
+                "maximum": 1
+              },
+              "thickness": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "brand": {
+                "type": "string"
+              },
+              "edge": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Couleur des chants d’une matière découpée (bois brûlé)."
+              },
+              "finish": {
+                "type": "string",
+                "enum": [
+                  "matte",
+                  "satin",
+                  "glossy",
+                  "metal"
+                ],
+                "description": "Aspect de surface (absent : satiné)."
+              }
+            }
+          }
         }
       }
     },
@@ -554,6 +645,37 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/feature"
+          }
+        },
+        "make": {
+          "type": "string",
+          "description": "Fiche matière de la pièce (identifiant dans « materials »). La pièce garde « material » égal à la base de la fiche."
+        },
+        "paint": {
+          "type": "object",
+          "required": [
+            "faces"
+          ],
+          "description": "Pièce imprimée : faces peintes dans d’autres fiches matière.",
+          "properties": {
+            "faces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "ref",
+                  "material"
+                ],
+                "properties": {
+                  "ref": {
+                    "$ref": "#/$defs/faceRef"
+                  },
+                  "material": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2118,6 +2240,43 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "engrave"
+            },
+            "params": {
+              "type": "object",
+              "required": [
+                "sketchId",
+                "depth"
+              ],
+              "properties": {
+                "sketchId": {
+                  "type": "string"
+                },
+                "depth": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Profondeur (mm) ; 0 : marquage en surface."
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "outline",
+                    "fill"
+                  ],
+                  "description": "Gravure laser : remplissage de la surface, ou trait du contour (absent : contour)."
+                },
+                "material": {
+                  "type": "string",
+                  "description": "Impression 3D : fiche matière (dans « materials ») de la zone gravée."
+                }
+              }
+            }
+          },
+          "description": "Gravure du dessin d’une esquisse : marquage (profondeur 0) ou creux."
         }
       ]
     },

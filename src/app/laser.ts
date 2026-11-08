@@ -6,6 +6,7 @@
  */
 import type { FabricationSettings, FaceRef, Id, LaserItem, LaserMaterial, LaserPlacement } from '../domain/model';
 import { centered, loopBounds, nest, placeLoops, type Placement } from './nesting';
+import { engravingLoops, type Engraving } from './engravings';
 import { formatLength } from '../domain/units';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { worldToFrame } from '../math/frame';
@@ -96,10 +97,12 @@ export function loopArea(loop: Loop): number {
 }
 
 /** Face plate la plus grande d'un maillage (choix par défaut du contour à découper). */
-export function largestPlanarFace(mesh: MeshData): number {
+export function largestPlanarFace(mesh: MeshData, facing?: Vec3): number {
   let best = -1;
   let area = -1;
   mesh.faces.forEach((f, i) => {
+    // `facing` : seules les faces tournées vers ce côté (celui d'une gravure) comptent.
+    if (f.plane && facing && dot3(f.plane.normal, facing) < 0.99) return;
     if (f.plane && f.area > area) {
       best = i;
       area = f.area;
@@ -207,6 +210,12 @@ function norm(v: Vec2): Vec2 {
   return l > 1e-12 ? { x: v.x / l, y: v.y / l } : { x: 0, y: 0 };
 }
 
+/** Gravure sur la plaque : contours en trait, ou surface remplie (pair-impair : les trous restent vides). */
+export interface EngraveMark {
+  loops: Loop[];
+  fill: boolean;
+}
+
 export interface PlacedOutline {
   partId: Id;
   name: string;
@@ -219,6 +228,8 @@ export interface PlacedOutline {
   labelAt: Vec2;
   /** Tôle : lignes de pli (repères à graver), en coordonnées de la plaque. */
   bends?: { a: Vec2; b: Vec2; angle: number }[];
+  /** Dessins à graver (opérations Gravure), en coordonnées de la plaque : trait, ou surface remplie. */
+  engrave?: EngraveMark[];
   /** Exemplaire (0, 1, 2…), placement (centre, angle) et contours centrés non tournés (plaques en grand). */
   copy: number;
   placement: { x: number; y: number; angle: number };
@@ -263,17 +274,23 @@ export function laserLayout(
   meshOf: (partId: Id) => MeshData | null | undefined,
   /** Tôle : lignes de pli du développé (le maillage donné est alors celui de la tôle à plat). */
   bendsOf: (partId: Id) => readonly BendLine[] | undefined = () => undefined,
+  /** Gravures de la pièce : contours en 3D et normale de la face gravée. */
+  engravingsOf: (partId: Id) => readonly Engraving[] = () => [],
 ): LaserLayout {
   const warnings: string[] = [];
   const thickness: Record<Id, number> = {};
   const materialOf: Record<Id, Id> = {};
-  type Entry = { partId: Id; name: string; copy: number; local: Loop[]; bends: { a: Vec2; b: Vec2; angle: number }[]; bw: number; bh: number };
+  type Entry = { partId: Id; name: string; copy: number; local: Loop[]; bends: { a: Vec2; b: Vec2; angle: number }[]; engrave: EngraveMark[]; bw: number; bh: number };
   const entries = new Map<Id, Entry[]>(settings.materials.map((m) => [m.id, []]));
   for (const item of settings.items as LaserItem[]) {
     const part = parts.find((p) => p.id === item.partId);
     const mesh = meshOf(item.partId);
     if (!part || !mesh) continue;
-    const faceIndex = item.face ? findPlanarFace(mesh, item.face) : largestPlanarFace(mesh);
+    // La face choisie est celle posée sur la plaque : on voit la pièce d'au-dessus. Une pièce gravée se
+    // pose donc sur sa face opposée à la gravure, qui se retrouve dessus, face au laser (sans miroir).
+    const engravings = engravingsOf(item.partId);
+    const up = engravings[0]?.normal;
+    const faceIndex = item.face ? findPlanarFace(mesh, item.face) : up ? largestPlanarFace(mesh, { x: -up.x, y: -up.y, z: -up.z }) : largestPlanarFace(mesh);
     if (item.copies > 0 && faceIndex < 0) {
       warnings.push(`« ${part.name} » : la face choisie pour le contour n’existe plus ; choisissez-en une autre.`);
       continue;
@@ -304,8 +321,19 @@ export function laserLayout(
     const bends = (bendsOf(part.id) ?? []).flatMap((bl) =>
       clipLineToOutline(outline, bl.point, bl.dir).map(([a, e]) => ({ a: { x: a.x - center.x, y: a.y - center.y }, b: { x: e.x - center.x, y: e.y - center.y }, angle: bl.angle })),
     );
+    if (up && faceIndex >= 0 && item.copies > 0) {
+      const n = mesh.faces[faceIndex]!.plane?.normal;
+      if (n && dot3(n, up) > 0.5) warnings.push(`« ${part.name} » : la gravure est sur la face posée sur la plaque ; choisissez l’autre face comme contour pour la graver dessus.`);
+    }
+    const engrave: EngraveMark[] = engravings.map((g) => ({
+      fill: g.mode === 'fill',
+      loops: engravingLoops(g).map((loop) => loop.map((q) => {
+        const p = worldToFrame(outline.frame, q);
+        return { x: p.x - center.x, y: p.y - center.y };
+      })),
+    }));
     for (let copy = 0; copy < item.copies; copy++) {
-      entries.get(material.id)!.push({ partId: part.id, name: item.copies > 1 ? `${part.name} ${copy + 1}` : part.name, copy, local, bends, bw, bh });
+      entries.get(material.id)!.push({ partId: part.id, name: item.copies > 1 ? `${part.name} ${copy + 1}` : part.name, copy, local, bends, engrave, bw, bh });
     }
   }
   const keyOf = (e: { partId: Id; copy: number }) => `${e.partId}#${e.copy}`;
@@ -365,6 +393,7 @@ export function laserLayout(
           loops: placeLoops(e.local, p),
           labelAt: { x: p.x, y: p.y },
           ...(e.bends.length ? { bends: e.bends.map((bd) => ({ a: at(bd.a), b: at(bd.b), angle: bd.angle })) } : {}),
+          ...(e.engrave.length ? { engrave: e.engrave.map((m) => ({ fill: m.fill, loops: placeLoops(m.loops, p) })) } : {}),
         },
       ];
     });

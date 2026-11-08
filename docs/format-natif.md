@@ -82,6 +82,7 @@ lit un projet complet et juste. Une cote d'esquisse liée porte de même `expres
   "color": "#4f86c6",
   "visible": true,
   "material": "pla",
+  "make": "std-pla-white",
   "features": [ { "…": "étapes de l'historique, dans l'ordre" } ]
 }
 ```
@@ -90,6 +91,24 @@ lit un projet complet et juste. Une cote d'esquisse liée porte de même `expres
 études de simulation — `pla`, `petg`, `abs`, `tpu`, `plywood` (contreplaqué), `acrylic`,
 `aluminium`, `steel` (mêmes identifiants que les matériaux de simulation). Absent : la matière
 de sa tôle si elle en a une, sinon le PLA. Une valeur inconnue est refusée à l'ouverture.
+
+`make` (facultatif) : la **fiche matière** de la pièce, désignée dans `materials` (ci-dessous).
+Quand elle est présente, `material` vaut la base de la fiche : une version plus ancienne garde
+ainsi la bonne masse.
+
+### Fiches matière (champ facultatif `materials`)
+
+```json
+"materials": [
+  { "id": "std-acrylic-clear-3", "name": "Acrylique transparent 3 mm", "base": "acrylic",
+    "process": "laser", "color": "#d8eef5", "opacity": 0.35, "thickness": 3 }
+]
+```
+
+Une fiche par matière utilisée, copiée du catalogue : le projet s'ouvre sans lui. `base` : une des
+matières ci-dessus ; `process` : `print` (impression 3D), `laser`, `machining`, `bought` ;
+`color` : `#rrggbb` ; `opacity` (0,2 à 1, facultatif) ; `thickness` (mm, plaque) et `brand`
+facultatifs. Une pièce qui désigne une fiche absente est refusée.
 
 ## Fonctions (étapes de l'historique)
 

@@ -26,6 +26,7 @@ import { extrudeDefinition } from './extrude/definition';
 import { filletDefinition } from './fillet/definition';
 import { importedSolidDefinition } from './imported/definition';
 import { pocketDefinition } from './pocket/definition';
+import { engraveDefinition } from './engrave/definition';
 import { revolveDefinition } from './revolve/definition';
 import { patternDefinition } from './pattern/definition';
 import { sketchDefinition } from './sketch/definition';
@@ -40,6 +41,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   plane: planeDefinition,
   axis: axisDefinition,
   pocket: pocketDefinition,
+  engrave: engraveDefinition,
   revolve: revolveDefinition,
   loft: loftDefinition,
   sweep: sweepDefinition,

@@ -5,6 +5,7 @@
  * dépendances, unités, noms) et les ressources géométriques des imports (STEP embarqués).
  * Aucun objet du noyau n'est sérialisé : la géométrie est reconstruite à l'ouverture.
  */
+import { sheetProblems, toSheet } from '../domain/material-sheets';
 import { PART_MATERIALS } from '../domain/part-material';
 import type {
   AssemblyContext,
@@ -28,6 +29,7 @@ import type {
   LaserMaterial,
   PatternAxis,
   Part,
+  PartPaint,
   Resource,
   SketchConstraint,
   SketchEntity,
@@ -79,8 +81,11 @@ export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISO
         color: p.color,
         visible: p.visible,
         ...(p.material ? { material: p.material } : {}),
+        ...(p.make ? { make: p.make } : {}),
+        ...(p.paint ? { paint: p.paint } : {}),
         features: p.features.map((f) => ({ ...f, dependsOn: featureDependencies(f) })),
       })),
+      ...(doc.materials?.length ? { materials: doc.materials } : {}),
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
       ...(doc.subassemblies?.length ? { subassemblies: doc.subassemblies } : {}),
@@ -224,7 +229,7 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
 }
 
 /** Champs connus du document (schéma 1). */
-const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'materials', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
 
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
@@ -256,6 +261,19 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     parts: parts.filter((p): p is Part => p !== null),
     resources,
   };
+  if (o.materials !== undefined) {
+    const materials = arr(v, o, 'materials', path).flatMap((m, i) => {
+      const mp = `${path}.materials[${i}]`;
+      const sheet = toSheet(m);
+      if (!sheet) {
+        v.error(mp, 'fiche matière attendue (id, name, base, process, color)');
+        return [];
+      }
+      for (const problem of sheetProblems(sheet)) v.error(mp, problem);
+      return [sheet];
+    });
+    if (materials.length) doc.materials = materials;
+  }
   if (o.fabrication !== undefined) {
     const fabrication = readFabrication(v, o.fabrication, `${path}.fabrication`, new Set(doc.parts.map((p) => p.id)));
     if (fabrication) doc.fabrication = fabrication;
@@ -319,6 +337,7 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
           return { partId: str(v, io, 'partId', ip), copies: num(v, io, 'copies', ip, { min: 0, integer: true }), scale: num(v, io, 'scale', ip, { min: 0 }), ...face(io, 'downFace', ip) };
         })
         .filter((i) => partIds.has(i.partId)),
+      ...(pr.ams !== undefined ? { ams: arr(v, pr, 'ams', `${path}.print`).filter((x): x is string => typeof x === 'string') } : {}),
     },
     laser: readLaser(v, la, `${path}.laser`, partIds),
   };
@@ -416,7 +435,7 @@ function readLaser(v: Validator, la: Record<string, unknown>, path: string, part
               })
               .filter((pl) => partIds.has(pl.partId))
           : null;
-      materials.push({ id, name: str(v, mo, 'name', mp), thickness: num(v, mo, 'thickness', mp, { min: 0 }), sheet: sheetOf(mo, mp), kerf: num(v, mo, 'kerf', mp, { min: 0 }), ...(placements ? { placements } : {}) });
+      materials.push({ id, name: str(v, mo, 'name', mp), thickness: num(v, mo, 'thickness', mp, { min: 0 }), sheet: sheetOf(mo, mp), kerf: num(v, mo, 'kerf', mp, { min: 0 }), ...(placements ? { placements } : {}), ...(mo.fromSheet === true ? { fromSheet: true } : {}) });
     });
   } else {
     // Format des premières versions : une seule plaque, une seule épaisseur.
@@ -626,7 +645,21 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
     color,
     visible: bool(v, o, 'visible', path, true),
     ...(material ? { material } : {}),
+    ...(o.make !== undefined ? { make: str(v, o, 'make', path) } : {}),
+    ...(o.paint !== undefined ? { paint: readPaint(v, o.paint, `${path}.paint`) } : {}),
     features: features.filter((f): f is Feature => f !== null),
+  };
+}
+
+/** Faces peintes : référence de face et fiche matière. */
+function readPaint(v: Validator, x: unknown, path: string): PartPaint {
+  const o = obj(v, x, path) ?? {};
+  return {
+    faces: arr(v, o, 'faces', path).map((raw, i) => {
+      const fp = `${path}.faces[${i}]`;
+      const fo = obj(v, raw, fp) ?? {};
+      return { ref: readFaceRef(v, fo.ref, `${fp}.ref`), material: str(v, fo, 'material', fp) };
+    }),
   };
 }
 
@@ -651,7 +684,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'engrave', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -886,6 +919,13 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         },
       };
     }
+    case 'engrave':
+      return {
+        id,
+        name,
+        type,
+        params: { sketchId: str(v, p, 'sketchId', pp), depth: num(v, p, 'depth', pp, { min: 0 }), ...(p.mode !== undefined ? { mode: oneOf(v, p, 'mode', pp, ['outline', 'fill'] as const) } : {}), ...(p.material !== undefined ? { material: str(v, p, 'material', pp) } : {}) },
+      };
     case 'pocket': {
       const e = obj(v, p.extent, `${pp}.extent`);
       const kind = e ? oneOf(v, e, 'kind', `${pp}.extent`, ['distance', 'throughAll'] as const) : 'throughAll';
@@ -1205,8 +1245,17 @@ function checkReferences(v: Validator, doc: CadDocument): void {
     ids.add(id);
   };
   unique(doc.id, 'document.id');
+  const sheets = new Set<string>();
+  (doc.materials ?? []).forEach((m, mi) => {
+    if (sheets.has(m.id)) v.error(`document.materials[${mi}].id`, `fiche matière en double « ${m.id} »`);
+    sheets.add(m.id);
+  });
   doc.parts.forEach((part, pi) => {
     unique(part.id, `document.parts[${pi}].id`);
+    if (part.make !== undefined && !sheets.has(part.make)) v.error(`document.parts[${pi}].make`, `la fiche matière « ${part.make} » n’est pas dans le projet`);
+    part.paint?.faces.forEach((f, fi) => {
+      if (!sheets.has(f.material)) v.error(`document.parts[${pi}].paint.faces[${fi}].material`, `la fiche matière « ${f.material} » n’est pas dans le projet`);
+    });
     const seen = new Map<string, Feature>();
     part.features.forEach((f, fi) => {
       const path = `document.parts[${pi}].features[${fi}]`;

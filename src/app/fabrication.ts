@@ -3,7 +3,9 @@
  * « face posée sur le plateau », disposition des pièces et des exemplaires sur le plateau
  * d'impression, estimation de matière.
  */
-import type { CadDocument, FabricationSettings, FaceRef, Id, LaserMaterial, PrintItem } from '../domain/model';
+import type { CadDocument, FabricationSettings, FaceRef, Id, LaserMaterial, Part, PrintItem } from '../domain/model';
+import { engraveColors, sheetOf, type MaterialSheet } from '../domain/material-sheets';
+import { paintMaterials } from '../domain/paint';
 import type { FaceTag, MeshData, ShapeAnalysis } from '../geometry/kernel';
 import { multiply4, translation4, type Mat4 } from '../math/mat4';
 import { normalize3, type Vec3 } from '../math/vec';
@@ -37,20 +39,73 @@ export function newLaserMaterial(existing: readonly LaserMaterial[]): LaserMater
 /** Densité du PLA (g/cm³), pour l'estimation de matière. */
 export const PLA_DENSITY = 1.24;
 
-/** Réglages du projet, complétés : chaque pièce ayant un volume a sa ligne. */
+/**
+ * Réglages du projet, complétés. Chaque pièce ayant un volume a sa ligne, dans le sous-onglet de son
+ * procédé : Impression 3D pour une matière imprimée, Découpe laser pour une matière découpée ; une
+ * pièce sans matière choisie figure dans les deux. Chaque matière découpée a sa plaque, à son nom.
+ */
 export function fabricationSettings(doc: CadDocument, hasSolid: (partId: Id) => boolean): FabricationSettings {
   const f = doc.fabrication ?? DEFAULT_FABRICATION;
   const parts = doc.parts.filter((p) => hasSolid(p.id));
+  const processOf = (p: Part) => sheetOf(doc, p)?.process;
+  const printed = parts.filter((p) => (processOf(p) ?? 'print') === 'print');
+  const cut = parts.filter((p) => (processOf(p) ?? 'laser') === 'laser');
+  // Plaques des matières découpées : nom et épaisseur de la fiche, le reste gardé d'un réglage à l'autre.
+  const laserSheets = [...new Map(cut.flatMap((p) => {
+    const s = sheetOf(doc, p);
+    return s ? [[s.id, s] as const] : [];
+  })).values()];
+  const fromSheets: LaserMaterial[] = laserSheets.map((s) => {
+    const kept = f.laser.materials.find((m) => m.id === s.id);
+    return {
+      sheet: kept?.sheet ?? { w: 300, h: 200 },
+      kerf: kept?.kerf ?? (s.base === 'acrylic' ? 0.1 : 0.15),
+      ...(kept?.placements ? { placements: kept.placements } : {}),
+      id: s.id,
+      name: s.name,
+      thickness: s.thickness ?? kept?.thickness ?? 3,
+      fromSheet: true,
+    };
+  });
   return {
     print: {
       ...f.print,
-      items: parts.map((p) => f.print.items.find((i) => i.partId === p.id) ?? { partId: p.id, copies: 1, scale: 100 }),
+      items: printed.map((p) => f.print.items.find((i) => i.partId === p.id) ?? { partId: p.id, copies: 1, scale: 100 }),
     },
     laser: {
       ...f.laser,
-      items: parts.map((p) => f.laser.items.find((i) => i.partId === p.id) ?? { partId: p.id, copies: 0 }),
+      // Les anciens matériaux laser ne servent plus qu'aux pièces sans matière choisie.
+      materials: [...(fromSheets.length && cut.every((p) => sheetOf(doc, p)) ? [] : f.laser.materials.filter((m) => !m.fromSheet && !laserSheets.some((s) => s.id === m.id))), ...fromSheets],
+      items: cut.map((p) => {
+        const item = f.laser.items.find((i) => i.partId === p.id) ?? { partId: p.id, copies: 0 };
+        const s = sheetOf(doc, p);
+        return s ? { ...item, materialId: s.id } : item;
+      }),
     },
   };
+}
+
+/** Nombre d'emplacements d'un AMS. */
+export const AMS_SLOTS = 4;
+
+/**
+ * Emplacements de l'AMS : les matières imprimées utilisées, dans l'ordre choisi (`print.ams`) puis
+ * dans l'ordre des pièces. Au-delà de `AMS_SLOTS`, l'imprimante ne peut pas tout charger.
+ */
+export function amsSlots(doc: CadDocument, settings: FabricationSettings['print']): MaterialSheet[] {
+  const used = new Map<Id, MaterialSheet>();
+  for (const item of settings.items) {
+    const part = doc.parts.find((p) => p.id === item.partId);
+    const s = part && item.copies > 0 ? sheetOf(doc, part) : undefined;
+    if (!s || s.process !== 'print') continue;
+    used.set(s.id, s);
+    for (const id of [...paintMaterials(part!.paint), ...engraveColors(part!).map((e) => e.material)]) {
+      const painted = doc.materials?.find((m) => m.id === id);
+      if (painted) used.set(painted.id, painted);
+    }
+  }
+  const ordered = (settings.ams ?? []).flatMap((id) => (used.has(id) ? [used.get(id)!] : []));
+  return [...ordered, ...[...used.values()].filter((s) => !ordered.includes(s))];
 }
 
 const sameTag = (t: FaceTag, r: FaceRef) =>

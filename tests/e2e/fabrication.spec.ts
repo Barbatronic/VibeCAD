@@ -20,6 +20,7 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   await openApp(page);
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
+  await page.click('#fab-print');
   await expect(page.getByRole('list', { name: 'Pièces à imprimer' })).toBeVisible();
   await page.getByLabel('Exemplaires de « Pièce 1 »').fill('2');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.printLayout().placements.length)).toBe(2);
@@ -93,6 +94,7 @@ test('impression 3D : vingt exemplaires répartis sur deux plateaux, export de c
   await openApp(page);
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
+  await page.click('#fab-print');
   await page.getByLabel('Exemplaires de « Pièce 1 »').fill('20');
   await expect(page.getByRole('group', { name: 'Plateaux' })).toContainText('Plateau 1 sur 2');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.parts.size)).toBe(18);
@@ -152,6 +154,7 @@ test('envoyer au slicer : un clic télécharge le plateau, le réglage du naviga
   await openApp(page);
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
+  await page.click('#fab-print');
   await expect(page.getByRole('list', { name: 'Pièces à imprimer' })).toBeVisible();
 
   const first = page.waitForEvent('download');

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { partShown, type AppState } from '../app/state';
-import type { Assembly, AssemblyFastener, ImageFeature, SketchFeature } from '../domain/model';
+import type { Assembly, AssemblyFastener, ImageFeature, Part, SketchFeature } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import { pointPosition, standalonePoints } from '../sketch/model';
 import { frameToWorld } from '../math/frame';
@@ -38,6 +38,9 @@ import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
 import { MECHANISM_STUDY, mechanismStudyOf, withValue } from '../app/mechanism';
 import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
+import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
+import { engravingLoops, partEngravings } from '../app/engravings';
+import { faceMaterials } from '../domain/paint';
 import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
 import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
@@ -122,7 +125,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const d = s.display[leaf.partId];
     return {
       partId: leaf.key,
-      color: part?.color ?? '#888888',
+      ...lookOf(s, part, d?.mesh),
       visible: true,
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
@@ -244,23 +247,67 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors, gizmo };
 }
 
+/**
+ * Couleur et opacité d'une pièce à l'écran : sa couleur de conception, ou celle de sa fiche matière
+ * (rendu réel). L'atelier Fabrication montre toujours les matières.
+ */
+function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish'> {
+  if (!part) return { color: '#888888' };
+  const mode = s.workspace === 'fabrication' ? 'materials' : s.colorMode;
+  const look = displayLook(s.doc, part, mode);
+  const marks = markingsOf(s, part, mode);
+  const finish = mode === 'materials' ? sheetOf(s.doc, part)?.finish : undefined;
+  const base = { ...(look.opacity < 1 ? look : { color: look.color }), ...(marks ? { markings: marks } : {}), ...(finish ? { finish } : {}) };
+  const sheet = mode === 'materials' ? sheetOf(s.doc, part) : undefined;
+  // Impression : faces peintes, ou creusées par une gravure colorée, dans d'autres matières.
+  const engraves = engraveColors(part);
+  if (sheet?.process === 'print' && (part.paint || engraves.length) && mesh) {
+    const colorOf = (id: string | null) => (id ? (s.doc.materials?.find((m) => m.id === id)?.color ?? look.color) : look.color);
+    return { ...base, faceColors: faceMaterials(part.paint, mesh.faces, engraves).map(colorOf) };
+  }
+  // Découpe laser : les chants ont leur couleur (bois brûlé).
+  if (!sheet?.edge || sheet.process !== 'laser' || !mesh) return base;
+  const edges = cutEdgeFaces(mesh.faces);
+  return { ...base, faceColors: edges.map((e) => (e ? sheet.edge! : look.color)) };
+}
+
+/**
+ * Gravures sans profondeur : dessinées juste au-dessus de la face (elles ne changent pas le volume).
+ * Brûlées sur une matière découpée qui a une couleur de chants, en trait foncé sinon.
+ */
+function markingsOf(s: AppState, part: Part, mode: 'design' | 'materials'): ViewPartInput['markings'] {
+  const d = s.display[part.id];
+  if (!d || d.result.flat) return undefined;
+  const marks = partEngravings(part, d.result.sketches).filter((e) => e.depth <= 0);
+  if (!marks.length) return undefined;
+  const sheet = mode === 'materials' ? sheetOf(s.doc, part) : undefined;
+  // Couleur du marquage : brûlé sur une matière découpée, la matière choisie en impression 3D.
+  const printColor = sheet?.process === 'print' ? s.doc.materials?.find((m) => m.id === marks[0]!.material)?.color : undefined;
+  const color = sheet?.process === 'laser' && sheet.edge ? sheet.edge : (printColor ?? '#24324a');
+  const lines = marks.filter((m) => m.mode === 'outline').flatMap(engravingLoops);
+  const fills = marks.filter((m) => m.mode === 'fill').flatMap((m) => m.regions.map((r) => ({ ...r, normal: m.normal })));
+  return { lines, fills, color };
+}
+
 /** Vue de l'onglet Fabrication (impression) : pièces disposées sur le plateau affiché. */
 function buildFabricationInput(s: AppState): ViewportInput {
   const hasSolid = (id: string) => (s.display[id]?.result.analysis?.solidCount ?? 0) > 0;
   const settings = fabricationSettings(s.doc, hasSolid);
   if (s.fabricationTab !== 'print') {
     // Découpe laser et documents : les pièces telles que modélisées (pour choisir une face).
+    // Matières : une pièce à la fois (celle choisie dans la liste), sinon elles se superposent.
+    const shown = s.fabricationTab === 'materials' ? (s.fabricationPart && hasSolid(s.fabricationPart) ? s.fabricationPart : s.doc.parts.find((p) => hasSolid(p.id))?.id) : null;
     const parts: ViewPartInput[] = s.doc.parts
-      .filter((p) => hasSolid(p.id))
-      .map((p) => ({ partId: `fab:${p.id}:0`, color: p.color, visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));
-    return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face', fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
+      .filter((p) => hasSolid(p.id) && (!shown || p.id === shown))
+      .map((p) => ({ partId: `fab:${p.id}:0`, ...lookOf(s, p, s.display[p.id]?.mesh), visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));
+    return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face' || s.brush !== null, fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
   }
   const layout = printLayout(settings.print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
   const plate = Math.max(0, Math.min(s.printPlate, layout.plates - 1));
   const parts: ViewPartInput[] = layout.placements.filter((p) => p.plate === plate).map((p) => {
     const part = s.doc.parts.find((x) => x.id === p.partId);
     const d = s.display[p.partId];
-    return { partId: `fab:${p.partId}:${p.copy}`, color: part?.color ?? '#888888', visible: true, meshKey: d?.meshKey ?? null, mesh: d?.mesh ?? null, appearance: 'normal', matrix: p.matrix };
+    return { partId: `fab:${p.partId}:${p.copy}`, ...lookOf(s, part, d?.mesh), visible: true, meshKey: d?.meshKey ?? null, mesh: d?.mesh ?? null, appearance: 'normal', matrix: p.matrix };
   });
   return {
     mode: 'model',
@@ -330,11 +377,10 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
   // Pièce seule, ou pièces de l'assemblage à leur place (repérées par leur insertion).
   const parts: ViewPartInput[] =
     source.kind === 'part'
-      ? [{ partId, color: s.doc.parts.find((p) => p.id === partId)?.color ?? '#888888', visible: true, meshKey: source.key, mesh: source.mesh, appearance }]
+      ? [{ partId, ...lookOf(s, s.doc.parts.find((p) => p.id === partId)), visible: true, meshKey: source.key, mesh: source.mesh, appearance }]
       : source.items.map((it) => {
           const inst = s.doc.assembly?.instances.find((i) => i.id === it.instanceId);
-          const color = s.doc.parts.find((p) => p.id === inst?.partId)?.color ?? '#888888';
-          return { partId: it.instanceId, color, visible: true, meshKey: s.display[inst?.partId ?? '']?.meshKey ?? null, mesh: it.mesh, appearance, matrix: it.matrix };
+          return { partId: it.instanceId, ...lookOf(s, s.doc.parts.find((p) => p.id === inst?.partId)), visible: true, meshKey: s.display[inst?.partId ?? '']?.meshKey ?? null, mesh: it.mesh, appearance, matrix: it.matrix };
         });
   const markedFaces: NonNullable<ViewportInput['markedFaces']> = resultMesh
     ? []
@@ -389,17 +435,17 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     const sec = cut?.parts[p.id];
     if (cut && sec !== undefined) {
       for (const index of sec.cutFaces) sectionFaces.push({ partId: p.id, kind: 'face', index });
-      return { partId: p.id, color: p.color, visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
+      return { partId: p.id, ...lookOf(s, p), visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
     }
     const previewPart = mode === 'feature' && s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.preview?.parts[p.id] : undefined;
     if (previewPart?.mesh && previewPart.meshKey) {
-      return { partId: p.id, color: p.color, visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
+      return { partId: p.id, ...lookOf(s, p, previewPart.mesh), visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
     }
     // Tôlerie dépliée : la tôle à plat à la place de la pièce pliée.
     const flat = s.unfolded && mode === 'model' ? d?.result.flat : undefined;
     return {
       partId: p.id,
-      color: p.color,
+      ...lookOf(s, p, flat?.mesh ?? d?.mesh),
       visible: partShown(s, p),
       meshKey: flat?.mesh ? flat.meshKey : (d?.meshKey ?? null),
       mesh: flat?.mesh ?? d?.mesh ?? null,
@@ -412,7 +458,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       const d = s.display[leaf.partId];
       parts.push({
         partId: `${CONTEXT_PREFIX}${leaf.key}`,
-        color: part?.color ?? '#888888',
+        ...lookOf(s, part, d?.mesh),
         visible: true,
         meshKey: d?.meshKey ?? null,
         mesh: d?.mesh ?? null,
@@ -713,6 +759,8 @@ function DisplayMenu() {
   const c = useController();
   const style = useAppState((s) => s.displayStyle);
   const edgeWidth = useAppState((s) => s.edgeWidth);
+  const colorMode = useAppState((s) => s.colorMode);
+  const inFabrication = useAppState((s) => s.workspace === 'fabrication');
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -755,6 +803,27 @@ function DisplayMenu() {
               <span>{DISPLAY_LABELS[d].label}</span>
             </button>
           ))}
+          <div class="menu-sep" role="separator" />
+          <span class="menu-caption">Couleurs des pièces</span>
+          {(['design', 'materials'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="menuitemradio"
+              aria-checked={inFabrication ? m === 'materials' : colorMode === m}
+              disabled={inFabrication}
+              class="menu-item"
+              title={m === 'design' ? 'La couleur choisie pour chaque pièce, pratique pour les distinguer en dessinant.' : 'La couleur de la matière de chaque pièce (Fabrication › Matières) : l’objet tel qu’il sera fabriqué.'}
+              onClick={() => {
+                c.setColorMode(m);
+                setOpen(false);
+              }}
+            >
+              <Icon name={(inFabrication ? m === 'materials' : colorMode === m) ? 'check' : 'blank'} />
+              <span>{m === 'design' ? 'De conception' : 'Matières réelles'}</span>
+            </button>
+          ))}
+          {inFabrication ? <span class="menu-caption menu-note">Toujours les matières réelles dans l’atelier Fabrication.</span> : null}
           <div class="menu-sep" role="separator" />
           <label class="field edge-width-field">
             <span class="field-label">
@@ -876,7 +945,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.assemblyContext, state.mechanismHover],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.colorMode, state.assemblyContext, state.mechanismHover],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

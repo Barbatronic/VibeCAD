@@ -491,3 +491,33 @@ function loopContainsLoop(outer: RawLoop, inner: RawLoop): boolean {
 export function profileArea(result: ProfileResult): number {
   return result.ok ? result.regions.reduce((s, r) => s + r.area, 0) : 0;
 }
+
+/** Polyligne fine d'un contour (arcs et courbes échantillonnés), dans le sens du parcours. */
+export function loopPolyline(loop: ProfileLoop, perCurve = 24): Vec2[] {
+  const out: Vec2[] = [];
+  for (const seg of loop.segments) {
+    if (seg.kind === 'line') out.push(seg.start);
+    else if (seg.kind === 'spline') out.push(...sampleBeziers(seg.beziers, perCurve).slice(0, -1));
+    else if (seg.kind === 'ellipse') {
+      const pts = sampleEllipse({ center: seg.center, a: seg.a, b: seg.b, angle: seg.angle }, perCurve * 4);
+      out.push(...(seg.clockwise ? [...pts].reverse() : pts));
+    } else {
+      // Arc ou cercle : de l'angle de départ, dans le sens du parcours.
+      const start = seg.kind === 'circle' ? { x: seg.center.x + seg.radius, y: seg.center.y } : seg.start;
+      const a0 = Math.atan2(start.y - seg.center.y, start.x - seg.center.x);
+      let sweep = 2 * Math.PI;
+      if (seg.kind === 'arc') {
+        const a1 = Math.atan2(seg.end.y - seg.center.y, seg.end.x - seg.center.x);
+        sweep = seg.clockwise ? (a0 - a1 + 4 * Math.PI) % (2 * Math.PI) : (a1 - a0 + 4 * Math.PI) % (2 * Math.PI);
+        if (sweep < 1e-9) sweep = 2 * Math.PI;
+      }
+      const n = Math.max(4, Math.ceil((perCurve * sweep) / Math.PI));
+      const dir = seg.clockwise ? -1 : 1;
+      for (let k = 0; k < n; k++) {
+        const a = a0 + (dir * sweep * k) / n;
+        out.push({ x: seg.center.x + seg.radius * Math.cos(a), y: seg.center.y + seg.radius * Math.sin(a) });
+      }
+    }
+  }
+  return out;
+}

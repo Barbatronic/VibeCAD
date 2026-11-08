@@ -15,13 +15,17 @@ test('propriétés de la pièce : matière enregistrée, masse, encombrement, ce
   // Plus de volume ni de masse dans le panneau des pièces.
   await expect(page.locator('.left-panel')).not.toContainText('Masse');
 
-  // Acier : la masse suit, la matière est enregistrée avec la pièce et proposée en simulation.
-  await expect(page.locator('#part-material-pla')).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('radio', { name: /Acier/ }).click();
-  await expect(page.locator('#part-material-steel')).toHaveAttribute('aria-checked', 'true');
-  await expect(panel).toContainText('≈ 69,5 g');
-  await expect(readout).toContainText('≈ 69,5 g');
+  // Matière choisie dans Fabrication › Matières : la masse suit, et la simulation la propose.
+  await expect(panel).toContainText('Non choisie (comptée en PLA)');
+  await panel.getByRole('button', { name: /Choisir dans Fabrication/ }).click();
+  await expect.poll(() => appState(page, (s) => [s.workspace, s.fabricationTab])).toEqual(['fabrication', 'materials']);
+  await page.getByLabel('Matière de « Pièce 1 »').selectOption({ label: 'Acier (visserie, axes)' });
   expect(await appState(page, (s) => s.doc.parts[0].material)).toBe('steel');
+  await page.click('#tab-parts');
+  await expect(readout).toContainText('≈ 69,5 g');
+  // Le panneau Propriétés, resté ouvert, montre la fiche choisie.
+  await expect(panel).toContainText('Acier (visserie, axes)');
+  await expect(panel).toContainText('≈ 69,5 g');
 
   // Centre de gravité : symbole dans la vue à la demande.
   const box = panel.getByLabel(/centre de gravité/);

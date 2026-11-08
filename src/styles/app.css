@@ -1452,6 +1452,168 @@ textarea {
   }
 }
 
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-item.static {
+  cursor: default;
+}
+
+.sheet-item[aria-expanded='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.sheet-item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sheet-item-text span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.sheet-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.sheet-row {
+  display: flex;
+  gap: 10px;
+}
+
+.sheet-row .grow {
+  flex: 1;
+}
+
+.sheet-editor input[type='color'] {
+  width: 52px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+
+.sheet-editor input[type='range'] {
+  width: 100%;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swatch-unset {
+  outline: 1px dashed var(--border-strong);
+  outline-offset: 1px;
+}
+
+.part-sheet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.brush-pots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.brush-pots .paint-swatch {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.brush-pots .paint-swatch[aria-pressed='true'] {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.brush-pots .paint-eraser {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.mat-part {
+  border-radius: var(--radius);
+}
+
+.mat-part.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.mat-part-show {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mat-part-shown {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.menu-caption {
+  display: block;
+  padding: 6px 12px 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.menu-caption.menu-note {
+  font-weight: 400;
+  max-width: 240px;
+}
+
 .stamp-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
@@ -4239,6 +4401,20 @@ select optgroup {
   stroke: #2f9e44;
   stroke-width: 1.5;
   stroke-dasharray: 6 3;
+}
+
+/* Gravure (calque bleu) : trait pour un contour, surface pour un remplissage. */
+.laser-engrave {
+  fill: none;
+  stroke: #1c4fd8;
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+.laser-engrave.is-fill {
+  fill: #1c4fd8;
+  fill-opacity: 0.75;
+  stroke: none;
 }
 .laser-editor-status {
   padding: 6px 12px;

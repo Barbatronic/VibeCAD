@@ -5,7 +5,7 @@
  */
 import type { StepBlock, StepComponent } from './kernel';
 import type { FreecadLeaf } from '../io/freecad';
-import type { CadDocument, Id, SketchParams } from '../domain/model';
+import type { FaceRef, CadDocument, Id, SketchParams } from '../domain/model';
 import type { FeatureIssueCode, FeatureStatus } from '../domain/status';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
@@ -103,6 +103,12 @@ export interface ExportPlacement {
   partId: Id;
   name: string;
   matrix: number[];
+  /** Impression multicouleur : emplacement de l'AMS (1, 2…) de la matière de l'objet. */
+  filament?: number;
+  /** Faces peintes : emplacement de l'AMS de leur matière. */
+  faceFilaments?: { ref: FaceRef; filament: number }[];
+  /** Gravures colorées : faces créées par l'opération, emplacement de l'AMS de sa matière. */
+  engraveFilaments?: { featureId: Id; filament: number }[];
 }
 
 /** Arborescence STEP d'un assemblage : composants de premier niveau et sous-assemblages (blocs). */

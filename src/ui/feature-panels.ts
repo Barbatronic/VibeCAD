@@ -9,6 +9,7 @@ import { ExtrudePanel } from '../features/extrude/panel';
 import { FilletPanel } from '../features/fillet/panel';
 import type { FeaturePanelProps } from '../features/panel-types';
 import { PocketPanel } from '../features/pocket/panel';
+import { EngravePanel } from '../features/engrave/panel';
 import { LoftPanel } from '../features/loft/panel';
 import { SweepPanel } from '../features/sweep/panel';
 import { MirrorPanel } from '../features/mirror/panel';
@@ -32,6 +33,7 @@ import { FoldPanel } from '../features/fold/panel';
 export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<FeaturePanelProps<never>>>> = {
   extrude: ExtrudePanel as FunctionComponent<FeaturePanelProps<never>>,
   pocket: PocketPanel as FunctionComponent<FeaturePanelProps<never>>,
+  engrave: EngravePanel as FunctionComponent<FeaturePanelProps<never>>,
   revolve: RevolvePanel as FunctionComponent<FeaturePanelProps<never>>,
   loft: LoftPanel as FunctionComponent<FeaturePanelProps<never>>,
   sweep: SweepPanel as FunctionComponent<FeaturePanelProps<never>>,

@@ -17,6 +17,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M9 5.5l3-3 3 3" />
     </>
   ),
+  /** Gravure : une pointe qui trace un trait ondulé. */
+  engrave: (
+    <>
+      <path d="M14.5 3.5l6 6-8.2 8.2-6-6z" />
+      <path d="M6.3 11.7L4 18l6.3-2.3" />
+      <path d="M3 21c2-1.2 4-1.2 6 0s4 1.2 6 0" />
+    </>
+  ),
   pocket: (
     <>
       <path d="M3.5 9.5l8.5-4.2 8.5 4.2-8.5 4.2z" />
@@ -384,6 +392,8 @@ const PATHS: Record<string, JSX.Element> = {
   ellipse: <ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-20 12 12)" />,
   /** Texte : une lettre A posée sur sa ligne de base. */
   text: <path d="M5 19.5L12 4.5l7 15M7.8 14h8.4M3 19.5h18" />,
+  /** Matière : une goutte (couleur, matière première). */
+  material: <path d="M12 3.5c3.6 4.3 5.8 7.3 5.8 10.2a5.8 5.8 0 0 1-11.6 0c0-2.9 2.2-5.9 5.8-10.2zM9.4 14.5a2.7 2.7 0 0 0 2.6 2.6" />,
   /** Tampon : le manche, le socle et la marque laissée. */
   stamp: <path d="M9.5 13c0-2-2-3-2-6a4.5 4.5 0 0 1 9 0c0 3-2 4-2 6M5 13h14v4H5zM4 21h16" />,
   spline: (

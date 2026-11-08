@@ -4,6 +4,26 @@ L'onglet **Fabrication** (à côté de Pièces et Assemblage) prépare les fichi
 qui a été conçu. Les réglages sont enregistrés dans le projet (champ `fabrication` du fichier
 `.vibecad`) et entrent dans Annuler / Rétablir.
 
+## Matières
+
+Premier sous-onglet de l'atelier : **comment chaque pièce est fabriquée** (voir
+[conception-matieres.md](conception-matieres.md)).
+
+- À gauche, chaque pièce et sa **fiche matière** (« PLA blanc », « Acrylique transparent 3 mm »…),
+  choisie parmi les matières du projet, **Mon catalogue** ou le **Catalogue VibeCAD**. Une fiche
+  choisie dans un catalogue est copiée dans le projet. Sous la pièce : procédé, matière de base,
+  épaisseur et masse estimée. Sans fiche, la pièce est comptée en PLA.
+- À droite, les **matières du projet** : un clic ouvre la fiche (nom, couleur, procédé, matière
+  de base, transparence, épaisseur de plaque). Chaque changement s'annule ; les pièces qui
+  utilisent la fiche suivent (couleur, masse). « Garder dans mon catalogue » la rend disponible
+  dans les autres projets de l'appareil ; **Importer… / Exporter…** passent le catalogue d'un
+  appareil à l'autre (fichier JSON).
+- La fiche donne la **masse** (Propriétés, barre d'état), le **matériau proposé en simulation**
+  et la **couleur réelle** de la pièce. L'atelier Fabrication montre toujours les matières
+  réelles ; ailleurs, menu Affichage › Couleurs des pièces › **Matières réelles** (retenu sur
+  l'appareil).
+- Le panneau Propriétés de l'atelier Pièces affiche la fiche et renvoie ici pour la changer.
+
 ## Impression 3D (3MF)
 
 - Une ligne par pièce ayant un volume : **nombre d'exemplaires** (0 = ne pas imprimer),

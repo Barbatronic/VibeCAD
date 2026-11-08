@@ -6,7 +6,7 @@
 import { formatNumber, readNumber } from '../domain/units';
 import { bomSizeText, scaleLabel } from '../app/drawings';
 import { allows } from '../app/levels';
-import { PLA_DENSITY } from '../app/fabrication';
+import { AMS_SLOTS, PLA_DENSITY } from '../app/fabrication';
 import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
 import { ToolGroup } from './ToolSectors';
@@ -15,6 +15,7 @@ import type { LaserItem } from '../domain/model';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
+import { MaterialsRightPanel, MaterialsSection } from './MaterialsUi';
 
 /** Valeur saisie : nombre ou équation (paramètres du projet compris). */
 const num = (t: string) => readNumber(t);
@@ -27,12 +28,14 @@ export function FabricationTools() {
   return (
     <>
       <ToolGroup name="Fabriquer">
+        <ToolButton id="fab-materials" icon="material" label="Matières" hint="Comment chaque pièce est fabriquée : matière, procédé, couleur" pressed={tab === 'materials'} onClick={() => c.setFabricationTab('materials')} />
         <ToolButton id="fab-print" icon="print3d" label="Impression 3D" pressed={tab === 'print'} onClick={() => c.setFabricationTab('print')} />
         {laser ? <ToolButton id="fab-laser" icon="laser" label="Découpe laser" pressed={tab === 'laser'} onClick={() => c.setFabricationTab('laser')} /> : null}
         {docs ? (
           <ToolButton id="fab-docs" icon="drawing" label="Documents" hint="Mise en plan cotée, gabarit 1:1, nomenclature" pressed={tab === 'docs'} onClick={() => c.setFabricationTab('docs')} />
         ) : null}
       </ToolGroup>
+      {tab === 'materials' ? null : (
       <ToolGroup name="Exporter">
         {tab === 'print' ? (
           <>
@@ -54,6 +57,7 @@ export function FabricationTools() {
           </>
         ) : null}
       </ToolGroup>
+      )}
     </>
   );
 }
@@ -61,7 +65,7 @@ export function FabricationTools() {
 /** Panneau de gauche : selon le sous-onglet, impression 3D ou découpe laser. */
 export function FabricationSection() {
   const tab = useAppState((s) => s.fabricationTab);
-  return tab === 'laser' ? <LaserSection /> : tab === 'docs' ? <DocsSection /> : <PrintSection />;
+  return tab === 'materials' ? <MaterialsSection /> : tab === 'laser' ? <LaserSection /> : tab === 'docs' ? <DocsSection /> : <PrintSection />;
 }
 
 function LaserSection() {
@@ -75,7 +79,7 @@ function LaserSection() {
         materials: f.laser.materials.map((m) => ({ id: m.id, name: m.name })),
         items: f.laser.items.map((i) => {
           const part = s.doc.parts.find((p) => p.id === i.partId)!;
-          return { ...i, name: part.name, color: part.color, thickness: layout.thickness[i.partId] ?? null, resolved: layout.materialOf[i.partId] ?? null };
+          return { ...i, name: part.name, color: part.color, thickness: layout.thickness[i.partId] ?? null, resolved: layout.materialOf[i.partId] ?? null, bySheet: !!part.make };
         }),
       };
     },
@@ -121,6 +125,8 @@ function LaserSection() {
                 <select
                   class="select"
                   aria-label={`Matériau de « ${i.name} »`}
+                  disabled={i.bySheet}
+                  title={i.bySheet ? 'La plaque vient de la matière de la pièce (Fabrication › Matières).' : undefined}
                   value={i.materialId ?? ''}
                   onChange={(e) => {
                     const id = (e.target as HTMLSelectElement).value;
@@ -167,7 +173,13 @@ function SheetPreview({ materialId }: { materialId: string }) {
     );
     // Tôle : lignes de pli en tirets verts.
     const bends = doc.sheets.map((sheet) => sheet.items.flatMap((it) => (it.bends ?? []).map((b) => `M${b.a.x.toFixed(2)},${(h - b.a.y).toFixed(2)}L${b.b.x.toFixed(2)},${(h - b.b.y).toFixed(2)}`)));
-    return { w, h, sheets, bends };
+    // Gravures en bleu.
+    const engraves = doc.sheets.map((sheet) =>
+      sheet.items.flatMap((it) =>
+        (it.engrave ?? []).map((m) => ({ fill: m.fill, d: m.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z').join('') })),
+      ),
+    );
+    return { w, h, sheets, bends, engraves };
   }, (a, b) => JSON.stringify(a) === JSON.stringify(b));
   if (!svg) return <p class="empty-hint">Aucune pièce dans ce matériau.</p>;
   return (
@@ -178,6 +190,17 @@ function SheetPreview({ materialId }: { materialId: string }) {
             <rect x="0" y="0" width={svg.w} height={svg.h} fill="var(--surface)" stroke="var(--border-strong)" stroke-width={Math.max(svg.w, svg.h) / 300} />
             {paths.map((d, i) => (
               <path key={i} d={d} fill="none" stroke="#e03131" stroke-width={Math.max(svg.w, svg.h) / 400} />
+            ))}
+            {svg.engraves[n]!.map((m, i) => (
+              <path
+                key={`g${i}`}
+                class="sheet-engrave"
+                d={m.d}
+                fill={m.fill ? '#1c4fd8' : 'none'}
+                fill-rule="evenodd"
+                stroke={m.fill ? 'none' : '#1c4fd8'}
+                stroke-width={Math.max(svg.w, svg.h) / 500}
+              />
             ))}
             {svg.bends[n]!.map((d, i) => (
               <path key={`b${i}`} class="sheet-bend" d={d} fill="none" stroke="#2f9e44" stroke-width={Math.max(svg.w, svg.h) / 400} stroke-dasharray={`${Math.max(svg.w, svg.h) / 100} ${Math.max(svg.w, svg.h) / 200}`} />
@@ -280,9 +303,16 @@ function LaserRightPanel() {
         </div>
         {page ? (
           <div class="mat-page" role="tabpanel" aria-label={page.name}>
-            <NameField key={page.id} value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
+            {page.fromSheet ? (
+              <p class="field-help">
+                Plaque de la matière <strong>{page.name}</strong> ({formatNumber(page.thickness, 1)} mm) : son nom et son épaisseur se changent dans
+                Fabrication › Matières.
+              </p>
+            ) : (
+              <NameField key={page.id} value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
+            )}
             <div class="limits-row">
-              {numberField('Épaisseur du matériau', page.thickness, 'mm', (thickness) => c.updateLaserMaterial(page.id, { thickness }, 'Épaisseur du matériau'), { step: 0.5 })}
+              {page.fromSheet ? null : numberField('Épaisseur du matériau', page.thickness, 'mm', (thickness) => c.updateLaserMaterial(page.id, { thickness }, 'Épaisseur du matériau'), { step: 0.5 })}
               {numberField('Trait de coupe (kerf)', page.kerf, 'mm', (kerf) => c.updateLaserMaterial(page.id, { kerf }, 'Trait de coupe'), { step: 0.05, max: 2 })}
             </div>
             <div class="limits-row">
@@ -306,7 +336,12 @@ function LaserRightPanel() {
               <Button small icon="export" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => void c.exportLaser('dxf', page.id)}>
                 DXF
               </Button>
-              <Button small icon="trash" disabledReason={info.pages.length <= 1 ? 'Il faut garder au moins un matériau.' : null} onClick={() => c.removeLaserMaterial(page.id)}>
+              <Button
+                small
+                icon="trash"
+                disabledReason={page.fromSheet ? 'Plaque d’une matière du projet : changez la matière des pièces dans Fabrication › Matières.' : info.pages.length <= 1 ? 'Il faut garder au moins un matériau.' : null}
+                onClick={() => c.removeLaserMaterial(page.id)}
+              >
                 Supprimer
               </Button>
             </div>
@@ -419,7 +454,7 @@ function PrintSection() {
 /** Panneau de droite : selon le sous-onglet. */
 export function FabricationRightPanel() {
   const tab = useAppState((s) => s.fabricationTab);
-  return tab === 'laser' ? <LaserRightPanel /> : tab === 'docs' ? <DocsRightPanel /> : <PrintRightPanel />;
+  return tab === 'materials' ? <MaterialsRightPanel /> : tab === 'laser' ? <LaserRightPanel /> : tab === 'docs' ? <DocsRightPanel /> : <PrintRightPanel />;
 }
 
 function PrintRightPanel() {
@@ -440,6 +475,7 @@ function PrintRightPanel() {
         plate,
         plateCount: on.length,
         plateGrams: on.reduce((g, p) => g + p.grams, 0),
+        ams: c.amsSlots().map((m) => ({ id: m.id, name: m.name, color: m.color })),
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -456,6 +492,37 @@ function PrintRightPanel() {
           <strong>Impression 3D</strong> : choisissez pour chaque pièce la face posée sur le plateau et le nombre d’exemplaires, puis envoyez le
           plateau à votre logiciel d’impression, le slicer (OrcaSlicer, PrusaSlicer, Bambu Studio, Cura…).
         </p>
+        {info.ams.length ? (
+          <div class="field" role="group" aria-labelledby="ams-title">
+            <span class="field-label" id="ams-title">
+              AMS : matière de chaque emplacement
+            </span>
+            <ul class="sheet-list" aria-label="Emplacements de l’AMS">
+              {info.ams.map((m, k) => (
+                <li key={m.id} class="sheet-item static">
+                  <span class="color-swatch" style={{ background: m.color, width: '18px', height: '18px' }} />
+                  <span class="sheet-item-text">
+                    <strong>{m.name}</strong>
+                  </span>
+                  <select class="select" aria-label={`Emplacement de « ${m.name} »`} value={String(k)} onChange={(e) => c.setAmsSlot(m.id, Number((e.target as HTMLSelectElement).value))}>
+                    {info.ams.map((_x, j) => (
+                      <option key={j} value={String(j)}>
+                        {j + 1}
+                      </option>
+                    ))}
+                  </select>
+                </li>
+              ))}
+            </ul>
+            {info.ams.length > AMS_SLOTS ? (
+              <Callout kind="warning">
+                {info.ams.length} matières à imprimer : un AMS n’en charge que {AMS_SLOTS}. Imprimez en plusieurs fois, ou regroupez des pièces dans la même matière.
+              </Callout>
+            ) : (
+              <span class="field-help">Le slicer reçoit ces numéros : chargez chaque bobine dans l’emplacement indiqué.</span>
+            )}
+          </div>
+        ) : null}
         <div class="field">
           <span class="field-label">Taille du plateau (X × Y × hauteur)</span>
           <div class="limits-row three">

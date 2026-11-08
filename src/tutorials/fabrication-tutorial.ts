@@ -21,7 +21,9 @@ export const FABRICATION_TUTORIAL: TutorialStep[] = [
   {
     id: 'tab',
     title: '1. Ouvrir l’onglet Fabrication',
-    body: ['Clique sur l’onglet **Fabrication**, en haut. On commence par l’**impression 3D** : la vue montre le plateau de l’imprimante.'],
+    body: [
+      'Clique sur l’onglet **Fabrication**, en haut. On arrive sur **Matières** : pour chaque pièce, on choisit dans quoi elle sera fabriquée (PLA, acrylique…), ce qui donne sa vraie couleur.',
+    ],
     target: 'tab-fabrication',
     check: (s) => s.workspace === 'fabrication',
   },
@@ -29,6 +31,7 @@ export const FABRICATION_TUTORIAL: TutorialStep[] = [
     id: 'copies',
     title: '2. Imprimer deux exemplaires',
     body: [
+      'Clique **Impression 3D** dans la barre d’outils : la vue montre le plateau de l’imprimante.',
       'À gauche, mets **2** dans « Exemplaires » : les pièces se rangent seules sur le plateau. S’il y en a trop, elles passent sur un deuxième plateau.',
       'La matière nécessaire (en grammes de PLA) s’affiche à droite.',
     ],

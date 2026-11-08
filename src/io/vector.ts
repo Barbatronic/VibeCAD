@@ -11,6 +11,8 @@ export interface VectorSheetItem {
   label?: { at: Vec2; text: string };
   /** Tôle : lignes de pli (repères, en tirets verts ; calque PLIAGE). */
   bends?: { a: Vec2; b: Vec2 }[];
+  /** Dessins à graver (opérations Gravure) : trait bleu (calque GRAVURE) ou surface bleue (GRAVURE_REMPLI). */
+  engrave?: { loops: Vec2[][]; fill: boolean }[];
 }
 
 export interface VectorDocument {
@@ -43,6 +45,11 @@ export function toSvg(doc: VectorDocument): string {
     out.push(`    <rect x="${fmt(ox)}" y="0" width="${fmt(doc.sheet.w)}" height="${fmt(doc.sheet.h)}" fill="none" stroke="#999999" stroke-width="0.2" stroke-dasharray="2 2"/>`);
     for (const item of sheet.items) {
       for (const loop of item.loops) out.push(`    <polygon points="${loop.map(pt).join(' ')}" fill="none" stroke="#ff0000" stroke-width="0.1"/>`);
+      for (const mark of item.engrave ?? []) {
+        // Remplissage : une seule forme pair-impair, les trous (intérieur d'un « O ») restent vides.
+        if (mark.fill) out.push(`    <path d="${mark.loops.map((l) => `M${l.map(pt).join(' L')} Z`).join(' ')}" fill="#0000ff" fill-rule="evenodd" stroke="none"/>`);
+        else for (const loop of mark.loops) out.push(`    <polygon points="${loop.map(pt).join(' ')}" fill="none" stroke="#0000ff" stroke-width="0.1"/>`);
+      }
       for (const b of item.bends ?? []) out.push(`    <line x1="${fmt(ox + b.a.x)}" y1="${fmt(height - b.a.y)}" x2="${fmt(ox + b.b.x)}" y2="${fmt(height - b.b.y)}" stroke="#00a000" stroke-width="0.1" stroke-dasharray="2 1"/>`);
       if (doc.engraveNames && item.label) {
         out.push(
@@ -69,10 +76,11 @@ export function toDxf(doc: VectorDocument): string {
   g(2, 'TABLES');
   g(0, 'TABLE');
   g(2, 'LAYER');
-  lines.push('70', '3');
+  lines.push('70', '4');
   for (const [name, color] of [
     ['DECOUPE', 1],
     ['GRAVURE', 5],
+    ['GRAVURE_REMPLI', 4],
     ['PLIAGE', 3],
   ] as const) {
     g(0, 'LAYER');
@@ -103,6 +111,23 @@ export function toDxf(doc: VectorDocument): string {
         }
         g(0, 'SEQEND');
         g(8, 'DECOUPE');
+      }
+      for (const { loop, layer } of (item.engrave ?? []).flatMap((m) => m.loops.map((loop) => ({ loop, layer: m.fill ? 'GRAVURE_REMPLI' : 'GRAVURE' })))) {
+        g(0, 'POLYLINE');
+        g(8, layer);
+        lines.push('66', '1', '70', '1');
+        g(10, 0);
+        g(20, 0);
+        g(30, 0);
+        for (const p of loop) {
+          g(0, 'VERTEX');
+          g(8, layer);
+          g(10, ox + p.x);
+          g(20, p.y);
+          g(30, 0);
+        }
+        g(0, 'SEQEND');
+        g(8, layer);
       }
       for (const b of item.bends ?? []) {
         g(0, 'LINE');

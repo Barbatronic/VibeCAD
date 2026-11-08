@@ -126,6 +126,7 @@ export function installKeyboard(controller: AppController): () => void {
     }
     if (e.key === 'Escape') {
       if (s.helpOpen) return controller.toggleHelp(false);
+      if (s.brush && s.mode.kind === 'model') return controller.setBrush(null);
       switch (s.mode.kind) {
         case 'sketch':
           controller.updateSession(escape);
