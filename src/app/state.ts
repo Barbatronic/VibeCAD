@@ -362,7 +362,7 @@ export function initialState(): AppState {
     offline: { status: 'dev' },
     projection: 'perspective',
     displayStyle: 'shaded-edges',
-    colorMode: 'design',
+    colorMode: 'materials',
     materialCatalogue: [],
     openSheet: null,
     brush: null,

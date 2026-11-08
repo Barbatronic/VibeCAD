@@ -28,8 +28,10 @@ test('matières : choisir une fiche du catalogue, la voir dans tous les ateliers
   await expect.poll(() => shown(page)).toEqual({ color: '#d8eef5', opacity: 0.35 });
   await page.screenshot({ path: 'tests/output/e2e-matieres.png' });
 
-  // Atelier Pièces : couleurs de conception par défaut, matières réelles au choix (retenu).
+  // Atelier Pièces : matières réelles par défaut, couleurs de conception d'un clic (retenu).
   await page.click('#tab-parts');
+  await expect.poll(() => shown(page)).toEqual({ color: '#d8eef5', opacity: 0.35 });
+  await page.click('#tool-materials');
   await expect.poll(() => shown(page)).toEqual({ color: design, opacity: 1 });
   await page.click('#view-display');
   await page.getByRole('menuitemradio', { name: 'Matières réelles' }).click();

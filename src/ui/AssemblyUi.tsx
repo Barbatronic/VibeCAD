@@ -16,6 +16,7 @@ import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './
 import { CouplingList, CouplingPanel } from './CouplingUi';
 import { SubassemblyBar } from './SubassemblyUi';
 import { ToolGroup } from './ToolSectors';
+import { MaterialsToggle } from './MaterialsUi';
 import { subassemblyContains, subassemblyContent, subassemblyList } from '../domain/subassemblies';
 
 /**
@@ -302,6 +303,9 @@ export function AssemblyTools() {
           availability={s.count ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }}
           onClick={() => c.showExportDialog()}
         />
+      </ToolGroup>
+      <ToolGroup name="Afficher">
+        <MaterialsToggle id="as-materials" />
       </ToolGroup>
     </>
   );

@@ -7,7 +7,7 @@ import { useState } from 'preact/hooks';
 import { engraveColors, FINISH_LABELS, FINISHES, MAKE_PROCESSES, PROCESS_LABELS, STARTER_MATERIALS, type MaterialFinish, type MaterialSheet } from '../domain/material-sheets';
 import { massOf, PART_MATERIALS, partMaterial, partMaterialId } from '../domain/part-material';
 import { formatNumber } from '../domain/units';
-import { Button } from './components/controls';
+import { Button, ToolButton } from './components/controls';
 import { libraryMaterials } from '../app/library';
 import { useAppState, useController } from './context';
 import { Icon } from './icons';
@@ -366,3 +366,18 @@ export function MaterialsRightPanel() {
   );
 }
 
+/** Bouton du ruban : jongler entre les matières réelles et les couleurs de conception (CAO). */
+export function MaterialsToggle({ id }: { id: string }) {
+  const c = useController();
+  const on = useAppState((s) => s.colorMode === 'materials');
+  return (
+    <ToolButton
+      id={id}
+      icon="material"
+      label="Matières"
+      hint={on ? 'Matières réelles affichées : cliquer pour les couleurs de conception (CAO), qui distinguent mieux les pièces' : 'Couleurs de conception (CAO) : cliquer pour voir les pièces dans leurs matières réelles'}
+      pressed={on}
+      onClick={() => c.setColorMode(on ? 'design' : 'materials')}
+    />
+  );
+}

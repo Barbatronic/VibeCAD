@@ -23,6 +23,7 @@ import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
 import { FabricationTools } from './FabricationUi';
 import { SimulationTools } from './SimulationUi';
 import { Sector, type SectorTool } from './ToolSectors';
+import { MaterialsToggle } from './MaterialsUi';
 
 function FileMenu() {
   const c = useController();
@@ -290,6 +291,7 @@ function ModelTools() {
             pressed={a.properties}
             onClick={() => c.toggleProperties()}
           />
+          <MaterialsToggle id="tool-materials" />
         </div>
         <div class="sector-name" aria-hidden="true">
           Contrôler

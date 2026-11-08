@@ -203,7 +203,8 @@ export class AppController {
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
     if (await this.deps.projects?.getSetting<boolean>('slicerHelpSeen').catch(() => undefined)) this.set({ slicerHelpSeen: true });
-    if ((await this.deps.projects?.getSetting<string>('colorMode').catch(() => undefined)) === 'materials') this.set({ colorMode: 'materials' });
+    // Matières réelles par défaut : une pièce sans fiche garde sa couleur de conception.
+    if ((await this.deps.projects?.getSetting<string>('colorMode').catch(() => undefined)) === 'design') this.set({ colorMode: 'design' });
     const catalogue = await this.deps.projects?.getSetting<unknown[]>('materialCatalogue').catch(() => undefined);
     if (Array.isArray(catalogue)) this.set({ materialCatalogue: catalogue.map(toSheet).filter((m): m is MaterialSheet => !!m && sheetProblems(m).length === 0) });
     const libraries = await this.deps.projects?.getSetting<string[]>('libraries').catch(() => undefined);

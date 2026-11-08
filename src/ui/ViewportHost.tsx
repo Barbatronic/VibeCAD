@@ -435,7 +435,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     const sec = cut?.parts[p.id];
     if (cut && sec !== undefined) {
       for (const index of sec.cutFaces) sectionFaces.push({ partId: p.id, kind: 'face', index });
-      return { partId: p.id, ...lookOf(s, p), visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
+      return { partId: p.id, ...lookOf(s, p, sec.mesh), visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
     }
     const previewPart = mode === 'feature' && s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.preview?.parts[p.id] : undefined;
     if (previewPart?.mesh && previewPart.meshKey) {
