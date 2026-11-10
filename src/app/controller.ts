@@ -947,6 +947,9 @@ export class AppController {
     // Une autre pièce choisie : on quitte la conception dans l'assemblage.
     const ctx = this.state.assemblyContext;
     const keep = ctx && this.state.doc.assembly?.instances.find((i) => i.id === ctx.instanceId)?.partId === partId;
+    // Second clic sur la pièce choisie : elle reste active, mais les autres ne sont plus estompées.
+    const sel = this.state.selection;
+    if (sel?.kind === 'part' && sel.partId === partId) return this.set({ selection: null });
     this.set({ activePartId: partId, selection: { kind: 'part', partId }, ...(keep ? {} : { assemblyContext: null }) });
   }
 
@@ -2822,6 +2825,11 @@ export class AppController {
     const d = this.state.display[partId];
     const part = findPart(this.state.doc, partId);
     return d && part && !d.result.flat ? partEngravings(part, d.result.sketches) : [];
+  }
+
+  /** Pièce survolée dans la liste des pièces (null : aucune). */
+  setHoverPart(partId: Id | null): void {
+    if (this.state.hoverPart !== partId) this.set({ hoverPart: partId });
   }
 
   /** Matériau dont les plaques sont affichées dans l'atelier découpe laser. */

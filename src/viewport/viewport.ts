@@ -118,6 +118,8 @@ export interface ViewportInput {
   markers?: ViewMarker[];
   /** Volumes à signaler (collisions d'un assemblage), en rouge, visibles à travers les pièces. */
   highlightMeshes?: { key: string; mesh: MeshData }[];
+  /** Pièce mise en évidence (survol de sa ligne dans une liste) : silhouette vive, au premier plan. */
+  spotlight?: string | null;
   /** Points remarquables (centre de gravité), avec une étiquette. */
   points?: { at: Vec3; label: string }[];
   /** Mode d'affichage des pièces (ombré, arêtes cachées, fil de fer…). */
@@ -473,6 +475,7 @@ export class Viewport {
     this.syncSketches(input.mode === 'sketch' ? [] : input.sketches);
     this.syncSession(input.session);
     this.syncSelection(input.selection);
+    this.syncSpotlight(input.spotlight ?? null);
     this.syncSectionFaces(input.sectionFaces ?? []);
     this.syncMarkedFaces(input.markedFaces ?? []);
     this.syncResultMesh(input.resultMesh ?? null);
@@ -704,6 +707,35 @@ export class Viewport {
         this.overlayGroup.add(overlay);
         this.selectionOverlays.push(overlay);
       }
+    }
+  }
+
+  private spotlightPart: PartObject | null = null;
+  private spotlightObjects: (Mesh | LineSegments2)[] = [];
+
+  /**
+   * Silhouette de la pièce survolée : ses faces en teinte vive translucide et ses arêtes épaisses,
+   * dessinées par-dessus tout (sans test de profondeur). Elles réutilisent la géométrie de la pièce :
+   * rien n'est recalculé, seules deux matières sont créées.
+   */
+  private syncSpotlight(partId: string | null): void {
+    const part = partId ? (this.parts.get(partId) ?? null) : null;
+    if (part === this.spotlightPart) return;
+    for (const o of this.spotlightObjects) {
+      o.parent?.remove(o);
+      (o.material as Material).dispose();
+    }
+    this.spotlightObjects = [];
+    this.spotlightPart = part;
+    if (!part || !part.group.visible) return;
+    const fill = new Mesh(part.faces.geometry, new MeshBasicMaterial({ color: this.palette.hover, transparent: true, opacity: 0.35, depthTest: false, depthWrite: false }));
+    fill.renderOrder = 30;
+    const outline = new LineSegments2(part.edges.geometry, this.resolved(fatLineMaterial(this.palette.hover, 2.5, { depthTest: false })));
+    outline.renderOrder = 31;
+    for (const o of [fill, outline]) {
+      this.placeOverlay(o, part);
+      this.overlayGroup.add(o);
+      this.spotlightObjects.push(o);
     }
   }
 

@@ -214,6 +214,8 @@ export interface AppState {
   showCentroid: boolean;
   /** Découpe laser : matériau dont les plaques sont affichées (null : le premier qui a des pièces). */
   laserPage: Id | null;
+  /** Pièce survolée dans la liste : les autres s'estompent dans la vue, pour la repérer. */
+  hoverPart: Id | null;
   /** Image en cours d'ajout (calque) : sa ressource n'entre dans le projet qu'à la validation. */
   pendingImage: StepResource | null;
   /** Incrémenté quand une image finit de se charger (nouveau rendu de la vue). */
@@ -331,6 +333,7 @@ export function initialState(): AppState {
     unfolded: false,
     pendingImage: null,
     laserPage: null,
+    hoverPart: null,
     imageVersion: 0,
     isolatedPartId: null,
     drawingRevision: 0,

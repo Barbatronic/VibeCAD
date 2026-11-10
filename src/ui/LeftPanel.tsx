@@ -54,6 +54,8 @@ function useFolded(key: keyof typeof folded): [boolean, () => void] {
 
 function PartsSection() {
   const c = useController();
+  // Liste retirée (changement d'atelier) pendant un survol : la vue ne reste pas estompée.
+  useEffect(() => () => c.setHoverPart(null), []);
   const parts = useAppState((s) => s.doc.parts);
   const activePartId = useAppState((s) => s.activePartId);
   const busy = useAppState((s) => s.mode.kind !== 'model');
@@ -97,7 +99,12 @@ function PartsSection() {
       <div class="panel-body">
         <ul class="part-list">
           {shown.map((p) => (
-            <li key={p.id} class={`part-row${p.id === activePartId ? ' is-active' : ''}${(isolatedId ? p.id === isolatedId : p.visible) ? '' : ' is-hidden'}`}>
+            <li
+              key={p.id}
+              class={`part-row${p.id === activePartId ? ' is-active' : ''}${(isolatedId ? p.id === isolatedId : p.visible) ? '' : ' is-hidden'}`}
+              onPointerEnter={() => c.setHoverPart(p.id)}
+              onPointerLeave={() => c.setHoverPart(null)}
+            >
               <label class="color-swatch" style={{ background: p.color }} title={`Couleur de « ${p.name} »`}>
                 <input
                   type="color"

@@ -463,7 +463,17 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       visible: partShown(s, p),
       meshKey: flat?.mesh ? flat.meshKey : (d?.meshKey ?? null),
       mesh: flat?.mesh ?? d?.mesh ?? null,
-      appearance: workingPartId && p.id !== workingPartId ? 'ghost' : mode === 'sketch' ? 'dimmed' : d?.stale ? 'stale' : 'normal',
+      appearance:
+        workingPartId && p.id !== workingPartId
+          ? 'ghost'
+          : mode === 'sketch'
+            ? 'dimmed'
+            : // Pièce choisie (clic) : les autres s'estompent.
+              mode === 'model' && s.selection?.kind === 'part' && s.selection.partId !== p.id
+              ? 'ghost'
+              : d?.stale
+                ? 'stale'
+                : 'normal',
     };
   });
   if (context) {
@@ -590,7 +600,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
   const gizmo = moving
     ? { origin: { x: moving.center.x + moving.translation.x, y: moving.center.y + moving.translation.y, z: moving.center.z + moving.translation.z }, rings: true }
     : null;
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges, gizmo };
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges, gizmo, spotlight: mode === 'model' ? s.hoverPart : null };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -959,7 +969,7 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.colorMode, state.assemblyContext, state.mechanismHover],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;
