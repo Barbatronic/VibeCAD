@@ -344,7 +344,7 @@ export interface Part {
   features: Feature[];
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | BeamFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -981,7 +981,7 @@ export interface MoveParams {
 }
 
 /** Générateur : roue dentée droite (développante), crémaillère, ou poulie crantée. */
-export type GearKind = 'spur' | 'rack' | 'pulley';
+export type GearKind = 'spur' | 'rack' | 'pulley' | 'belt';
 
 /** Courroies crantées : GT2 (pas 2, 3, 5 mm) et T (pas 2,5, 5, 10 mm). */
 export type BeltProfile = 'GT2-2' | 'GT2-3' | 'GT2-5' | 'T2.5' | 'T5' | 'T10';
@@ -1003,11 +1003,37 @@ export interface GearParams {
   bore: number;
   rackHeight: number;
   flanges: boolean;
+  /**
+   * Courroie fermée (kind `belt`) : dents de la seconde poulie (la première : `teeth`) et entraxe
+   * (mm). La première poulie est centrée sur `position`, la seconde à `centerDistance` selon +X.
+   */
+  teeth2?: number;
+  centerDistance?: number;
   position: { x: number; y: number; z: number };
   operation: VolumeOperation;
 }
 
 export type GearFeature = FeatureBase<'gear', GearParams>;
+
+/** Profilé aluminium série 20 (rainure de 6 mm) : V-slot (entrée en V) ou T-slot (entrée droite). */
+export type BeamSystem = 'vslot' | 'tslot';
+/** Section en mm : largeur × hauteur, par modules de 20 mm. */
+export type BeamSize = '2020' | '2040' | '2060' | '2080' | '4040' | '4080';
+
+/**
+ * Profilé : section normalisée (une rainure par module de 20 mm sur chaque face, un alésage Ø 4,2
+ * par module), extrudée de `length` le long de `axis`, depuis `position` (centre de la section).
+ */
+export interface BeamParams {
+  system: BeamSystem;
+  size: BeamSize;
+  length: number;
+  axis: 'X' | 'Y' | 'Z';
+  position: { x: number; y: number; z: number };
+  operation: VolumeOperation;
+}
+
+export type BeamFeature = FeatureBase<'beam', BeamParams>;
 
 /**
  * Coque : la pièce est vidée en gardant une paroi d'épaisseur `thickness` (mm). Les faces

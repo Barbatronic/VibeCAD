@@ -26,6 +26,7 @@ import type {
   FlangeFeature,
   FoldFeature,
   GearFeature,
+  BeamFeature,
   MoveFeature,
   HoleFeature,
   PlaneFeature,
@@ -82,6 +83,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   draft: 'Dépouille',
   thicken: 'Épaisseur',
   gear: 'Engrenage',
+  beam: 'Profilé',
   move: 'Déplacement',
   hole: 'Perçage',
   plane: 'Plan',
@@ -329,7 +331,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', engrave: 'gr', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', engrave: 'gr', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', beam: 'bm', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -429,7 +431,7 @@ export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: Primit
 }
 
 /** Nom par défaut d'un générateur, selon ce qu'il fabrique (« Roue dentée 1 », « Poulie 2 »…). */
-export const GEAR_NAMES: Record<GearKind, string> = { spur: 'Roue dentée', rack: 'Crémaillère', pulley: 'Poulie' };
+export const GEAR_NAMES: Record<GearKind, string> = { spur: 'Roue dentée', rack: 'Crémaillère', pulley: 'Poulie', belt: 'Courroie' };
 
 /** Premier nom libre « Roue dentée n », « Poulie n »… (`exceptId` : l'étape renommée elle-même). */
 export function gearName(part: Part, kind: GearKind, exceptId?: Id): string {
@@ -451,6 +453,15 @@ export function makeGearFeature(doc: CadDocument, part: Part, kind: GearKind = '
     type: 'gear',
     name: gearName(part, kind),
     params: { kind, module: 1.5, pressureAngle: 20, teeth: 20, belt: 'GT2-2', thickness: 8, bore: 5, rackHeight: 5, flanges: true, position: { x: 0, y: 0, z: 0 }, operation: 'add' },
+  };
+}
+
+export function makeBeamFeature(doc: CadDocument, part: Part): BeamFeature {
+  return {
+    id: newFeatureId(doc, 'beam'),
+    type: 'beam',
+    name: nextFeatureName(part, 'beam'),
+    params: { system: 'vslot', size: '2020', length: 200, axis: 'Z', position: { x: 0, y: 0, z: 0 }, operation: 'add' },
   };
 }
 

@@ -15,8 +15,8 @@ test('symétrie : reflet de toute la pièce par rapport à YZ, puis à XY', asyn
   await expectVolume(page, 2 * PLATE);
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'tests/output/e2e-symetrie.png' });
-  // Le bouton du groupe montre maintenant la symétrie (dernier outil utilisé).
-  await expect(page.locator('#tool-mirror')).toBeVisible();
+  // Le secteur montre la symétrie : son bouton à lui, ou (secteur replié) le dernier outil utilisé.
+  await expect(page.locator('.sector', { hasText: 'Répéter' }).getByRole('button', { name: /Symétrie/ }).locator('visible=true').first()).toBeVisible();
 
   const history = page.getByRole('list', { name: /Étapes de construction/ });
   await history.locator('.feature-main', { hasText: 'Symétrie 1' }).dblclick();

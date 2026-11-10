@@ -16,6 +16,7 @@ import { loftDefinition } from './loft/definition';
 import { shellDefinition } from './shell/definition';
 import { primitiveDefinition } from './primitive/definition';
 import { gearDefinition } from './gear/definition';
+import { beamDefinition } from './beam/definition';
 import { moveDefinition } from './move/definition';
 import { holeDefinition } from './hole/definition';
 import { planeDefinition } from './plane/definition';
@@ -36,6 +37,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   extrude: extrudeDefinition,
   primitive: primitiveDefinition,
   gear: gearDefinition,
+  beam: beamDefinition,
   move: moveDefinition,
   hole: holeDefinition,
   plane: planeDefinition,

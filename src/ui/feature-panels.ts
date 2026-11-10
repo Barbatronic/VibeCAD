@@ -16,6 +16,7 @@ import { MirrorPanel } from '../features/mirror/panel';
 import { PatternPanel } from '../features/pattern/panel';
 import { PrimitivePanel } from '../features/primitive/panel';
 import { GearPanel } from '../features/gear/panel';
+import { BeamPanel } from '../features/beam/panel';
 import { MovePanel } from '../features/move/panel';
 import { HolePanel } from '../features/hole/panel';
 import { PlanePanel } from '../features/plane/panel';
@@ -40,6 +41,7 @@ export const FEATURE_PANELS: Partial<Record<FeatureType, FunctionComponent<Featu
   pattern: PatternPanel as FunctionComponent<FeaturePanelProps<never>>,
   primitive: PrimitivePanel as FunctionComponent<FeaturePanelProps<never>>,
   gear: GearPanel as FunctionComponent<FeaturePanelProps<never>>,
+  beam: BeamPanel as FunctionComponent<FeaturePanelProps<never>>,
   move: MovePanel as FunctionComponent<FeaturePanelProps<never>>,
   hole: HolePanel as FunctionComponent<FeaturePanelProps<never>>,
   plane: PlanePanel as FunctionComponent<FeaturePanelProps<never>>,

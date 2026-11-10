@@ -1542,7 +1542,7 @@
             },
             "params": {
               "type": "object",
-              "description": "Générateur : roue dentée droite (développante), crémaillère ou poulie crantée, extrudé selon Z depuis position.",
+              "description": "Générateur : roue dentée droite (développante), crémaillère poulie crantée ou courroie fermée entre deux poulies, extrudé selon Z depuis position.",
               "required": [
                 "kind",
                 "module",
@@ -1561,7 +1561,8 @@
                   "enum": [
                     "spur",
                     "rack",
-                    "pulley"
+                    "pulley",
+                    "belt"
                   ]
                 },
                 "module": {
@@ -1599,6 +1600,90 @@
                 },
                 "flanges": {
                   "type": "boolean"
+                },
+                "position": {
+                  "type": "object",
+                  "required": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "cut",
+                    "common"
+                  ]
+                },
+                "teeth2": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Courroie : dents de la seconde poulie."
+                },
+                "centerDistance": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "Courroie : entraxe des deux poulies (mm), selon +X."
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "beam"
+            },
+            "params": {
+              "type": "object",
+              "description": "Profilé aluminium série 20 (rainure 6 mm) : section V-slot ou T-slot par modules de 20 mm, extrudée de length selon axis depuis position (centre de la section).",
+              "required": [
+                "system",
+                "size",
+                "length",
+                "axis",
+                "position",
+                "operation"
+              ],
+              "properties": {
+                "system": {
+                  "enum": [
+                    "vslot",
+                    "tslot"
+                  ]
+                },
+                "size": {
+                  "enum": [
+                    "2020",
+                    "2040",
+                    "2060",
+                    "2080",
+                    "4040",
+                    "4080"
+                  ]
+                },
+                "length": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "axis": {
+                  "enum": [
+                    "X",
+                    "Y",
+                    "Z"
+                  ]
                 },
                 "position": {
                   "type": "object",

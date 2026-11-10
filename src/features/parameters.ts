@@ -85,7 +85,7 @@ export function applyFieldValue(feature: Feature, field: string, value: number):
   if (!path) return feature;
   let v = value;
   if (feature.type === 'thicken' && field === 'distance') v = Math.sign(feature.params.distance || 1) * Math.abs(value);
-  if ((feature.type === 'pattern' && (field === 'count' || field === 'count2')) || (feature.type === 'gear' && field === 'teeth')) v = Math.round(v);
+  if ((feature.type === 'pattern' && (field === 'count' || field === 'count2')) || (feature.type === 'gear' && (field === 'teeth' || field === 'teeth2'))) v = Math.round(v);
   return { ...feature, params: setPath(feature.params as unknown as Record<string, unknown>, path, v) } as unknown as Feature;
 }
 

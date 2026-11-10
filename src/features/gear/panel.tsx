@@ -7,10 +7,10 @@ import { OperationField, PreviewStatus, withParams } from '../../ui/components/f
 import { useAppState } from '../../ui/context';
 import { Icon } from '../../ui/icons';
 import type { FeaturePanelProps } from '../panel-types';
-import { COMMON_MODULES, GEAR_EXPLANATIONS, gearIssues } from './definition';
-import { BELT_PROFILES, pulleyOutsideDiameter, spurGeometry } from './profiles';
+import { beltSetup, COMMON_MODULES, GEAR_EXPLANATIONS, gearIssues } from './definition';
+import { BELT_PROFILES, beltCenterDistance, pulleyOutsideDiameter, spurGeometry } from './profiles';
 
-type NumericField = 'module' | 'pressureAngle' | 'teeth' | 'thickness' | 'bore' | 'rackHeight';
+type NumericField = 'module' | 'pressureAngle' | 'teeth' | 'thickness' | 'bore' | 'rackHeight' | 'teeth2' | 'centerDistance';
 
 const FIELD_LABELS: Record<NumericField, string> = {
   module: 'Module',
@@ -19,6 +19,8 @@ const FIELD_LABELS: Record<NumericField, string> = {
   thickness: 'Épaisseur (Z)',
   bore: 'Alésage (Ø du trou central, 0 : aucun)',
   rackHeight: 'Hauteur du corps (sous les dents)',
+  teeth2: 'Dents de la poulie 2',
+  centerDistance: 'Entraxe des poulies (selon X)',
 };
 
 export function GearPanel(props: FeaturePanelProps<GearFeature>) {
@@ -27,11 +29,11 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
   const p = f.params;
   const expert = useAppState((s) => s.level === 'expert');
   const n = (v: number, d = 2) => formatNumber(v, d);
-  const numberField = (field: NumericField, opts: { unit?: string; step?: number; min?: number; help?: string; autoFocus?: boolean } = {}) => (
+  const numberField = (field: NumericField, opts: { unit?: string; step?: number; min?: number; help?: string; autoFocus?: boolean; label?: string } = {}) => (
     <LengthField
       key={field}
       id={`draft-${field}`}
-      label={FIELD_LABELS[field]}
+      label={opts.label ?? FIELD_LABELS[field]}
       value={draft.fields[field] ?? ''}
       error={draft.errors[field] ?? null}
       {...(opts.unit ? { unit: opts.unit } : {})}
@@ -66,8 +68,14 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
       onEscape={props.cancel}
     />
   );
-  const kinds: GearKind[] = ['spur', 'rack', 'pulley'];
-  const spur = p.kind !== 'pulley' ? spurGeometry(p.module, p.teeth, p.pressureAngle) : null;
+  const kinds: GearKind[] = ['spur', 'rack', 'pulley', 'belt'];
+  const toothed = p.kind === 'pulley' || p.kind === 'belt';
+  const spur = !toothed ? spurGeometry(p.module, p.teeth, p.pressureAngle) : null;
+  const belt = p.kind === 'belt' ? beltSetup(p) : null;
+  // Courroie du commerce : un nombre entier de dents ; l'entraxe qui y mène exactement.
+  const roundTeeth = belt ? Math.max(1, Math.round(belt.teeth)) : 0;
+  const exact = belt ? beltCenterDistance(p.belt, p.teeth, belt.teeth2, roundTeeth) : null;
+  const t = (v: number) => formatNumber(v, 2);
   return (
     <>
       <div class="field" role="group" aria-label="Pièce à générer">
@@ -91,7 +99,7 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
         <p class="field-help">{GEAR_EXPLANATIONS[p.kind]}</p>
       </div>
       <OperationField what="La pièce générée" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
-      {p.kind === 'pulley' ? (
+      {toothed ? (
         <label class="field">
           <span class="field-label">Courroie</span>
           <select id="draft-belt" class="select" value={p.belt} onChange={(e) => update((x) => withParams(x, { belt: (e.target as HTMLSelectElement).value as BeltProfile }))}>
@@ -108,24 +116,41 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
           {expert ? numberField('pressureAngle', { unit: '°', step: 0.5, help: '20° presque toujours. Deux pièces qui engrènent doivent avoir le même.' }) : null}
         </>
       )}
-      {numberField('teeth', { unit: 'dents', step: 1, min: p.kind === 'rack' ? 1 : 6 })}
-      {numberField('thickness', { unit: 'mm', step: 1 })}
-      {p.kind === 'rack' ? numberField('rackHeight', { unit: 'mm', step: 1 }) : numberField('bore', { unit: 'mm', step: 0.5, help: 'Pour un axe de moteur : 5 mm (NEMA 17), 8 mm pour une tige filetée M8…' })}
+      {numberField('teeth', { unit: 'dents', step: 1, min: p.kind === 'rack' ? 1 : 6, ...(belt ? { label: 'Dents de la poulie 1' } : {}) })}
+      {belt ? numberField('teeth2', { unit: 'dents', step: 1, min: 8 }) : null}
+      {belt ? numberField('centerDistance', { unit: 'mm', step: 1 }) : null}
+      {numberField('thickness', { unit: 'mm', step: 1, ...(belt ? { label: 'Largeur de la courroie (Z)' } : {}) })}
+      {p.kind === 'rack' ? numberField('rackHeight', { unit: 'mm', step: 1 }) : belt ? null : numberField('bore', { unit: 'mm', step: 0.5, help: 'Axe NEMA 17 : 5 mm · tige M8 : 8 mm' })}
       {p.kind === 'pulley' ? (
         <label class="checkbox-row">
           <input id="draft-flanges" type="checkbox" checked={p.flanges} onChange={() => update((x) => withParams(x, { flanges: !p.flanges }))} />
           <span>Joues de chaque côté (la courroie ne glisse pas hors de la poulie)</span>
         </label>
       ) : null}
-      <p class="field-help gear-figures" id="draft-gear-figures">
-        {p.kind === 'spur' && spur
-          ? `Ø primitif ${n(spur.pitch)} mm, Ø extérieur ${n(spur.tip)} mm, Ø de pied ${n(spur.root)} mm. Avec une roue de z dents au même module : entraxe = ${n(p.module)} × (${p.teeth} + z) / 2.`
-          : p.kind === 'rack'
-            ? `Longueur ${n(p.teeth * Math.PI * p.module)} mm (pas ${n(Math.PI * p.module)} mm). Une roue de z dents au même module a son centre à ${n(p.module)} × z / 2 mm au-dessus de la ligne primitive (y = 0).`
-            : `Ø extérieur ${n(pulleyOutsideDiameter(p.belt, p.teeth))} mm (Ø primitif ${n((p.teeth * BELT_PROFILES[p.belt].pitch) / Math.PI)} mm). Profil approché : faites une impression d’essai avec votre courroie.`}
-      </p>
+      {belt ? (
+        <p class="field-help gear-figures" id="draft-gear-figures">
+          Longueur primitive {t(belt.length)} mm · {formatNumber(belt.teeth, 1)} dents
+          {exact !== null && Math.abs(belt.teeth - roundTeeth) > 0.01 ? (
+            <>
+              {' '}
+              ·{' '}
+              <button type="button" class="tl-link" onClick={() => setField('centerDistance', t(exact), { feature: withParams(f, { centerDistance: Math.round(exact * 100) / 100 }) })}>
+                entraxe {t(exact)} mm pour {roundTeeth} dents
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : (
+        <p class="field-help gear-figures" id="draft-gear-figures">
+          {p.kind === 'spur' && spur
+            ? `Ø primitif ${n(spur.pitch)} mm, Ø extérieur ${n(spur.tip)} mm, Ø de pied ${n(spur.root)} mm. Avec une roue de z dents au même module : entraxe = ${n(p.module)} × (${p.teeth} + z) / 2.`
+            : p.kind === 'rack'
+              ? `Longueur ${n(p.teeth * Math.PI * p.module)} mm (pas ${n(Math.PI * p.module)} mm). Une roue de z dents au même module a son centre à ${n(p.module)} × z / 2 mm au-dessus de la ligne primitive (y = 0).`
+              : `Ø extérieur ${n(pulleyOutsideDiameter(p.belt, p.teeth))} mm (Ø primitif ${n((p.teeth * BELT_PROFILES[p.belt].pitch) / Math.PI)} mm). Profil approché : faites une impression d’essai avec votre courroie.`}
+        </p>
+      )}
       <div class="field">
-        <span class="field-label">{p.kind === 'rack' ? 'Début de la ligne primitive (mm)' : 'Position du centre de la face du bas (mm)'}</span>
+        <span class="field-label">{p.kind === 'rack' ? 'Début de la ligne primitive (mm)' : belt ? 'Centre de la poulie 1, face du bas (mm)' : 'Position du centre de la face du bas (mm)'}</span>
         <div class="limits-row three">{(['x', 'y', 'z'] as const).map(coordinate)}</div>
       </div>
       <PreviewStatus status={props.status} kind={p.operation === 'cut' ? 'cut' : p.operation === 'common' ? 'modify' : 'add'} />

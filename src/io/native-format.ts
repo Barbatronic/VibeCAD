@@ -684,7 +684,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'engrave', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'engrave', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'beam', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -827,6 +827,22 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         params: { translation: vec('translation'), axis: oneOf(v, p, 'axis', pp, ['X', 'Y', 'Z'] as const), angle: num(v, p, 'angle', pp), center: vec('center'), copy: bool(v, p, 'copy', pp, false) },
       };
     }
+    case 'beam': {
+      const pos = obj(v, p.position, `${pp}.position`) ?? {};
+      return {
+        id,
+        name,
+        type,
+        params: {
+          system: oneOf(v, p, 'system', pp, ['vslot', 'tslot'] as const),
+          size: oneOf(v, p, 'size', pp, ['2020', '2040', '2060', '2080', '4040', '4080'] as const),
+          length: num(v, p, 'length', pp, { min: 0 }),
+          axis: oneOf(v, p, 'axis', pp, ['X', 'Y', 'Z'] as const),
+          position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
+          operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
+        },
+      };
+    }
     case 'gear': {
       const pos = obj(v, p.position, `${pp}.position`) ?? {};
       return {
@@ -834,7 +850,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: {
-          kind: oneOf(v, p, 'kind', pp, ['spur', 'rack', 'pulley'] as const),
+          kind: oneOf(v, p, 'kind', pp, ['spur', 'rack', 'pulley', 'belt'] as const),
           module: num(v, p, 'module', pp, { min: 0 }),
           pressureAngle: num(v, p, 'pressureAngle', pp, { min: 0, max: 45 }),
           teeth: num(v, p, 'teeth', pp, { min: 1, integer: true }),
@@ -843,6 +859,8 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           bore: num(v, p, 'bore', pp, { min: 0 }),
           rackHeight: num(v, p, 'rackHeight', pp, { min: 0 }),
           flanges: bool(v, p, 'flanges', pp, false),
+          ...(p.teeth2 === undefined ? {} : { teeth2: num(v, p, 'teeth2', pp, { min: 1, integer: true }) }),
+          ...(p.centerDistance === undefined ? {} : { centerDistance: num(v, p, 'centerDistance', pp, { min: 0 }) }),
           position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },

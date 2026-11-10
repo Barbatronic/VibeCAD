@@ -42,3 +42,22 @@ test('générateurs : réservés à partir du niveau Intermédiaire', async ({ p
   await expect(page.locator('#tool-primitive')).toBeVisible();
   await expect(page.locator('#tool-gear')).toHaveCount(0);
 });
+
+test('générateur : courroie fermée entre deux poulies, entraxe ajusté à un nombre entier de dents', async ({ page }) => {
+  await openApp(page);
+  await clickTool(page, 'tool-gear');
+  await page.getByRole('group', { name: 'Pièce à générer' }).getByRole('button', { name: 'Courroie' }).click();
+  await page.locator('#draft-teeth').fill('20');
+  await page.locator('#draft-teeth2').fill('40');
+  await page.locator('#draft-centerDistance').fill('150');
+  const figures = page.locator('#draft-gear-figures');
+  await expect(figures).toContainText('dents');
+  // Proposition : l'entraxe qui donne une courroie du commerce (nombre entier de dents).
+  await figures.getByRole('button', { name: /pour \d+ dents/ }).click();
+  await expect(figures.getByRole('button')).toHaveCount(0);
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.screenshot({ path: 'tests/output/e2e-courroie.png' });
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expect.poll(async () => (await lastFeature(page)).volume).toBeGreaterThan(100);
+  expect(await lastFeature(page)).toMatchObject({ name: 'Courroie 1', kind: 'belt' });
+});

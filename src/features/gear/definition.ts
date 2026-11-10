@@ -2,19 +2,40 @@ import { GEAR_NAMES, makeGearFeature } from '../../domain/document';
 import type { GearFeature, GearKind } from '../../domain/model';
 import { formatLength, formatNumber } from '../../domain/units';
 import type { FeatureDefinition, ParamIssue } from '../definition';
-import { BELT_PROFILES, pulleyOutsideDiameter, spurGeometry } from './profiles';
+import { BELT_PROFILES, beltLength, pitchRadius, pulleyOutsideDiameter, spurGeometry } from './profiles';
 
 export const GEAR_EXPLANATIONS: Record<GearKind, string> = {
-  spur: 'Roue dentée droite (denture en développante de cercle). Deux roues de même module engrènent ; leur entraxe vaut module × (dents 1 + dents 2) / 2.',
-  rack: 'Crémaillère : une barre dentée qui transforme la rotation d’une roue de même module en déplacement en ligne droite.',
-  pulley: 'Poulie crantée pour courroie GT2 ou T (imprimantes 3D, robots). Le diamètre vient du nombre de dents et du pas de la courroie.',
+  spur: 'Entraxe = module × (dents 1 + dents 2) / 2',
+  rack: 'Engrène avec une roue de même module',
+  pulley: 'Courroie GT2 ou T',
+  belt: 'Courroie fermée entre deux poulies',
 };
 
 /** Modules courants (série ISO 54) proposés dans le panneau. */
 export const COMMON_MODULES = [0.5, 0.8, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5];
 
+/** Courroie : seconde poulie et entraxe, avec des valeurs par défaut (poulies identiques, 3 diamètres d'écart). */
+export function beltSetup(p: GearFeature['params']): { teeth2: number; centerDistance: number; length: number; teeth: number } {
+  const teeth2 = p.teeth2 ?? p.teeth;
+  const ra = pitchRadius(p.belt, p.teeth);
+  const rb = pitchRadius(p.belt, teeth2);
+  const centerDistance = p.centerDistance ?? Math.round(3 * (ra + rb));
+  const length = beltLength(ra, rb, centerDistance);
+  return { teeth2, centerDistance, length, teeth: length / BELT_PROFILES[p.belt].pitch };
+}
+
 export function gearIssues(p: GearFeature['params']): ParamIssue[] {
   const issues: ParamIssue[] = [];
+  if (p.kind === 'belt') {
+    const s = beltSetup(p);
+    if (!Number.isInteger(p.teeth) || p.teeth < 8 || p.teeth > 300) issues.push({ field: 'teeth', message: 'Le nombre de dents doit être un entier entre 8 et 300.' });
+    if (!Number.isInteger(s.teeth2) || s.teeth2 < 8 || s.teeth2 > 300) issues.push({ field: 'teeth2', message: 'Le nombre de dents doit être un entier entre 8 et 300.' });
+    if (!(p.thickness > 0) || p.thickness > 200) issues.push({ field: 'thickness', message: 'La largeur doit être comprise entre 0 et 200 mm.' });
+    // Les poulies ne doivent pas se toucher.
+    const min = pulleyOutsideDiameter(p.belt, p.teeth) / 2 + pulleyOutsideDiameter(p.belt, s.teeth2) / 2 + 2;
+    if (!(s.centerDistance >= min) || s.centerDistance > 10000) issues.push({ field: 'centerDistance', message: `L’entraxe doit dépasser ${formatNumber(min, 1)} mm : sinon les poulies se touchent.` });
+    return issues;
+  }
   const minTeeth = p.kind === 'rack' ? 1 : p.kind === 'pulley' ? 8 : 6;
   if (!Number.isInteger(p.teeth) || p.teeth < minTeeth || p.teeth > 300) issues.push({ field: 'teeth', message: `Le nombre de dents doit être un entier entre ${minTeeth} et 300.` });
   if (!(p.thickness > 0) || p.thickness > 1000) issues.push({ field: 'thickness', message: 'L’épaisseur doit être comprise entre 0 et 1 000 mm.' });
@@ -35,6 +56,10 @@ export function gearSummary(p: GearFeature['params']): string {
   const n = (v: number) => formatNumber(v, 2);
   if (p.kind === 'spur') return `m ${n(p.module)}, ${p.teeth} dents, Ø ${n(spurGeometry(p.module, p.teeth, p.pressureAngle).tip)} × ${formatLength(p.thickness)}`;
   if (p.kind === 'rack') return `m ${n(p.module)}, ${p.teeth} dents, ${formatLength(p.teeth * Math.PI * p.module)} de long`;
+  if (p.kind === 'belt') {
+    const s = beltSetup(p);
+    return `${BELT_PROFILES[p.belt].label}, poulies ${p.teeth} et ${s.teeth2} dents, entraxe ${formatLength(s.centerDistance)}, ${formatNumber(s.teeth, 1)} dents`;
+  }
   return `${BELT_PROFILES[p.belt].label}, ${p.teeth} dents, Ø ${n(pulleyOutsideDiameter(p.belt, p.teeth))} × ${formatLength(p.thickness)}`;
 }
 
@@ -42,7 +67,7 @@ export const gearDefinition: FeatureDefinition<GearFeature> = {
   type: 'gear',
   label: 'Engrenage',
   namePrefix: 'Engrenage',
-  explanation: 'Générateur : roue dentée, crémaillère ou poulie crantée, calculée à partir de quelques nombres (module, dents, courroie).',
+  explanation: 'Générateur : roue dentée, crémaillère, poulie crantée ou courroie, calculée à partir de quelques nombres (module, dents, courroie).',
   icon: 'gear',
   affectsSolid: true,
   dependencies: () => [],
@@ -65,6 +90,8 @@ export const gearDefinition: FeatureDefinition<GearFeature> = {
         thickness: t(p.thickness),
         bore: t(p.bore),
         rackHeight: t(p.rackHeight),
+        teeth2: String(beltSetup(p).teeth2),
+        centerDistance: t(beltSetup(p).centerDistance),
         x: t(p.position.x),
         y: t(p.position.y),
         z: t(p.position.z),

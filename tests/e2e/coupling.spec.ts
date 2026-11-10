@@ -21,7 +21,7 @@ test('engrenage : deux pivots couplés comme des roues de 10 et 20 dents', async
   await expect(page.locator('.panel-title', { hasText: 'Engrenage 1' })).toBeVisible();
   await page.locator('#coupling-teeth1').fill('10');
   await page.locator('#coupling-teeth2').fill('20');
-  await expect(page.locator('#coupling-ratio')).toContainText('0,5 tour de la menée, en sens opposé');
+  await expect(page.locator('#coupling-ratio')).toContainText('Rapport 0,5, sens opposé');
   // Rien n'a bougé à la création ni au changement de rapport.
   expect(await appState(page, (s) => s.doc.assembly.joints.map((j: any) => j.angle))).toEqual([30, 0]);
 

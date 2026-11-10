@@ -258,3 +258,76 @@ export function pulleyProfile(profile: BeltProfile, teeth: number, bore: number)
   }
   return region(segments, bore);
 }
+
+// ---------------------------------------------------------------------------
+// Courroie fermée entre deux poulies
+
+/** Rayon primitif d'une poulie de z dents : z·pas / 2π. */
+export const pitchRadius = (profile: BeltProfile, teeth: number) => (teeth * BELT_PROFILES[profile].pitch) / (2 * Math.PI);
+
+/**
+ * Longueur primitive d'une courroie ouverte (brins tangents) entre deux poulies de rayons
+ * primitifs ra et rb, d'entraxe c : 2c·cos φ + ra·(π + 2φ) + rb·(π − 2φ), avec sin φ = (ra − rb)/c.
+ */
+export function beltLength(ra: number, rb: number, c: number): number {
+  const phi = Math.asin(Math.max(-1, Math.min(1, (ra - rb) / c)));
+  return 2 * c * Math.cos(phi) + ra * (Math.PI + 2 * phi) + rb * (Math.PI - 2 * phi);
+}
+
+/** Entraxe qui donne une courroie d'exactement `teeth` dents (null si impossible). */
+export function beltCenterDistance(profile: BeltProfile, teethA: number, teethB: number, teeth: number): number | null {
+  const ra = pitchRadius(profile, teethA);
+  const rb = pitchRadius(profile, teethB);
+  const target = teeth * BELT_PROFILES[profile].pitch;
+  // Entraxe minimal : les poulies se touchent presque ; la longueur croît avec l'entraxe.
+  let lo = Math.abs(ra - rb) + 1e-6;
+  let hi = Math.max(lo * 2, target);
+  if (beltLength(ra, rb, lo) > target || beltLength(ra, rb, hi) < target) return null;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (beltLength(ra, rb, mid) < target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Courroie fermée vue de côté (bande lisse, dents non dessinées) : de la ligne primitive moins le
+ * PLD (fond des dents) jusqu'au dos. Poulie A centrée sur l'origine, poulie B en (c, 0).
+ */
+export function beltProfile(profile: BeltProfile, teethA: number, teethB: number, c: number): ProfileRegion {
+  const b = BELT_PROFILES[profile];
+  const ra = pitchRadius(profile, teethA);
+  const rb = pitchRadius(profile, teethB);
+  const phi = Math.asin(Math.max(-1, Math.min(1, (ra - rb) / c)));
+  const inner = -b.pld;
+  const outer = inner + 0.3 * b.pitch;
+  // Contour dans le sens trigonométrique : brin du bas, poulie B, brin du haut, poulie A.
+  const stadium = (off: number, id: string): ProfileSegment[] => {
+    const RA = ra + off;
+    const RB = rb + off;
+    const at = (cx: number, r: number, a: number): Vec2 => ({ x: cx + r * Math.cos(a), y: r * Math.sin(a) });
+    const low = -Math.PI / 2 + phi;
+    const up = Math.PI / 2 - phi;
+    return [
+      { kind: 'line', entityId: `${id}l`, start: at(0, RA, low), end: at(c, RB, low) },
+      { kind: 'arc', entityId: `${id}b`, start: at(c, RB, low), end: at(c, RB, up), center: { x: c, y: 0 }, radius: RB, clockwise: false },
+      { kind: 'line', entityId: `${id}u`, start: at(c, RB, up), end: at(0, RA, up) },
+      { kind: 'arc', entityId: `${id}a`, start: at(0, RA, up), end: at(0, RA, low + 2 * Math.PI), center: { x: 0, y: 0 }, radius: RA, clockwise: false },
+    ];
+  };
+  // Aire de l'enveloppe des deux cercles : deux trapèzes (centres, points de tangence) et deux secteurs.
+  const area = (off: number) => {
+    const RA = ra + off;
+    const RB = rb + off;
+    return (RA + RB) * c * Math.cos(phi) + (RA * RA * (Math.PI + 2 * phi)) / 2 + (RB * RB * (Math.PI - 2 * phi)) / 2;
+  };
+  const outerSegs = stadium(outer, 'o');
+  // Trou : même tracé, parcouru à l'envers (sens horaire).
+  const innerSegs: ProfileSegment[] = stadium(inner, 'i')
+    .reverse()
+    .map((s) => (s.kind === 'arc' ? { ...s, start: s.end, end: s.start, clockwise: true } : s.kind === 'line' ? { ...s, start: s.end, end: s.start } : s));
+  const outerArea = area(outer);
+  const innerArea = area(inner);
+  return { outer: { segments: outerSegs, signedArea: outerArea }, holes: [{ segments: innerSegs, signedArea: -innerArea }], area: outerArea - innerArea };
+}

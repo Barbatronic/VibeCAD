@@ -751,6 +751,13 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="6.5" />
     </>
   ),
+  /** Profilé aluminium à rainures (section 20 × 20). */
+  beam: (
+    <>
+      <path d="M4 4h6v3h4V4h6v6h-3v4h3v6h-6v-3h-4v3H4v-6h3v-4H4z" />
+      <circle cx="12" cy="12" r="1.5" />
+    </>
+  ),
   'gear-spur': (
     <>
       <circle cx="12" cy="12" r="2.5" />
@@ -761,6 +768,15 @@ const PATHS: Record<string, JSX.Element> = {
     <>
       <path d="M2 18h20v3H2z" />
       <path d="M2 18l1-4h2l1 4M8 18l1-4h2l1 4M14 18l1-4h2l1 4M20 18l1-4h1" />
+    </>
+  ),
+  /** Courroie fermée autour de deux poulies. */
+  'gear-belt': (
+    <>
+      <circle cx="7" cy="12" r="3.5" />
+      <circle cx="17.5" cy="12" r="2.5" />
+      <path d="M7 6.5L17.5 8.5M7 17.5l10.5-2" />
+      <path d="M7 6.5a5.5 5.5 0 0 0 0 11M17.5 8.5a3.5 3.5 0 0 1 0 7" />
     </>
   ),
   'gear-pulley': (
