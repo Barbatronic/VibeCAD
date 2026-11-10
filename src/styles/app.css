@@ -1575,30 +1575,46 @@ textarea {
   color: var(--text);
 }
 
+.mat-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .mat-part {
-  border-radius: var(--radius);
-}
-
-.mat-part.selected {
-  background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.mat-part-show {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
+  padding: 6px 8px;
   border: 0;
+  border-radius: var(--radius);
   background: none;
-  color: inherit;
+  color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.mat-part-shown {
-  margin-left: auto;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
+.mat-part:hover {
+  background: var(--surface-2);
+}
+
+.mat-part[aria-pressed='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.mat-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .menu-caption {

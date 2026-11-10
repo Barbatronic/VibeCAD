@@ -17,7 +17,7 @@ test('matières : choisir une fiche du catalogue, la voir dans tous les ateliers
 
   // L'atelier Fabrication s'ouvre sur Matières.
   await page.click('#tab-fabrication');
-  await expect(page.getByRole('list', { name: 'Matière de chaque pièce' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Pièces du projet' })).toBeVisible();
   // Un premier choix, puis un autre : le projet ne garde que la matière utilisée.
   await page.getByLabel('Matière de « Pièce 1 »').selectOption({ label: 'PLA rouge' });
   await expect.poll(() => appState(page, (s) => s.doc.materials?.map((m: any) => m.name))).toEqual(['PLA rouge']);
@@ -39,13 +39,13 @@ test('matières : choisir une fiche du catalogue, la voir dans tous les ateliers
 
   // La fiche du projet se modifie : la pièce suit (couleur, base donc masse).
   await page.click('#tab-fabrication');
-  await page.getByRole('button', { name: /Acrylique transparent 3 mm/ }).click();
+  await page.getByRole('list', { name: 'Fiches du projet' }).getByRole('button', { name: /Acrylique transparent 3 mm/ }).click();
   const editor = page.getByRole('group', { name: 'Fiche « Acrylique transparent 3 mm »' });
   await editor.getByLabel('Nom de la matière').fill('Acrylique bleu 3 mm');
   await editor.getByLabel('Nom de la matière').press('Enter');
   await expect.poll(() => appState(page, (s) => s.doc.materials[0].name)).toBe('Acrylique bleu 3 mm');
-  await page.getByRole('button', { name: /Acrylique bleu 3 mm/ }).click();
-  await page.getByRole('button', { name: /Acrylique bleu 3 mm/ }).click();
+  await page.getByRole('list', { name: 'Fiches du projet' }).getByRole('button', { name: /Acrylique bleu 3 mm/ }).click();
+  await page.getByRole('list', { name: 'Fiches du projet' }).getByRole('button', { name: /Acrylique bleu 3 mm/ }).click();
   await page.getByRole('group', { name: 'Fiche « Acrylique bleu 3 mm »' }).getByLabel('Couleur de la matière').fill('#2f6fd1');
   await expect.poll(() => shown(page)).toEqual({ color: '#2f6fd1', opacity: 0.35 });
 

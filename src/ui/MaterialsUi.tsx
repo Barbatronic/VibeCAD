@@ -1,7 +1,7 @@
 /**
- * Atelier Fabrication › Matières : comment chaque pièce est fabriquée. À gauche, la fiche matière de
- * chaque pièce ; à droite, les fiches du projet (exactement celles des pièces, modifiables) et le
- * catalogue personnel de l'appareil. Voir docs/conception-matieres.md.
+ * Atelier Fabrication › Matières : comment chaque pièce est fabriquée. À gauche, la liste des pièces ;
+ * à droite, le détail de la pièce choisie (matière, pinceau), puis les fiches du projet
+ * (exactement celles des pièces, modifiables) et le catalogue personnel de l'appareil. Voir docs/conception-matieres.md.
  */
 import { useState } from 'preact/hooks';
 import { engraveColors, FINISH_LABELS, FINISHES, MAKE_PROCESSES, PROCESS_LABELS, STARTER_MATERIALS, type MaterialFinish, type MaterialSheet } from '../domain/material-sheets';
@@ -23,103 +23,123 @@ function sheetSummary(s: MaterialSheet): string {
   return [PROCESS_LABELS[s.process], base, s.thickness ? `${formatNumber(s.thickness, 1)} mm` : null].filter(Boolean).join(' · ');
 }
 
-/** Panneau de gauche : la matière de chaque pièce. */
-export function MaterialsSection() {
-  const c = useController();
+const sheetOption = (m: MaterialSheet) => (
+  <option key={m.id} value={m.id}>
+    {m.name}
+  </option>
+);
+
+/** Matières à proposer dans une liste : celles du projet, puis des catalogues, sans doublon. */
+function useSheetChoices() {
   const data = useAppState(
-    (s) => ({
-      parts: s.doc.parts.map((p) => {
-        const volume = s.display[p.id]?.result.analysis?.volume ?? 0;
-        return { id: p.id, name: p.name, color: p.color, make: p.make ?? '', grams: volume > 0 ? massOf(volume, partMaterial(partMaterialId(p))) : null };
-      }),
-      project: s.doc.materials ?? [],
-      mine: s.materialCatalogue,
-      libs: libraryMaterials(s.libraryCatalogs),
-      current: c.docsPart(),
-    }),
+    (s) => ({ project: s.doc.materials ?? [], mine: s.materialCatalogue, libs: libraryMaterials(s.libraryCatalogs) }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const inProject = new Set(data.project.map((m) => m.id));
-  const starters = STARTER_MATERIALS.filter((m) => !inProject.has(m.id));
-  const mine = data.mine.filter((m) => !inProject.has(m.id));
-  const libs = data.libs.map((l) => ({ ...l, sheets: l.sheets.filter((m) => !inProject.has(m.id)) })).filter((l) => l.sheets.length);
-  const find = (id: string) => [...data.project, ...data.mine, ...data.libs.flatMap((l) => l.sheets), ...STARTER_MATERIALS].find((m) => m.id === id) ?? null;
+  return {
+    project: data.project,
+    starters: STARTER_MATERIALS.filter((m) => !inProject.has(m.id)),
+    mine: data.mine.filter((m) => !inProject.has(m.id)),
+    libs: data.libs.map((l) => ({ ...l, sheets: l.sheets.filter((m) => !inProject.has(m.id)) })).filter((l) => l.sheets.length),
+    find: (id: string) => [...data.project, ...data.mine, ...data.libs.flatMap((l) => l.sheets), ...STARTER_MATERIALS].find((m) => m.id === id) ?? null,
+  };
+}
+
+/** Pièce détaillée à droite : celle choisie dans la liste, sinon celle affichée. */
+const useCurrentPart = () => {
+  const c = useController();
+  return useAppState((s) => (s.doc.parts.some((p) => p.id === s.fabricationPart) ? s.fabricationPart : (c.docsPart() ?? s.doc.parts[0]?.id ?? null)));
+};
+
+/** Panneau de gauche : la liste des pièces, compacte ; le détail de la pièce choisie est à droite. */
+export function MaterialsSection() {
+  const c = useController();
+  const current = useCurrentPart();
+  const data = useAppState(
+    (s) =>
+      s.doc.parts.map((p) => {
+        const volume = s.display[p.id]?.result.analysis?.volume ?? 0;
+        const sheet = s.doc.materials?.find((m) => m.id === p.make);
+        return { id: p.id, name: p.name, color: sheet?.color ?? p.color, opacity: sheet?.opacity, sheet: sheet?.name ?? null, grams: volume > 0 ? massOf(volume, partMaterial(partMaterialId(p))) : null };
+      }),
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
   return (
     <section class="panel-section grow" aria-labelledby="mat-title">
       <div class="panel-header">
         <span id="mat-title">Matières des pièces</span>
       </div>
       <div class="panel-body">
-        <p class="field-help">Pour chaque pièce, la matière et la façon de la fabriquer : elles donnent sa couleur réelle et sa masse. Cliquez une pièce pour la voir seule.</p>
-        <ul class="feature-list fab-list" aria-label="Matière de chaque pièce">
-          {data.parts.map((p) => {
-            const sheet = data.project.find((m) => m.id === p.make);
-            return (
-              <li key={p.id} class={`fab-item mat-part${p.id === data.current ? ' selected' : ''}`} onFocusIn={() => c.setFabricationPart(p.id)}>
-                {/* La pièce choisie est seule dans la vue : les autres ne la cachent pas. */}
-                <button type="button" class="fab-item-title mat-part-show" aria-pressed={p.id === data.current} title="Voir cette pièce" onClick={() => c.setFabricationPart(p.id)}>
-                  <span class={`color-swatch${sheet ? '' : ' swatch-unset'}`} style={{ ...swatch(sheet?.color ?? p.color, sheet?.opacity), width: '16px', height: '16px' }} />
+        <p class="field-help">Choisissez une pièce : elle s’affiche seule, et sa matière se règle à droite.</p>
+        <ul class="mat-parts" aria-label="Pièces du projet">
+          {data.map((p) => (
+            <li key={p.id}>
+              <button type="button" class="mat-part" aria-pressed={p.id === current} onClick={() => c.setFabricationPart(p.id)}>
+                <span class={`color-swatch${p.sheet ? '' : ' swatch-unset'}`} style={{ ...swatch(p.color, p.opacity), width: '16px', height: '16px' }} />
+                <span class="sheet-item-text">
                   <strong>{p.name}</strong>
-                  {p.id === data.current ? <span class="mat-part-shown">affichée</span> : null}
-                </button>
-                <select
-                  class="select"
-                  aria-label={`Matière de « ${p.name} »`}
-                  value={p.make}
-                  onChange={(e) => {
-                    const value = (e.target as HTMLSelectElement).value;
-                    if (value === NEW_SHEET) c.createSheetFor(p.id);
-                    else c.setPartSheet(p.id, find(value));
-                  }}
-                >
-                  <option value="">— à choisir —</option>
-                  <option value={NEW_SHEET}>+ Nouvelle matière…</option>
-                  {data.project.length ? (
-                    <optgroup label="Dans ce projet">
-                      {data.project.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {mine.length ? (
-                    <optgroup label="Mon catalogue">
-                      {mine.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {libs.map((l) => (
-                    <optgroup key={l.library} label={`Bibliothèque ${l.library}`}>
-                      {l.sheets.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  <optgroup label="Catalogue VibeCAD">
-                    {starters.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-                <span class="field-help">
-                  {sheet ? sheetSummary(sheet) : 'Matière non choisie (comptée en PLA)'}
-                  {p.grams !== null ? ` · ≈ ${formatNumber(p.grams, 1)} g` : ''}
+                  <span>
+                    {p.sheet ?? 'Matière à choisir'}
+                    {p.grams !== null ? ` · ≈ ${formatNumber(p.grams, 1)} g` : ''}
+                  </span>
                 </span>
-              </li>
-            );
-          })}
+              </button>
+            </li>
+          ))}
         </ul>
-        <Brush />
       </div>
     </section>
+  );
+}
+
+/** Détail de la pièce choisie : sa matière et, imprimée, le pinceau. */
+function PartMaterial({ partId }: { partId: string }) {
+  const c = useController();
+  const choices = useSheetChoices();
+  const { project, starters, mine, libs, find } = choices;
+  const p = useAppState(
+    (s) => {
+      const part = s.doc.parts.find((x) => x.id === partId);
+      if (!part) return null;
+      const volume = s.display[part.id]?.result.analysis?.volume ?? 0;
+      return { id: part.id, name: part.name, make: part.make ?? '', grams: volume > 0 ? massOf(volume, partMaterial(partMaterialId(part))) : null };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  if (!p) return null;
+  const sheet = project.find((m) => m.id === p.make);
+  return (
+    <div class="mat-detail" role="group" aria-label={`Fabrication de « ${p.name} »`}>
+      <label class="field">
+        <span class="field-label">Matière</span>
+        <select
+          class="select"
+          aria-label={`Matière de « ${p.name} »`}
+          value={p.make}
+          onChange={(e) => {
+            const value = (e.target as HTMLSelectElement).value;
+            if (value === NEW_SHEET) c.createSheetFor(p.id);
+            else c.setPartSheet(p.id, find(value));
+          }}
+        >
+          <option value="">— à choisir —</option>
+          <option value={NEW_SHEET}>+ Nouvelle matière…</option>
+          {project.length ? <optgroup label="Dans ce projet">{project.map(sheetOption)}</optgroup> : null}
+          {mine.length ? <optgroup label="Mon catalogue">{mine.map(sheetOption)}</optgroup> : null}
+          {libs.map((l) => (
+            <optgroup key={l.library} label={`Bibliothèque ${l.library}`}>
+              {l.sheets.map(sheetOption)}
+            </optgroup>
+          ))}
+          <optgroup label="Catalogue VibeCAD">{starters.map(sheetOption)}</optgroup>
+        </select>
+        <span class="field-help">
+          {sheet ? sheetSummary(sheet) : 'Matière non choisie (comptée en PLA)'}
+          {p.grams !== null ? ` · ≈ ${formatNumber(p.grams, 1)} g` : ''}
+        </span>
+      </label>
+      {sheet?.process === 'print' ? <Brush /> : null}
+    </div>
   );
 }
 
@@ -134,12 +154,9 @@ function Brush() {
       brush: s.brush === 'erase' ? 'erase' : (s.brush?.id ?? null),
       project: (s.doc.materials ?? []).filter((m) => m.process === 'print'),
       mine: [...s.materialCatalogue, ...libraryMaterials(s.libraryCatalogs).flatMap((l) => l.sheets)].filter((m) => m.process === 'print'),
-      printed: s.doc.parts.some((p) => s.doc.materials?.find((m) => m.id === p.make)?.process === 'print'),
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  // Le pinceau ne sert qu'aux pièces imprimées.
-  if (!data.printed) return null;
   const inProject = new Set(data.project.map((m) => m.id));
   const others = [...data.mine, ...STARTER_MATERIALS.filter((m) => m.process === 'print')].filter((m) => !inProject.has(m.id));
   const pick = (m: MaterialSheet) => c.setBrush(data.brush === m.id ? null : m);
@@ -147,7 +164,7 @@ function Brush() {
   return (
     <div class="field brush" role="group" aria-labelledby="brush-title">
       <span class="field-label" id="brush-title">
-        Peindre des faces (impression 3D)
+        Peindre (impression 3D)
       </span>
       <div class="brush-pots">
         {data.project.map((m) => (
@@ -175,10 +192,10 @@ function Brush() {
       </select>
       <span class="field-help">
         {data.brush === null
-          ? 'Choisissez une matière, puis touchez les faces à peindre dans la vue.'
+          ? 'Choisissez une matière, puis touchez dans la vue les faces ou les zones gravées à peindre : chaque zone d’une gravure peut avoir sa couleur.'
           : data.brush === 'erase'
-            ? 'Touchez une face pour lui rendre la matière de sa pièce. Échap pour terminer.'
-            : `Touchez les faces à peindre en ${chosen?.name ?? 'cette matière'}. Échap, ou la même couleur, pour terminer.`}
+            ? 'Touchez une face ou une zone gravée pour lui rendre la matière de sa pièce. Échap pour terminer.'
+            : `Touchez les faces ou zones gravées à peindre en ${chosen?.name ?? 'cette matière'}. Échap, ou la même couleur, pour terminer.`}
       </span>
     </div>
   );
@@ -298,7 +315,7 @@ function SheetEditor({ sheet, uses }: { sheet: MaterialSheet; uses: number }) {
   );
 }
 
-/** Panneau de droite : fiches du projet et catalogue personnel. */
+/** Panneau de droite : la pièce choisie, puis les fiches du projet et le catalogue personnel. */
 export function MaterialsRightPanel() {
   const c = useController();
   const data = useAppState(
@@ -308,17 +325,21 @@ export function MaterialsRightPanel() {
   const open = data.open;
   const setOpen = (id: string | null) => c.setOpenSheet(id);
   const current = data.project.find((m) => m.id === open) ?? null;
+  const part = useCurrentPart();
+  const partName = useAppState((s) => s.doc.parts.find((p) => p.id === part)?.name ?? null);
   return (
     <aside class="panel right-panel" aria-label="Matières du projet">
       <div class="panel-title">
         <Icon name="material" />
-        <span>Matières du projet</span>
+        <span>{partName ?? 'Matières du projet'}</span>
       </div>
       <div class="panel-content">
+        {part ? <PartMaterial key={part} partId={part} /> : null}
+        <h3 class="sub-title">Toutes les matières du projet</h3>
         <p class="vocab">
-          <strong>Matière</strong> : ce dans quoi la pièce est fabriquée, et comment (impression 3D, découpe laser…). Sa couleur se voit dans tous les ateliers avec Affichage › « Matières réelles ».
+          <strong>Matière</strong> : ce dans quoi la pièce est fabriquée, et comment (impression 3D, découpe laser…). Sa couleur se voit dans tous les ateliers (bouton « Matières » des ateliers Pièces et Assemblage).
         </p>
-        {data.project.length === 0 ? <p class="empty-hint">Aucune matière pour l’instant : choisissez-en une pour chaque pièce, à gauche. Ici apparaissent celles que le projet utilise.</p> : null}
+        {data.project.length === 0 ? <p class="empty-hint">Aucune matière pour l’instant : choisissez-en une pour chaque pièce. Ici apparaissent celles que le projet utilise.</p> : null}
         <ul class="sheet-list" aria-label="Fiches du projet">
           {data.project.map((m) => (
             <li key={m.id}>
