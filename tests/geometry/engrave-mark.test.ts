@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { addFeature, findPart, makeChamferFeature, makeSketchFeature } from '../../src/domain/document';
 import type { CadDocument, EngraveFeature } from '../../src/domain/model';
+import { faceOutline } from '../../src/app/laser';
 import { faceMaterials } from '../../src/domain/paint';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -87,5 +88,14 @@ describe('marquage en surface (gravure de profondeur 0)', () => {
     const top = mesh.faces.filter((f) => f.tags.some((t) => t.featureId === extrudeId && t.role === 'end'));
     expect(top).toHaveLength(2);
     expect(top.filter((f) => f.tags.some((t) => t.featureId === engraveId))).toHaveLength(1);
+  });
+
+  it('découpe laser : le tour d’un marquage n’est pas une découpe', () => {
+    const { doc, engraveId, extrudeId } = markedPlate();
+    const mesh = kernel.mesh(evaluate(doc).shape!, { linearDeflection: 0.05, angularDeflection: 0.3 });
+    const top = mesh.faces.findIndex((f) => f.tags.some((t) => t.featureId === extrudeId && t.role === 'end') && !f.tags.some((t) => t.featureId === engraveId));
+    const outline = faceOutline(mesh, top)!;
+    // Le trou de la poche seulement, pas le disque marqué.
+    expect(outline.holes).toHaveLength(1);
   });
 });

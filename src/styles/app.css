@@ -4317,18 +4317,37 @@ select optgroup {
 
 /* Simulation : « Alléger la pièce » (optimisation topologique). */
 /* Plaques en grand (découpe laser) : la plaque à la taille de la fenêtre. */
-.laser-editor {
-  position: fixed;
+.laser-board {
+  /* Couvre la vue 3D ; les panneaux flottants (écran large) restent par-dessus, sur les côtés. */
+  position: absolute;
   inset: 0;
-  z-index: 60;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  background: var(--bg-app);
+  padding: var(--vp-inset-t) var(--vp-inset-r) 0 var(--vp-inset-l);
+  background: var(--vp-bg-bottom);
 }
-.laser-editor:focus {
-  outline: none;
+.laser-pick {
+  position: absolute;
+  top: calc(var(--vp-inset-t) + 12px);
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md, 0 4px 14px rgb(0 0 0 / 0.18));
+  transform: translateX(calc(-50% + var(--vp-shift)));
 }
-.laser-editor-bar {
+.laser-pick > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+.laser-board-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -4337,20 +4356,39 @@ select optgroup {
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
-.laser-editor-bar > svg {
+.laser-board-bar .mat-tabs {
+  margin: 0;
+}
+.laser-board-bar > svg {
   width: 20px;
   height: 20px;
   flex: none;
 }
-.laser-editor-bar.secondary {
+.laser-board-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.laser-board-stage > .laser-board-bar.secondary {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.15);
+  transform: translateX(-50%);
+}
+.laser-board-bar.secondary {
   background: var(--surface-2);
 }
-.laser-editor-bar .mini-field.inline {
+.laser-board-bar .mini-field.inline {
   flex-direction: row;
   align-items: center;
   gap: 6px;
 }
-.laser-editor-view {
+.laser-board-view {
   position: relative;
   flex: 1;
   min-height: 0;
@@ -4359,7 +4397,7 @@ select optgroup {
   touch-action: none;
   background: var(--vp-bg-bottom);
 }
-.laser-editor-view svg {
+.laser-board-view svg {
   /* Hors du flux : le dessin suit la zone, sans l'agrandir. */
   position: absolute;
   inset: 0;
@@ -4379,17 +4417,17 @@ select optgroup {
 .laser-piece {
   cursor: move;
 }
-.laser-piece path {
+.laser-piece .laser-cut {
   fill: rgba(224, 49, 49, 0.08);
   stroke: #e03131;
   stroke-width: 1.5;
 }
-.laser-piece.is-selected path {
+.laser-piece.is-selected .laser-cut {
   fill: rgba(31, 95, 191, 0.18);
   stroke: #1f5fbf;
   stroke-width: 2.5;
 }
-.laser-piece.is-bad path {
+.laser-piece.is-bad .laser-cut {
   fill: rgba(224, 49, 49, 0.35);
   stroke: #c92a2a;
   stroke-width: 2.5;
@@ -4415,11 +4453,36 @@ select optgroup {
 }
 
 .laser-engrave.is-fill {
-  fill: #1c4fd8;
-  fill-opacity: 0.75;
+  fill: #111;
+  fill-opacity: 0.8;
   stroke: none;
 }
-.laser-editor-status {
+.laser-legend {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.laser-legend i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-left: 8px;
+  border-radius: 2px;
+}
+.laser-legend i.cut {
+  background: #e03131;
+}
+.laser-legend i.line {
+  background: #1c4fd8;
+}
+.laser-legend i.fill {
+  height: 10px;
+  background: #111;
+}
+.laser-board-status {
   padding: 6px 12px;
   border-top: 1px solid var(--border);
   background: var(--surface);

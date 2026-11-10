@@ -2796,7 +2796,8 @@ export class AppController {
   }
 
   pickFabricationFace(purpose: 'print' | 'laser', partId: Id): void {
-    this.set({ mode: { kind: 'pick-fab-face', purpose, partId } });
+    // Découpe laser : la vue 3D ne montre que cette pièce, cadrée, le temps de choisir.
+    this.set({ mode: { kind: 'pick-fab-face', purpose, partId }, fitRequest: this.state.fitRequest + 1 });
   }
 
   cancelFabricationPick(): void {
@@ -2823,9 +2824,9 @@ export class AppController {
     return d && part && !d.result.flat ? partEngravings(part, d.result.sketches) : [];
   }
 
-  /** Plaques en grand (édition du placement des pièces d'un matériau), ou fermeture. */
-  openLaserEditor(materialId: Id | null): void {
-    this.set({ laserEditor: materialId ? { materialId } : null });
+  /** Matériau dont les plaques sont affichées dans l'atelier découpe laser. */
+  setLaserPage(materialId: Id | null): void {
+    this.set({ laserPage: materialId });
   }
 
   private setLaserPlacements(materialId: Id, placements: LaserPlacement[] | null, label: string): void {

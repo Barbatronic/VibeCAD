@@ -76,7 +76,7 @@ test('pièce, tôlerie, découpe laser', async ({ browser }) => {
     return groups.reduce((a: any, b: any) => (b.placed.length > a.placed.length ? b : a)).material.id;
   });
   await call(page, 'optimizeLaser', material);
-  await call(page, 'openLaserEditor', material);
+  await call(page, 'setLaserPage', material);
   await dismissToasts(page);
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${OUT}/laser-plaques.png` });

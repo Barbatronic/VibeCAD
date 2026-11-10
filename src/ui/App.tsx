@@ -3,7 +3,7 @@ import { formatNumber } from '../domain/units';
 import { resolveParameters } from '../features/parameters';
 import { InputSuggestions, type InputSuggestion } from './components/number-input';
 import { Dialogs, Toasts } from './Dialogs';
-import { LaserEditor } from './LaserEditor';
+import { LaserBoard } from './LaserBoard';
 import { HelpDrawer } from './HelpDrawer';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
@@ -43,6 +43,7 @@ export function App() {
           <LeftPanel />
           <div class="viewport-area">
             <ViewportHost />
+            <LaserBoard />
             <Tutorial />
           </div>
           <RightPanel />
@@ -69,7 +70,6 @@ export function App() {
           </button>
         </main>
         <StatusBar />
-        <LaserEditor />
         <HelpDrawer />
         <Dialogs />
         <Toasts />

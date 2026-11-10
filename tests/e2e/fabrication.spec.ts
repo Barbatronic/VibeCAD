@@ -62,7 +62,8 @@ test('découpe laser : matériau 5 mm choisi seul, page par matériau, export SV
   await expect(tabs.getByRole('tab', { name: /Acrylique 3 mm/ })).toBeVisible();
   await expect(tabs.getByRole('tab', { name: /Acrylique 5 mm/ })).toBeVisible();
   await expect(page.locator('.right-panel .callout.warning')).toHaveCount(0);
-  await expect(page.getByRole('img', { name: 'Aperçu de la plaque 1' })).toBeVisible();
+  // Les plaques à plat, en grand, à la place de la vue 3D.
+  await expect(page.locator('.laser-board').getByRole('img', { name: 'Plaque 1' })).toBeVisible();
   await page.screenshot({ path: 'tests/output/e2e-laser.png' });
 
   const [svgDl] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);

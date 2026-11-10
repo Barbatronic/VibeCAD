@@ -157,61 +157,6 @@ function LaserSection() {
   );
 }
 
-/** Aperçu des plaques d'un matériau (dessins réduits). */
-function SheetPreview({ materialId }: { materialId: string }) {
-  const c = useController();
-  const svg = useAppState(() => {
-    const doc = c.laserDocument(materialId);
-    if (!doc || doc.sheets.length === 0) return null;
-    const { w, h } = doc.sheet;
-    const sheets = doc.sheets.map((sheet) =>
-      sheet.items.flatMap((it) => it.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z')),
-    );
-    // Tôle : lignes de pli en tirets verts.
-    const bends = doc.sheets.map((sheet) => sheet.items.flatMap((it) => (it.bends ?? []).map((b) => `M${b.a.x.toFixed(2)},${(h - b.a.y).toFixed(2)}L${b.b.x.toFixed(2)},${(h - b.b.y).toFixed(2)}`)));
-    // Gravures en bleu.
-    const engraves = doc.sheets.map((sheet) =>
-      sheet.items.flatMap((it) =>
-        (it.engrave ?? []).map((m) => ({ fill: m.fill, d: m.loops.map((l) => l.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)},${(h - p.y).toFixed(2)}`).join('') + 'Z').join('') })),
-      ),
-    );
-    return { w, h, sheets, bends, engraves };
-  }, (a, b) => JSON.stringify(a) === JSON.stringify(b));
-  if (!svg) return <p class="empty-hint">Aucune pièce dans ce matériau.</p>;
-  return (
-    <>
-      {svg.sheets.map((paths, n) => (
-        <figure class="sheet-preview" key={n}>
-          <svg viewBox={`0 0 ${svg.w} ${svg.h}`} role="img" aria-label={`Aperçu de la plaque ${n + 1}`}>
-            <rect x="0" y="0" width={svg.w} height={svg.h} fill="var(--surface)" stroke="var(--border-strong)" stroke-width={Math.max(svg.w, svg.h) / 300} />
-            {paths.map((d, i) => (
-              <path key={i} d={d} fill="none" stroke="#e03131" stroke-width={Math.max(svg.w, svg.h) / 400} />
-            ))}
-            {svg.engraves[n]!.map((m, i) => (
-              <path
-                key={`g${i}`}
-                class="sheet-engrave"
-                d={m.d}
-                fill={m.fill ? '#1c4fd8' : 'none'}
-                fill-rule="evenodd"
-                stroke={m.fill ? 'none' : '#1c4fd8'}
-                stroke-width={Math.max(svg.w, svg.h) / 500}
-              />
-            ))}
-            {svg.bends[n]!.map((d, i) => (
-              <path key={`b${i}`} class="sheet-bend" d={d} fill="none" stroke="#2f9e44" stroke-width={Math.max(svg.w, svg.h) / 400} stroke-dasharray={`${Math.max(svg.w, svg.h) / 100} ${Math.max(svg.w, svg.h) / 200}`} />
-            ))}
-          </svg>
-          <figcaption class="field-help">
-            Plaque {n + 1}
-            {svg.sheets.length > 1 ? ` sur ${svg.sheets.length}` : ''}
-          </figcaption>
-        </figure>
-      ))}
-    </>
-  );
-}
-
 /** Nom modifiable (validé à la sortie du champ ou avec Entrée). */
 function NameField(props: { value: string; label: string; onDone: (value: string) => void }) {
   const [text, setText] = useState(props.value);
@@ -258,7 +203,7 @@ const numberField = (label: string, value: number, unit: string, apply: (v: numb
   </label>
 );
 
-/** Panneau de droite du laser : une page par matériau (épaisseur, plaques, aperçu, export). */
+/** Panneau de droite du laser : réglages et export du matériau dont les plaques sont affichées. */
 function LaserRightPanel() {
   const c = useController();
   const info = useAppState(
@@ -274,35 +219,22 @@ function LaserRightPanel() {
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  const [selected, setSelected] = useState<string | null>(null);
-  const page = info.pages.find((p) => p.id === selected) ?? info.pages.find((p) => p.count > 0) ?? info.pages[0];
+  const chosen = useAppState((s) => s.laserPage);
+  // Même matériau que les plaques affichées au centre.
+  const page = info.pages.find((p) => p.id === chosen) ?? info.pages.find((p) => p.count > 0) ?? info.pages[0];
   const set = (patch: Record<string, unknown>, label: string) => c.updateFabrication((f) => ({ ...f, laser: { ...f.laser, ...patch } }), label);
   return (
     <aside class="panel right-panel" aria-label="Plaques de découpe">
       <div class="panel-title">
         <Icon name="laser" />
-        <span>Plaques de découpe</span>
+        <span>{page?.name ?? 'Découpe laser'}</span>
       </div>
       <div class="panel-content">
-        <p class="vocab">
-          <strong>Découpe laser</strong> : une page par matériau. Le contour de chaque pièce plate est tracé à l’échelle 1:1, en rouge (découpe), décalé
-          de la moitié du trait de coupe, puis rangé sur les plaques de son matériau.
-        </p>
-        <div class="mat-tabs" role="tablist" aria-label="Matériaux">
-          {info.pages.map((p) => (
-            <button key={p.id} type="button" role="tab" aria-selected={p.id === page?.id} onClick={() => setSelected(p.id)}>
-              {p.name}
-              <span class="mat-count">{p.count}</span>
-            </button>
-          ))}
-          <IconButton icon="plus" label="Ajouter un matériau" small onClick={() => setSelected(c.addLaserMaterial())} />
-        </div>
         {page ? (
           <div class="mat-page" role="tabpanel" aria-label={page.name}>
             {page.fromSheet ? (
               <p class="field-help">
-                Plaque de la matière <strong>{page.name}</strong> ({formatNumber(page.thickness, 1)} mm) : son nom et son épaisseur se changent dans
-                Fabrication › Matières.
+                {page.name} · {formatNumber(page.thickness, 1)} mm
               </p>
             ) : (
               <NameField key={page.id} value={page.name} label="Nom du matériau" onDone={(name) => c.updateLaserMaterial(page.id, { name }, 'Nom du matériau')} />
@@ -318,14 +250,7 @@ function LaserRightPanel() {
             <p>
               <strong>{page.count}</strong> pièce{page.count > 1 ? 's' : ''} sur <strong>{page.sheets}</strong> plaque{page.sheets > 1 ? 's' : ''}
             </p>
-            <SheetPreview materialId={page.id} />
             <div class="mat-actions">
-              <Button small icon="fit" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => c.openLaserEditor(page.id)}>
-                Plaques en grand…
-              </Button>
-              <Button small icon="target" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => c.optimizeLaser(page.id)}>
-                Optimiser
-              </Button>
               <Button small icon="export" disabledReason={page.count === 0 ? 'Aucune pièce dans ce matériau.' : null} onClick={() => void c.exportLaser('svg', page.id)}>
                 SVG
               </Button>

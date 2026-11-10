@@ -302,7 +302,15 @@ function buildFabricationInput(s: AppState): ViewportInput {
   if (s.fabricationTab !== 'print') {
     // Découpe laser et documents : les pièces telles que modélisées (pour choisir une face).
     // Matières : une pièce à la fois (celle choisie dans la liste), sinon elles se superposent.
-    const shown = s.fabricationTab === 'materials' ? (s.fabricationPart && hasSolid(s.fabricationPart) ? s.fabricationPart : s.doc.parts.find((p) => hasSolid(p.id))?.id) : null;
+    // Découpe laser : seulement la pièce dont on choisit la face (le reste du temps, les plaques couvrent la vue).
+    const shown =
+      s.mode.kind === 'pick-fab-face'
+        ? s.mode.partId
+        : s.fabricationTab === 'materials'
+          ? s.fabricationPart && hasSolid(s.fabricationPart)
+            ? s.fabricationPart
+            : s.doc.parts.find((p) => hasSolid(p.id))?.id
+          : null;
     const parts: ViewPartInput[] = s.doc.parts
       .filter((p) => hasSolid(p.id) && (!shown || p.id === shown))
       .map((p) => ({ partId: `fab:${p.id}:0`, ...lookOf(s, p, s.display[p.id]?.mesh), visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));

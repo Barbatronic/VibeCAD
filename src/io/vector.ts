@@ -1,6 +1,7 @@
 /**
  * Fichiers vectoriels pour la découpe laser : SVG (en mm, échelle 1:1) et DXF (R12, unités mm).
- * Convention des couleurs : rouge = découpe, bleu = gravure, vert en tirets = lignes de pli d'une
+ * Convention des couleurs : rouge = découpe, bleu = gravure en trait (contour, noms), noir = gravure
+ * remplie (surface balayée), vert en tirets = lignes de pli d'une
  * tôle (à marquer légèrement, ou à désactiver). Les plaques sont posées côte à côte,
  * séparées de 20 mm.
  */
@@ -11,7 +12,7 @@ export interface VectorSheetItem {
   label?: { at: Vec2; text: string };
   /** Tôle : lignes de pli (repères, en tirets verts ; calque PLIAGE). */
   bends?: { a: Vec2; b: Vec2 }[];
-  /** Dessins à graver (opérations Gravure) : trait bleu (calque GRAVURE) ou surface bleue (GRAVURE_REMPLI). */
+  /** Dessins à graver (opérations Gravure) : trait bleu (calque GRAVURE) ou surface noire (GRAVURE_REMPLI). */
   engrave?: { loops: Vec2[][]; fill: boolean }[];
 }
 
@@ -36,7 +37,7 @@ export function toSvg(doc: VectorDocument): string {
   const out: string[] = [];
   out.push('<?xml version="1.0" encoding="UTF-8"?>');
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(width)}mm" height="${fmt(height)}mm" viewBox="0 0 ${fmt(width)} ${fmt(height)}">`);
-  out.push('  <title>Découpe laser — VibeCAD (rouge : découpe, bleu : gravure, vert en tirets : lignes de pli)</title>');
+  out.push('  <title>Découpe laser — VibeCAD (rouge : découpe, bleu : gravure en trait, noir : gravure remplie, vert en tirets : lignes de pli)</title>');
   doc.sheets.forEach((sheet, i) => {
     const ox = i * (doc.sheet.w + GAP);
     // L'axe Y du SVG descend : on retourne les coordonnées pour garder l'orientation de la pièce.
@@ -47,7 +48,7 @@ export function toSvg(doc: VectorDocument): string {
       for (const loop of item.loops) out.push(`    <polygon points="${loop.map(pt).join(' ')}" fill="none" stroke="#ff0000" stroke-width="0.1"/>`);
       for (const mark of item.engrave ?? []) {
         // Remplissage : une seule forme pair-impair, les trous (intérieur d'un « O ») restent vides.
-        if (mark.fill) out.push(`    <path d="${mark.loops.map((l) => `M${l.map(pt).join(' L')} Z`).join(' ')}" fill="#0000ff" fill-rule="evenodd" stroke="none"/>`);
+        if (mark.fill) out.push(`    <path d="${mark.loops.map((l) => `M${l.map(pt).join(' L')} Z`).join(' ')}" fill="#000000" fill-rule="evenodd" stroke="none"/>`);
         else for (const loop of mark.loops) out.push(`    <polygon points="${loop.map(pt).join(' ')}" fill="none" stroke="#0000ff" stroke-width="0.1"/>`);
       }
       for (const b of item.bends ?? []) out.push(`    <line x1="${fmt(ox + b.a.x)}" y1="${fmt(height - b.a.y)}" x2="${fmt(ox + b.b.x)}" y2="${fmt(height - b.b.y)}" stroke="#00a000" stroke-width="0.1" stroke-dasharray="2 1"/>`);
@@ -63,7 +64,7 @@ export function toSvg(doc: VectorDocument): string {
   return out.join('\n');
 }
 
-/** DXF R12 : polylignes fermées (calque DECOUPE, rouge), textes (GRAVURE, bleu), lignes de pli (PLIAGE, vert). */
+/** DXF R12 : polylignes fermées (calque DECOUPE, rouge), gravures en trait et textes (GRAVURE, bleu), gravures remplies (GRAVURE_REMPLI, noir/blanc), lignes de pli (PLIAGE, vert). */
 export function toDxf(doc: VectorDocument): string {
   const lines: string[] = [];
   const g = (code: number, value: string | number) => lines.push(String(code), typeof value === 'number' ? fmt(value) : value);
@@ -80,7 +81,7 @@ export function toDxf(doc: VectorDocument): string {
   for (const [name, color] of [
     ['DECOUPE', 1],
     ['GRAVURE', 5],
-    ['GRAVURE_REMPLI', 4],
+    ['GRAVURE_REMPLI', 7],
     ['PLIAGE', 3],
   ] as const) {
     g(0, 'LAYER');

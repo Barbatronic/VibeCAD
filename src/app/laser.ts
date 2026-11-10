@@ -112,8 +112,36 @@ export function largestPlanarFace(mesh: MeshData, facing?: Vec3): number {
 }
 
 /**
- * Contour d'une face plate : arêtes du maillage qui bordent la face, projetées dans son plan
- * (repère d'axe Z = normale) puis chaînées en boucles fermées.
+ * Faces du même plan reliées à une face par des arêtes communes : la face et les zones qu'un
+ * marquage (gravure à fleur) y a découpées. Pour la découpe, elles ne font qu'une.
+ */
+function coplanarGroup(mesh: MeshData, faceIndex: number): Set<number> {
+  const plane = mesh.faces[faceIndex]!.plane!;
+  const same = (j: number) => {
+    const p = mesh.faces[j]?.plane;
+    if (!p || dot3(p.normal, plane.normal) < 1 - 1e-6) return false;
+    const d = { x: p.origin.x - plane.origin.x, y: p.origin.y - plane.origin.y, z: p.origin.z - plane.origin.z };
+    return Math.abs(dot3(d, plane.normal)) < 1e-4;
+  };
+  const group = new Set([faceIndex]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const e of mesh.edges) {
+      if (!e.faces.some((f) => group.has(f))) continue;
+      for (const f of e.faces) {
+        if (!group.has(f) && same(f)) {
+          group.add(f);
+          grew = true;
+        }
+      }
+    }
+  }
+  return group;
+}
+
+/**
+ * Contour d'une face plate : arêtes du maillage qui bordent la face (avec les zones marquées du
+ * même plan), projetées dans son plan (repère d'axe Z = normale) puis chaînées en boucles fermées.
  */
 export function faceOutline(mesh: MeshData, faceIndex: number): FlatOutline | null {
   const face = mesh.faces[faceIndex];
@@ -123,8 +151,10 @@ export function faceOutline(mesh: MeshData, faceIndex: number): FlatOutline | nu
   const flip = { ...frame, xAxis: { x: -frame.xAxis.x, y: -frame.xAxis.y, z: -frame.xAxis.z } };
   const segs: [Vec2, Vec2][] = [];
   const pos = mesh.edgePositions;
+  const group = coplanarGroup(mesh, faceIndex);
   for (const e of mesh.edges) {
-    if (!e.faces.includes(faceIndex)) continue;
+    // Bord du groupe : une seule de ses faces en fait partie (le tour d'un marquage est intérieur).
+    if (e.faces.filter((f) => group.has(f)).length !== 1) continue;
     for (let k = e.start; k < e.start + e.count; k += 2) {
       const a = worldToFrame(flip, { x: pos[k * 3]!, y: pos[k * 3 + 1]!, z: pos[k * 3 + 2]! });
       const b = worldToFrame(flip, { x: pos[k * 3 + 3]!, y: pos[k * 3 + 4]!, z: pos[k * 3 + 5]! });
