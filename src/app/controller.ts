@@ -103,8 +103,8 @@ import { copyPartsInto } from '../domain/part-copy';
 import { computeMechanism, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf } from './mechanism';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { createId } from '../domain/ids';
-import { paintFace } from '../domain/paint';
-import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
+import { engraveSteps, paintFace } from '../domain/paint';
+import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
 import { isDirty, type AppState, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
@@ -231,13 +231,21 @@ export class AppController {
     const partId = pick.partId.split(':')[1] ?? pick.partId;
     const part = findPart(this.state.doc, partId);
     const face = this.state.display[partId]?.mesh?.faces[pick.index];
-    const ref = part && face ? pickFaceReference(face.tags, part) : null;
+    // Zone gravée : désignée par sa gravure (elle porte aussi l'étiquette de la face où elle est posée).
+    const marks = part ? engraveSteps(part) : new Set<Id>();
+    const own = face?.tags.filter((t) => marks.has(t.featureId)) ?? [];
+    const ref = part && face ? pickFaceReference(own.length ? own : face.tags, part) : null;
     if (!part || !ref) return;
     if (sheetOf(this.state.doc, part)?.process !== 'print') return this.explain(`Seule une pièce imprimée se peint : choisissez d’abord une matière d’impression 3D pour « ${part.name} ».`);
     const sheet = brush === 'erase' ? null : brush;
-    const paint = paintFace(part.paint, ref, sheet?.id ?? null, part.make);
-    if (JSON.stringify(paint ?? null) === JSON.stringify(part.paint ?? null)) return;
-    this.commit(setPaint(this.state.doc, partId, paint, sheet ?? undefined), sheet ? `Peindre une face de « ${part.name} » en ${sheet.name}` : `Rendre sa matière à une face de « ${part.name} »`);
+    // Zone gravée : sa couleur est gardée même si c'est celle de la pièce, sinon elle suivrait la
+    // face où elle est posée (peinte, peut-être, d'une autre couleur).
+    const paint = paintFace(part.paint, ref, sheet?.id ?? null, marks.has(ref.featureId) ? undefined : part.make);
+    // Ancienne couleur donnée à toute la gravure : le pinceau la remplace, zone par zone.
+    const legacy = part.features.find((f) => f.id === ref.featureId && f.type === 'engrave' && f.params.material);
+    if (!legacy && JSON.stringify(paint ?? null) === JSON.stringify(part.paint ?? null)) return;
+    const doc = legacy ? setEngraveColor(this.state.doc, partId, legacy.id, null) : this.state.doc;
+    this.commit(setPaint(doc, partId, paint, sheet ?? undefined), sheet ? `Peindre une face de « ${part.name} » en ${sheet.name}` : `Rendre sa matière à une face de « ${part.name} »`);
   }
 
   /** Fiches de tous les catalogues : le sien, ceux des bibliothèques, ceux livrés avec VibeCAD. */

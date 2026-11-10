@@ -1,5 +1,6 @@
 import type { EngraveFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
+import type { GeometryKernel, KernelShape, ShapeAnalysis } from '../../geometry/kernel';
 import type { FeatureEvaluator } from '../evaluation';
 import { resolveProfile } from '../sketch/evaluate';
 import { engraveDefinition } from './definition';
@@ -8,28 +9,30 @@ import { engraveDefinition } from './definition';
 const MARK_LAYER = 0.05;
 
 /**
- * Marquage de surface : la face est découpée selon le dessin, sans changer le volume. La zone marquée
- * devient une face à part, à fleur, qui peut prendre une autre couleur en impression 3D. Si le noyau
- * n'y arrive pas, la pièce reste telle quelle (le marquage reste dessiné).
+ * Marquages de surface, appliqués au solide final : chaque face est découpée selon le dessin, sans
+ * changer le volume. La zone marquée devient une face à part, à fleur, qui peut prendre une autre
+ * couleur en impression 3D. Faits en dernier : les opérations booléennes refusionneraient la zone
+ * dans sa face, et ses arêtes gêneraient congés et chanfreins. Un marquage que le noyau ne sait pas
+ * faire est ignoré (la pièce reste telle quelle). Rend null si rien n'a été marqué.
  */
-function markOnFace(feature: EngraveFeature, resolved: Exclude<ReturnType<typeof resolveProfile>, { status: unknown }>, ctx: Parameters<FeatureEvaluator<EngraveFeature>>[1]) {
-  const base = ctx.shape!;
-  const layer = ctx.kernel.makePrism({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, from: -MARK_LAYER, to: 0 });
-  let shape;
-  try {
-    shape = ctx.kernel.imprint(base, layer);
-  } catch {
-    return { status: okStatus(feature.id) };
-  } finally {
-    ctx.kernel.dispose(layer);
+export function applyMarks(kernel: GeometryKernel, base: KernelShape, before: ShapeAnalysis, marks: readonly KernelShape[]): { shape: KernelShape; analysis: ShapeAnalysis } | null {
+  let current: { shape: KernelShape; analysis: ShapeAnalysis } | null = null;
+  for (const mark of marks) {
+    let shape: KernelShape;
+    try {
+      shape = kernel.imprint(current?.shape ?? base, mark);
+    } catch {
+      continue;
+    }
+    const analysis = kernel.analyze(shape);
+    if (!analysis.valid || analysis.solidCount !== before.solidCount || Math.abs(analysis.volume - before.volume) > Math.max(1e-6, before.volume * 1e-6)) {
+      kernel.dispose(shape);
+      continue;
+    }
+    if (current) kernel.dispose(current.shape);
+    current = { shape, analysis };
   }
-  const analysis = ctx.kernel.analyze(shape);
-  const before = ctx.shapeAnalysis!.volume;
-  if (!analysis.valid || analysis.solidCount !== ctx.shapeAnalysis!.solidCount || Math.abs(analysis.volume - before) > Math.max(1e-6, before * 1e-6)) {
-    ctx.kernel.dispose(shape);
-    return { status: okStatus(feature.id) };
-  }
-  return { status: okStatus(feature.id), shape, analysis };
+  return current;
 }
 
 /**
@@ -42,7 +45,8 @@ export const evaluateEngrave: FeatureEvaluator<EngraveFeature> = (feature, ctx) 
   if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'ENGRAVE_WITHOUT_SOLID') };
   const resolved = resolveProfile(feature.id, feature.params.sketchId, ctx);
   if ('status' in resolved) return resolved;
-  if (feature.params.depth <= 0) return markOnFace(feature, resolved, ctx);
+  // Marquage : la couche est gardée, le moteur l'applique au solide final (voir `applyMarks`).
+  if (feature.params.depth <= 0) return { status: okStatus(feature.id), mark: ctx.kernel.makePrism({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, from: -MARK_LAYER, to: 0, numberEnds: true }) };
   const tool = ctx.kernel.makePrism({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, from: -feature.params.depth, to: 0 });
   let shape;
   try {

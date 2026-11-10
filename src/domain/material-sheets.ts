@@ -168,6 +168,28 @@ export function removeSheet(doc: CadDocument, sheetId: Id): CadDocument {
 }
 
 /** Peinture d'une pièce, avec la fiche copiée dans le projet si besoin ; l'inutile quitte le projet. */
+/** Couleur d'une gravure en impression 3D (`null` : celle de la face où elle est posée). */
+export function setEngraveColor(doc: CadDocument, partId: Id, featureId: Id, sheet: MaterialSheet | null): CadDocument {
+  const known = !sheet || doc.materials?.some((m) => m.id === sheet.id);
+  const materials = known ? doc.materials : [...(doc.materials ?? []), { ...sheet! }];
+  return pruneSheets({
+    ...doc,
+    ...(materials ? { materials } : {}),
+    parts: doc.parts.map((p) =>
+      p.id !== partId
+        ? p
+        : {
+            ...p,
+            features: p.features.map((f) => {
+              if (f.id !== featureId || f.type !== 'engrave') return f;
+              const { material: _old, ...params } = f.params;
+              return { ...f, params: sheet ? { ...params, material: sheet.id } : params };
+            }),
+          },
+    ),
+  });
+}
+
 export function setPaint(doc: CadDocument, partId: Id, paint: PartPaint | undefined, sheet?: MaterialSheet): CadDocument {
   const known = !sheet || doc.materials?.some((m) => m.id === sheet.id);
   const materials = known ? doc.materials : [...(doc.materials ?? []), { ...sheet! }];

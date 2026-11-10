@@ -10,11 +10,12 @@
  * dépendent du solide (statut `blocked`, avec l'étape en cause). Les esquisses sur un plan
  * d'origine restent évaluées et modifiables. Le dernier solide valide reste disponible.
  */
+import { applyMarks } from './engrave/evaluate';
 import { unfoldCut, type SheetState } from './sheet/fold';
 import { externalParts } from './sketch/definition';
 import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
-import { issue, type FeatureStatus } from '../domain/status';
+import { issue, okStatus, type FeatureStatus } from '../domain/status';
 import { KernelError, type GeometryKernel, type KernelShape, type MeshData, type MeshOptions, type ShapeAnalysis } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
 import type { Vec3 } from '../math/vec';
@@ -175,6 +176,7 @@ export class RecomputeEngine {
     const stepKeys = new Map<Id, string>();
     let sheet: SheetState | null = null;
     const images: { featureId: Id; frame: Frame3D }[] = [];
+    const marks: { featureId: Id; shape: KernelShape }[] = [];
 
     for (const feature of part.features) {
       // Références vers d'autres pièces : la clé de l'étape suit leur forme finale.
@@ -215,6 +217,7 @@ export class RecomputeEngine {
         toolModes.set(feature.id, { shape: outcome.tool, mode: outcome.toolMode });
       }
       if (outcome.imageFrame) images.push({ featureId: feature.id, frame: outcome.imageFrame });
+      if (outcome.mark && outcome.status.state !== 'error' && outcome.status.state !== 'blocked') marks.push({ featureId: feature.id, shape: outcome.mark });
       // Tôle après l'étape (voir `sheetAfter`).
       if (outcome.sheet) sheet = outcome.sheet;
       if (outcome.shape) {
@@ -224,6 +227,22 @@ export class RecomputeEngine {
       }
       if (!state.failure && record.failureAfter) failedFeatureId = feature.id;
       state.failure = record.failureAfter;
+    }
+    // Marquages de surface : sur le solide final, une fois toute la pièce construite.
+    if (marks.length && state.shape && state.analysis) {
+      const key = hashString(`${prevKey}|marks`);
+      let record = this.records.get(key);
+      if (!record) {
+        const marked = applyMarks(this.kernel, state.shape, state.analysis, marks.map((m) => m.shape));
+        record = { key, outcome: { status: okStatus(marks[marks.length - 1]!.featureId), ...(marked ?? {}) }, failureAfter: null, lastUsed: 0 };
+        this.records.set(key, record);
+      }
+      record.lastUsed = gen;
+      if (record.outcome.shape) {
+        state.shape = record.outcome.shape;
+        state.analysis = record.outcome.analysis ?? null;
+        shapeKey = key;
+      }
     }
     return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet, images };
   }
@@ -349,6 +368,7 @@ export class RecomputeEngine {
     const owned = new Set<KernelShape>();
     if (outcome.shape) owned.add(outcome.shape);
     if (outcome.tool) owned.add(outcome.tool);
+    if (outcome.mark) owned.add(outcome.mark);
     for (const s of outcome.owned ?? []) owned.add(s);
     for (const s of owned) this.kernel.dispose(s);
   }

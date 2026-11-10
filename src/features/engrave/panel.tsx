@@ -3,7 +3,6 @@ import type { EngraveFeature } from '../../domain/model';
 import { parseLength } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
-import { STARTER_MATERIALS, type MaterialSheet } from '../../domain/material-sheets';
 import { useAppState } from '../../ui/context';
 import type { FeaturePanelProps } from '../panel-types';
 import { MAX_ENGRAVE_DEPTH } from './definition';
@@ -11,23 +10,7 @@ import { MAX_ENGRAVE_DEPTH } from './definition';
 export function EngravePanel(props: FeaturePanelProps<EngraveFeature>) {
   const { draft, update, setField } = props;
   const f = draft.feature;
-  // Impression 3D : la zone gravée peut prendre une autre matière (couleur), du projet ou d'un catalogue.
-  const colors = useAppState(
-    (s) => {
-      const project = (s.doc.materials ?? []).filter((m) => m.process === 'print');
-      const known = new Set(project.map((m) => m.id));
-      const fromLibraries = s.libraryCatalogs.flatMap((c) => (c.status === 'ready' ? c.index.materials : []));
-      const others = [...s.materialCatalogue, ...fromLibraries, ...STARTER_MATERIALS].filter((m) => m.process === 'print' && !known.has(m.id));
-      const printed = s.doc.materials?.find((m) => m.id === props.part.make)?.process === 'print';
-      return { project, others, printed };
-    },
-    (a, b) => JSON.stringify(a) === JSON.stringify(b),
-  );
-  const option = (m: MaterialSheet) => (
-    <option key={m.id} value={m.id}>
-      {m.name}
-    </option>
-  );
+  const printed = useAppState((s) => s.doc.materials?.find((m) => m.id === props.part.make)?.process === 'print');
   return (
     <>
       <SketchSelect value={f.params.sketchId} options={props.sketches} onChange={(sketchId) => update((x) => withParams(x, { sketchId }))} />
@@ -57,32 +40,7 @@ export function EngravePanel(props: FeaturePanelProps<EngraveFeature>) {
         onEscape={props.cancel}
       />
       <p class="field-help">En découpe laser, ce dessin est gravé au lieu d’être découpé : en surface pleine (remplissage) ou en trait (contour).</p>
-      {colors.printed ? (
-        <label class="field">
-          <span class="field-label">Couleur en impression 3D</span>
-          <select
-            id="draft-engrave-material"
-            class="select"
-            value={f.params.material ?? ''}
-            onChange={(e) => {
-              const material = (e.target as HTMLSelectElement).value;
-              update((x) => {
-                const { material: _old, ...rest } = x.params;
-                return { ...x, params: material ? { ...rest, material } : rest };
-              });
-            }}
-          >
-            <option value="">Celle de la pièce</option>
-            {colors.project.length ? <optgroup label="Dans ce projet">{colors.project.map(option)}</optgroup> : null}
-            <optgroup label="Catalogue">{colors.others.map(option)}</optgroup>
-          </select>
-          <span class="field-help">
-            {f.params.material && f.params.depth <= 0
-              ? 'Pour que l’imprimante change de couleur, donnez une profondeur (0,4 mm par exemple) : le fond et les parois du creux prennent la couleur.'
-              : 'Le fond et les parois du creux prennent cette matière ; elle a sa place dans l’AMS.'}
-          </span>
-        </label>
-      ) : null}
+      {printed ? <p class="field-help">En impression 3D, chaque zone gravée se colore au pinceau, dans Fabrication › Matières.</p> : null}
       <PreviewStatus status={props.status} kind="cut" />
     </>
   );

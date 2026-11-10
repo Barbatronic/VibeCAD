@@ -77,6 +77,11 @@ export interface FeatureOutcome {
   imageFrame?: Frame3D;
   /** Tôle après cette étape (tôle, bord plié, pli). */
   sheet?: SheetState;
+  /**
+   * Marquage en surface (gravure de profondeur 0) : la couche dont la face d'arrivée découpera la
+   * face. Appliqué par le moteur à la fin de l'historique, pour ne gêner aucune étape suivante.
+   */
+  mark?: KernelShape;
   /** Autres formes créées par l'étape et détenues par elle (plat d'un bord plié). */
   owned?: KernelShape[];
   /** Le corps outil a été ajouté (extrusion, révolution) ou retiré (poche) du solide. */

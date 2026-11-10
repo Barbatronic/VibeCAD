@@ -4,7 +4,7 @@
  * sémantique (étape + rôle), comme les supports d'esquisse : la peinture survit aux modifications de
  * la pièce tant que la face existe. Voir docs/conception-matieres.md (lot 3).
  */
-import type { FaceRef, Id, PartPaint } from './model';
+import type { FaceRef, Id, Part, PartPaint } from './model';
 
 type RefLike = Pick<FaceRef, 'featureId' | 'role' | 'entityId' | 'index'>;
 
@@ -21,26 +21,32 @@ export function paintFace(paint: PartPaint | undefined, ref: FaceRef, material: 
 }
 
 /**
- * Fiche de chaque face d'un maillage (null : la matière de la pièce). Une face peinte prend sa
- * peinture (la dernière l'emporte) ; sinon, une face créée par une gravure colorée prend sa matière.
+ * Fiche de chaque face d'un maillage (null : la matière de la pièce). Du plus précis au plus
+ * général : la peinture posée sur une zone gravée (`marks` : étapes Gravure), puis la couleur
+ * donnée à la gravure, puis la peinture de la face (la dernière l'emporte). Une zone gravée garde
+ * aussi l'étiquette de la face où elle est posée : sans couleur à elle, elle suit cette face.
+ * Générique : sert aussi aux emplacements AMS de l'export 3MF.
  */
-export function faceMaterials(
-  paint: PartPaint | undefined,
+export function faceMaterials<T = Id>(
+  paint: { faces: readonly { ref: RefLike; material: T }[] } | undefined,
   faces: readonly { tags: readonly RefLike[] }[],
-  engraves: readonly { featureId: Id; material: Id }[] = [],
-): (Id | null)[] {
+  engraves: readonly { featureId: Id; material: T }[] = [],
+  marks: ReadonlySet<Id> = new Set(engraves.map((e) => e.featureId)),
+): (T | null)[] {
   const painted = paint?.faces ?? [];
+  const last = <U>(list: readonly U[], ok: (u: U) => boolean) => {
+    for (let i = list.length - 1; i >= 0; i--) if (ok(list[i]!)) return list[i]!;
+    return undefined;
+  };
   return faces.map((face) => {
-    for (let i = painted.length - 1; i >= 0; i--) {
-      const p = painted[i]!;
-      if (face.tags.some((t) => sameFaceRef(t, p.ref))) return p.material;
-    }
-    for (let i = engraves.length - 1; i >= 0; i--) {
-      if (face.tags.some((t) => t.featureId === engraves[i]!.featureId)) return engraves[i]!.material;
-    }
-    return null;
+    const on = (p: { ref: RefLike }) => face.tags.some((t) => sameFaceRef(t, p.ref));
+    const hit = last(painted, (p) => marks.has(p.ref.featureId) && on(p)) ?? last(engraves, (e) => face.tags.some((t) => t.featureId === e.featureId)) ?? last(painted, on);
+    return hit ? hit.material : null;
   });
 }
 
 /** Fiches utilisées par la peinture. */
 export const paintMaterials = (paint: PartPaint | undefined): Id[] => [...new Set((paint?.faces ?? []).map((f) => f.material))];
+
+/** Étapes Gravure d'une pièce : leurs zones se peignent à part de la face qui les porte. */
+export const engraveSteps = (part: Pick<Part, 'features'>): Set<Id> => new Set(part.features.filter((f) => f.type === 'engrave').map((f) => f.id));

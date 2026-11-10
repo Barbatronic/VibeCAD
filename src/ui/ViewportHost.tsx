@@ -40,7 +40,7 @@ import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
 import { engravingLoops, partEngravings } from '../app/engravings';
-import { faceMaterials } from '../domain/paint';
+import { engraveSteps, faceMaterials } from '../domain/paint';
 import { invertRigid4, multiply4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
 import type { Vec2 } from '../math/vec';
 import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
@@ -268,7 +268,7 @@ function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pi
   const engraves = engraveColors(part);
   if (sheet?.process === 'print' && (part.paint || engraves.length) && mesh) {
     const colorOf = (id: string | null) => (id ? (s.doc.materials?.find((m) => m.id === id)?.color ?? look.color) : look.color);
-    return { ...base, faceColors: faceMaterials(part.paint, mesh.faces, engraves).map(colorOf) };
+    return { ...base, faceColors: faceMaterials(part.paint, mesh.faces, engraves, engraveSteps(part)).map(colorOf) };
   }
   // Découpe laser : les chants ont leur couleur (bois brûlé).
   if (!sheet?.edge || sheet.process !== 'laser' || !mesh) return base;
@@ -286,9 +286,10 @@ function markingsOf(s: AppState, part: Part, mode: 'design' | 'materials'): View
   const marks = partEngravings(part, d.result.sketches).filter((e) => e.depth <= 0);
   if (!marks.length) return undefined;
   const sheet = mode === 'materials' ? sheetOf(s.doc, part) : undefined;
-  // Couleur du marquage : brûlé sur une matière découpée, la matière choisie en impression 3D.
-  const printColor = sheet?.process === 'print' ? s.doc.materials?.find((m) => m.id === marks[0]!.material)?.color : undefined;
-  const color = sheet?.process === 'laser' && sheet.edge ? sheet.edge : (printColor ?? '#24324a');
+  // Impression 3D : la zone marquée est une face à part, colorée comme les autres (pinceau, gravure).
+  if (sheet?.process === 'print') return undefined;
+  // Brûlé sur une matière découpée qui a une couleur de chants, en trait foncé sinon.
+  const color = sheet?.process === 'laser' && sheet.edge ? sheet.edge : '#24324a';
   const lines = marks.filter((m) => m.mode === 'outline').flatMap(engravingLoops);
   const fills = marks.filter((m) => m.mode === 'fill').flatMap((m) => m.regions.map((r) => ({ ...r, normal: m.normal })));
   return { lines, fills, color };

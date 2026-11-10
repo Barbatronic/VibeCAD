@@ -7,7 +7,7 @@ import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '.
 import type { CadDocument, EdgeRef, Id } from '../domain/model';
 import { add3, scale3, type Vec3 } from '../math/vec';
 import { foldLines } from '../features/sheet/fold';
-import { sameFaceRef } from '../domain/paint';
+import { engraveSteps, faceMaterials } from '../domain/paint';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
@@ -159,7 +159,7 @@ export class GeometryService {
     const ids = placements ? Array.from(new Set(placements.map((p) => p.partId))) : partIds;
     const { items, warnings } = this.partsToExport(doc, ids);
     if (items.length === 0) throw new Error(warnings[0] ?? 'Aucune pièce à exporter.');
-    if (!placements) return { warnings, placed: [] as KernelShape[], shapes: items.map((i) => ({ name: i.part.name, color: i.part.color, shape: i.shape, ev: i.ev, filament: undefined as number | undefined, faceFilaments: undefined as ExportPlacement['faceFilaments'], engraveFilaments: undefined as ExportPlacement['engraveFilaments'] })) };
+    if (!placements) return { warnings, placed: [] as KernelShape[], shapes: items.map((i) => ({ name: i.part.name, color: i.part.color, shape: i.shape, ev: i.ev, filament: undefined as number | undefined, faceFilaments: undefined as ExportPlacement['faceFilaments'], engraveFilaments: undefined as ExportPlacement['engraveFilaments'], marks: undefined as ReadonlySet<Id> | undefined })) };
     const placed: KernelShape[] = [];
     const shapes = placements.flatMap((pl) => {
       const item = items.find((i) => i.part.id === pl.partId);
@@ -167,7 +167,7 @@ export class GeometryService {
       // Les faces gardent leurs étiquettes (reprises par la peinture des faces, et par les exports).
       const shape = this.kernel.transformed(item.shape, pl.matrix, { keep: true });
       placed.push(shape);
-      return [{ name: pl.name, color: item.part.color, shape, ev: item.ev, filament: pl.filament, faceFilaments: pl.faceFilaments, engraveFilaments: pl.engraveFilaments }];
+      return [{ name: pl.name, color: item.part.color, shape, ev: item.ev, filament: pl.filament, faceFilaments: pl.faceFilaments, engraveFilaments: pl.engraveFilaments, marks: engraveSteps(item.part) }];
     });
     return { warnings, placed, shapes };
   }
@@ -288,18 +288,12 @@ export class GeometryService {
         const filament = i.filament ?? 1;
         if (!multi) return { name: i.name, color: i.color, mesh };
         const filaments = new Uint8Array(mesh.indices.length / 3).fill(filament);
-        // Gravures colorées : les faces qu'elles ont créées (fond, parois du creux).
-        if (i.engraveFilaments?.length) {
-          mesh.faces.forEach((f) => {
-            const hit = [...i.engraveFilaments!].reverse().find((e) => f.tags.some((t) => t.featureId === e.featureId));
-            if (hit) filaments.fill(hit.filament, f.start / 3, (f.start + f.count) / 3);
-          });
-        }
-        // Faces peintes : reconnues par leurs étiquettes, gardées par la copie placée sur le plateau.
-        if (i.faceFilaments?.length) {
-          mesh.faces.forEach((f) => {
-            const hit = [...i.faceFilaments!].reverse().find((p) => f.tags.some((t) => sameFaceRef(t, p.ref)));
-            if (hit) filaments.fill(hit.filament, f.start / 3, (f.start + f.count) / 3);
+        // Faces peintes et gravures colorées : reconnues par leurs étiquettes, gardées par la copie placée sur le plateau.
+        if (i.faceFilaments?.length || i.engraveFilaments?.length) {
+          const paint = { faces: (i.faceFilaments ?? []).map((f) => ({ ref: f.ref, material: f.filament })) };
+          faceMaterials(paint, mesh.faces, (i.engraveFilaments ?? []).map((e) => ({ featureId: e.featureId, material: e.filament })), i.marks).forEach((hit, n) => {
+            const f = mesh.faces[n]!;
+            if (hit !== null) filaments.fill(hit, f.start / 3, (f.start + f.count) / 3);
           });
         }
         return { name: i.name, color: i.color, mesh, filaments };

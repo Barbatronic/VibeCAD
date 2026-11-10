@@ -358,8 +358,8 @@ export class OcctKernel implements GeometryKernel {
     if (request.regions.length === 0) throw new KernelError('Aucun profil à extruder.');
     const parts: OcctShape[] = [];
     try {
-      for (const region of request.regions) {
-        parts.push(this.guard('extrusion', () => withScope((scope) => this.prismOfRegion(scope, request, region))));
+      for (const [i, region] of request.regions.entries()) {
+        parts.push(this.guard('extrusion', () => withScope((scope) => this.prismOfRegion(scope, request, region, i))));
       }
       let result = parts[0]!;
       for (let i = 1; i < parts.length; i++) {
@@ -569,7 +569,7 @@ export class OcctKernel implements GeometryKernel {
     return new OcctShape(solid, faces);
   }
 
-  private prismOfRegion(scope: Scope, request: PrismRequest, region: ProfileRegion): OcctShape {
+  private prismOfRegion(scope: Scope, request: PrismRequest, region: ProfileRegion, index: number): OcctShape {
     const oc = this.oc;
     const { face, edges } = this.buildFace(scope, region, request.frame, request.from);
     const v = scale3(request.frame.normal, request.to - request.from);
@@ -582,7 +582,7 @@ export class OcctKernel implements GeometryKernel {
       if (i >= 0) addTags(faces[i]!.tags, [tag]);
     };
     tagFace(scope.track(prism.FirstShape()), { featureId: request.featureId, role: 'start' });
-    tagFace(scope.track(prism.LastShape()), { featureId: request.featureId, role: 'end' });
+    tagFace(scope.track(prism.LastShape()), { featureId: request.featureId, role: 'end', ...(request.numberEnds ? { index } : {}) });
     for (const { edge, entityIds } of edges) {
       const generated = this.listToArray(scope.track(prism.Generated(edge)));
       for (const g of generated) {
@@ -641,7 +641,16 @@ export class OcctKernel implements GeometryKernel {
               if (i >= 0) addTags(faces[i]!.tags, tf.tags);
             }
           }
-          // Morceaux du dessin : même aire et même centre qu'une face d'arrivée du prisme.
+          // Morceaux du dessin : l'historique du découpeur les donne, même rognés par un vide de la
+          // pièce (poche) ; à défaut, la face de même aire et même centre qu'une face d'arrivée.
+          for (const m of marks) {
+            const pieces = this.listToArray(scope.track(op.Modified(m.face)));
+            for (const piece of pieces.length ? pieces : [m.face]) {
+              if (pieces.length) scope.track(piece);
+              const i = this.indexOfFace(faces, piece);
+              if (i >= 0) addTags(faces[i]!.tags, m.tags);
+            }
+          }
           const props = (f: TopoDS_Shape) => {
             const p = scope.track(new oc.GProp_GProps());
             oc.BRepGProp.SurfaceProperties(f, p, false, false);

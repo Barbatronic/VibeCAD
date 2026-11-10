@@ -26,6 +26,8 @@ export interface PrismRequest {
   /** Positions de départ et d'arrivée le long de la normale du repère (mm), `from < to`. */
   from: number;
   to: number;
+  /** Face d'arrivée numérotée par région (`index`) : chaque zone d'un marquage se désigne à part. */
+  numberEnds?: boolean;
 }
 
 /** Révolution de régions planes autour d'un axe du plan de l'esquisse. */
