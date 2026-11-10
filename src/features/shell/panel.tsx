@@ -13,7 +13,7 @@ export function ShellPanel(props: FeaturePanelProps<ShellFeature>) {
   return (
     <>
       <Callout kind="info">
-        <p>Cliquez dans la vue 3D les faces à laisser ouvertes (le dessus d’un pot, l’entrée d’une boîte). Cliquez-les à nouveau pour les refermer.</p>
+        <p>Sélectionnez les faces à ouvrir</p>
       </Callout>
       <div class="field">
         <span class="field-label">Faces ouvertes</span>
@@ -31,7 +31,6 @@ export function ShellPanel(props: FeaturePanelProps<ShellFeature>) {
         label="Épaisseur de la paroi"
         value={draft.fields.thickness ?? ''}
         error={draft.errors.thickness ?? null}
-        help="Elle doit rester plus petite que les parties fines de la pièce."
         autoFocus
         selectOnFocus
         onInput={(text) => {

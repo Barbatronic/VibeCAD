@@ -59,7 +59,7 @@ export function MovePanel(props: FeaturePanelProps<MoveFeature>) {
           step={15}
           value={draft.fields.angle ?? ''}
           error={draft.errors.angle ?? null}
-          help="Sens trigonométrique en regardant depuis le bout de l’axe (0 : pas de rotation)."
+          help="Sens trigonométrique"
           onInput={(text) => {
             const v = readNumber(text);
             if (v === null) return setField('angle', text, { error: 'Saisissez un angle en degrés.' });
@@ -75,7 +75,7 @@ export function MovePanel(props: FeaturePanelProps<MoveFeature>) {
         <div class="field">
           <span class="field-label">Centre de rotation (mm)</span>
           <div class="limits-row three">{(['x', 'y', 'z'] as const).map((a) => vecField('center', a))}</div>
-          <p class="field-help">L’axe de rotation passe par ce point. La pièce tourne d’abord, puis se décale.</p>
+          <p class="field-help">Rotation, puis déplacement.</p>
         </div>
       ) : null}
       <label class="checkbox-row">

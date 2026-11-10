@@ -51,7 +51,7 @@ export function ImagePanel(props: FeaturePanelProps<ImageFeature>) {
           onChange={(plane) => update((x) => withParams(x, { support: { kind: 'plane', plane, offset: 0 } }))}
         />
       ) : (
-        <span class="field-help">Posée sur la face choisie. Pour un plan d’origine, sélectionnez rien avant d’ajouter l’image.</span>
+        <span class="field-help">Posée sur la face choisie</span>
       )}
       <div class="image-actions">
         <Button small icon="dimension" disabled={!resource} onClick={() => setDialog('scale')}>
@@ -66,9 +66,9 @@ export function ImagePanel(props: FeaturePanelProps<ImageFeature>) {
           </Button>
         ) : null}
       </div>
-      {length('width', 'Largeur', 'La hauteur suit les proportions de l’image. « Mettre à l’échelle » la règle d’après deux points.', (width) => ({ width }))}
+      {length('width', 'Largeur', 'Hauteur proportionnelle', (width) => ({ width }))}
       <div class="limits-row">
-        {length('cx', 'Centre X', 'Position dans le plan', (x) => ({ center: { ...p.center, x } }))}
+        {length('cx', 'Centre X', '', (x) => ({ center: { ...p.center, x } }))}
         {length('cy', 'Centre Y', '', (y) => ({ center: { ...p.center, y } }))}
       </div>
       <LengthField

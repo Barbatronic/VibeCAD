@@ -39,7 +39,7 @@ test('extrusion jusqu’à une face : un plot monte jusqu’au haut d’une tour
 
   await page.click('#tool-extrude');
   await page.getByRole('group', { name: 'Jusqu’où ?' }).getByRole('button', { name: 'Jusqu’à une face…' }).click();
-  await expect(page.getByText(/l’extrusion s’arrêtera sur son plan/)).toBeVisible();
+  await expect(page.getByText('Sélectionnez la face d’arrivée')).toBeVisible();
   await expect(page.locator('#draft-distance')).toHaveCount(0);
   await page.evaluate(() => (window as any).vibecad.controller.fitAll());
   await page.waitForTimeout(700);

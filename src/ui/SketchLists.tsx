@@ -93,7 +93,7 @@ export function SketchLists({ session }: { session: SketchSession }) {
       <details class="advanced sketch-list" open>
         <summary>Éléments ({entities.length})</summary>
         {entities.length === 0 ? (
-          <p class="field-help">Aucun élément pour l’instant.</p>
+          <p class="field-help">Aucun élément</p>
         ) : (
           <ul aria-label="Éléments de l’esquisse">
             {entities.map((e) => (
@@ -110,7 +110,7 @@ export function SketchLists({ session }: { session: SketchSession }) {
       <details class="advanced sketch-list" open>
         <summary>Contraintes ({sk.constraints.length})</summary>
         {sk.constraints.length === 0 ? (
-          <p class="field-help">Aucune cote ni contrainte pour l’instant.</p>
+          <p class="field-help">Aucune contrainte</p>
         ) : (
           <ul aria-label="Contraintes de l’esquisse">
             {sk.constraints.map((k) => (

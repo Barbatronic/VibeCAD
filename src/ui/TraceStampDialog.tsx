@@ -25,14 +25,13 @@ function initialSettings(image: GrayImage): Settings {
   return { threshold, invert: dark > w, mode: 'fill', thicken: 0, despeckle: Math.round((w * h) / 8000), smoothing: 0.4 };
 }
 
-function Slider(props: { id: string; label: string; help: string; min: number; max: number; step?: number; value: number; onInput: (v: number) => void }) {
+function Slider(props: { id: string; label: string; min: number; max: number; step?: number; value: number; onInput: (v: number) => void }) {
   return (
     <div class="field">
       <label class="field-label" for={props.id}>
         {props.label}
       </label>
       <input id={props.id} type="range" min={props.min} max={props.max} step={props.step ?? 1} value={props.value} onInput={(e) => props.onInput(Number((e.target as HTMLInputElement).value))} />
-      <span class="field-help">{props.help}</span>
     </div>
   );
 }
@@ -136,7 +135,7 @@ function TraceForm(props: { image: GrayImage | null; name: string; exact: SvgImp
       {exact && !exact.ok && tracing ? (
         <Callout kind="info">
           {/* Seul le constat : le conseil qui suit le « : » vise un logiciel de dessin, l'appli s'en charge ici. */}
-          <p>{exact.error.split(' : ')[0]}. Pas de souci : le contour est recalculé depuis l’image, ajustez-le avec les réglages.</p>
+          <p>{exact.error.split(' : ')[0]} : contour recalculé depuis l’image.</p>
         </Callout>
       ) : null}
       {exact?.ok && !tracing && exact.warnings.length > 0 ? (
@@ -180,10 +179,10 @@ function TraceForm(props: { image: GrayImage | null; name: string; exact: SvgImp
                 ]}
                 onChange={(mode) => update({ mode })}
               />
-              <Slider id="trace-threshold" label="Noir et blanc" help="Plus à droite, plus de gris compte comme de l’encre." min={1} max={254} value={settings.threshold} onInput={(threshold) => update({ threshold })} />
-              <Slider id="trace-thicken" label="Épaissir les traits" help="Renforce un trait fin et referme les petits trous." min={0} max={12} value={settings.thicken} onInput={(thicken) => update({ thicken })} />
-              <Slider id="trace-despeckle" label="Enlever les taches" help="Retire les petits points isolés." min={0} max={400} step={5} value={settings.despeckle} onInput={(despeckle) => update({ despeckle })} />
-              <Slider id="trace-smoothing" label="Lisser" help="Adoucit les bords tremblés." min={0} max={1} step={0.05} value={settings.smoothing} onInput={(smoothing) => update({ smoothing })} />
+              <Slider id="trace-threshold" label="Noir et blanc" min={1} max={254} value={settings.threshold} onInput={(threshold) => update({ threshold })} />
+              <Slider id="trace-thicken" label="Épaissir les traits" min={0} max={12} value={settings.thicken} onInput={(thicken) => update({ thicken })} />
+              <Slider id="trace-despeckle" label="Enlever les taches" min={0} max={400} step={5} value={settings.despeckle} onInput={(despeckle) => update({ despeckle })} />
+              <Slider id="trace-smoothing" label="Lisser" min={0} max={1} step={0.05} value={settings.smoothing} onInput={(smoothing) => update({ smoothing })} />
               <div class="segmented">
                 <button type="button" aria-pressed={settings.invert} onClick={() => update({ invert: !settings.invert })}>
                   Inverser
@@ -212,7 +211,7 @@ function TraceForm(props: { image: GrayImage | null; name: string; exact: SvgImp
       </div>
       {tracing && result && !result.ok ? (
         <Callout kind="warning">
-          <p>{result.error} Essayez de lisser moins, ou d’épaissir les traits.</p>
+          <p>{result.error}</p>
         </Callout>
       ) : null}
     </Modal>

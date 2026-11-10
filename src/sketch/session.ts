@@ -117,43 +117,35 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
 };
 
 export const TOOL_HELP: Record<SketchTool, string> = {
-  select:
-    'Sélection : chaque clic ajoute un élément (un nouveau clic le retire), glisser dans le vide trace un cadre, double-clic dans le vide ou Espace vide la sélection. Faites glisser un élément pour le déplacer ; double-cliquez une cote pour changer sa valeur.',
-  point:
-    'Point : cliquez pour poser un point seul (centre d’un perçage, repère d’accroche pour l’assemblage). Placez-le ensuite avec des cotes depuis l’origine.',
-  line: 'Segment : cliquez le point de départ puis les points suivants. Cliquez le premier point pour fermer le contour. Vous pouvez taper la longueur.',
-  rectangle: 'Rectangle : cliquez un premier coin puis le coin opposé. Vous pouvez aussi taper la largeur et la hauteur au clavier.',
-  centerRectangle:
-    'Rectangle centré : cliquez le centre puis un coin. Le centre reste au milieu quand les dimensions changent. Vous pouvez taper la largeur et la hauteur.',
-  polygon:
-    'Polygone régulier : cliquez le centre puis un sommet. Tapez le diamètre du cercle qui passe par les sommets et le nombre de côtés (Tab pour passer de l’un à l’autre).',
-  slot: 'Oblong (rainure) : cliquez le centre du premier arrondi, puis celui du second, puis la largeur. Vous pouvez taper la longueur entre centres puis la largeur.',
-  circle: 'Cercle : cliquez le centre puis un point du bord. Vous pouvez aussi taper le diamètre au clavier.',
-  arc: 'Arc : cliquez le centre, puis le point de départ, puis tournez dans le sens voulu et cliquez l’arrivée. Vous pouvez taper le rayon puis l’angle.',
-  arc3: 'Arc par 3 points : cliquez le point de départ, puis l’arrivée, puis un point par lequel l’arc doit passer. Vous pouvez taper le rayon à la dernière étape.',
-  ellipse: 'Ellipse : cliquez le centre, puis le bout du grand axe, puis éloignez la souris pour régler la largeur et cliquez. Vous pouvez taper les deux axes (Tab pour passer de l’un à l’autre).',
-  spline:
-    'Spline : cliquez les points par lesquels la courbe doit passer. Cliquez le premier point pour la fermer ; Entrée, Échap ou un clic sur le dernier point la terminent ouverte.',
-  text: 'Texte : écrivez le texte et choisissez sa hauteur dans le panneau de droite, puis cliquez où le poser (coin bas gauche de la première lettre). Les lettres forment des contours : extrudez-les en relief ou creusez-les avec une poche.',
-  stamp: 'Tampon : choisissez une forme dans le panneau de droite, puis cliquez où la poser. Réglez sa taille et sa rotation avant ou après.',
-  trim: 'Couper : survolez un trait : la partie en rouge, jusqu’aux croisements les plus proches, sera retirée au clic. Pratique pour réunir deux formes en un seul contour.',
-  offset:
-    'Décalage : cliquez un trait d’un contour fermé, puis éloignez la souris vers l’extérieur ou l’intérieur et cliquez, ou tapez la distance puis Entrée. Le contour recopié reste à cette distance.',
-  project:
-    'Projeter : cliquez une arête de la pièce (en violet) pour la reprendre dans l’esquisse. Elle suit la pièce et sert de repère pour coter (centre d’un trou, bord…).',
-  dimension:
-    'Cote : cliquez un segment (longueur) ou un cercle (diamètre), puis éventuellement un second élément : distance entre deux points, d’un point à un segment, entre deux segments parallèles, ou angle entre deux segments.',
-  coincident: 'Coïncidence : cliquez deux points pour les réunir (ou un point puis une courbe pour l’y poser).',
-  horizontal: 'Horizontal : cliquez un segment pour le rendre horizontal.',
-  vertical: 'Vertical : cliquez un segment pour le rendre vertical.',
-  parallel: 'Parallèle : cliquez deux segments pour qu’ils aient la même direction.',
-  perpendicular: 'Perpendiculaire : cliquez deux segments pour qu’ils forment un angle droit.',
-  equal: 'Égalité : cliquez deux segments (même longueur) ou deux cercles (même diamètre).',
-  collinear: 'Colinéaire : cliquez deux segments pour les aligner sur une même droite.',
-  tangent: 'Tangence : cliquez un segment et un cercle, ou deux cercles, pour qu’ils se touchent sans se couper.',
-  pointOn: 'Point sur : cliquez un point puis un segment ou un cercle pour poser le point dessus.',
-  midpoint: 'Milieu : cliquez un point puis un segment pour placer le point au milieu du segment.',
-  concentric: 'Concentrique : cliquez deux cercles pour leur donner le même centre.',
+  select: 'Clic : sélectionner · glisser : déplacer ou cadre · double-clic sur une cote : la modifier',
+  point: 'Point : cliquez pour le poser',
+  line: 'Segment : point de départ, puis points suivants · longueur au clavier · premier point : fermer',
+  rectangle: 'Rectangle : premier coin, puis coin opposé · dimensions au clavier',
+  centerRectangle: 'Rectangle centré : centre, puis coin · dimensions au clavier',
+  polygon: 'Polygone : centre, puis sommet · diamètre et nombre de côtés au clavier (Tab)',
+  slot: 'Oblong : premier centre, second centre, puis largeur',
+  circle: 'Cercle : centre, puis bord · diamètre au clavier',
+  arc: 'Arc : centre, départ, puis arrivée · rayon et angle au clavier',
+  arc3: 'Arc 3 points : départ, arrivée, puis point de passage',
+  ellipse: 'Ellipse : centre, bout du grand axe, puis largeur · axes au clavier (Tab)',
+  spline: 'Spline : points de passage · premier point : fermer · Entrée : terminer',
+  text: 'Texte : cliquez où le poser (coin bas gauche)',
+  stamp: 'Tampon : cliquez où le poser',
+  trim: 'Couper : cliquez la partie à retirer',
+  offset: 'Décalage : trait d’un contour fermé, puis distance (clic ou clavier)',
+  project: 'Projeter : cliquez une arête de la pièce',
+  dimension: 'Cote : un élément (longueur, diamètre) ou deux (distance, angle)',
+  coincident: 'Coïncidence : deux points, ou un point et une courbe',
+  horizontal: 'Horizontal : un segment',
+  vertical: 'Vertical : un segment',
+  parallel: 'Parallèle : deux segments',
+  perpendicular: 'Perpendiculaire : deux segments',
+  equal: 'Égalité : deux segments ou deux cercles',
+  collinear: 'Colinéaire : deux segments',
+  tangent: 'Tangence : un segment et un cercle, ou deux cercles',
+  pointOn: 'Point sur : un point, puis un segment ou un cercle',
+  midpoint: 'Milieu : un point, puis un segment',
+  concentric: 'Concentrique : deux cercles',
 };
 
 /** Arête de la pièce projetée sur le plan de l'esquisse, proposée par l'outil Projeter. */

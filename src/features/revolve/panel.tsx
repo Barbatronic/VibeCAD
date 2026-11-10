@@ -44,7 +44,7 @@ export function RevolvePanel(props: FeaturePanelProps<RevolveFeature>) {
             </option>
           ))}
         </select>
-        <span class="field-help">Le dessin doit rester d’un seul côté de l’axe. Astuce : tracez l’axe en trait de construction.</span>
+        <span class="field-help">Le dessin doit rester d’un seul côté de l’axe</span>
       </div>
       <LengthField
         id="draft-angle"
@@ -54,7 +54,6 @@ export function RevolvePanel(props: FeaturePanelProps<RevolveFeature>) {
         min={0}
         value={draft.fields.angle ?? ''}
         error={draft.errors.angle ?? null}
-        help="360° : tour complet. Moins : une part (par exemple 180° pour une demi-pièce)."
         autoFocus
         selectOnFocus
         onInput={(text) => {

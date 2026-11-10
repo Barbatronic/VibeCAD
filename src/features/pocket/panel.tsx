@@ -28,14 +28,13 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
         onChange={setExtent}
       />
       {through ? (
-        <p class="field-help">« Traversante » : la poche traverse toute la pièce, quelle que soit son épaisseur. Idéal pour un perçage.</p>
+        null
       ) : (
         <LengthField
           id="draft-distance"
           label={f.params.direction === 'twoSides' ? 'Profondeur dans la matière' : 'Profondeur de la poche'}
           value={draft.fields.distance ?? ''}
           error={draft.errors.distance ?? null}
-          help="Profondeur de matière retirée."
           autoFocus
           selectOnFocus
           onInput={(text) => {
@@ -82,7 +81,6 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
               label="Profondeur de l’autre côté"
               value={draft.fields.distance2 ?? ''}
               error={draft.errors.distance2 ?? null}
-              help="Matière retirée de l’autre côté du plan de l’esquisse."
               selectOnFocus
               onInput={(text) => {
                 const parsed = parseLength(text, { label: 'La profondeur' });
@@ -97,10 +95,6 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
       <PreviewStatus status={props.status} kind="cut" />
       <details class="advanced">
         <summary>Réglages avancés</summary>
-        <p class="field-help">
-          Par défaut, la poche part de l’esquisse et entre « dans la matière ». « Côté opposé » inverse le sens ; « Symétrique » retire la même
-          profondeur des deux côtés du plan de l’esquisse ; « Deux côtés » retire une profondeur différente de chaque côté.
-        </p>
       </details>
     </>
   );

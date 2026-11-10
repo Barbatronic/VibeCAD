@@ -55,16 +55,16 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       />
       {picking ? (
         <Callout kind="info">
-          <p>Cliquez dans la vue 3D une face plane de la pièce : le nouveau plan part de cette face.</p>
+          <p>Sélectionnez une face plane</p>
         </Callout>
       ) : p.base.kind === 'face' ? (
-        <span class="field-help">Face choisie dans la vue 3D. Cliquez « Face… » pour en prendre une autre.</span>
+        <span class="field-help">Face choisie</span>
       ) : null}
       {p.base.kind === 'datum' ? (
         <DatumPlaneSelect planes={datums} value={p.base.featureId} onChange={(featureId) => update((x) => withParams(x, { base: { kind: 'datum', featureId } }))} />
       ) : null}
-      {numberField('offset', 'Décalage', 'mm', 'Distance entre le plan de départ et le nouveau plan (négatif : de l’autre côté).')}
-      {numberField('angle', 'Inclinaison', '°', '0 : parallèle au plan de départ. Le plan tourne autour de la charnière choisie ci-dessous.')}
+      {numberField('offset', 'Décalage', 'mm', '')}
+      {numberField('angle', 'Inclinaison', '°', '')}
       {p.angle !== 0 ? (
         <>
           <AxisField
@@ -77,7 +77,6 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
           />
         </>
       ) : null}
-      <p class="field-help">Le plan ne change pas la pièce : il sert ensuite de support à une esquisse (« Esquisse »), de miroir (« Symétrie ») ou de plan de « Découpe ».</p>
       <PreviewStatus status={props.status} kind="modify" />
     </>
   );

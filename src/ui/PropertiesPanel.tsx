@@ -36,9 +36,8 @@ export function PropertiesPanel() {
             {sheet ? <span class="field-help">{PROCESS_LABELS[sheet.process]}</span> : null}
           </div>
           <Button small icon="material" onClick={() => c.showMaterials()}>
-            Choisir dans Fabrication › Matières
+            Changer…
           </Button>
-          <span class="field-help">Elle donne la masse ci-dessous, le matériau proposé dans l’atelier Simulation, et la couleur réelle de la pièce.</span>
         </div>
         {solid ? (
           <dl class="props-list" aria-live="polite">
@@ -62,17 +61,16 @@ export function PropertiesPanel() {
             ) : null}
           </dl>
         ) : (
-          <p class="field-help">La pièce n’a pas encore de volume : commencez par une esquisse, puis une extrusion.</p>
+          <p class="field-help">Pas encore de volume.</p>
         )}
         {solid && canCentroid && solid.centroid ? (
-          <label class="checkbox-row" title="Le centre de gravité est le point d’équilibre de la pièce : posée sur une pointe à cet endroit, elle tiendrait en équilibre.">
+          <label class="checkbox-row" title="Point d’équilibre de la pièce">
             <input type="checkbox" checked={showCentroid} onChange={() => c.toggleCentroid()} />
             <span>
               Montrer le centre de gravité ({formatNumber(solid.centroid.x, 1)} ; {formatNumber(solid.centroid.y, 1)} ; {formatNumber(solid.centroid.z, 1)} mm)
             </span>
           </label>
         ) : null}
-        <p class="field-help">Masse d’une pièce pleine : une impression 3D remplie à moins de 100 % est plus légère.</p>
       </div>
       <div class="panel-actions">
         <Button variant="primary" icon="check" onClick={() => c.toggleProperties(false)}>

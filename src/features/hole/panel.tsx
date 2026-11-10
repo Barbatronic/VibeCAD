@@ -45,7 +45,7 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
   return (
     <>
       <SketchSelect value={p.sketchId} options={props.sketches} onChange={(sketchId) => update((x) => withParams(x, { sketchId }))} />
-      <p class="field-help">Un trou à chaque point (outil Point) et au centre de chaque cercle de l’esquisse : la taille du cercle dessiné ne compte pas.</p>
+      <p class="field-help">Aux points et aux centres des cercles</p>
       <Segmented
         label="Type de trou"
         value={p.kind}

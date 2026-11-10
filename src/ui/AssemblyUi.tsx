@@ -193,7 +193,7 @@ function CollisionReport() {
   );
   if (!data) return null;
   if (!data.ready) return <p class="field-help">Recherche des collisions…</p>;
-  if (data.items.length === 0) return <Callout kind="success">Aucune collision : les pièces ne se rentrent pas dedans.</Callout>;
+  if (data.items.length === 0) return <Callout kind="success">Aucune collision.</Callout>;
   return (
     <Callout kind="error">
       <p>
@@ -322,7 +322,6 @@ function ExplodeSlider() {
         Vue éclatée : écartement
       </label>
       <input id="as-explode-amount" type="range" min={0.1} max={2} step={0.05} value={explode} onInput={(e) => c.setExplode(Number((e.target as HTMLInputElement).value))} />
-      <span class="field-help">Chaque pièce s’écarte le long de l’axe de sa liaison. Rien n’est modifié dans le projet.</span>
       <Button small icon="close" onClick={() => c.setExplode(0)}>
         Rassembler
       </Button>
@@ -366,7 +365,7 @@ export function AssemblySection() {
         <SubassemblyBar />
         {data.instances.length === 0 ? (
           <p class="empty-hint">
-            L’assemblage est vide. Bouton <strong>Insérer</strong> en haut : choisissez une pièce. La première insérée reste <strong>fixe</strong>.
+            Assemblage vide. La première pièce insérée est fixe.
           </p>
         ) : null}
         <ul class="feature-list" aria-label="Pièces de l’assemblage">
@@ -541,18 +540,12 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         <JointName joint={joint} />
       </div>
       <div class="panel-content">
-      <p class="vocab">
-        <strong>Liaison</strong> : la pièce mobile est posée sur le repère de la pièce de référence (repère orange), puis elle peut bouger selon le type.
-        Avec l’outil <strong>Main</strong> (en haut), attrapez la pièce à la souris : elle ne fait que le mouvement permis
-        {free.angle && free.offset ? ' (Maj : glisser au lieu de tourner)' : ''}.
-      </p>
       {issue ? <Callout kind="error">{JOINT_ISSUE_MESSAGES[issue]}</Callout> : null}
       {(free.angle && joint.kind !== 'spherical') || free.offset ? (
         <div class="joint-animate">
           <Button small icon={animating ? 'close' : 'play'} variant={animating ? 'default' : 'primary'} onClick={() => c.toggleJointAnimation(joint.id)}>
             {animating ? 'Arrêter' : 'Animer le mécanisme'}
           </Button>
-          <span class="field-help">{animating ? 'Les pièces reviendront à leur place.' : 'Cette liaison bouge toute seule ; les pièces reliées suivent.'}</span>
         </div>
       ) : null}
       <div class="field" role="group" aria-label="Type de liaison">
@@ -661,7 +654,7 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
             ) : null}
           </div>
         ) : null}
-        {!free.angle && !free.offset ? <p class="field-help">Une liaison fixe ne bouge pas : choisissez un autre type pour la faire bouger.</p> : null}
+        {!free.angle && !free.offset ? <p class="field-help">Liaison fixe : aucun mouvement.</p> : null}
       </details>
       </div>
       <div class="panel-actions">
@@ -731,11 +724,11 @@ function InstancePanel({ id }: { id: string }) {
         </Button>
       ) : null}
       {fixed ? (
-        <Callout kind="info">C’est la pièce fixe : les autres pièces se placent par rapport à elle.</Callout>
+        <p class="field-help">Pièce fixe</p>
       ) : held ? (
-        <Callout kind="info">Cette pièce est tenue par une liaison : sélectionnez la liaison pour la faire bouger.</Callout>
+        <p class="field-help">Placée par une liaison</p>
       ) : (
-        <Callout kind="info">Pièce libre : reliez-la avec l’outil « Liaison », ou placez-la à la main.</Callout>
+        <p class="field-help">Pièce libre</p>
       )}
       {!held ? (
         <>
@@ -746,7 +739,7 @@ function InstancePanel({ id }: { id: string }) {
           <div class="field">
             <span class="field-label">Orientation (autour de X, Y, Z)</span>
             <div class="limits-row three">{(['x', 'y', 'z'] as const).map(turn)}</div>
-            <span class="field-help">Ou dans la vue : flèches du manipulateur pour déplacer, anneaux pour tourner (pas de 1 mm et 15° ; Maj : 0,1 mm et 1°).</span>
+            <span class="field-help">Pas de 1 mm et 15° · Maj : 0,1 mm et 1°</span>
           </div>
         </>
       ) : null}
@@ -792,7 +785,7 @@ function InstancePanel({ id }: { id: string }) {
                   </div>
                 );
               })
-            : <p class="field-help">Rigide : le bloc garde les réglages de ses liaisons tels qu’ils sont dans le sous-assemblage.</p>}
+            : <p class="field-help">Bloc rigide</p>}
         </div>
       ) : null}
       </div>
@@ -827,10 +820,9 @@ export function AssemblyRightPanel() {
           </div>
           <div class="panel-content">
           <ol class="steps">
-            <li class={jointMode.moving ? 'done' : 'current'}>Cliquez un repère sur la pièce qui doit bouger : face plane, bord d’un trou ou d’un axe, arête droite.</li>
-            <li class={jointMode.moving ? 'current' : ''}>Cliquez le repère correspondant sur la pièce de référence.</li>
+            <li class={jointMode.moving ? 'done' : 'current'}>Repère sur la pièce mobile</li>
+            <li class={jointMode.moving ? 'current' : ''}>Repère sur la pièce de référence</li>
           </ol>
-          <p class="field-help">Deux bords circulaires donnent un pivot ; sinon la liaison est fixe. Vous pourrez changer le type ensuite.</p>
           </div>
           <div class="panel-actions">
             <Button icon="close" onClick={() => c.cancelJoint()}>

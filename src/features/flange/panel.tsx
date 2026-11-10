@@ -18,7 +18,6 @@ export function FlangePanel(props: FeaturePanelProps<FlangeFeature>) {
         label="Longueur du rebord"
         value={draft.fields.length ?? ''}
         error={draft.errors.length ?? null}
-        help="Partie droite après le pli. La tôle à plat est allongée d’autant, plus la matière de l’arrondi."
         autoFocus
         selectOnFocus
         onInput={(text) => {

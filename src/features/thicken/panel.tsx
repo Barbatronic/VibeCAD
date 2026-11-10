@@ -27,7 +27,7 @@ export function ThickenPanel(props: FeaturePanelProps<ThickenFeature>) {
         label="Épaisseur"
         value={draft.fields.distance ?? ''}
         error={draft.errors.distance ?? null}
-        help="Pour du jeu en impression 3D : 0,2 à 0,3 mm suffisent."
+        help="Jeu en impression 3D : 0,2 à 0,3 mm"
         autoFocus
         selectOnFocus
         onInput={(text) => {

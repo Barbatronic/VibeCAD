@@ -1,7 +1,7 @@
 /** Panneau d'un axe de construction : par un point le long de X, Y ou Z, ou repris d'une arête. */
 import type { AxisFeature } from '../../domain/model';
 import { readNumber } from '../../domain/units';
-import { Callout, LengthField, Segmented } from '../../ui/components/controls';
+import { LengthField, Segmented } from '../../ui/components/controls';
 import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
@@ -54,13 +54,10 @@ export function AxisPanel(props: FeaturePanelProps<AxisFeature>) {
           </div>
         </>
       ) : p.edge ? (
-        <span class="field-help">Arête choisie dans la vue 3D. Cliquez une autre arête pour la remplacer.</span>
+        <span class="field-help">Arête choisie</span>
       ) : (
-        <Callout kind="info">
-          <p>Cliquez dans la vue 3D une arête droite, ou le bord rond d’un trou pour prendre son axe.</p>
-        </Callout>
+        <span class="field-help">Sélectionnez une arête droite ou le bord d’un trou</span>
       )}
-      <p class="field-help">L’axe ne change pas la pièce : il sert ensuite d’axe à une « Répétition » en cercle ou de charnière à un « Plan » incliné.</p>
       <PreviewStatus status={props.status} kind="modify" />
     </>
   );

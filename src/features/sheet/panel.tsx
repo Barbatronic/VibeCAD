@@ -60,7 +60,7 @@ export function SheetPanel(props: FeaturePanelProps<SheetFeature>) {
         label="Rayon des plis"
         value={draft.fields.radius ?? ''}
         error={draft.errors.radius ?? null}
-        help={`Rayon intérieur des plis (modifiable pli par pli). Au moins ${formatLength(minBendRadius(material, p.thickness))} pour cette épaisseur.`}
+        help={`Rayon intérieur · minimum ${formatLength(minBendRadius(material, p.thickness))}`}
         selectOnFocus
         onInput={(text) => {
           const parsed = parseLength(text, { label: 'Le rayon' });
@@ -80,7 +80,7 @@ export function SheetPanel(props: FeaturePanelProps<SheetFeature>) {
       />
       <Callout kind="info">
         <p>
-          {material.name} : {material.method === 'hot' ? 'pliage à chaud' : 'pliage à froid'}. {material.note} Ensuite : « Bord plié » sur un bord, ou « Pli » sur un trait dessiné sur la tôle. Faites les trous avant les plis.
+          {material.name} : {material.method === 'hot' ? 'pliage à chaud' : 'pliage à froid'}. {material.note}
         </p>
       </Callout>
       <PreviewStatus status={props.status} kind="add" />

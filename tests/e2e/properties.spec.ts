@@ -17,7 +17,7 @@ test('propriétés de la pièce : matière enregistrée, masse, encombrement, ce
 
   // Matière choisie dans Fabrication › Matières : la masse suit, et la simulation la propose.
   await expect(panel).toContainText('Non choisie (comptée en PLA)');
-  await panel.getByRole('button', { name: /Choisir dans Fabrication/ }).click();
+  await panel.getByRole('button', { name: 'Changer…' }).click();
   await expect.poll(() => appState(page, (s) => [s.workspace, s.fabricationTab])).toEqual(['fabrication', 'materials']);
   await page.getByLabel('Matière de « Pièce 1 »').selectOption({ label: 'Acier (visserie, axes)' });
   expect(await appState(page, (s) => s.doc.parts[0].material)).toBe('steel');

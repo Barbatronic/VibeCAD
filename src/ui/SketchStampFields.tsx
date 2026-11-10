@@ -66,7 +66,7 @@ export function SketchStampFields({ session }: { session: SketchSession }) {
       <Button small icon="open" onClick={() => void c.importStamp()}>
         Importer un dessin…
       </Button>
-      <p class="field-help">Un fichier SVG, ou la photo d’un dessin en noir et blanc (PNG, JPEG, WebP).</p>
+      <p class="field-help">SVG, PNG, JPEG ou WebP</p>
       <LengthField
         id="sketch-stamp-size"
         label="Taille (plus grand côté)"
@@ -95,7 +95,7 @@ export function SketchStampFields({ session }: { session: SketchSession }) {
           if (ok) apply({ angle: v });
         }}
       />
-      {placing ? <p class="field-help">Cliquez dans l’esquisse pour poser le tampon par son centre. Il s’accroche à l’origine, aux axes et aux points.</p> : null}
+      {placing ? <p class="field-help">Cliquez pour poser le tampon.</p> : null}
     </div>
   );
 }

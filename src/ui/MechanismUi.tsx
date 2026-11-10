@@ -59,7 +59,7 @@ export function MechanismPanel() {
         <span>Couple sur une liaison</span>
       </div>
       <p class="panel-intro">
-        Quel couple (pivot) ou quelle force (glissière) faut-il sur la liaison motrice pour faire bouger le mécanisme, et quel moteur choisir ? Le calcul tient compte du poids des pièces (d’après leur matière) et, si on le demande, de l’accélération.
+        Couple ou force à fournir sur la liaison motrice.
       </p>
       <div class="panel-content">
         <label class="field">
@@ -89,7 +89,7 @@ export function MechanismPanel() {
         {data.stale ? <Callout kind="warning">Le projet ou les réglages ont changé : recalculez pour mettre la courbe à jour.</Callout> : null}
         {run?.result ? <MechanismResultView result={run.result} study={study} hover={data.hover} /> : null}
         <p class="field-help">
-          Calcul quasi statique : poids des pièces pleines et des masses portées, centre de gravité placé dans l’assemblage, accélération avec l’inertie de chaque pièce (translation et rotation propre). La visserie et les effets de vitesse ne sont pas comptés : prenez une marge (coefficient de sécurité).
+          Calcul quasi statique (poids, inertie). Visserie et effets de vitesse non comptés.
         </p>
       </div>
     </>
@@ -104,7 +104,7 @@ function LoadsEditor({ study, leaves }: { study: MechanismStudy; leaves: { key: 
   return (
     <div class="field">
       <span class="field-label">Masses portées</span>
-      {loads.length === 0 ? <span class="field-help">Aucune : seul le poids des pièces compte.</span> : null}
+      {loads.length === 0 ? <span class="field-help">Aucune</span> : null}
       <ul class="mech-loads" aria-label="Masses portées">
         {loads.map((l, i) => (
           <li key={i}>
@@ -135,7 +135,7 @@ function LoadsEditor({ study, leaves }: { study: MechanismStudy; leaves: { key: 
           Ajouter une masse portée
         </Button>
       ) : null}
-      <span class="field-help">Posée au centre de gravité de la pièce (objet tenu par une pince, plateau chargé…).</span>
+      <span class="field-help">Appliquées au centre de gravité de la pièce.</span>
     </div>
   );
 }
@@ -145,7 +145,7 @@ function MechanismResultView({ result, study, hover }: { result: MechanismResult
   const pos = (v: number) => `${formatNumber(v, angle ? 0 : 1)} ${angle ? '°' : 'mm'}`;
   const val = (v: number) => `${significant(v)} ${result.unit}`;
   if (!result.peak || result.required === null) {
-    return <Callout kind="warning">Le mécanisme ne se place à aucune position de la plage : vérifiez les liaisons (boucle impossible, liaison en erreur).</Callout>;
+    return <Callout kind="warning">Le mécanisme ne se place à aucune position de la plage : vérifiez les liaisons.</Callout>;
   }
   const lifting = result.peak.value > 0;
   return (
@@ -163,8 +163,8 @@ function MechanismResultView({ result, study, hover }: { result: MechanismResult
       </dl>
       <p class="field-help">
         {lifting
-          ? `Au pic, le moteur doit pousser dans le sens des ${angle ? 'angles' : 'décalages'} croissants (il soulève).`
-          : `Au pic, le poids entraîne le mécanisme : le moteur doit le retenir (frein ou couple de maintien).`}{' '}
+          ? `Au pic : le moteur soulève.`
+          : `Au pic : le poids entraîne, le moteur retient.`}{' '}
         À fournir = (pic + frottement {val(study.friction)}) × {formatNumber(study.safety, 1)}.
         {result.failed ? ` ${result.failed} position(s) de la plage où l’assemblage ne se place pas : ignorées.` : ''}
       </p>
@@ -186,7 +186,7 @@ function MechanismResultView({ result, study, hover }: { result: MechanismResult
               );
             })}
           </ul>
-          <p class="field-help">Valeurs indicatives (fiches courantes). Un réducteur (engrenages, poulies) divise le couple demandé au moteur par son rapport.</p>
+          <p class="field-help">Valeurs indicatives, sans réducteur.</p>
         </>
       ) : null}
     </div>
@@ -292,8 +292,8 @@ function MechanismChart({ result, hover }: { result: MechanismResult; hover: num
       </svg>
       <figcaption class="field-help">
         {near
-          ? `À ${formatNumber(near.at, angle ? 0 : 1)}\u00a0${angle ? '°' : 'mm'} : ${significant(near.total)}\u00a0${result.unit}${withAcceleration ? ` (poids seul : ${significant(near.gravity)})` : ''} — position montrée dans la vue.`
-          : 'Survolez la courbe : la position correspondante est montrée dans la vue.'}
+          ? `À ${formatNumber(near.at, angle ? 0 : 1)}\u00a0${angle ? '°' : 'mm'} : ${significant(near.total)}\u00a0${result.unit}${withAcceleration ? ` (poids seul : ${significant(near.gravity)})` : ''}`
+          : '\u00a0'}
       </figcaption>
     </figure>
   );

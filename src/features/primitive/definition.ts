@@ -6,10 +6,10 @@ import type { FeatureDefinition, ParamIssue } from '../definition';
 export const PRIMITIVE_LABELS: Record<PrimitiveShape, string> = { box: 'Boîte', cylinder: 'Cylindre', sphere: 'Boule', torus: 'Anneau' };
 
 export const PRIMITIVE_EXPLANATIONS: Record<PrimitiveShape, string> = {
-  box: 'Un pavé : largeur, profondeur et hauteur. Comme une brique de jeu de construction.',
-  cylinder: 'Un rouleau : diamètre et hauteur. Comme une pile, un plot ou, creusé, un trou rond.',
-  sphere: 'Une boule : son diamètre. Pour une rotule, une perle, un bouton.',
-  torus: 'Un anneau : diamètre et épaisseur du tube. Comme une bouée ou un joint.',
+  box: 'Largeur, profondeur et hauteur',
+  cylinder: 'Diamètre et hauteur',
+  sphere: 'Diamètre',
+  torus: 'Diamètre et épaisseur du tube',
 };
 
 /** Dimensions utiles de chaque forme (les autres sont ignorées). */

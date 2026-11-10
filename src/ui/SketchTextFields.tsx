@@ -86,7 +86,7 @@ function TextForm(props: { id: string; value: { text: string; height: number; an
           step={5}
           value={angle}
           error={angleError}
-          help="0° : texte horizontal ; 90° : texte qui monte."
+
           onInput={(t) => {
             setAngle(t);
             const v = readNumber(t);
@@ -96,7 +96,7 @@ function TextForm(props: { id: string; value: { text: string; height: number; an
           }}
         />
       ) : (
-        <p class="field-help">Cliquez dans l’esquisse pour poser le texte (coin bas gauche de la première lettre).</p>
+        <p class="field-help">Cliquez pour poser le texte.</p>
       )}
     </div>
   );

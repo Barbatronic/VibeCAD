@@ -42,8 +42,7 @@ export function SubassemblyBar() {
       {current ? (
         <Callout kind="info">
           <p>
-            Vous modifiez le sous-assemblage <strong>« {current.name} »</strong> : insérez-y des pièces et reliez-les. Il s’insère ensuite comme un{' '}
-            <strong>bloc rigide</strong> (Insérer ▾){data.uses.length ? `, il est déjà dans ${data.uses.join(', ')}` : ''}.
+            Sous-assemblage <strong>« {current.name} »</strong>{data.uses.length ? ` · utilisé dans ${data.uses.join(', ')}` : ''}
           </p>
           <div class="subassembly-row">
             <input

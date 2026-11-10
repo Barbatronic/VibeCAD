@@ -17,7 +17,7 @@ export function ChamferPanel(props: FeaturePanelProps<ChamferFeature>) {
         label="Longueur du chanfrein"
         value={draft.fields.size ?? ''}
         error={draft.errors.size ?? null}
-        help="Longueur retirée de chaque côté de l’arête (biseau à 45°)."
+        help="De chaque côté de l’arête (45°)"
         autoFocus
         selectOnFocus
         onInput={(text) => {

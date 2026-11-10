@@ -1,7 +1,7 @@
 /** Panneau des paramètres d'une extrusion. */
 import type { ExtrudeFeature } from '../../domain/model';
 import { formatLength, parseLength } from '../../domain/units';
-import { Callout, LengthField, Segmented } from '../../ui/components/controls';
+import { LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
 import type { FeaturePanelProps } from '../panel-types';
@@ -34,11 +34,9 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
       ) : null}
       {upTo ? (
         picking ? (
-          <Callout kind="info">
-            <p>Cliquez dans la vue 3D une face plane de la pièce : l’extrusion s’arrêtera sur son plan, même s’il est incliné.</p>
-          </Callout>
+          <span class="field-help">Sélectionnez la face d’arrivée</span>
         ) : (
-          <span class="field-help">Face d’arrivée choisie dans la vue 3D. Cliquez « Jusqu’à une face… » pour en prendre une autre.</span>
+          <span class="field-help">Face d’arrivée choisie</span>
         )
       ) : (
         <>
@@ -47,7 +45,6 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
             label={f.params.direction === 'twoSides' ? 'Longueur côté normale' : 'Longueur d’extrusion (épaisseur)'}
             value={draft.fields.distance ?? ''}
             error={draft.errors.distance ?? null}
-            help="Épaisseur donnée au dessin, par exemple 5."
             autoFocus
             selectOnFocus
             onInput={(text) => {
@@ -73,7 +70,6 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
               label="Longueur du côté opposé"
               value={draft.fields.distance2 ?? ''}
               error={draft.errors.distance2 ?? null}
-              help="Matière ajoutée de l’autre côté du plan de l’esquisse."
               selectOnFocus
               onInput={(text) => {
                 const parsed = parseLength(text, { label: 'La longueur' });
@@ -88,10 +84,6 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
       <PreviewStatus status={props.status} kind="add" />
       <details class="advanced">
         <summary>Réglages avancés</summary>
-        <p class="field-help">
-          La normale de l’esquisse est la direction perpendiculaire à son plan (vers l’extérieur d’une face). « Côté opposé » inverse le sens ;
-          « Symétrique » répartit l’épaisseur de part et d’autre du plan.
-        </p>
       </details>
     </>
   );

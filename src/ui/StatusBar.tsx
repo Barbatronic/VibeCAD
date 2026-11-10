@@ -34,28 +34,28 @@ function helpText(s: AppState): string {
     case 'sketch':
       return s.mode.session.message?.text ?? TOOL_HELP[s.mode.session.tool];
     case 'feature':
-      return 'Réglez les paramètres à droite : l’aperçu se met à jour. Puis « Valider » (Entrée) ou « Annuler » (Échap).';
+      return 'Entrée : valider · Échap : annuler';
     case 'pick-support':
-      return 'Cliquez un plan coloré (XY, XZ ou YZ) ou une face plane, de cette pièce ou d’une autre pièce du projet (l’esquisse reste dans la pièce active et suit cette face). Échap pour annuler.';
+      return 'Plan ou face plane (de n’importe quelle pièce) · Échap : annuler';
     case 'measure':
-      return 'Cliquez une arête ou une face pour lire ses dimensions, puis un second élément pour la distance. Échap pour terminer.';
+      return 'Arête ou face ; un second élément pour la distance · Échap : terminer';
     case 'pick-fab-face':
       return s.mode.purpose === 'print'
-        ? 'Cliquez la face de la pièce qui doit être posée sur le plateau (une grande face plate est idéale). Échap pour annuler.'
-        : 'Cliquez la face plate qui donne le contour à découper. Échap pour annuler.';
+        ? 'Face posée sur le plateau · Échap : annuler'
+        : 'Face plate à découper · Échap : annuler';
     case 'fastener':
-      return 'Cliquez le bord d’un trou (ou l’intérieur du trou) : la taille vient du trou, selon la norme. Un clic par élément ; Échap pour terminer.';
+      return 'Bord d’un trou · Échap : terminer';
     case 'pick-sim-face':
       return s.mode.role === 'fixed'
-        ? 'Cliquez les faces où la pièce est tenue (vissée, collée, posée). Un second clic retire une face. Échap pour terminer.'
+        ? 'Faces fixées · second clic : retirer · Échap : terminer'
         : s.mode.role === 'keep'
-          ? 'Cliquez les faces à garder pleines quand on allège la pièce (bord d’un perçage…). Un second clic retire une face. Échap pour terminer.'
-          : 'Cliquez les faces où appuie la charge. Un second clic retire une face. Échap pour terminer.';
+          ? 'Faces à garder pleines · second clic : retirer · Échap : terminer'
+          : 'Faces chargées · second clic : retirer · Échap : terminer';
     case 'joint':
-      if (s.mode.lockedFace) return 'Face verrouillée : visez un de ses coins, puis cliquez. Relâchez Maj pour revenir.';
+      if (s.mode.lockedFace) return 'Face verrouillée : visez un coin · relâchez Maj pour revenir';
       return s.mode.moving
-        ? 'Liaison : cliquez maintenant le repère de la pièce de référence (face plane, bord d’un trou, arête ; maintenir Maj sur une face pour viser un sommet). Échap pour annuler.'
-        : 'Liaison : cliquez le repère de la pièce qui doit bouger (face plane, bord circulaire, arête droite ; maintenir Maj sur une face pour viser un sommet). Échap pour annuler.';
+        ? 'Liaison : repère sur la pièce de référence · Maj : viser un sommet · Échap : annuler'
+        : 'Liaison : repère sur la pièce mobile · Maj : viser un sommet · Échap : annuler';
     case 'model': {
       const hover = s.hover as ModelPick | null;
       if (hover && hover.kind !== 'vertex') return describePick(s, { ...hover, kind: hover.kind });

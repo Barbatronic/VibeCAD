@@ -57,7 +57,7 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await page.keyboard.press('Escape');
   await expect(page.locator('.topology')).toContainText('Faces à garder : 1');
   await run.click();
-  await expect(page.locator('.topology-result')).toContainText('rien à alléger', { timeout: 120_000 });
+  await expect(page.locator('.topology-result')).toContainText('Rien à alléger', { timeout: 120_000 });
   await page.locator('.topology').getByRole('button', { name: 'tout retirer' }).click();
   await expect(page.locator('.topology')).toContainText('Faces à garder : 0');
   await expect(page.locator('.topology-result')).toContainText('relancez l’allègement');

@@ -273,7 +273,7 @@ function HistorySection() {
           <Icon name={definitionOf(draft).icon} class="feature-icon" />
           <span class="feature-texts">
             <span class="name">{draft.name}</span>
-            <span class="summary">aperçu — validez à droite</span>
+            <span class="summary">aperçu</span>
           </span>
         </span>
       </div>
@@ -308,7 +308,7 @@ function HistorySection() {
       <div class="panel-body">
         {part.features.length === 0 && !draft ? (
           <p class="empty-hint">
-            Cette pièce est vide. Commencez par une <strong>esquisse</strong> : bouton « Esquisse » en haut, puis choisissez un plan.
+            Pièce vide.
           </p>
         ) : null}
         <ol class="feature-list" aria-label={`Étapes de construction de ${part.name}`}>

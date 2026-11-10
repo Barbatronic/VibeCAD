@@ -11,7 +11,7 @@ export function FoldPanel(props: FeaturePanelProps<FoldFeature>) {
   return (
     <>
       <SketchSelect value={f.params.sketchId} options={props.sketches} onChange={(sketchId) => update((x) => withParams(x, { sketchId }))} />
-      <span class="field-help">Le premier trait de l’esquisse, dessiné sur la tôle, est la ligne de pli.</span>
+      <span class="field-help">Ligne de pli : premier trait de l’esquisse</span>
       <Segmented<'left' | 'right'>
         label="Côté qui se plie"
         value={f.params.side}

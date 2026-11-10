@@ -22,13 +22,13 @@ export function SweepPanel(props: FeaturePanelProps<SweepFeature>) {
           </option>
         ))}
       </select>
-      <span class="field-help">{help}</span>
+      {help ? <span class="field-help">{help}</span> : null}
     </div>
   );
   return (
     <>
-      {select('draft-profile', 'Profil (contour fermé)', p.profileId, (profileId) => update((x) => withParams(x, { profileId })), 'La forme de la section, dessinée au début du chemin et de préférence perpendiculaire à lui.')}
-      {select('draft-path', 'Chemin', p.pathId, (pathId) => update((x) => withParams(x, { pathId })), 'Des segments et des arcs qui se suivent bout à bout (ou un cercle).')}
+      {select('draft-profile', 'Profil (contour fermé)', p.profileId, (profileId) => update((x) => withParams(x, { profileId })), '')}
+      {select('draft-path', 'Chemin', p.pathId, (pathId) => update((x) => withParams(x, { pathId })), '')}
       <OperationField what="Le balayage" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
       <PreviewStatus status={props.status} kind="modify" />
     </>

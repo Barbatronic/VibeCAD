@@ -71,8 +71,7 @@ export function ParametersSection() {
         <div class="panel-body">
           {params.length === 0 ? (
             <p class="field-help">
-              Des nombres nommés à utiliser dans les cotes et les champs (par exemple <code>largeur/2</code>). Changer un paramètre met à jour toute la
-              pièce.
+              Utilisables dans les cotes et les champs : <code>largeur/2</code>
             </p>
           ) : (
             <ul class="params-list">

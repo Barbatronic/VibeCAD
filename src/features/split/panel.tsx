@@ -69,7 +69,7 @@ export function SplitPanel(props: FeaturePanelProps<SplitFeature>) {
       />
       {picking ? (
         <Callout kind="info">
-          <p>Cliquez dans la vue 3D une face plane de la pièce : le plan de découpe lui est parallèle.</p>
+          <p>Sélectionnez une face plane</p>
         </Callout>
       ) : null}
       {p.plane.kind === 'datum' && !picking ? (

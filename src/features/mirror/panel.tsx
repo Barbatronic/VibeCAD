@@ -1,7 +1,7 @@
 /** Panneau des paramètres d'une symétrie. */
 import { PATTERN_SOURCE_TYPES } from '../../domain/document';
 import type { MirrorFeature, PlaneName } from '../../domain/model';
-import { Callout, Segmented } from '../../ui/components/controls';
+import { Segmented } from '../../ui/components/controls';
 import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
@@ -69,11 +69,9 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
         <DatumPlaneSelect planes={datums} value={p.plane.featureId} onChange={(featureId) => update((x) => withParams(x, { plane: { kind: 'datum', featureId } }))} />
       ) : null}
       {picking ? (
-        <Callout kind="info">
-          <p>Cliquez dans la vue 3D une face plane de la pièce : le reflet apparaît de l’autre côté de cette face.</p>
-        </Callout>
+        <span class="field-help">Sélectionnez une face plane</span>
       ) : p.plane.kind === 'face' ? (
-        <span class="field-help">Face choisie dans la vue 3D. Cliquez « Face… » pour en prendre une autre.</span>
+        <span class="field-help">Face choisie</span>
       ) : null}
       <PreviewStatus status={props.status} kind="modify" />
     </>

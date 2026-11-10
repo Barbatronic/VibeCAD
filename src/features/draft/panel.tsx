@@ -20,11 +20,11 @@ export function DraftPanel(props: FeaturePanelProps<DraftFeature>) {
     <>
       {picking ? (
         <Callout kind="info">
-          <p>Cliquez dans la vue 3D la face plane qui servira de plan neutre (souvent le dessous de la pièce) : là, les côtés ne bougent pas.</p>
+          <p>Sélectionnez le plan neutre (face qui ne bouge pas)</p>
         </Callout>
       ) : (
         <Callout kind="info">
-          <p>Cliquez dans la vue 3D les côtés à incliner. Cliquez-les à nouveau pour les retirer.</p>
+          <p>Sélectionnez les faces à incliner</p>
         </Callout>
       )}
       <div class="field">
@@ -44,7 +44,7 @@ export function DraftPanel(props: FeaturePanelProps<DraftFeature>) {
         unit="°"
         value={draft.fields.angle ?? ''}
         error={draft.errors.angle ?? null}
-        help="Quelques degrés suffisent (1 à 5°)."
+        help="1 à 5° en général"
         selectOnFocus
         onInput={(text) => {
           const v = readNumber(text);

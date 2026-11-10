@@ -2,8 +2,6 @@ import { TraceStampDialog } from './TraceStampDialog';
 import { useState } from 'preact/hooks';
 import { formatLength, formatVolume } from '../domain/units';
 import { NATIVE_EXTENSION } from '../io/native-format';
-import { STL_UNIT_NOTE } from '../io/stl';
-import { THREEMF_NOTE } from '../io/threemf';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../meta';
 import { useAppState, useController } from './context';
 import { Button, Callout, IconButton, Segmented } from './components/controls';
@@ -42,7 +40,7 @@ function OpenDialog() {
       {d.drafts.length > 0 ? (
         <>
           <h3>Brouillons récupérables</h3>
-          <p class="field-help">Modifications sauvegardées automatiquement mais pas encore enregistrées.</p>
+          <p class="field-help">Sauvegardés automatiquement, pas encore enregistrés</p>
           <ul class="project-list">
             {d.drafts.map((p) => (
               <li class="project-item" key={`draft-${p.projectId}`}>
@@ -60,7 +58,7 @@ function OpenDialog() {
       ) : null}
       <h3>Mes projets (dans ce navigateur)</h3>
       {!d.loading && d.projects.length === 0 ? (
-        <p class="empty-hint">Aucun projet enregistré pour l’instant. Utilisez « Enregistrer » (Ctrl+S) pour en garder un ici.</p>
+        <p class="empty-hint">Aucun projet enregistré</p>
       ) : null}
       <ul class="project-list">
         {d.projects.map((p) => (
@@ -87,12 +85,7 @@ function OpenDialog() {
           </li>
         ))}
       </ul>
-      <Callout kind="info">
-        <p>
-          Les projets sont gardés dans ce navigateur, sur cet ordinateur. Le navigateur peut les effacer (nettoyage, manque de place) : pour
-          garder une copie sûre ou changer d’ordinateur, utilisez « Enregistrer sous… » qui crée un fichier {NATIVE_EXTENSION}.
-        </p>
-      </Callout>
+      <p class="field-help">Gardés dans ce navigateur, qui peut les effacer. Copie sûre : Enregistrer sous… ({NATIVE_EXTENSION})</p>
     </Modal>
   );
 }
@@ -144,7 +137,7 @@ function ExportDialog() {
       {d.plate !== undefined ? (
         <>
           <p>
-            Le <strong>plateau préparé</strong> est exporté tel quel : chaque exemplaire avec son orientation, son échelle et sa place.
+            Plateau préparé, exporté tel quel.
           </p>
           {plates > 1 ? (
             <fieldset style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
@@ -164,8 +157,7 @@ function ExportDialog() {
         </>
       ) : d.assembly ? (
         <p>
-          Toutes les pièces de l’assemblage sont exportées <strong>à leur place</strong>, chacune avec son nom et sa couleur
-          ({assemblyCount} pièce{assemblyCount > 1 ? 's' : ''}).
+          Assemblage : {assemblyCount} pièce{assemblyCount > 1 ? 's' : ''} à leur place.
         </p>
       ) : (
       <fieldset style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
@@ -190,57 +182,19 @@ function ExportDialog() {
           })}
         </fieldset>
       )}
-      {d.format === 'freecad' ? (
-        <Callout kind="info">
-          <p>
-            Un <strong>script FreeCAD</strong> (.py) qui reconstruit le projet <strong>avec son historique</strong> : esquisses avec leurs contraintes et
-            cotes, protrusions, cavités, révolutions, congés, chanfreins, perçages, répétitions, symétries, paramètres (feuille « Parametres »). Les étapes
-            sans équivalent sont reprises comme formes figées{d.assembly ? ', et l’assemblage par des liens placés (sans les liaisons)' : ''}.
-          </p>
-          <p>
-            Dans FreeCAD : <strong>Macro → Macros…</strong>, choisissez le dossier du fichier, sélectionnez-le puis <strong>Exécuter</strong>. Le
-            projet s’ouvre et est enregistré en .FCStd à côté du script.
-          </p>
-        </Callout>
-      ) : d.format === 'fcstd' ? (
-        <Callout kind="info">
-          <p>
-            Un <strong>document FreeCAD</strong> (.FCStd) qui s’ouvre d’un double-clic, avec les formes finales, leurs noms
-            {d.assembly ? ' et l’arborescence de l’assemblage' : ''}. Pas d’historique : pour pouvoir modifier les cotes dans FreeCAD, choisissez
-            « FreeCAD ».
-          </p>
-        </Callout>
-      ) : isStep ? (
-        <Callout kind="info">
-          <p>
-            Le fichier STEP contient les <strong>solides</strong> (formes finales, en millimètres) avec le nom et la couleur de chaque pièce. Dans FreeCAD :
-            Fichier → Importer. Vous pourrez y ajouter de nouvelles opérations. L’historique de construction (esquisses, cotes) reste dans le projet{' '}
-            {NATIVE_EXTENSION} : ce n’est pas un arbre Part Design de FreeCAD.
-          </p>
-        </Callout>
-      ) : d.format === 'glb' ? (
-        <Callout kind="info">
-          <p>
-            Le GLB (glTF) sert à <strong>montrer</strong> le modèle : page web, présentation, visionneuse 3D, réalité augmentée. Il contient les pièces
-            en triangles avec leurs couleurs{d.assembly ? ', à leur place dans l’assemblage, visserie comprise' : ''}. Il ne garde ni l’historique ni les
-            formes exactes : pour la CAO, préférez le STEP ; pour l’impression, le 3MF.
-          </p>
-        </Callout>
-      ) : d.format === '3mf' ? (
-        <Callout kind="info">
-          <p>
-            {THREEMF_NOTE} Chaque pièce cochée devient un objet séparé. Comme le STL, c’est un maillage de triangles : il ne garde ni l’historique ni les
-            formes exactes.
-          </p>
-        </Callout>
-      ) : (
-        <Callout kind="warning">
-          <p>
-            {STL_UNIT_NOTE} Le STL est un maillage de triangles pour l’impression : il ne garde ni l’historique ni les formes exactes. Préférez le 3MF si
-            votre logiciel d’impression le lit.
-          </p>
-        </Callout>
-      )}
+      <p class="field-help">
+        {d.format === 'freecad'
+          ? 'Script .py avec l’historique · dans FreeCAD : Macro › Macros… › Exécuter'
+          : d.format === 'fcstd'
+            ? 'Formes finales, sans historique'
+            : isStep
+              ? 'Solides en millimètres, noms et couleurs, sans historique'
+              : d.format === 'glb'
+                ? 'Maillage coloré, pour la visualisation'
+                : d.format === '3mf'
+                  ? 'Maillage en millimètres, un objet par pièce'
+                  : 'Le STL n’a pas d’unité : réglez le slicer en millimètres.'}
+      </p>
     </Modal>
   );
 }
@@ -304,14 +258,9 @@ function ImportDialog() {
               Dans la pièce active (« {activeName} »)
             </label>
           </fieldset>
-          <Callout kind="info">
-            <p>
-              Le contenu du fichier est copié dans le projet : il restera disponible sans le fichier d’origine.{' '}
-              {d.format === 'stl'
-                ? 'Un STL ne contient que des triangles : les faces planes sont reconstituées, mais les surfaces courbes restent en facettes (on ne peut pas y faire un congé propre).'
-                : 'Un STEP contient la forme finale, pas les esquisses ni les étapes qui ont servi à le construire.'}
-            </p>
-          </Callout>
+          <p class="field-help">
+            Copié dans le projet · {d.format === 'stl' ? 'surfaces courbes en facettes' : 'forme finale, sans historique'}
+          </p>
         </>
       ) : null}
     </Modal>
@@ -340,7 +289,6 @@ function RecoveryDialog() {
         Le projet <strong>« {d.autosave.name} »</strong> a des modifications sauvegardées automatiquement le {when(d.autosave.savedAt)}
         {d.savedAt ? `, plus récentes que le dernier enregistrement (${when(d.savedAt)})` : ', jamais enregistrées'}.
       </p>
-      <p class="field-help">« Ignorer » supprime cette sauvegarde automatique.</p>
     </Modal>
   );
 }
@@ -533,7 +481,7 @@ function LibrariesPrefs() {
         </Button>
       </div>
       <p class="field-help">
-        Un dépôt GitHub (ou un dossier web) avec un catalogue index.json : un dossier par collection, chaque composant en .vibecad et/ou .step avec sa vignette. Voir le dépôt Barbatronic/VibeCAD-Components.
+        Dépôt GitHub ou dossier web avec un index.json (exemple : Barbatronic/VibeCAD-Components).
       </p>
     </fieldset>
   );
@@ -561,7 +509,7 @@ function PreferencesDialog() {
         </>
       }
     >
-      <p class="field-help">Ces réglages sont retenus sur cet ordinateur, pas dans le projet.</p>
+      <p class="field-help">Retenus sur cet appareil</p>
       <fieldset class="prefs-group">
         <legend>Niveau de l’interface</legend>
         {LEVELS.map((l) => (
@@ -575,7 +523,7 @@ function PreferencesDialog() {
             </span>
           </label>
         ))}
-        <p class="field-help">Un lien avec « ?niveau=expert » (ou débutant, intermédiaire) impose le niveau, par exemple pour une classe.</p>
+        <p class="field-help">Imposable par lien : ?niveau=expert</p>
       </fieldset>
       <fieldset class="prefs-group">
         <legend>Aide</legend>
@@ -590,7 +538,7 @@ function PreferencesDialog() {
           <input type="checkbox" checked={prefs.cat} onChange={() => c.setMascot({ hidden: prefs.cat, dismissed: null })} />
           <span>Afficher Java, le chat qui guide, donne des conseils et prévient des problèmes</span>
         </label>
-        <p class="field-help">Désactivé par défaut. Utile avec les plus jeunes ; les conseils restent dans la barre d’état et l’historique.</p>
+        
       </fieldset>
       <fieldset class="prefs-group">
         <legend>Apparence</legend>
@@ -696,7 +644,7 @@ function ChooseLevelDialog() {
   };
   return (
     <Modal title={`Bienvenue dans ${APP_NAME} !`} onClose={() => choose('expert')}>
-      <p>Choisissez le niveau de l’interface : il règle les outils montrés. Vous pourrez le changer à tout moment, en bas à droite (« Niveau »).</p>
+      <p>Niveau de l’interface (modifiable en bas à droite) :</p>
       <div class="level-choices">
         {LEVELS.map((l) => (
           <button key={l.id} type="button" class="level-choice" data-autofocus={l.id === 'expert' ? '' : undefined} onClick={() => choose(l.id)}>

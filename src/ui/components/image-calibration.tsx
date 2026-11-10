@@ -157,11 +157,11 @@ export function ImageCalibrationDialog(props: { mode: 'scale' | 'perspective'; r
   const hint =
     mode === 'scale'
       ? points.length < 2
-        ? `Cliquez le point ${points.length + 1} sur 2 : deux points dont vous connaissez la distance (les bouts d’une règle, une cote du plan).`
-        : 'Indiquez la distance réelle entre les deux points. (Un nouveau clic recommence.)'
+        ? `Point ${points.length + 1} sur 2 d’une distance connue`
+        : 'Distance réelle entre les deux points'
       : points.length < 4
-        ? `Cliquez le coin ${CORNER_NAMES[points.length]} (${points.length + 1} sur 4) d’un rectangle connu : feuille A4, face d’une boîte…`
-        : 'Indiquez la taille réelle de ce rectangle. (Un nouveau clic recommence.)';
+        ? `Coin ${CORNER_NAMES[points.length]} (${points.length + 1} sur 4) d’un rectangle connu`
+        : 'Taille réelle du rectangle';
   return (
     <Modal
       title={mode === 'scale' ? 'Mettre l’image à l’échelle' : 'Redresser l’image (perspective)'}
@@ -198,7 +198,7 @@ export function ImageCalibrationDialog(props: { mode: 'scale' | 'perspective'; r
         )}
       </div>
       <p class="field-help">
-        Molette : zoomer là où est la souris · glisser : déplacer l’image · glisser un point posé : l’ajuster · la loupe grossit 4 fois.{' '}
+        Molette : zoom · glisser : déplacer{' '}
         <button type="button" class="tl-link" onClick={() => setView(null)}>
           Tout voir
         </button>
@@ -214,7 +214,7 @@ export function ImageCalibrationDialog(props: { mode: 'scale' | 'perspective'; r
         />
         {mode === 'perspective' ? <LengthField id="calib-b" label="Hauteur du rectangle (coins 2 → 3)" value={b} error={b && !valB.ok ? valB.error : null} onInput={setB} onEnter={apply} /> : null}
       </div>
-      {mode === 'perspective' ? <p class="field-help">Exemple : une feuille A4 posée à côté de la pièce fait {formatLength(210)} × {formatLength(297)}.</p> : null}
+      {mode === 'perspective' ? <p class="field-help">A4 : {formatLength(210)} × {formatLength(297)}</p> : null}
     </Modal>
   );
 }

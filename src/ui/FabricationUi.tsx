@@ -94,10 +94,6 @@ function LaserSection() {
         <span id="laser-title">Découpe laser</span>
       </div>
       <div class="panel-body">
-        <p class="field-help">
-          Pour chaque pièce plate (une extrusion de l’épaisseur du matériau), indiquez le nombre d’exemplaires à découper et le matériau. Par défaut, le
-          matériau est celui qui a la même épaisseur que la pièce.
-        </p>
         <ul class="feature-list fab-list" aria-label="Pièces à découper">
           {data.items.map((i) => (
             <li key={i.partId} class="fab-item">
@@ -350,7 +346,7 @@ function LaserRightPanel() {
         {numberField('Espace entre les pièces', info.spacing, 'mm', (spacing) => set({ spacing }, 'Espace entre les pièces'), { step: 1, max: 50 })}
         <label class="checkbox-row">
           <input type="checkbox" checked={info.engrave} onChange={() => set({ engraveNames: !info.engrave }, 'Gravure des noms')} />
-          <span>Graver le nom des pièces (en bleu)</span>
+          <span>Graver le nom des pièces</span>
         </label>
         {info.warnings.map((w) => (
           <Callout key={w} kind="warning">
@@ -394,7 +390,7 @@ function PrintSection() {
         <span id="fab-title">Impression 3D</span>
       </div>
       <div class="panel-body">
-        {data.items.length === 0 ? <p class="empty-hint">Aucune pièce n’a encore de volume : construisez-en une dans l’onglet Pièces.</p> : null}
+        {data.items.length === 0 ? <p class="empty-hint">Aucune pièce avec un volume.</p> : null}
         <ul class="feature-list fab-list" aria-label="Pièces à imprimer">
           {data.items.map((i) => (
             <li key={i.partId} class="fab-item">
@@ -488,10 +484,6 @@ function PrintRightPanel() {
         <span>Plateau d’impression</span>
       </div>
       <div class="panel-content">
-        <p class="vocab">
-          <strong>Impression 3D</strong> : choisissez pour chaque pièce la face posée sur le plateau et le nombre d’exemplaires, puis envoyez le
-          plateau à votre logiciel d’impression, le slicer (OrcaSlicer, PrusaSlicer, Bambu Studio, Cura…).
-        </p>
         {info.ams.length ? (
           <div class="field" role="group" aria-labelledby="ams-title">
             <span class="field-label" id="ams-title">
@@ -518,9 +510,7 @@ function PrintRightPanel() {
               <Callout kind="warning">
                 {info.ams.length} matières à imprimer : un AMS n’en charge que {AMS_SLOTS}. Imprimez en plusieurs fois, ou regroupez des pièces dans la même matière.
               </Callout>
-            ) : (
-              <span class="field-help">Le slicer reçoit ces numéros : chargez chaque bobine dans l’emplacement indiqué.</span>
-            )}
+            ) : null}
           </div>
         ) : null}
         <div class="field">
@@ -565,11 +555,8 @@ function PrintRightPanel() {
               <strong>{info.count}</strong> pièce{info.count > 1 ? 's' : ''} sur le plateau · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
             </>
           )}
-          <span class="field-help"> (pièces pleines en PLA, {formatNumber(PLA_DENSITY, 2)} g/cm³ ; le remplissage du logiciel d’impression en utilise moins)</span>
+          <span class="field-help" title={`Pièces pleines en PLA (${formatNumber(PLA_DENSITY, 2)} g/cm³) : le remplissage du slicer en utilise moins.`}> (plein)</span>
         </p>
-        {info.plates > 1 ? (
-          <p class="field-help">Tout ne tient pas sur un seul plateau : les pièces suivantes passent sur un nouveau plateau, à imprimer l’un après l’autre.</p>
-        ) : null}
         {info.warnings.map((w) => (
           <Callout key={w} kind="warning">
             {w}
@@ -610,7 +597,6 @@ function DocsSection() {
         <span id="docs-title">Documents</span>
       </div>
       <div class="panel-body">
-        <p class="field-help">Choisissez une pièce (ici ou en cliquant dans la vue 3D) pour voir sa mise en plan.</p>
         <ul class="feature-list fab-list" aria-label="Pièces à mettre en plan">
           {data.parts.map((p) => (
             <li key={p.id}>
@@ -622,9 +608,6 @@ function DocsSection() {
           ))}
         </ul>
         <h3 class="sub-title">Nomenclature</h3>
-        <p class="field-help">
-          {data.bom.source === 'assembly' ? 'Pièces de l’assemblage et nombre d’exemplaires.' : 'Pas encore d’assemblage : une ligne par pièce.'}
-        </p>
         {data.bom.rows.length ? (
           <table class="bom-table" aria-label="Nomenclature">
             <thead>
@@ -708,10 +691,6 @@ function DocsRightPanel() {
         <span>Mise en plan</span>
       </div>
       <div class="panel-content">
-        <p class="vocab">
-          <strong>Mise en plan</strong> : la pièce vue de face, de dessus et de gauche, avec ses dimensions. Les traits interrompus montrent ce qui
-          est caché.
-        </p>
         {info.drawing ? (
           <figure class="sheet-preview">
             <DrawingPreview page={info.drawing.page} label={`Mise en plan de « ${info.name} »`} />
@@ -720,12 +699,8 @@ function DocsRightPanel() {
             </figcaption>
           </figure>
         ) : (
-          <Callout kind="info">Aucune pièce avec un volume : extrudez une esquisse pour obtenir une mise en plan.</Callout>
+          <p class="empty-hint">Aucune pièce avec un volume.</p>
         )}
-        <p class="vocab">
-          <strong>Gabarit 1:1</strong> : le contour d’une face plate de chaque pièce, à taille réelle, pour tracer ou découper à la main (carton,
-          bois). Imprimez-le en « taille réelle ».
-        </p>
       </div>
       <div class="panel-actions stack">
         <Button variant="primary" icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('pdf')}>
@@ -734,7 +709,7 @@ function DocsRightPanel() {
         <Button icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('svg')}>
           Mise en plan de cette pièce (SVG)
         </Button>
-        <Button icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportTemplate()}>
+        <Button icon="export" hint="Contour d’une face plate de chaque pièce, à imprimer en taille réelle" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportTemplate()}>
           Gabarit 1:1 (PDF)
         </Button>
       </div>

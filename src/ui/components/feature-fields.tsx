@@ -48,8 +48,7 @@ export function PreviewStatus(props: { status: FeatureStatus | null; kind: 'add'
     return (
       <Callout kind="success">
         <p>
-          Aperçu à jour : {props.kind === 'cut' ? 'le volume rouge sera retiré' : props.kind === 'add' ? 'le volume vert sera ajouté' : 'la pièce sera modifiée comme affiché'}.
-          Cliquez sur « Valider » pour l’enregistrer dans l’historique.
+          Aperçu à jour
         </p>
       </Callout>
     );
@@ -132,10 +131,10 @@ export function AxisField(props: { label: string; axis: PatternAxis; picking: bo
       />
       {props.picking ? (
         <Callout kind="info">
-          <p>Cliquez dans la vue 3D une arête droite (direction) ou le bord d’un trou (son axe).</p>
+          <p>Sélectionnez une arête droite ou le bord d’un trou</p>
         </Callout>
       ) : props.axis.kind === 'edge' ? (
-        <span class="field-help">Arête choisie dans la vue 3D. Cliquez « Arête… » pour en prendre une autre.</span>
+        <span class="field-help">Arête choisie</span>
       ) : props.axis.kind === 'datum' ? (
         <label class="field">
           <span class="field-label">Axe de construction</span>

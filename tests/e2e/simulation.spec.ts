@@ -97,7 +97,7 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   await page.locator('.right-panel').getByRole('button', { name: 'Calculer', exact: true }).click();
   await expect(page.locator('.sim-verdict')).toContainText('Risque de casser', { timeout: 60_000 });
   // 100 kg sur une poutre de PLA de 10 mm : elle plie de plusieurs centimètres, au-delà du calcul.
-  await expect(page.getByText('La pièce se déforme beaucoup')).toBeVisible();
+  await expect(page.getByText('Grandes déformations')).toBeVisible();
 
   // Les réglages sont enregistrés dans le projet (annulables).
   expect((await study(page)).load.value).toBe(100);

@@ -71,10 +71,9 @@ export function PrimitivePanel(props: FeaturePanelProps<PrimitiveFeature>) {
             </button>
           ))}
         </div>
-        <p class="field-help">{PRIMITIVE_EXPLANATIONS[p.shape]}</p>
       </div>
       <OperationField what="La forme" value={p.operation} onChange={(operation) => update((x) => withParams(x, { operation }))} />
-      {p.operation === 'cut' && !hasSolid ? <p class="field-help">Pour creuser, il faut d’abord un volume dans la pièce.</p> : null}
+      {p.operation === 'cut' && !hasSolid ? <p class="field-help">Rien à creuser : la pièce n’a pas de volume.</p> : null}
       {PRIMITIVE_FIELDS[p.shape].map((field, i) => dimension(field, i === 0))}
       <div class="field">
         <span class="field-label">{p.shape === 'box' ? 'Position du coin (mm)' : p.shape === 'cylinder' ? 'Position du centre de la base (mm)' : 'Position du centre (mm)'}</span>

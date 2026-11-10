@@ -12,7 +12,7 @@ test('sous-assemblage : créé, rempli, puis inséré comme un bloc dans l’ass
   // Nouveau sous-assemblage : il s'ouvre, vide.
   await page.click('#as-new-sub');
   await expect(page.locator('#as-context')).toHaveValue(/sa-/);
-  await expect(page.getByText('Vous modifiez le sous-assemblage')).toBeVisible();
+  await expect(page.locator('.callout').filter({ hasText: 'Sous-assemblage' })).toBeVisible();
   await page.locator('#as-sub-name').fill('Bloc plaque');
   await page.locator('#as-sub-name').press('Enter');
   await page.click('#as-insert');

@@ -1803,19 +1803,6 @@ details.advanced summary {
   margin: 0;
 }
 
-.vocab {
-  font-size: 14px;
-  color: var(--text-muted);
-  margin: 0 16px 10px;
-  padding: 8px 10px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-}
-
-.vocab strong {
-  color: var(--text);
-}
-
 .dof {
   display: flex;
   align-items: center;

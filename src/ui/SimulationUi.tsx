@@ -81,7 +81,7 @@ export function SimulationSection() {
         <span id="sim-title">Pièce étudiée</span>
       </div>
       <div class="panel-body">
-        {data.parts.length === 0 ? <p class="empty-hint">Aucune pièce n’a encore de volume : construisez-en une dans l’onglet Pièces.</p> : null}
+        {data.parts.length === 0 ? <p class="empty-hint">Aucune pièce avec un volume.</p> : null}
         <ul class="feature-list sim-parts" role="radiogroup" aria-label="Pièce étudiée">
           {data.parts.map((p) => (
             <li key={p.id}>
@@ -222,8 +222,7 @@ function StudyRightPanel() {
       <div class="panel-content">
         {info.assembly ? (
           <p class="field-help">
-            Les pièces de l’assemblage sont étudiées à leur place, toutes dans le même matériau. Celles qui se touchent sont considérées comme collées : ni
-            jeu, ni glissement. Cliquez les faces sur n’importe quelle pièce.
+            Assemblage : un seul matériau, pièces en contact collées.
           </p>
         ) : null}
         <label class="field">
@@ -341,12 +340,7 @@ function StudyRightPanel() {
             </div>
           ) : null}
           <p class="field-help">
-            {study.load.kind === 'mass' ? `Une masse de ${formatNumber(study.load.value, 3)} kg pèse ${formatNumber(study.load.value * 9.81, 1)} N. ` : ''}
-            {study.load.direction === 'custom'
-              ? 'Seule la direction compte (par exemple 0 ; 1 ; −1 : à 45°, vers +Y et vers le bas). La flèche dans la vue montre le sens choisi.'
-              : study.load.kind === 'mass'
-                ? 'Le poids tire vers le bas (−Z) : changez le sens si la pièce n’est pas utilisée dans la position où elle est dessinée.'
-                : 'La flèche dans la vue montre le sens choisi.'}
+            {study.load.kind === 'mass' ? `${formatNumber(study.load.value * 9.81, 1)} N` : null}
           </p>
         </div>
 
@@ -417,19 +411,16 @@ function StudyRightPanel() {
               </label>
             ) : null}
             <p class="field-help">
-              Résultat indicatif : la pièce est découpée en {formatNumber(result.cells, 0)} cubes de {formatNumber(result.cellSize, 2)} mm. Une pièce imprimée dépend aussi
-              du remplissage et du sens des couches.
+              Indicatif · {formatNumber(result.cells, 0)} cubes de {formatNumber(result.cellSize, 2)} mm
             </p>
             {result.ignoredCells > 0 ? (
               <Callout kind="warning">
-                Une partie de la matière ne touche aucune face fixée, même par une autre pièce : elle flotterait, elle a été laissée de côté (en bleu, sans
-                déformation). Vérifiez que les pièces se touchent vraiment.
+                De la matière ne touche aucune face fixée : ignorée (en bleu).
               </Callout>
             ) : null}
             {info.large ? (
               <Callout kind="warning">
-                La pièce se déforme beaucoup : ce calcul suppose de petites déformations, la forme réelle sera différente. Une pièce souple (TPU) plie souvent
-                ainsi sans casser.
+                Grandes déformations : hors du domaine du calcul, résultat faussé.
               </Callout>
             ) : null}
             {!result.converged ? <Callout kind="warning">Le calcul n’a pas tout à fait abouti : le résultat est approximatif.</Callout> : null}
@@ -486,11 +477,7 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
       <h3 id="topo-title" class="list-title">
         Alléger la pièce
       </h3>
-      <p class="field-help">
-        Avec les mêmes faces fixées et la même charge, le calcul cherche où la matière travaille vraiment, et garde seulement la part choisie : la pièce
-        la plus raide possible avec moins de matière (optimisation topologique). Astuce : les faces fixées et chargées restent pleines ; choisissez de
-        petites faces (le bord d’un trou, un plot) plutôt que de grandes faces, qui resteraient comme des murs.
-      </p>
+      <p class="field-help">Optimisation topologique, mêmes appuis et charge.</p>
       <div class="field sim-faces">
         <span class="field-label">
           <span class="sim-dot keep" aria-hidden="true" /> Faces à garder : {t.keep}
@@ -505,7 +492,7 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
             </button>
           ) : null}
         </div>
-        <span class="field-help">Facultatif : le bord d’un perçage, une face d’appui… restent pleins. Les faces fixées et chargées le sont déjà.</span>
+        <span class="field-help">Facultatif</span>
       </div>
       <div class="field topology-field">
         <label class="field-label" for="topo-fraction">
@@ -560,8 +547,7 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
           </div>
           {t.figures.saturated ? (
             <Callout kind="warning">
-              Les faces fixées et chargées occupent déjà toute la matière à garder : il n’y a rien à alléger. Choisissez des faces plus petites, ou gardez plus
-              de matière.
+              Rien à alléger : les faces fixées et chargées occupent toute la matière gardée.
             </Callout>
           ) : null}
           {t.figures.empty ? <Callout kind="warning">À ce seuil, il ne reste rien : baissez le seuil ou gardez plus de matière.</Callout> : null}
@@ -577,9 +563,8 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
             </Button>
           </div>
           <p class="field-help">
-            En orange, la matière utile ({formatNumber(t.figures.cells, 0)} cubes, {t.figures.iterations} étapes de calcul, {formatNumber(t.figures.seconds, 0)} s). C’est une
-            forme indicative, en petits cubes lissés : inspirez-vous-en pour redessiner la pièce (trous, nervures), ou imprimez-la telle quelle.
-            {t.figures.flat ? ' Pièce plate : la forme est la même dans toute l’épaisseur, les trous la traversent (comme à la découpe laser).' : ''}
+            {formatNumber(t.figures.cells, 0)} cubes · {t.figures.iterations} itérations · {formatNumber(t.figures.seconds, 0)} s
+            {t.figures.flat ? ' · pièce plate : forme identique dans l’épaisseur' : ''}
           </p>
         </div>
       ) : null}

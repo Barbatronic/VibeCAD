@@ -70,7 +70,6 @@ export function MaterialsSection() {
         <span id="mat-title">Matières des pièces</span>
       </div>
       <div class="panel-body">
-        <p class="field-help">Choisissez une pièce : elle s’affiche seule, et sa matière se règle à droite.</p>
         <ul class="mat-parts" aria-label="Pièces du projet">
           {data.map((p) => (
             <li key={p.id}>
@@ -134,7 +133,7 @@ function PartMaterial({ partId }: { partId: string }) {
           <optgroup label="Catalogue VibeCAD">{starters.map(sheetOption)}</optgroup>
         </select>
         <span class="field-help">
-          {sheet ? sheetSummary(sheet) : 'Matière non choisie (comptée en PLA)'}
+          {sheet ? sheetSummary(sheet) : 'Non choisie (masse comptée en PLA)'}
           {p.grams !== null ? ` · ≈ ${formatNumber(p.grams, 1)} g` : ''}
         </span>
       </label>
@@ -190,13 +189,7 @@ function Brush() {
           </option>
         ))}
       </select>
-      <span class="field-help">
-        {data.brush === null
-          ? 'Choisissez une matière, puis touchez dans la vue les faces ou les zones gravées à peindre : chaque zone d’une gravure peut avoir sa couleur.'
-          : data.brush === 'erase'
-            ? 'Touchez une face ou une zone gravée pour lui rendre la matière de sa pièce. Échap pour terminer.'
-            : `Touchez les faces ou zones gravées à peindre en ${chosen?.name ?? 'cette matière'}. Échap, ou la même couleur, pour terminer.`}
-      </span>
+      {data.brush !== null ? <span class="field-help">{data.brush === 'erase' ? 'Gomme' : chosen?.name} · Échap pour terminer</span> : null}
     </div>
   );
 }
@@ -304,7 +297,7 @@ function SheetEditor({ sheet, uses }: { sheet: MaterialSheet; uses: number }) {
         </label>
       ) : null}
       <div class="sheet-actions">
-        <Button small icon="save" onClick={() => c.keepSheetInCatalogue(sheet)}>
+        <Button small icon="save" hint="Disponible dans vos autres projets, sur cet appareil" onClick={() => c.keepSheetInCatalogue(sheet)}>
           Garder dans mon catalogue
         </Button>
         <Button small icon="trash" variant="danger" onClick={() => c.removeProjectSheet(sheet.id)}>
@@ -336,10 +329,7 @@ export function MaterialsRightPanel() {
       <div class="panel-content">
         {part ? <PartMaterial key={part} partId={part} /> : null}
         <h3 class="sub-title">Toutes les matières du projet</h3>
-        <p class="vocab">
-          <strong>Matière</strong> : ce dans quoi la pièce est fabriquée, et comment (impression 3D, découpe laser…). Sa couleur se voit dans tous les ateliers (bouton « Matières » des ateliers Pièces et Assemblage).
-        </p>
-        {data.project.length === 0 ? <p class="empty-hint">Aucune matière pour l’instant : choisissez-en une pour chaque pièce. Ici apparaissent celles que le projet utilise.</p> : null}
+        {data.project.length === 0 ? <p class="empty-hint">Aucune matière.</p> : null}
         <ul class="sheet-list" aria-label="Fiches du projet">
           {data.project.map((m) => (
             <li key={m.id}>
@@ -358,7 +348,7 @@ export function MaterialsRightPanel() {
         </ul>
         <div class="field">
           <span class="field-label">Mon catalogue (sur cet appareil)</span>
-          {data.mine.length === 0 ? <p class="field-help">Vide : « Garder dans mon catalogue » sur une fiche la rend disponible dans vos autres projets.</p> : null}
+          {data.mine.length === 0 ? <p class="field-help">Vide.</p> : null}
           <ul class="sheet-list" aria-label="Mon catalogue">
             {data.mine.map((m) => (
               <li key={m.id} class="sheet-item static">

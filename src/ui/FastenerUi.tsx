@@ -146,12 +146,11 @@ export function FastenerModePanel({ kind }: { kind: FastenerKind }) {
             ))}
           </select>
         </label>
-        <p class="field-help">{t.help}</p>
         <ol class="steps">
-          <li class="current">Cliquez le bord d’un trou, ou l’intérieur du trou. La tête se pose du côté du bord cliqué.</li>
-          <li>La taille vient du diamètre du trou (trou de passage ISO 273 ou perçage à tarauder) : impossible de poser une vis de mauvaise taille.</li>
-          <li>Cliquez une vis déjà posée pour ajouter un élément sur le même trou : une rondelle se glisse sous la tête. Pour un écrou, cliquez le bord de sortie du trou.</li>
+          <li class="current">Bord d’un trou (la tête se pose de ce côté)</li>
+          <li>Vis posée : rondelle sous la tête · bord de sortie : écrou</li>
         </ol>
+        <p class="field-help">Taille déduite du diamètre du trou.</p>
       </div>
       <div class="panel-actions">
         <Button icon="check" variant="primary" onClick={() => c.cancelFastener()}>
@@ -213,7 +212,6 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
       </div>
       <div class="panel-content">
         {data.issue ? <Callout kind="error">{FASTENER_ISSUE_MESSAGES[data.issue]}</Callout> : null}
-        <p class="field-help">{t.help}</p>
         <label class="field">
           <span class="field-label">Élément</span>
           <select
@@ -268,7 +266,7 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
           <input type="checkbox" checked={data.flip} onChange={() => c.updateFasteners(ids, { flip: !data.flip }, 'Retourner la visserie')} />
           <span>Retourner (de l’autre côté du bord du trou)</span>
         </label>
-        <p class="field-help">Seules les tailles et longueurs de la norme sont proposées. Le filetage n’est pas dessiné.</p>
+        <p class="field-help">Filetage non dessiné.</p>
       </div>
       <div class="panel-actions">
         <Button icon="trash" variant="danger" onClick={() => c.removeFasteners(ids)}>

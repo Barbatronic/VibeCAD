@@ -28,7 +28,7 @@ export function EngravePanel(props: FeaturePanelProps<EngraveFeature>) {
         label="Profondeur"
         value={draft.fields.depth ?? ''}
         error={draft.errors.depth ?? null}
-        help="0 : marquage en surface, sans enlever de matière. Plus : le dessin est aussi creusé."
+        help="0 : marquage en surface"
         min={0}
         autoFocus
         selectOnFocus
@@ -39,8 +39,7 @@ export function EngravePanel(props: FeaturePanelProps<EngraveFeature>) {
         onEnter={props.confirm}
         onEscape={props.cancel}
       />
-      <p class="field-help">En découpe laser, ce dessin est gravé au lieu d’être découpé : en surface pleine (remplissage) ou en trait (contour).</p>
-      {printed ? <p class="field-help">En impression 3D, chaque zone gravée se colore au pinceau, dans Fabrication › Matières.</p> : null}
+      {printed ? <p class="field-help">Couleurs : pinceau de Fabrication › Matières</p> : null}
       <PreviewStatus status={props.status} kind="cut" />
     </>
   );

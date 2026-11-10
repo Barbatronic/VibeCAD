@@ -15,10 +15,10 @@ export const HOLE_KIND_LABELS: Record<HoleKind, string> = {
 };
 
 export const HOLE_KIND_HELP: Record<HoleKind, string> = {
-  clearance: 'Trou de passage : la vis traverse librement et se serre avec un écrou ou dans la pièce suivante.',
-  counterbore: 'Trou lamé : un logement cylindrique cache la tête d’une vis CHC (tête cylindrique, ISO 4762).',
-  countersink: 'Trou fraisé : un cône à 90° reçoit la tête d’une vis FHC (tête fraisée, ISO 10642), qui affleure.',
-  tapped: 'Trou fileté : plus petit que la vis, pour qu’elle se visse dans la pièce. Au taraud (on fait le filet avant), ou directement dans le plastique imprimé (la vis forme son filet).',
+  clearance: 'La vis passe librement (ISO 273)',
+  counterbore: 'Pour tête cylindrique CHC (ISO 4762)',
+  countersink: 'Pour tête fraisée FHC (ISO 10642), cône à 90°',
+  tapped: 'Taraudé, ou vis directement dans le plastique',
 };
 
 export const HOLE_FIT_LABELS: Record<HoleFit, string> = { none: 'Sans jeu', fine: 'Serré', medium: 'Normal', coarse: 'Large', custom: 'Au choix' };

@@ -17,7 +17,6 @@ export function FilletPanel(props: FeaturePanelProps<FilletFeature>) {
         label="Rayon du congé"
         value={draft.fields.size ?? ''}
         error={draft.errors.size ?? null}
-        help="Plus le rayon est grand, plus l’arrondi est large. Il doit rester plus petit que l’épaisseur."
         autoFocus
         selectOnFocus
         onInput={(text) => {

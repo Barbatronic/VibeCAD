@@ -5,7 +5,7 @@ import { describeFaceRef } from '../features/sketch/support';
 import { definitionOf } from '../features/registry';
 import { findLine, findPoint } from '../sketch/model';
 import { extractProfiles } from '../sketch/profiles';
-import { deleteSelection, editDimension, setTool, TOOL_HELP, type SketchSession } from '../sketch/session';
+import { deleteSelection, editDimension, setTool, type SketchSession } from '../sketch/session';
 import { ISSUE_MESSAGES } from '../domain/status';
 import { useAppState, useController } from './context';
 import { AssemblyRightPanel } from './AssemblyUi';
@@ -47,19 +47,13 @@ function SketchPanel({ session }: { session: SketchSession }) {
         <span>{name}</span>
       </div>
       <p class="panel-intro">{supportText(session.sketch.support, part)}</p>
-      <p class="vocab">
-        <strong>Esquisse</strong> : le dessin plat, coté, à partir duquel on crée un volume.
-      </p>
       <div class="panel-content">
-        {message ? (
-          <Callout kind={message.kind === 'error' ? 'error' : message.kind === 'success' ? 'success' : 'info'}>
+        {/* Les invites de l'outil sont dans la barre d'état : ici, seulement erreurs et confirmations. */}
+        {message && message.kind !== 'info' ? (
+          <Callout kind={message.kind === 'error' ? 'error' : 'success'}>
             <p>{message.text}</p>
           </Callout>
-        ) : (
-          <Callout kind="info">
-            <p>{TOOL_HELP[session.tool]}</p>
-          </Callout>
-        )}
+        ) : null}
 
         {hasGeometry ? (
           !session.converged ? (
@@ -72,7 +66,6 @@ function SketchPanel({ session }: { session: SketchSession }) {
               <Icon name="ok" />
               <span>
                 Esquisse entièrement contrainte
-                <small>Forme et position sont fixées par les cotes : le dessin est complètement défini.</small>
               </span>
             </div>
           ) : (
@@ -80,7 +73,6 @@ function SketchPanel({ session }: { session: SketchSession }) {
               <Icon name="info" />
               <span>
                 Encore {session.dof} degré{session.dof > 1 ? 's' : ''} de liberté
-                <small>Ajoutez des cotes (outil Cote) pour fixer les dimensions et la position. Ce n’est pas obligatoire pour créer un volume.</small>
               </span>
             </div>
           )
@@ -91,7 +83,7 @@ function SketchPanel({ session }: { session: SketchSession }) {
             <Callout kind="success">
               <p>
                 Contour fermé ({profile.regions.length > 1 ? `${profile.regions.length} contours` : '1 contour'}
-                {profile.regions.some((r) => r.holes.length > 0) ? ', avec trou(s)' : ''}) : prêt pour une extrusion ou une poche.
+                {profile.regions.some((r) => r.holes.length > 0) ? ', avec trou(s)' : ''})
               </p>
             </Callout>
           ) : profile.code !== 'PROFILE_EMPTY' ? (
@@ -189,9 +181,6 @@ function FeaturePanel() {
         <Icon name={def.icon} />
         <span>{f.name}</span>
       </div>
-      <p class="vocab">
-        <strong>{def.label}</strong> : {def.explanation.split(' : ').slice(1).join(' : ') || def.explanation}
-      </p>
       <div class="panel-content">
         {Panel ? (
           <Panel
@@ -240,9 +229,9 @@ function PickSupportPanel() {
   );
   if (!mode) return null;
   const planes = [
-    { plane: 'XY' as const, icon: 'top', title: 'Plan XY — dessus', text: 'Le « sol » : on dessine à plat, vu de dessus.' },
-    { plane: 'XZ' as const, icon: 'front', title: 'Plan XZ — face', text: 'Un mur devant soi : on dessine vu de face.' },
-    { plane: 'YZ' as const, icon: 'right', title: 'Plan YZ — droite', text: 'Un mur sur le côté : on dessine vu de droite.' },
+    { plane: 'XY' as const, icon: 'top', title: 'Plan XY — dessus' },
+    { plane: 'XZ' as const, icon: 'front', title: 'Plan XZ — face' },
+    { plane: 'YZ' as const, icon: 'right', title: 'Plan YZ — droite' },
   ];
   return (
     <>
@@ -251,38 +240,23 @@ function PickSupportPanel() {
         <span>{repairName ? `Nouveau support pour « ${repairName} »` : 'Nouvelle esquisse'}</span>
       </div>
       <p class="panel-intro">
-        {repairName ? 'Choisissez le plan ou la face où reposer cette esquisse. Son dessin et ses cotes seront conservés.' : 'Choisissez où dessiner :'}
+        {repairName ? 'Plan ou face : le dessin et ses cotes sont conservés.' : hasSolid ? 'Un plan, ou une face plane de la pièce' : 'Un plan'}
       </p>
       <div class="panel-content">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {planes.map((p) => (
             <button key={p.plane} type="button" class="btn plane-choice" onClick={() => c.pickPlane(p.plane)}>
               <Icon name={p.icon} />
-              <span>
-                <strong>{p.title}</strong>
-                <br />
-                <span class="field-help">{p.text}</span>
-              </span>
+              <strong>{p.title}</strong>
             </button>
           ))}
           {datums.map((d) => (
             <button key={d.id} type="button" class="btn plane-choice" onClick={() => c.pickDatum(d.id)}>
               <Icon name="datum-plane" />
-              <span>
-                <strong>{d.name}</strong>
-                <br />
-                <span class="field-help">Plan de construction de la pièce.</span>
-              </span>
+              <strong>{d.name}</strong>
             </button>
           ))}
         </div>
-        <Callout kind="info">
-          <p>
-            {hasSolid
-              ? 'Vous pouvez aussi cliquer directement sur une face plane de la pièce, par exemple le dessus d’une plaque.'
-              : 'Vous pouvez aussi cliquer sur un des plans colorés dans la vue 3D.'}
-          </p>
-        </Callout>
       </div>
       <div class="panel-actions">
         <Button icon="close" onClick={() => c.cancelPickSupport()}>
@@ -303,7 +277,7 @@ function MeasurePanel() {
         <Icon name="measure" />
         <span>Mesurer</span>
       </div>
-      <p class="panel-intro">Cliquez une arête ou une face pour lire ses dimensions, puis un second élément pour mesurer la distance entre les deux.</p>
+      <p class="panel-intro">Une arête ou une face ; un second élément pour la distance.</p>
       <div class="panel-content">
         {mode.busy ? (
           <Callout kind="info">
@@ -317,9 +291,8 @@ function MeasurePanel() {
             ))}
           </div>
         ) : (
-          <p class="field-help">Aucun élément choisi pour l’instant.</p>
+          <p class="field-help">Aucun élément</p>
         )}
-        <p class="field-help">{mode.picks.length === 1 ? 'Cliquez un second élément pour mesurer une distance.' : ''}</p>
       </div>
       <div class="panel-actions">
         <Button variant="primary" icon="check" onClick={() => c.exitMeasure()}>

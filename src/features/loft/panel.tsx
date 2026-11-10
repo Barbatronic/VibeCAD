@@ -31,7 +31,7 @@ export function LoftPanel(props: FeaturePanelProps<LoftFeature>) {
               </span>
             </label>
           ))}
-        <span class="field-help">Chaque esquisse : un seul contour fermé, sur un plan différent. Ils sont reliés dans l’ordre de l’historique.</span>
+        <span class="field-help">Un contour fermé par esquisse, plans différents</span>
       </fieldset>
       <label class="checkbox-row">
         <input type="checkbox" checked={p.ruled} onChange={() => update((x) => withParams(x, { ruled: !x.params.ruled }))} />

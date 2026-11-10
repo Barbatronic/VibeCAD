@@ -52,7 +52,6 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
       label="Espacement"
       value={draft.fields[name] ?? ''}
       error={draft.errors[name] ?? null}
-      help="Distance entre deux exemplaires voisins (d’un centre au suivant)."
       onInput={(text) => {
         const parsed = parseLength(text, { label: 'L’espacement' });
         setField(name, text, parsed.ok ? { feature: apply(parsed.value) } : { error: parsed.error });
@@ -65,7 +64,7 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
     <>
       <fieldset class="field pattern-sources">
         <legend class="field-label">Étapes à répéter</legend>
-        {sources.length === 0 ? <span class="field-help">Aucune extrusion, poche ou révolution avant cette étape.</span> : null}
+        {sources.length === 0 ? <span class="field-help">Aucune étape à répéter</span> : null}
         {sources.map((s) => (
           <label key={s.id} class="checkbox-row">
             <input
@@ -78,10 +77,6 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
             <span>{s.name}</span>
           </label>
         ))}
-        <span class="field-help">
-          Le volume ajouté (extrusion, révolution) ou retiré (poche, trou) par chaque étape cochée est refait à chaque exemplaire. Cochez-en plusieurs pour les répéter
-          ensemble (un plot et son trou, par exemple).
-        </span>
       </fieldset>
       <Segmented<PatternFeature['params']['kind']>
         label="Disposition"
@@ -116,7 +111,6 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
             min={0}
             value={draft.fields.angle ?? ''}
             error={draft.errors.angle ?? null}
-            help="360° : exemplaires répartis sur un tour complet. Moins : le premier et le dernier sont séparés de cet angle."
             onInput={(text) => {
               const v = readNumber(text);
               const err = v === null ? 'L’angle doit être un nombre de degrés.' : validatePatternAngle(v);

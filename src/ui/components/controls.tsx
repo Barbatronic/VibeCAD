@@ -77,6 +77,8 @@ export function Button(props: {
   disabled?: boolean;
   /** Raison affichée quand le bouton est indisponible (il reste focalisable). */
   disabledReason?: string | null;
+  /** Info-bulle quand le bouton est disponible. */
+  hint?: string;
   small?: boolean;
   autoFocus?: boolean;
   type?: 'button' | 'submit';
@@ -93,7 +95,7 @@ export function Button(props: {
       class={`btn${props.variant && props.variant !== 'default' ? ` btn-${props.variant}` : ''}${props.small ? ' btn-small' : ''}`}
       disabled={props.disabled}
       aria-disabled={unavailable ? 'true' : undefined}
-      title={props.disabledReason ?? undefined}
+      title={props.disabledReason ?? props.hint}
       onClick={() => {
         if (!unavailable) props.onClick();
       }}

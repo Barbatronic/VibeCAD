@@ -1118,14 +1118,13 @@ export function ViewportHost() {
               <>
                 <span class="spinner" />
                 <strong>Préparation du moteur de calcul 3D…</strong>
-                <span class="field-help">Le noyau géométrique (Open CASCADE) se charge dans le navigateur. Rien n’est envoyé sur Internet.</span>
               </>
             ) : (
               <>
                 <Icon name="error" />
                 <strong>Le moteur de calcul n’a pas pu démarrer.</strong>
                 <span class="field-help">{kernel.message}</span>
-                <span class="field-help">Essayez de recharger la page, ou utilisez un navigateur récent (Firefox, Chrome, Edge, Safari).</span>
+                <span class="field-help">Rechargez la page, ou utilisez un navigateur récent.</span>
               </>
             )}
           </div>
