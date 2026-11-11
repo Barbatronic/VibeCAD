@@ -1711,7 +1711,7 @@ export function confirmEditor(s: SketchSession): SketchSession {
       message: success(`Cote modifiée : ${formatDimension(c.type, parsed.value)}.`),
     });
     if (!ok) return { ...s, editor: { ...ed, error: 'Cette valeur est impossible avec les autres contraintes. Essayez une autre valeur.' } };
-    return { ...session, editor: null };
+    return { ...session, editor: null, selection: [] };
   }
   const cand = ed.candidates[ed.choice];
   if (!cand) return { ...s, editor: null };
@@ -1731,7 +1731,8 @@ export function confirmEditor(s: SketchSession): SketchSession {
     message: success(`Cote ajoutée : ${formatDimension(constraint.type, parsed.value)}.`),
   });
   if (!ok) return { ...s, editor: { ...ed, error: 'Cette valeur est impossible avec les autres contraintes. Essayez une autre valeur.' } };
-  return { ...session, editor: null, picks: [], selection: [added.id] };
+  // Cote posée : rien ne reste sélectionné.
+  return { ...session, editor: null, picks: [], selection: [] };
 }
 
 /**
@@ -1979,13 +1980,20 @@ function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): Ske
     const lines = targets.filter((t) => t.kind === 'line');
     if (lines.length === 0) return null;
     let cur = s;
-    for (const line of lines) cur = tryAddConstraint(cur, { type: tool, line: line.id }, labelsFor(tool, { type: tool, line: line.id })).session;
-    return cur;
+    let any = false;
+    for (const line of lines) {
+      const r = tryAddConstraint(cur, { type: tool, line: line.id }, labelsFor(tool, { type: tool, line: line.id }));
+      cur = r.session;
+      any = any || r.added;
+    }
+    // Contrainte posée : la sélection a servi, elle est vidée.
+    return any ? { ...cur, selection: [] } : cur;
   }
   if (targets.length !== 2) return null;
   const built = buildConstraint(s, tool, targets);
   if (built.kind !== 'done') return null;
-  return tryAddConstraint(s, built.constraint, labelsFor(tool, built.constraint)).session;
+  const r = tryAddConstraint(s, built.constraint, labelsFor(tool, built.constraint));
+  return r.added ? { ...r.session, selection: [] } : r.session;
 }
 
 function constraintToolClick(s: SketchSession, p: Vec2, tool: ConstraintTool): SketchSession {
