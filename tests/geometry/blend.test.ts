@@ -6,6 +6,7 @@ import type { GeometryKernel } from '../../src/geometry/kernel';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 import { removeEntities } from '../../src/sketch/model';
 import { getKernel } from '../helpers/kernel';
+import { faceEdgeRefs, toggleFaceEdges } from '../../src/app/edges';
 import { buildPlateDocument, cornerEdge, setDimension, topFrontEdge } from '../helpers/plate';
 
 let kernel: GeometryKernel;
@@ -51,6 +52,40 @@ describe('congés et chanfreins', () => {
     expect(res2!.statuses.every((s) => s.state === 'ok')).toBe(true);
     expect(res2!.analysis!.volume).toBeCloseTo(12000 - Math.PI * 45 - 22.5, 4);
     expect(res2!.analysis!.bbox!.max.x).toBeCloseTo(80, 6);
+  });
+
+  it('chanfrein dissymétrique : deux longueurs, ou une longueur et un angle', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const part = findPart(base, ids.partId)!;
+    const chamfer = makeChamferFeature(base, part, [cornerEdge(base, ids.sketch1, ids.extrude)], 2);
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const volumeOf = (params: Partial<typeof chamfer.params>) => {
+      const [res] = engine.evaluateDocument(addFeature(base, ids.partId, { ...chamfer, params: { ...chamfer.params, ...params } }));
+      expect(res!.statuses.every((s) => s.state === 'ok')).toBe(true);
+      return res!.analysis!.volume;
+    };
+    // Coin vertical de 5 mm : triangle de côtés 2 et 4.
+    expect(volumeOf({ mode: 'twoDistances', distance2: 4 })).toBeCloseTo(PLATE - (5 * 2 * 4) / 2, 4);
+    expect(volumeOf({ mode: 'twoDistances', distance2: 4, flip: true })).toBeCloseTo(PLATE - (5 * 2 * 4) / 2, 4);
+    // 2 mm et 60° : l'autre côté vaut 2 × tan 60°.
+    expect(volumeOf({ mode: 'distanceAngle', angle: 60 })).toBeCloseTo(PLATE - (5 * 2 * 2 * Math.tan(Math.PI / 3)) / 2, 3);
+  });
+
+  it('une face cliquée donne toutes ses arêtes, face cliquée en premier', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = findPart(doc, ids.partId)!;
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const [res] = engine.evaluateDocument(doc);
+    const mesh = engine.meshOf(res!, { linearDeflection: 0.05, angularDeflection: 0.3 })!;
+    const top = mesh.faces.findIndex((f) => f.tags.some((t) => t.featureId === ids.extrude && t.role === 'end'));
+    const edges = faceEdgeRefs(mesh, top, part, null);
+    // Dessus de la plaque : quatre bords et le bord du trou.
+    expect(edges).toHaveLength(5);
+    expect(edges.every((e) => e.faces[0].featureId === ids.extrude && e.faces[0].role === 'end')).toBe(true);
+    // Recliquée : retirées toutes ; chanfreinées toutes à la fois.
+    expect(toggleFaceEdges(toggleFaceEdges([], edges), edges)).toEqual([]);
+    const [done] = engine.evaluateDocument(addFeature(doc, ids.partId, makeChamferFeature(doc, part, edges, 0.5)));
+    expect(done!.statuses.every((s) => s.state === 'ok')).toBe(true);
   });
 
   it('signale une arête disparue et indique une valeur trop grande', () => {

@@ -4928,3 +4928,41 @@ select optgroup {
   border-top: 1px solid var(--border);
 }
 
+
+/* Congé, chanfrein : liste des arêtes choisies, chacune retirable. */
+.edge-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.edge-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 2px 1px 8px;
+  font-size: 12.5px;
+}
+
+.edge-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.edge-list .edge-index {
+  flex-shrink: 0;
+  min-width: 1.4em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.edge-list .edge-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

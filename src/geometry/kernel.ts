@@ -164,6 +164,13 @@ export interface BlendRequest {
   edges: EdgeRef[];
   /** Rayon du congé ou longueur du chanfrein (mm). */
   size: number;
+  /**
+   * Chanfrein dissymétrique : `size` est mesurée sur la première face de chaque arête (la seconde
+   * si `flip`), et l'autre côté vaut `size2` (mm) ou se déduit de `angle` (degrés, depuis cette face).
+   */
+  size2?: number;
+  angle?: number;
+  flip?: boolean;
 }
 
 /** Coque : la pièce est vidée en gardant une paroi d'épaisseur `thickness` ; les faces `open` sont retirées. */

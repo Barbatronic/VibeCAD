@@ -455,8 +455,11 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       return { partId: p.id, ...lookOf(s, p, sec.mesh), visible: partShown(s, p) && !!sec.mesh, meshKey: sec.mesh ? `cut|${cut.key}|${p.id}` : null, mesh: sec.mesh, appearance: 'normal' };
     }
     const previewPart = mode === 'feature' && s.mode.kind === 'feature' && s.mode.draft.partId === p.id ? s.preview?.parts[p.id] : undefined;
+    // Choix des arêtes d'un congé ou d'un chanfrein : arêtes cachées en pointillés, cliquables.
+    const blending = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer');
+    const xrayPart = blending && s.blendXray && s.mode.kind === 'feature' ? s.mode.draft.partId : null;
     if (previewPart?.mesh && previewPart.meshKey) {
-      return { partId: p.id, ...lookOf(s, p, previewPart.mesh), visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview' };
+      return { partId: p.id, ...lookOf(s, p, previewPart.mesh), visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview', ...(xrayPart === p.id ? { xray: true } : {}) };
     }
     // Tôlerie dépliée : la tôle à plat à la place de la pièce pliée.
     const flat = s.unfolded && mode === 'model' ? d?.result.flat : undefined;
@@ -477,6 +480,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
               : d?.stale
                 ? 'stale'
                 : 'normal',
+      ...(xrayPart === p.id ? { xray: true } : {}),
     };
   });
   if (context) {

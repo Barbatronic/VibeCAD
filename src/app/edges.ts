@@ -42,6 +42,33 @@ export function blendIndexFromFacePick(mesh: MeshData, faceIndex: number, draftI
   return blendIndexOf(mesh, faceIndex, draftId);
 }
 
+/**
+ * Arêtes qui bordent une face cliquée (toutes à la fois), chacune avec la face cliquée en premier :
+ * un chanfrein dissymétrique y mesure sa première longueur. Arêtes non désignables ignorées.
+ */
+export function faceEdgeRefs(mesh: MeshData, faceIndex: number, part: Part, draftId: Id | null): EdgeRef[] {
+  const own = pickFaceReference(stableTags(mesh, faceIndex, draftId), part);
+  if (!own) return [];
+  const out: EdgeRef[] = [];
+  for (const edge of mesh.edges) {
+    if (edge.faces.length < 2 || !edge.faces.includes(faceIndex)) continue;
+    const other = edge.faces.find((f) => f !== faceIndex);
+    if (other === undefined) continue;
+    const ref = pickFaceReference(stableTags(mesh, other, draftId), part);
+    if (!ref) continue;
+    const e: EdgeRef = { faces: [own, ref] };
+    if (!out.some((x) => sameEdgeRef(x, e))) out.push(e);
+  }
+  return out;
+}
+
+/** Ajoute les arêtes d'une face ; si elles y sont déjà toutes, les retire. */
+export function toggleFaceEdges(edges: readonly EdgeRef[], faceEdges: readonly EdgeRef[]): EdgeRef[] {
+  const all = faceEdges.every((f) => edges.some((e) => sameEdgeRef(e, f)));
+  if (all) return edges.filter((e) => !faceEdges.some((f) => sameEdgeRef(e, f)));
+  return [...edges, ...faceEdges.filter((f) => !edges.some((e) => sameEdgeRef(e, f)))];
+}
+
 /** Ajoute l'arête si elle est absente, la retire sinon. */
 export function toggleEdge(edges: readonly EdgeRef[], ref: EdgeRef): EdgeRef[] {
   return edges.some((e) => sameEdgeRef(e, ref)) ? edges.filter((e) => !sameEdgeRef(e, ref)) : [...edges, ref];

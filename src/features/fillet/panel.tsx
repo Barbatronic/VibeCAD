@@ -11,7 +11,14 @@ export function FilletPanel(props: FeaturePanelProps<FilletFeature>) {
   const f = draft.feature;
   return (
     <>
-      <EdgeSelectionField edges={f.params.edges} verb="arrondir" onClear={() => update((x) => withParams(x, { edges: [] }))} />
+      <EdgeSelectionField
+        edges={f.params.edges}
+        part={props.part}
+        verb="arrondir"
+        xray
+        onClear={() => update((x) => withParams(x, { edges: [] }))}
+        onRemove={(i) => update((x) => withParams(x, { edges: x.params.edges.filter((_e, k) => k !== i) }))}
+      />
       <LengthField
         id="draft-size"
         label="Rayon du congé"

@@ -1186,7 +1186,18 @@ export interface FilletParams {
 /** Chanfrein : biseau symétrique de longueur constante sur des arêtes. */
 export interface ChamferParams {
   edges: EdgeRef[];
+  /** Longueur du biseau ; mesurée sur la première face de chaque arête si le chanfrein n'est pas symétrique. */
   distance: number;
+  /**
+   * Forme du biseau : absente, la même longueur des deux côtés (45°) ; `twoDistances`, `distance`
+   * sur la première face et `distance2` sur la seconde ; `distanceAngle`, `distance` sur la
+   * première face et `angle` (degrés) entre cette face et le biseau.
+   */
+  mode?: 'twoDistances' | 'distanceAngle';
+  distance2?: number;
+  angle?: number;
+  /** Échange les deux faces de chaque arête (la première distance passe de l'autre côté). */
+  flip?: boolean;
 }
 
 // ---------------------------------------------------------------------------

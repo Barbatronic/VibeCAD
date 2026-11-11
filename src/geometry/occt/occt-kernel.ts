@@ -8,6 +8,7 @@
  */
 import type {
   BRepAlgoAPI_BooleanOperation,
+  BRepFilletAPI_MakeChamfer,
   NCollection_List_TopoDS_Shape,
   OpenCascadeInstance,
   TopoDS_Edge,
@@ -1032,6 +1033,18 @@ export class OcctKernel implements GeometryKernel {
   }
 
   /** Arêtes communes aux faces désignées par une référence d'arête (vide si introuvable). */
+  /** Face portant l'étiquette `tag` et bordée par l'arête `edge`. */
+  private faceAlong(scope: Scope, shape: OcctShape, tag: FaceRef, edge: TopoDS_Edge): TopoDS_Face | null {
+    for (const f of shape.faces) {
+      if (!f.tags.some((t) => sameFaceTag(t, tag))) continue;
+      for (const e of this.explore(f.face, 'edge')) {
+        scope.track(e);
+        if (e.IsSame(edge)) return scope.track(this.oc.TopoDS.Face(f.face));
+      }
+    }
+    return null;
+  }
+
   private edgesForRef(scope: Scope, shape: OcctShape, ref: EdgeRef): TopoDS_Edge[] {
     const facesA = shape.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref.faces[0])));
     const facesB = shape.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref.faces[1])));
@@ -1128,15 +1141,25 @@ export class OcctKernel implements GeometryKernel {
         const resolved = request.edges.map((ref) => this.edgesForRef(scope, base, ref));
         const missing = resolved.flatMap((edges, i) => (edges.length === 0 ? [i] : []));
         if (missing.length > 0) return { status: 'edges-lost', missing };
+        const asymmetric = request.kind === 'chamfer' && (request.size2 !== undefined || request.angle !== undefined);
         const mk = scope.track(request.kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(base.shape) : new oc.BRepFilletAPI_MakeChamfer(base.shape));
         const added: TopoDS_Edge[] = [];
-        for (const edges of resolved) {
+        resolved.forEach((edges, index) => {
           for (const e of edges) {
             if (added.some((a) => a.IsSame(e))) continue;
-            mk.Add(request.size, e);
+            if (asymmetric) {
+              // Face où se mesure la première longueur : celle de la référence qui borde l'arête.
+              const ref = request.edges[index]!;
+              const face = this.faceAlong(scope, base, ref.faces[request.flip ? 1 : 0], e);
+              if (!face) continue;
+              const chamfer = mk as BRepFilletAPI_MakeChamfer;
+              if (request.angle !== undefined) chamfer.AddDA(request.size, (request.angle * Math.PI) / 180, e, face);
+              else chamfer.Add(request.size, request.size2!, e, face);
+            } else mk.Add(request.size, e);
             added.push(e);
           }
-        }
+        });
+        if (added.length === 0) return { status: 'failed', detail: 'Aucune arête utilisable.' };
         mk.Build(scope.track(new oc.Message_ProgressRange()));
         if (!mk.IsDone()) return { status: 'failed', detail: 'Construction impossible avec cette valeur.' };
         const result = mk.Shape();

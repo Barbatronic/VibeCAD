@@ -277,6 +277,8 @@ export interface AppState {
   brush: MaterialSheet | 'erase' | null;
   /** Épaisseur des arêtes des pièces, en pixels (préférence de l'appareil). */
   edgeWidth: number;
+  /** Choix des arêtes d'un congé ou d'un chanfrein : arêtes cachées montrées, cliquables (retenu sur l'appareil). */
+  blendXray: boolean;
   dialog: Dialog | null;
   helpOpen: boolean;
   /** Écran étroit : panneau des pièces ouvert par-dessus la vue (tiroir). */
@@ -371,6 +373,7 @@ export function initialState(): AppState {
     openSheet: null,
     brush: null,
     edgeWidth: 1,
+    blendXray: true,
     dialog: null,
     helpOpen: false,
     leftPanelOpen: false,

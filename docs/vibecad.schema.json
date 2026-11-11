@@ -929,7 +929,29 @@
                   }
                 },
                 "distance": {
-                  "$ref": "#/$defs/length"
+                  "$ref": "#/$defs/length",
+                  "description": "Longueur du biseau (sur la première face de chaque arête si le chanfrein est dissymétrique)."
+                },
+                "mode": {
+                  "enum": [
+                    "twoDistances",
+                    "distanceAngle"
+                  ],
+                  "description": "Absent : même longueur des deux côtés. twoDistances : distance puis distance2 ; distanceAngle : distance puis angle."
+                },
+                "distance2": {
+                  "$ref": "#/$defs/length",
+                  "description": "Longueur sur la seconde face (mode twoDistances)."
+                },
+                "angle": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "exclusiveMaximum": 90,
+                  "description": "Angle (degrés) entre la première face et le biseau (mode distanceAngle)."
+                },
+                "flip": {
+                  "type": "boolean",
+                  "description": "Échange les deux faces de chaque arête."
                 }
               }
             }

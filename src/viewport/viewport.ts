@@ -75,6 +75,8 @@ export interface ViewPartInput {
   faceColors?: string[];
   /** Hauteur de couche (mm) d'une pièce imprimée en 3D : stries d'impression sur les flancs. */
   layers?: number;
+  /** Arêtes cachées montrées en pointillés, et cliquables à travers la matière. */
+  xray?: boolean;
   /** Marquages de surface (gravures sans profondeur), en coordonnées de la pièce : traits et surfaces. */
   markings?: PartMarkings;
 }
@@ -532,7 +534,7 @@ export class Viewport {
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
       const edgeWidth = this.input.edgeWidth ?? 1;
-      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}`;
+      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}|${p.xray ? 'x' : ''}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -546,7 +548,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers, !!p.xray);
         obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;
@@ -1843,7 +1845,8 @@ export class Viewport {
           // l'écran n'est pas linéaire en 3D avec la perspective).
           ray.distanceSqToSegment(wa, wb, onRay, onSegment);
           const depth = onRay.distanceTo(ray.origin);
-          if (facePick && depth > facePick.distance + Math.max(0.5, facePick.distance * 0.002)) continue;
+          // Arêtes cachées montrées (choix des arêtes d'un congé) : cliquables à travers la matière.
+          if (!part.xray && facePick && depth > facePick.distance + Math.max(0.5, facePick.distance * 0.002)) continue;
           bestPx = d;
           best = { partId: part.partId, kind: 'edge', index: edgeIndex, point: { x: onSegment.x, y: onSegment.y, z: onSegment.z }, distance: depth };
         }

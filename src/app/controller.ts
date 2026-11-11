@@ -88,7 +88,7 @@ import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBac
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
-import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
+import { blendIndexFromFacePick, edgeRefFromPick, faceEdgeRefs, toggleEdge, toggleFaceEdges } from './edges';
 import type { Store } from './store';
 import { fastenerColor, fastenerForHole, fastenerMesh, holeFromPick, holeOf, placeFasteners, sizeFitsHole, type FastenerPlacement } from './fasteners';
 import { toGlb, type GltfMesh, type GltfNode } from '../io/gltf';
@@ -202,6 +202,7 @@ export class AppController {
     if (DISPLAY_STYLES.includes(style as DisplayStyle)) this.set({ displayStyle: style as DisplayStyle });
     const edgeWidth = await this.deps.projects?.getSetting<number>('edgeWidth').catch(() => undefined);
     if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
+    if ((await this.deps.projects?.getSetting<boolean>('blendXray').catch(() => undefined)) === false) this.set({ blendXray: false });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
     if (await this.deps.projects?.getSetting<boolean>('slicerHelpSeen').catch(() => undefined)) this.set({ slicerHelpSeen: true });
@@ -568,6 +569,12 @@ export class AppController {
   setDisplayStyle(displayStyle: DisplayStyle): void {
     this.set({ displayStyle });
     void this.deps.projects?.setSetting('displayStyle', displayStyle).catch(() => undefined);
+  }
+
+  /** Arêtes cachées montrées pendant le choix des arêtes d'un congé ou d'un chanfrein. */
+  setBlendXray(on: boolean): void {
+    this.set({ blendXray: on });
+    void this.deps.projects?.setSetting('blendXray', on).catch(() => undefined);
   }
 
   /** Épaisseur des arêtes des pièces (0,5 à 4 px), retenue sur l'appareil. */
@@ -1573,8 +1580,13 @@ export class AppController {
     if (pick.kind === 'face' && feature.type === 'flange') return this.explain('Cliquez une arête du bord de la tôle (le trait entre le dessus et le côté) pour y ajouter un bord plié.');
     if (pick.kind === 'face') {
       const index = blendIndexFromFacePick(mesh, pick.index, feature.id);
-      if (index === null) return this.explain('Cliquez une arête (le trait entre deux faces) pour l’ajouter.');
-      edges = edges.filter((_e, i) => i !== index);
+      if (index !== null) edges = edges.filter((_e, i) => i !== index);
+      else {
+        // Face cliquée : toutes ses arêtes (cliquée à nouveau : elles sont retirées).
+        const around = faceEdgeRefs(mesh, pick.index, part, feature.id);
+        if (around.length === 0) return this.explain('Les arêtes de cette face ne peuvent pas être choisies : cliquez-les une à une.');
+        edges = toggleFaceEdges(edges, around);
+      }
     } else {
       const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
       if (r.kind === 'invalid') return this.explain(r.reason);

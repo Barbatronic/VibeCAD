@@ -1056,8 +1056,22 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
       };
     case 'fillet':
       return { id, name, type, params: { edges: readEdges(v, p, pp), radius: num(v, p, 'radius', pp, { min: 0 }) } };
-    case 'chamfer':
-      return { id, name, type, params: { edges: readEdges(v, p, pp), distance: num(v, p, 'distance', pp, { min: 0 }) } };
+    case 'chamfer': {
+      const mode = p.mode === undefined ? undefined : oneOf(v, p, 'mode', pp, ['twoDistances', 'distanceAngle'] as const);
+      return {
+        id,
+        name,
+        type,
+        params: {
+          edges: readEdges(v, p, pp),
+          distance: num(v, p, 'distance', pp, { min: 0 }),
+          ...(mode ? { mode } : {}),
+          ...(p.distance2 !== undefined ? { distance2: num(v, p, 'distance2', pp, { min: 0 }) } : {}),
+          ...(p.angle !== undefined ? { angle: num(v, p, 'angle', pp, { min: 0, max: 90 }) } : {}),
+          ...(p.flip === true ? { flip: true } : {}),
+        },
+      };
+    }
   }
 }
 

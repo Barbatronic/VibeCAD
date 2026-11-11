@@ -160,7 +160,7 @@ function fcProperty(f: Feature, field: string): string | null {
     extrude: { distance: 'Length', distance2: 'Length2' },
     pocket: { distance: 'Length' },
     fillet: { size: 'Radius' },
-    chamfer: { size: 'Size' },
+    chamfer: { size: 'Size', distance2: 'Size2', angle: 'Angle' },
     revolve: { angle: 'Angle' },
     hole: { depth: 'Depth', diameter: 'Diameter', headDiameter: 'HoleCutDiameter', headDepth: 'HoleCutDepth' },
     pattern: { count: 'Occurrences', spacing: 'Offset', angle: 'Angle' },
@@ -573,7 +573,14 @@ export function freecadScript(input: FreecadInput): string {
           if (pts.length === 0) break;
           lines.push(`_tip = ${body}.Tip`, `_edges = sorted(set(edge_near(_tip, q) for q in [${pts.map(triple).join(', ')}]))`);
           lines.push(`${v} = ${body}.newObject(${py(f.type === 'fillet' ? 'PartDesign::Fillet' : 'PartDesign::Chamfer')}, ${py(f.type === 'fillet' ? 'Fillet' : 'Chamfer')})`, label, `${v}.Base = (_tip, _edges)`);
-          lines.push(f.type === 'fillet' ? `${v}.Radius = ${num(f.params.radius)}` : `${v}.Size = ${num(f.params.distance)}`);
+          if (f.type === 'fillet') lines.push(`${v}.Radius = ${num(f.params.radius)}`);
+          else {
+            const cp = f.params;
+            lines.push(`${v}.Size = ${num(cp.distance)}`);
+            if (cp.mode === 'twoDistances') lines.push(`${v}.ChamferType = "Two distances"`, `${v}.Size2 = ${num(cp.distance2 ?? cp.distance)}`);
+            if (cp.mode === 'distanceAngle') lines.push(`${v}.ChamferType = "Distance and Angle"`, `${v}.Angle = ${num(cp.angle ?? 45)}`);
+            if (cp.mode && cp.flip) lines.push(`${v}.FlipDirection = True`);
+          }
           exprs(f, v);
           objects.set(f.id, v);
           break;

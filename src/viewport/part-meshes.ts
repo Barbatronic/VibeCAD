@@ -129,6 +129,8 @@ export class PartObject {
     private readonly finish?: 'matte' | 'satin' | 'glossy' | 'metal',
     /** Hauteur de couche (mm) d'une pièce imprimée : stries visibles sur les flancs ; absente : surface lisse. */
     private readonly layers?: number,
+    /** Arêtes cachées par la matière montrées en pointillés (choix des arêtes d'un congé, d'un chanfrein). */
+    readonly xray = false,
   ) {
     // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
     const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
@@ -159,7 +161,7 @@ export class PartObject {
       this.edges.renderOrder = 11;
     }
     this.group.add(this.faces, this.edges);
-    if (styled === 'hidden-lines') {
+    if (styled === 'hidden-lines' || xray) {
       // Arêtes cachées : dessinées seulement là où la matière les masque (test de profondeur inversé).
       // (En mode transparent, les faces n'écrivent pas la profondeur : toutes les arêtes se voient.)
       const material = fatLineMaterial(palette.edge, Math.max(0.5, edgeWidth * 0.8), { dashed: true, opacity: 0.55 });
