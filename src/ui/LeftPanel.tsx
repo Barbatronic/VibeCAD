@@ -694,7 +694,7 @@ function HistorySection() {
           onClick={toggleFoldHistory}
         >
           <Icon name={foldHistory ? 'chevron-right' : 'chevron-down'} />
-          <span id="history-title">Historique — {part.name}</span>
+          <span id="history-title" title={`Historique — ${part.name}`}>Historique — {part.name}</span>
           {part.features.length > 1 ? <span class="count">{part.features.length}</span> : null}
         </button>
       </div>

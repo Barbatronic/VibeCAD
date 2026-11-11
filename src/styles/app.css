@@ -936,16 +936,18 @@ textarea {
 }
 
 /*
- * Liste des pièces : elle prend la place qu'il lui faut, puis défile. Quand tout ne tient pas, la
- * liste et l'historique se partagent le panneau au prorata, l'historique gardant au moins 30 %.
+ * Liste des pièces : elle prend la place qu'il lui faut jusqu'à 35 % du panneau, puis défile.
+ * Elle ne rétrécit pas sous cette hauteur : un long historique l'écrasait sinon jusqu'à une seule
+ * ligne coupée. L'historique défile dans la place restante.
  */
 .parts-section {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-height: 35%;
   position: relative;
 }
 
 .parts-section ~ .panel-section.grow {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 30%;
 }
 
@@ -4515,12 +4517,25 @@ select optgroup {
   cursor: pointer;
 }
 
+.panel-header .section-toggle {
+  min-width: 0;
+}
+
+.section-toggle > span:not(.count) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .section-toggle svg {
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
 }
 
 .section-toggle .count {
+  flex-shrink: 0;
   min-width: 20px;
   padding: 0 6px;
   border-radius: 999px;
