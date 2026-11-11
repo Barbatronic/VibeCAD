@@ -4,7 +4,7 @@ import { featureDependencies } from '../../src/features/registry';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 import { addFeature, createDocument, findPart, makeSketchFeature } from '../../src/domain/document';
 import { originPlaneFrame } from '../../src/math/frame';
-import { addCircle, addConstraint, addLine, addRectangle, emptySketch, findCircle, findLine, pointPosition, type NewConstraint } from '../../src/sketch/model';
+import { addCircle, addConstraint, addLine, addPoint, addRectangle, emptySketch, findCircle, findLine, pointPosition, type NewConstraint } from '../../src/sketch/model';
 import { extractProfiles } from '../../src/sketch/profiles';
 import {
   confirmEditor,
@@ -118,6 +118,39 @@ describe('nouvelles contraintes du solveur', () => {
     const w = lineVec(mid.sketch, l.lineId);
     expect(m.x).toBeCloseTo((w.a.x + w.b.x) / 2, 9);
     expect(m.y).toBeCloseTo((w.a.y + w.b.y) / 2, 9);
+  });
+
+  it('symétrie de deux points par rapport à un point, à un segment ou à un axe', () => {
+    const p1 = addPoint(emptySketch(XY), { x: 3, y: 4 });
+    const p2 = addPoint(p1.sketch, { x: 20, y: 11 });
+    const center = addPoint(p2.sketch, { x: 10, y: 5 });
+    const byCenter = solved(add(center.sketch, { type: 'symmetric', a: p1.id, b: p2.id, about: center.id }));
+    const a = pointPosition(byCenter.sketch, p1.id)!;
+    const b = pointPosition(byCenter.sketch, p2.id)!;
+    const m = pointPosition(byCenter.sketch, center.id)!;
+    expect((a.x + b.x) / 2).toBeCloseTo(m.x, 9);
+    expect((a.y + b.y) / 2).toBeCloseTo(m.y, 9);
+
+    // Axe oblique, entre les deux points : ab perpendiculaire à l'axe, son milieu sur l'axe.
+    const axis = addLine(p2.sketch, { x: 0, y: 6 }, { x: 30, y: 12 });
+    const byLine = solved(add(axis.sketch, { type: 'symmetric', a: p1.id, b: p2.id, about: axis.lineId }));
+    const u = pointPosition(byLine.sketch, p1.id)!;
+    const v = pointPosition(byLine.sketch, p2.id)!;
+    const l = lineVec(byLine.sketch, axis.lineId);
+    expect(((v.x - u.x) * l.x + (v.y - u.y) * l.y) / l.len / Math.hypot(v.x - u.x, v.y - u.y)).toBeCloseTo(0, 9);
+    const mx = (u.x + v.x) / 2 - l.a.x;
+    const my = (u.y + v.y) / 2 - l.a.y;
+    expect((l.x * my - l.y * mx) / l.len).toBeCloseTo(0, 9);
+    expect(Math.hypot(v.x - u.x, v.y - u.y)).toBeGreaterThan(1);
+
+    // Axe Y de l'esquisse : les deux points se font face de part et d'autre.
+    const byAxis = solved(add(p2.sketch, { type: 'symmetric', a: p1.id, b: p2.id, about: AXIS_Y_ID }));
+    const s1 = pointPosition(byAxis.sketch, p1.id)!;
+    const s2 = pointPosition(byAxis.sketch, p2.id)!;
+    expect(s1.x).toBeCloseTo(-s2.x, 9);
+    expect(s1.y).toBeCloseTo(s2.y, 9);
+    // Elle retire deux degrés de liberté : une seconde symétrie par rapport au même axe est redondante.
+    expect(classifyNewConstraint(byAxis.sketch, { id: 'k', type: 'symmetric', a: p2.id, b: p1.id, about: AXIS_Y_ID })).toBe('redundant');
   });
 
   it('cote d’angle (et angle supplémentaire) et distance point-segment', () => {
@@ -251,6 +284,33 @@ describe('outils de la session : cotes à deux éléments et contraintes', () =>
     expect(s.sketch.constraints.at(-1)).toMatchObject({ type: 'tangent', a: b, b: circle });
   });
 
+  it('outil Symétrie : deux points puis l’axe, ou un segment puis le centre', () => {
+    const p1 = addPoint(emptySketch(XY), { x: -12, y: 5 });
+    const p2 = addPoint(p1.sketch, { x: 18, y: 9 });
+    const seg = addLine(p2.sketch, { x: 10, y: 30 }, { x: 40, y: 50 });
+    const c = addPoint(seg.sketch, { x: 30, y: 30 });
+    let s = setPixelSize(setTool(createSession({ featureId: 'sk', partId: 'p', isNew: true, frame: originPlaneFrame('XY'), sketch: c.sketch }), 'symmetric'), 0.1);
+    s = click(s, -12, 5);
+    expect(s.message?.text).toMatch(/second point/);
+    s = click(s, 18, 9);
+    expect(s.message?.text).toMatch(/centre de symétrie/);
+    s = click(s, 0, -20);
+    expect(s.message?.kind).toBe('success');
+    expect(s.sketch.constraints.at(-1)).toMatchObject({ type: 'symmetric', a: p1.id, b: p2.id, about: AXIS_Y_ID });
+    const a = pointPosition(s.sketch, p1.id)!;
+    const b = pointPosition(s.sketch, p2.id)!;
+    expect(a.x).toBeCloseTo(-b.x, 9);
+    // Un segment : ses deux extrémités sont symétriques par rapport au point cliqué ensuite.
+    const l = lineVec(s.sketch, seg.lineId);
+    s = click(s, (l.a.x + l.b.x) / 2, (l.a.y + l.b.y) / 2);
+    s = click(s, 30, 30);
+    expect(s.sketch.constraints.at(-1)).toMatchObject({ type: 'symmetric', about: c.id });
+    const k = lineVec(s.sketch, seg.lineId);
+    const m = pointPosition(s.sketch, c.id)!;
+    expect((k.a.x + k.b.x) / 2).toBeCloseTo(m.x, 9);
+    expect((k.a.y + k.b.y) / 2).toBeCloseTo(m.y, 9);
+  });
+
   it('le mode construction produit des traits ignorés pour le volume, et se convertit', () => {
     let s = toggleConstruction(newSession());
     expect(s.construction).toBe(true);
@@ -316,6 +376,7 @@ describe('format natif', () => {
       { type: 'tangent', a: c1.circleId, b: c2.circleId, internal: true },
       { type: 'pointOn', point: c1.center, curve: a },
       { type: 'midpoint', point: c1.center, line: b },
+      { type: 'symmetric', a: c1.center, b: c2.center, about: a },
       { type: 'angle', a, b, value: 30, supplementary: true },
       { type: 'pointLineDistance', point: c1.center, line: a, value: 4 },
     ];

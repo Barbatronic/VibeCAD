@@ -28,6 +28,7 @@ const CONSTRAINT_NAMES: Record<SketchConstraint['type'], string> = {
   tangent: 'Tangence',
   pointOn: 'Point sur',
   midpoint: 'Milieu',
+  symmetric: 'Symétrie',
   angle: 'Angle',
   pointLineDistance: 'Distance point-segment',
 };

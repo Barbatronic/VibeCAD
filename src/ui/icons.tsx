@@ -610,6 +610,14 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="2.2" fill="currentColor" />
     </>
   ),
+  symmetric: (
+    <>
+      <path d="M12 3v18" stroke-dasharray="2.5 2" />
+      <path d="M5 12h4M15 12h4" />
+      <circle cx="5" cy="12" r="2.2" fill="currentColor" />
+      <circle cx="19" cy="12" r="2.2" fill="currentColor" />
+    </>
+  ),
   concentric: (
     <>
       <circle cx="12" cy="12" r="8" />

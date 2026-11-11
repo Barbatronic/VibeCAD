@@ -659,6 +659,11 @@ export type PointOnConstraint = ConstraintBase<'pointOn'> & { point: string; cur
 /** Point au milieu d'un segment. */
 export type MidpointConstraint = ConstraintBase<'midpoint'> & { point: string; line: string };
 /**
+ * Symétrie : les points `a` et `b` sont symétriques par rapport à `about`, un point (centre de
+ * symétrie) ou un segment / axe (axe de symétrie, pris comme droite infinie).
+ */
+export type SymmetricConstraint = ConstraintBase<'symmetric'> & { a: string; b: string; about: string };
+/**
  * Angle entre deux segments, en degrés (0 < value < 180), mesuré entre leurs directions
  * (du premier point vers le second) ; `supplementary` retourne la direction de `b`.
  */
@@ -683,6 +688,7 @@ export type SketchConstraint =
   | TangentConstraint
   | PointOnConstraint
   | MidpointConstraint
+  | SymmetricConstraint
   | AngleConstraint
   | PointLineDistanceConstraint;
 
@@ -726,6 +732,8 @@ export function constraintReferences(c: SketchConstraint): string[] {
     case 'midpoint':
     case 'pointLineDistance':
       return [c.point, c.line];
+    case 'symmetric':
+      return [c.a, c.b, c.about];
   }
 }
 

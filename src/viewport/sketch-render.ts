@@ -51,6 +51,7 @@ const GLYPHS: Partial<Record<ConstraintType, { text: string; label: string }>> =
   tangent: { text: 'T', label: 'tangence' },
   pointOn: { text: '∈', label: 'point sur la courbe' },
   midpoint: { text: 'M', label: 'milieu' },
+  symmetric: { text: 'S', label: 'symétrie' },
 };
 
 /** Éléments près desquels le symbole d'une contrainte est affiché. */
@@ -64,6 +65,7 @@ function glyphEntities(c: SketchConstraint): string[] {
     case 'collinear':
     case 'equal':
     case 'tangent':
+    case 'symmetric':
       return [c.a, c.b];
     case 'pointOn':
     case 'midpoint':

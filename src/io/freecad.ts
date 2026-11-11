@@ -401,6 +401,16 @@ function sketchCode(
         if (p && l !== null) push(c, `"Symmetric", ${l}, 1, ${l}, 2, ${p[0]}, ${p[1]}`);
         break;
       }
+      case 'symmetric': {
+        // Autour d'un point : les trois points ; autour d'une droite : les deux points puis la droite.
+        const a = P(c.a);
+        const b = P(c.b);
+        const m = P(c.about);
+        const l = m ? null : geo(c.about);
+        if (a && b && m) push(c, `"Symmetric", ${a[0]}, ${a[1]}, ${b[0]}, ${b[1]}, ${m[0]}, ${m[1]}`);
+        else if (a && b && l !== null) push(c, `"Symmetric", ${a[0]}, ${a[1]}, ${b[0]}, ${b[1]}, ${l}`);
+        break;
+      }
       case 'pointLineDistance': {
         const p = P(c.point);
         const l = geo(c.line);

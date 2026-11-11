@@ -79,8 +79,9 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   ↑ ↓ puis Entrée ou Tab), ou par le bouton **ƒ** du champ. Une cote calculée par une équation
   s'affiche dans une autre couleur, précédée d'un petit **ƒ**.
 - **Contraintes** : coïncidence, horizontal, vertical, parallèle, perpendiculaire, égalité,
-  colinéaire, tangence, point sur une courbe, milieu, concentrique ; par clics successifs ou sur
-  la sélection. Affichage du nombre de degrés de liberté (vert = entièrement contraint).
+  colinéaire, tangence, point sur une courbe, milieu, concentrique, **symétrie** (deux points, ou
+  les extrémités d'un segment, symétriques par rapport à un point ou à un axe : un segment ou un
+  axe de l'esquisse) ; par clics successifs ou sur la sélection. Affichage du nombre de degrés de liberté (vert = entièrement contraint).
 - **Points** (outil Point) : un point seul, placé par des cotes depuis l'origine ; il sert de
   centre à un perçage et d'accroche pour une liaison d'assemblage.
 - **Construction et projection** : traits de construction (pointillés, ignorés pour le volume) ;

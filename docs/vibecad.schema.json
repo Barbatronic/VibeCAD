@@ -2856,6 +2856,7 @@
                   "tangent",
                   "pointOn",
                   "midpoint",
+                  "symmetric",
                   "angle",
                   "pointLineDistance"
                 ]
@@ -2889,6 +2890,10 @@
               },
               "curve": {
                 "type": "string"
+              },
+              "about": {
+                "type": "string",
+                "description": "symétrie : centre (point) ou axe (segment) par rapport auquel a et b sont symétriques"
               },
               "internal": {
                 "type": "boolean"

@@ -72,6 +72,7 @@ export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'sketch:tangent': 'intermediaire',
   'sketch:pointOn': 'intermediaire',
   'sketch:midpoint': 'intermediaire',
+  'sketch:symmetric': 'intermediaire',
   'sketch:concentric': 'intermediaire',
   'sketch-construction': 'intermediaire',
   'workspace:assembly': 'intermediaire',

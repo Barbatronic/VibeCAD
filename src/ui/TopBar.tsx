@@ -343,6 +343,7 @@ const SKETCH_SECTORS: { name: string; title: string; fold: number; tools: { tool
       { tool: 'tangent', icon: 'tangent' },
       { tool: 'pointOn', icon: 'point-on' },
       { tool: 'midpoint', icon: 'midpoint' },
+      { tool: 'symmetric', icon: 'symmetric' },
       { tool: 'concentric', icon: 'concentric' },
     ],
   },

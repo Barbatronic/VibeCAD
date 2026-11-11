@@ -66,6 +66,7 @@ export type ConstraintTool =
   | 'tangent'
   | 'pointOn'
   | 'midpoint'
+  | 'symmetric'
   | 'concentric';
 
 export type SketchTool = 'select' | 'point' | 'line' | 'rectangle' | 'centerRectangle' | 'polygon' | 'circle' | 'arc' | 'arc3' | 'slot' | 'ellipse' | 'spline' | 'text' | 'stamp' | 'trim' | 'offset' | 'project' | 'dimension' | ConstraintTool;
@@ -81,6 +82,7 @@ export const CONSTRAINT_TOOLS: readonly ConstraintTool[] = [
   'tangent',
   'pointOn',
   'midpoint',
+  'symmetric',
   'concentric',
 ];
 
@@ -113,6 +115,7 @@ export const TOOL_LABELS: Record<SketchTool, string> = {
   tangent: 'Tangence',
   pointOn: 'Point sur',
   midpoint: 'Milieu',
+  symmetric: 'Symétrie',
   concentric: 'Concentrique',
 };
 
@@ -145,6 +148,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   tangent: 'Tangence : un segment et un cercle, ou deux cercles',
   pointOn: 'Point sur : un point, puis un segment ou un cercle',
   midpoint: 'Milieu : un point, puis un segment',
+  symmetric: 'Symétrie : deux points (ou un segment), puis le centre (un point) ou l’axe (un segment, un axe)',
   concentric: 'Concentrique : deux cercles',
 };
 
@@ -1961,6 +1965,8 @@ function buildConstraint(s: SketchSession, tool: ConstraintTool, picks: readonly
       if (a.kind === 'point' && b.kind === 'line') return done({ type: 'midpoint', point: a.id, line: b.id });
       if (a.kind === 'line' && b.kind === 'point') return done({ type: 'midpoint', point: b.id, line: a.id });
       return invalid('Choisissez un point et un segment.');
+    case 'symmetric':
+      return buildSymmetric(sk, picks);
     case 'concentric': {
       if (!isRound(a.kind)) return invalid('Cliquez sur un cercle ou un arc.');
       if (!b) return nextPick('Cliquez le second cercle ou arc.');
@@ -1971,6 +1977,39 @@ function buildConstraint(s: SketchSession, tool: ConstraintTool, picks: readonly
       return done({ type: 'coincident', a: ca.center, b: cb.center });
     }
   }
+}
+
+/**
+ * Symétrie : deux points (ou un segment, pour ses deux extrémités), puis le centre de symétrie (un
+ * point) ou l'axe (un segment ou un axe de l'esquisse).
+ */
+function buildSymmetric(sk: SketchParams, picks: readonly PickTarget[]): ConstraintBuild {
+  const [first, ...rest] = picks;
+  if (!first) return nextPick(TOOL_HELP.symmetric);
+  let pair: [string, string] | null = null;
+  let others: readonly PickTarget[] = rest;
+  if (first.kind === 'line' && !isSketchAxis(first.id)) {
+    const l = findLine(sk, first.id);
+    if (l) pair = [l.a, l.b];
+  } else if (first.kind === 'point') {
+    const second = rest[0];
+    if (!second) return nextPick('Cliquez le second point (son symétrique).');
+    if (second.kind !== 'point') return invalid('Cliquez un second point : la symétrie relie deux points.');
+    pair = [first.id, second.id];
+    others = rest.slice(1);
+  }
+  if (!pair) return invalid('Cliquez un point (ou un segment pour ses deux extrémités).');
+  const about = others[0];
+  if (!about) return nextPick('Cliquez le centre de symétrie (un point) ou l’axe de symétrie (un segment ou un axe).');
+  if (about.kind === 'point') {
+    if (pair.includes(about.id)) return invalid('Le centre doit être un autre point que les deux points symétriques.');
+    return done({ type: 'symmetric', a: pair[0], b: pair[1], about: about.id });
+  }
+  if (about.kind === 'line') {
+    if (about.id === first.id) return invalid('Un segment ne peut pas être son propre axe : cliquez un autre segment ou un axe.');
+    return done({ type: 'symmetric', a: pair[0], b: pair[1], about: about.id });
+  }
+  return invalid('Le centre de symétrie est un point, l’axe un segment ou un axe : pas un cercle.');
 }
 
 /** Applique une contrainte à la sélection courante ; renvoie null si la sélection ne convient pas. */
@@ -1988,6 +2027,16 @@ function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): Ske
     }
     // Contrainte posée : la sélection a servi, elle est vidée.
     return any ? { ...cur, selection: [] } : cur;
+  }
+  if (tool === 'symmetric') {
+    // Sélection faite au cadre : l'axe (un segment parmi des points) se reconnaît de lui-même.
+    const lines = targets.filter((t) => t.kind === 'line');
+    const ordered = targets.length === 3 && lines.length === 1 ? [...targets.filter((t) => t.kind !== 'line'), ...lines] : targets;
+    if (ordered.length < 2 || ordered.length > 3) return null;
+    const built = buildConstraint(s, tool, ordered);
+    if (built.kind !== 'done') return null;
+    const r = tryAddConstraint(s, built.constraint, labelsFor(tool, built.constraint));
+    return r.added ? { ...r.session, selection: [] } : r.session;
   }
   if (targets.length !== 2) return null;
   const built = buildConstraint(s, tool, targets);

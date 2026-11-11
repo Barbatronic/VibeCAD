@@ -1195,6 +1195,7 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
       'tangent',
       'pointOn',
       'midpoint',
+      'symmetric',
       'angle',
       'pointLineDistance',
     ] as const);
@@ -1237,6 +1238,9 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
         break;
       case 'midpoint':
         constraints.push({ id, type, point: str(v, o, 'point', cp), line: str(v, o, 'line', cp) });
+        break;
+      case 'symmetric':
+        constraints.push({ id, type, a: str(v, o, 'a', cp), b: str(v, o, 'b', cp), about: str(v, o, 'about', cp) });
         break;
       case 'angle':
         constraints.push({

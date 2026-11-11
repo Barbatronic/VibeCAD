@@ -556,6 +556,50 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
         );
         break;
       }
+      case 'symmetric': {
+        const pair = pointPair(c);
+        const center = points.get(c.about);
+        const axis = lines.get(c.about);
+        if (!pair) {
+          fail();
+          break;
+        }
+        const { a, b } = pair;
+        if (center) {
+          // Le centre est le milieu de a et b.
+          equations.push(
+            {
+              constraintId: c.id,
+              value: (q) => px(q, a) + px(q, b) - 2 * px(q, center),
+              gradient: (_q, add) => {
+                addX(a, add, 1);
+                addX(b, add, 1);
+                addX(center, add, -2);
+              },
+            },
+            {
+              constraintId: c.id,
+              value: (q) => py(q, a) + py(q, b) - 2 * py(q, center),
+              gradient: (_q, add) => {
+                addY(a, add, 1);
+                addY(b, add, 1);
+                addY(center, add, -2);
+              },
+            },
+          );
+        } else if (axis) {
+          // ab perpendiculaire à l'axe, et le milieu de ab sur l'axe.
+          equations.push(tangentAtContact(c.id, axis, b, a), {
+            constraintId: c.id,
+            value: (q) => (signedDistance(q, a, axis) + signedDistance(q, b, axis)) / 2,
+            gradient: (q, add) => {
+              signedDistanceGradient(q, a, axis, add, 0.5);
+              signedDistanceGradient(q, b, axis, add, 0.5);
+            },
+          });
+        } else fail();
+        break;
+      }
       case 'angle': {
         const la = lines.get(c.a);
         const lb = lines.get(c.b);
