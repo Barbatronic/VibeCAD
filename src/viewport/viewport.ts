@@ -77,6 +77,8 @@ export interface ViewPartInput {
   layers?: number;
   /** Arêtes cachées montrées en pointillés, et cliquables à travers la matière. */
   xray?: boolean;
+  /** Aperçu translucide (opération qui retire de la matière : la poche se voit dans la pièce). */
+  seeThrough?: boolean;
   /** Marquages de surface (gravures sans profondeur), en coordonnées de la pièce : traits et surfaces. */
   markings?: PartMarkings;
 }
@@ -133,6 +135,8 @@ export interface ViewportInput {
   displayStyle?: DisplayStyle;
   /** Épaisseur des arêtes des pièces (pixels). */
   edgeWidth?: number;
+  /** Vitesse du zoom à la molette (1 : normale). */
+  zoomSpeed?: number;
   /** Points d'accroche cliquables (points seuls des esquisses, pendant la création d'une liaison). */
   anchors?: { key: string; at: Vec3; title: string }[];
   /** Vue en coupe : faces de coupe, hachurées. */
@@ -477,6 +481,7 @@ export class Viewport {
   setInput(input: ViewportInput): void {
     const prevMode = this.input.mode;
     this.input = input;
+    this.rig.controls.zoomSpeed = input.zoomSpeed ?? 1;
     if (!this.gizmoDrag) this.placeGizmo();
     this.syncParts(input.parts);
     this.syncTool(input.tool);
@@ -534,7 +539,7 @@ export class Viewport {
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
       const edgeWidth = this.input.edgeWidth ?? 1;
-      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}|${p.xray ? 'x' : ''}`;
+      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}|${p.xray ? 'x' : ''}|${p.seeThrough ? 't' : ''}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -548,7 +553,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers, !!p.xray);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers, !!p.xray, !!p.seeThrough);
         obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;

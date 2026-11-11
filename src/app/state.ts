@@ -277,6 +277,8 @@ export interface AppState {
   brush: MaterialSheet | 'erase' | null;
   /** Épaisseur des arêtes des pièces, en pixels (préférence de l'appareil). */
   edgeWidth: number;
+  /** Vitesse du zoom à la molette (1 : normale), retenue sur l'appareil. */
+  zoomSpeed: number;
   /** Choix des arêtes d'un congé ou d'un chanfrein : arêtes cachées montrées, cliquables (retenu sur l'appareil). */
   blendXray: boolean;
   dialog: Dialog | null;
@@ -373,6 +375,7 @@ export function initialState(): AppState {
     openSheet: null,
     brush: null,
     edgeWidth: 1,
+    zoomSpeed: 1,
     blendXray: true,
     dialog: null,
     helpOpen: false,

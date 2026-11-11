@@ -202,6 +202,8 @@ export class AppController {
     if (DISPLAY_STYLES.includes(style as DisplayStyle)) this.set({ displayStyle: style as DisplayStyle });
     const edgeWidth = await this.deps.projects?.getSetting<number>('edgeWidth').catch(() => undefined);
     if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
+    const zoomSpeed = await this.deps.projects?.getSetting<number>('zoomSpeed').catch(() => undefined);
+    if (typeof zoomSpeed === 'number' && zoomSpeed >= 0.2 && zoomSpeed <= 4) this.set({ zoomSpeed });
     if ((await this.deps.projects?.getSetting<boolean>('blendXray').catch(() => undefined)) === false) this.set({ blendXray: false });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
@@ -569,6 +571,13 @@ export class AppController {
   setDisplayStyle(displayStyle: DisplayStyle): void {
     this.set({ displayStyle });
     void this.deps.projects?.setSetting('displayStyle', displayStyle).catch(() => undefined);
+  }
+
+  /** Vitesse du zoom à la molette (0,2 à 4 ; 1 : normale), retenue sur l'appareil. */
+  setZoomSpeed(speed: number): void {
+    const zoomSpeed = Math.max(0.2, Math.min(4, Math.round(speed * 10) / 10));
+    this.set({ zoomSpeed });
+    void this.deps.projects?.setSetting('zoomSpeed', zoomSpeed).catch(() => undefined);
   }
 
   /** Arêtes cachées montrées pendant le choix des arêtes d'un congé ou d'un chanfrein. */

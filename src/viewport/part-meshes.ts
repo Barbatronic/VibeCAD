@@ -131,6 +131,8 @@ export class PartObject {
     private readonly layers?: number,
     /** Arêtes cachées par la matière montrées en pointillés (choix des arêtes d'un congé, d'un chanfrein). */
     readonly xray = false,
+    /** Aperçu d'une opération qui retire de la matière : pièce translucide, la poche se voit dedans. */
+    private readonly seeThrough = false,
   ) {
     // Le mode d'affichage ne concerne que les pièces « normales » (pas les aperçus d'outil, fantômes…).
     const styled = appearance === 'normal' || appearance === 'preview' ? style : 'shaded-edges';
@@ -230,7 +232,9 @@ export class PartObject {
       case 'stale':
         return new MeshStandardMaterial({ ...base, color: palette.stale, transparent: true, opacity: 0.55 });
       case 'preview':
-        return new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.9 });
+        return this.seeThrough
+          ? new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.35, depthWrite: false })
+          : new MeshStandardMaterial({ ...base, color, transparent: true, opacity: 0.9 });
       case 'tool-add':
         return new MeshStandardMaterial({ ...base, color: palette.previewAdd, transparent: true, opacity: 0.38, depthWrite: false });
       case 'tool-cut':

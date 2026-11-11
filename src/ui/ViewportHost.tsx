@@ -459,7 +459,18 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     const blending = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer');
     const xrayPart = blending && s.blendXray && s.mode.kind === 'feature' ? s.mode.draft.partId : null;
     if (previewPart?.mesh && previewPart.meshKey) {
-      return { partId: p.id, ...lookOf(s, p, previewPart.mesh), visible: partShown(s, p), meshKey: `preview|${previewPart.meshKey}`, mesh: previewPart.mesh, appearance: 'preview', ...(xrayPart === p.id ? { xray: true } : {}) };
+      // Opération qui retire de la matière (poche, perçage…) : la pièce translucide laisse voir la poche.
+      const cutting = s.preview?.tool?.kind === 'cut' && s.preview.tool.partId === p.id;
+      return {
+        partId: p.id,
+        ...lookOf(s, p, previewPart.mesh),
+        visible: partShown(s, p),
+        meshKey: `preview|${previewPart.meshKey}`,
+        mesh: previewPart.mesh,
+        appearance: 'preview',
+        ...(xrayPart === p.id ? { xray: true } : {}),
+        ...(cutting ? { seeThrough: true } : {}),
+      };
     }
     // Tôlerie dépliée : la tôle à plat à la place de la pièce pliée.
     const flat = s.unfolded && mode === 'model' ? d?.result.flat : undefined;
@@ -794,6 +805,7 @@ function DisplayMenu() {
   const c = useController();
   const style = useAppState((s) => s.displayStyle);
   const edgeWidth = useAppState((s) => s.edgeWidth);
+  const zoomSpeed = useAppState((s) => s.zoomSpeed);
   const colorMode = useAppState((s) => s.colorMode);
   const inFabrication = useAppState((s) => s.workspace === 'fabrication');
   const [open, setOpen] = useState(false);
@@ -865,6 +877,12 @@ function DisplayMenu() {
               Épaisseur des arêtes : <strong>{formatNumber(edgeWidth, 1)} px</strong>
             </span>
             <input id="view-edge-width" type="range" min={0.5} max={4} step={0.5} value={edgeWidth} onInput={(e) => c.setEdgeWidth(Number((e.target as HTMLInputElement).value))} />
+          </label>
+          <label class="field edge-width-field">
+            <span class="field-label">
+              Vitesse du zoom (molette) : <strong>× {formatNumber(zoomSpeed, 1)}</strong>
+            </span>
+            <input id="view-zoom-speed" type="range" min={0.2} max={4} step={0.1} value={zoomSpeed} onInput={(e) => c.setZoomSpeed(Number((e.target as HTMLInputElement).value))} />
           </label>
         </div>
       ) : null}
@@ -982,9 +1000,9 @@ export function ViewportHost() {
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
       // Repère de la scène dans l'assemblage : celui de la pièce modifiée (onglet Pièces), l'assemblage lui-même sinon.
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
-      return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, ...(frame ? { frame } : {}) };
+      return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;
