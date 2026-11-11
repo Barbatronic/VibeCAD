@@ -1,5 +1,5 @@
 import { makeHoleFeature } from '../../domain/document';
-import { HOLE_HEADS, HOLES, nominal } from '../../domain/fasteners';
+import { HOLE_HEADS, HOLES, INSERTS, nominal } from '../../domain/fasteners';
 import type { HoleFeature, HoleFit, HoleKind } from '../../domain/model';
 import type { MetricSize } from '../../domain/fasteners';
 import { formatLength, formatNumber } from '../../domain/units';
@@ -18,7 +18,7 @@ export const HOLE_KIND_HELP: Record<HoleKind, string> = {
   clearance: 'La vis passe librement (ISO 273)',
   counterbore: 'Pour tête cylindrique CHC (ISO 4762)',
   countersink: 'Pour tête fraisée FHC (ISO 10642), cône à 90°',
-  tapped: 'Taraudé, ou vis directement dans le plastique',
+  tapped: 'Taraudé, vis directement dans le plastique, ou insert à chaud',
 };
 
 export const HOLE_FIT_LABELS: Record<HoleFit, string> = { none: 'Sans jeu', fine: 'Serré', medium: 'Normal', coarse: 'Large', custom: 'Au choix' };
@@ -31,7 +31,7 @@ export function plasticThreadDiameter(size: MetricSize): number {
 /** Diamètre du trou : diamètre libre, série ISO 273 choisie, ou perçage avant taraudage. */
 export function holeDiameter(p: HoleFeature['params']): number {
   if (p.size === 'custom') return p.diameter ?? 5;
-  if (p.kind === 'tapped') return p.thread === 'plastic' ? plasticThreadDiameter(p.size) : HOLES[p.size].tap;
+  if (p.kind === 'tapped') return p.thread === 'plastic' ? plasticThreadDiameter(p.size) : p.thread === 'insert' ? (INSERTS[p.size]?.hole ?? HOLES[p.size].tap) : HOLES[p.size].tap;
   if (p.fit === 'none') return nominal(p.size);
   return p.fit === 'custom' ? nominal(p.size) + (p.clearance ?? 0.3) : HOLES[p.size][p.fit];
 }
@@ -52,6 +52,9 @@ export function holeIssues(p: HoleFeature['params']): ParamIssue[] {
   if (p.size === 'custom' && !(p.diameter !== undefined && p.diameter > 0 && p.diameter <= 500)) issues.push({ field: 'diameter', message: 'Le diamètre du perçage doit être compris entre 0 et 500 mm.' });
   if (p.size !== 'custom' && p.kind !== 'tapped' && p.fit === 'custom' && !(p.clearance !== undefined && p.clearance >= -1 && p.clearance <= 5))
     issues.push({ field: 'clearance', message: 'Le jeu doit être compris entre −1 et 5 mm.' });
+  if (p.size !== 'custom' && p.kind === 'tapped' && p.thread === 'insert' && !INSERTS[p.size]) {
+    issues.push({ field: 'size', message: `Pas d’insert ${p.size} courant : choisissez ${Object.keys(INSERTS).join(', ')}.` });
+  }
   if (!p.through) {
     const d = validateDistance(p.depth, 'La profondeur');
     if (d) issues.push({ field: 'depth', message: d });

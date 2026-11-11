@@ -812,7 +812,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           headDepth: num(v, p, 'headDepth', pp),
           ...(p.diameter !== undefined ? { diameter: num(v, p, 'diameter', pp, { min: 0 }) } : {}),
           ...(p.clearance !== undefined ? { clearance: num(v, p, 'clearance', pp) } : {}),
-          ...(p.thread !== undefined ? { thread: oneOf(v, p, 'thread', pp, ['tap', 'plastic'] as const) } : {}),
+          ...(p.thread !== undefined ? { thread: oneOf(v, p, 'thread', pp, ['tap', 'plastic', 'insert'] as const) } : {}),
         },
       };
     case 'move': {

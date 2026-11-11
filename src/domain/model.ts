@@ -1124,7 +1124,7 @@ export interface HoleParams {
    * Trou fileté (`kind` = `tapped`) : `tap` (perçage avant taraudage, ISO) ou `plastic` (la vis
    * forme elle-même son filet dans le plastique imprimé : 0,9 × diamètre de la vis).
    */
-  thread?: 'tap' | 'plastic';
+  thread?: 'tap' | 'plastic' | 'insert';
   fit: HoleFit;
   /** Vrai : traverse toute la pièce ; sinon profondeur `depth` (mm). */
   through: boolean;

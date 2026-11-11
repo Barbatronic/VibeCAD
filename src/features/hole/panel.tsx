@@ -1,5 +1,5 @@
 /** Panneau du perçage normalisé : type de trou, taille de vis, profondeur, logement de tête. */
-import { METRIC_SIZES, type MetricSize } from '../../domain/fasteners';
+import { INSERTS, METRIC_SIZES, type MetricSize } from '../../domain/fasteners';
 import type { HoleFeature, HoleFit, HoleKind } from '../../domain/model';
 import { formatLength, formatNumber, parseLength, readNumber } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
@@ -76,12 +76,13 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
       {p.size === 'custom' ? (
         lengthField('diameter', 'Diamètre du perçage', 'Le trou a exactement ce diamètre (pour un axe, une tige, un aimant…).')
       ) : p.kind === 'tapped' ? (
-        <Segmented<'tap' | 'plastic'>
+        <Segmented<'tap' | 'plastic' | 'insert'>
           label="Filetage"
           value={p.thread ?? 'tap'}
           options={[
             { value: 'tap', label: 'Au taraud', title: 'Perçage avant taraudage de la norme ISO (M3 : 2,5 mm) : on fait le filet avec un taraud' },
             { value: 'plastic', label: 'Dans le plastique', title: 'La vis forme son filet en se vissant dans la pièce imprimée (0,9 × le diamètre de la vis)' },
+            { value: 'insert', label: 'Insert à chaud', title: 'Perçage conseillé pour un insert fileté en laiton posé au fer à souder (M3 : 4 mm)' },
           ]}
           onChange={(thread) => update((x) => withParams(x, { thread }))}
         />
@@ -98,7 +99,13 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
       )}
       <p class="field-help" id="draft-hole-figures">
         Trou Ø {formatNumber(d, 2)} mm
-        {p.size !== 'custom' && p.kind === 'tapped' ? (p.thread === 'plastic' ? ` (la vis ${p.size} forme son filet dans le plastique)` : ` (perçage avant taraudage ${p.size})`) : ''}
+        {p.size !== 'custom' && p.kind === 'tapped'
+          ? p.thread === 'plastic'
+            ? ` (la vis ${p.size} forme son filet dans le plastique)`
+            : p.thread === 'insert' && INSERTS[p.size]
+              ? ` (insert ${p.size} × ${formatNumber(INSERTS[p.size]!.k, 2)} mm : profondeur d’au moins ${formatNumber(INSERTS[p.size]!.k + 1, 2)} mm)`
+              : ` (perçage avant taraudage ${p.size})`
+          : ''}
         {p.size !== 'custom' && p.kind !== 'tapped' ? (p.fit === 'custom' ? ` (vis ${p.size} + jeu de ${formatNumber(p.clearance ?? 0.3, 2)} mm)` : p.fit === 'none' ? ` (diamètre de la vis ${p.size}, sans jeu)` : ` (série ${HOLE_FIT_LABELS[p.fit].toLowerCase()} ISO 273)`) : ''}
         {p.kind === 'counterbore' ? `, lamage Ø ${formatNumber(p.headDiameter, 2)} mm sur ${formatNumber(p.headDepth, 2)} mm` : ''}
         {p.kind === 'countersink' ? `, fraisure à 90° Ø ${formatNumber(p.headDiameter, 2)} mm` : ''}.

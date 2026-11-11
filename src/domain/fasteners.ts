@@ -5,7 +5,7 @@
  * pose : on ne peut pas mettre une vis de mauvaise taille.
  */
 
-export type FastenerKind = 'iso4762' | 'iso7380' | 'iso10642' | 'iso4017' | 'iso4032' | 'iso7089';
+export type FastenerKind = 'iso4762' | 'iso7380' | 'iso10642' | 'iso4017' | 'iso4032' | 'iso7089' | 'insert';
 
 export type MetricSize = 'M2' | 'M2.5' | 'M3' | 'M4' | 'M5' | 'M6' | 'M8' | 'M10' | 'M12';
 
@@ -17,7 +17,7 @@ export function nominal(size: MetricSize): number {
 }
 
 /** Forme de la tête (ou de la pièce, pour un écrou ou une rondelle). */
-export type HeadShape = 'socket' | 'button' | 'countersunk' | 'hex' | 'nut' | 'washer';
+export type HeadShape = 'socket' | 'button' | 'countersunk' | 'hex' | 'nut' | 'washer' | 'insert';
 
 export interface FastenerType {
   kind: FastenerKind;
@@ -31,6 +31,30 @@ export interface FastenerType {
   screw: boolean;
   /** Dimensions par taille : tête (ou pièce) de diamètre `d` (sur plats pour un hexagone), hauteur `k`. */
   dims: Partial<Record<MetricSize, { d: number; k: number; lengths?: [number, number] }>>;
+}
+
+/**
+ * Inserts filetés en laiton à poser à chaud (fer à souder) dans une pièce imprimée : diamètre
+ * extérieur `d`, longueur `k`, perçage conseillé `hole` (mm). Pas de norme : valeurs courantes des
+ * fiches fabricants (inserts « longueur standard »), à vérifier avec ceux que l'on utilise.
+ */
+export const INSERTS: Partial<Record<MetricSize, { d: number; k: number; hole: number }>> = {
+  M2: { d: 3.6, k: 4, hole: 3.2 },
+  M3: { d: 4.6, k: 5.7, hole: 4 },
+  M4: { d: 6.3, k: 8.1, hole: 5.6 },
+  M5: { d: 7, k: 9.5, hole: 6.4 },
+  M6: { d: 8, k: 12.7, hole: 8 },
+  M8: { d: 10, k: 12.7, hole: 9.7 },
+};
+
+/** Écart toléré (mm) entre un trou et le perçage conseillé d'un insert. */
+const INSERT_HOLE_TOLERANCE = 0.3;
+
+/** Tailles d'insert qui vont dans un trou de ce diamètre, la plus proche d'abord. */
+export function insertMatches(diameter: number): MetricSize[] {
+  return METRIC_SIZES.filter((s) => INSERTS[s] && Math.abs(diameter - INSERTS[s]!.hole) <= INSERT_HOLE_TOLERANCE).sort(
+    (a, b) => Math.abs(diameter - INSERTS[a]!.hole) - Math.abs(diameter - INSERTS[b]!.hole),
+  );
 }
 
 /** Longueurs normalisées des vis (mm). */
@@ -145,6 +169,15 @@ export const FASTENER_TYPES: FastenerType[] = [
       M12: { d: 24, k: 2.5 },
     },
   },
+  {
+    kind: 'insert',
+    label: 'Insert fileté',
+    standard: 'à chaud',
+    help: 'Insert en laiton enfoncé à chaud dans une pièce imprimée : il donne un filetage solide, qu’on peut visser et dévisser souvent.',
+    shape: 'insert',
+    screw: false,
+    dims: Object.fromEntries(Object.entries(INSERTS).map(([size, v]) => [size, { d: v!.d, k: v!.k }])),
+  },
 ];
 
 export function fastenerType(kind: FastenerKind): FastenerType {
@@ -192,7 +225,7 @@ export const HOLE_HEADS: Record<MetricSize, { counterbore: number; counterboreDe
   M12: { counterbore: 20, counterboreDepth: 12.4, countersink: 27.2 },
 };
 
-export type HoleMatch = { size: MetricSize; hole: 'clearance' | 'tapped' };
+export type HoleMatch = { size: MetricSize; hole: 'clearance' | 'tapped' | 'insert' };
 
 /**
  * Tailles de vis qui conviennent à un trou de ce diamètre, la plus probable d'abord : trou de
@@ -229,7 +262,7 @@ export function holeAdvice(diameter: number): string {
  * normalisée qui dépasse d'au moins un diamètre (de quoi prendre un écrou ou se visser dans la pièce
  * suivante) ; dans un trou taraudé, celle qui remplit au mieux le trou.
  */
-export function suggestedLength(kind: FastenerKind, size: MetricSize, depth: number, hole: 'clearance' | 'tapped'): number | null {
+export function suggestedLength(kind: FastenerKind, size: MetricSize, depth: number, hole: HoleMatch['hole']): number | null {
   const lengths = lengthsOf(kind, size);
   if (lengths.length === 0) return null;
   const head = kind === 'iso10642' ? fastenerType(kind).dims[size]!.k : 0;
@@ -238,8 +271,9 @@ export function suggestedLength(kind: FastenerKind, size: MetricSize, depth: num
   return fit ?? lengths[lengths.length - 1]!;
 }
 
-/** Désignation normalisée : « Vis CHC ISO 4762 M3 × 12 », « Écrou H ISO 4032 M3 ». */
+/** Désignation : « Vis CHC ISO 4762 M3 × 12 », « Écrou H ISO 4032 M3 », « Insert fileté à chaud M3 × 5,7 ». */
 export function designation(kind: FastenerKind, size: MetricSize, length?: number): string {
   const t = fastenerType(kind);
-  return `${t.label} ${t.standard} ${size}${t.screw && length ? ` × ${length}` : ''}`;
+  const insert = t.shape === 'insert' ? INSERTS[size]?.k : undefined;
+  return `${t.label} ${t.standard} ${size}${t.screw && length ? ` × ${length}` : insert ? ` × ${String(insert).replace('.', ',')}` : ''}`;
 }

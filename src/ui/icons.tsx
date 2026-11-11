@@ -688,6 +688,14 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="3.6" />
     </>
   ),
+  /** Insert fileté : douille moletée, taraudée au centre. */
+  'fastener-insert': (
+    <>
+      <path d="M7 4h10v16H7z" />
+      <path d="M7 9h10M7 14h10" opacity="0.6" />
+      <path d="M10.5 4v16M13.5 4v16" opacity="0.5" />
+    </>
+  ),
   'fastener-iso7089': (
     <>
       <circle cx="12" cy="12" r="8.5" />

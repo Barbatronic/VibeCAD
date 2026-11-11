@@ -9,6 +9,8 @@ import {
   fastenerType,
   holeMatches,
   HOLES,
+  INSERTS,
+  insertMatches,
   matchCountersink,
   nominal,
   sizesOf,
@@ -316,6 +318,33 @@ export function fastenerProfile(kind: FastenerKind, size: MetricSize, length = 0
         closed: true,
       };
     }
+    case 'insert': {
+      // Insert : dans le trou, affleurant (de −k à 0) ; deux gorges pour évoquer le moletage, entrée chanfreinée.
+      const r = dims.d / 2;
+      const groove = Math.max(R + 0.15, 0.86 * r);
+      const c = 0.06 * dims.k;
+      const w = 0.12 * dims.k;
+      const z = (f: number) => -dims.k + f * dims.k;
+      return {
+        rings: [
+          { r: R, z: -dims.k },
+          { r: r - c, z: -dims.k },
+          { r, z: -dims.k + c },
+          { r, z: z(0.3) },
+          { r: groove, z: z(0.3) },
+          { r: groove, z: z(0.3) + w },
+          { r, z: z(0.3) + w },
+          { r, z: z(0.62) },
+          { r: groove, z: z(0.62) },
+          { r: groove, z: z(0.62) + w },
+          { r, z: z(0.62) + w },
+          { r, z: 0 },
+          { r: R + c, z: 0 },
+          { r: R, z: -c },
+        ],
+        closed: true,
+      };
+    }
     case 'washer': {
       const inner = HOLES[size].fine / 2;
       return { rings: [{ r: inner, z: 0 }, { r: dims.d / 2, z: 0 }, { r: dims.d / 2, z: dims.k }, { r: inner, z: dims.k }], closed: true };
@@ -411,6 +440,8 @@ export function holeOf(mesh: MeshData, edge: EdgeRef): { diameter: number; depth
 export function sizesForHole(kind: FastenerKind, diameter: number): HoleMatch[] {
   const allowed = new Set(sizesOf(kind));
   const out: HoleMatch[] = [];
+  // Insert : seulement dans un trou percé pour lui (pas dans un trou de passage ni à tarauder).
+  if (kind === 'insert') return insertMatches(diameter).map((size) => ({ size, hole: 'insert' as const }));
   if (kind === 'iso10642') {
     const cs = matchCountersink(diameter);
     if (cs) out.push({ size: cs, hole: 'clearance' });
@@ -423,6 +454,13 @@ export function sizesForHole(kind: FastenerKind, diameter: number): HoleMatch[] 
 export function fastenerForHole(kind: FastenerKind, hole: HoleInfo): Omit<AssemblyFastener, 'id' | 'at'> | { reason: string } {
   const options = sizesForHole(kind, hole.diameter);
   const first = options[0];
+  if (!first && kind === 'insert') {
+    const d = hole.diameter.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+    const list = Object.entries(INSERTS)
+      .map(([size, v]) => `${size} → ${String(v!.hole).replace('.', ',')} mm`)
+      .join(', ');
+    return { reason: `Ce trou fait ${d} mm : aucun insert ne va dedans. Perçages conseillés : ${list} (Perçage › Fileté › Insert à chaud).` };
+  }
   if (!first) {
     const t = fastenerType(kind);
     const other = holeMatches(hole.diameter)[0];

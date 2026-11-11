@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { FASTENER_ISSUE_MESSAGES, fastenerGroups, holeOf, sizesForHole } from '../app/fasteners';
-import { designation, FASTENER_TYPES, fastenerType, HOLES, lengthsOf, sizesOf, type FastenerKind, type MetricSize } from '../domain/fasteners';
+import { designation, FASTENER_TYPES, fastenerType, HOLES, INSERTS, lengthsOf, sizesOf, type FastenerKind, type MetricSize } from '../domain/fasteners';
 import { formatNumber } from '../domain/units';
 import { useAppState, useController } from './context';
 import { Button, Callout, IconButton } from './components/controls';
@@ -39,7 +39,7 @@ export function FastenerMenu() {
         aria-expanded={open}
         aria-pressed={!!active}
         aria-disabled={count ? undefined : 'true'}
-        title={count ? 'Poser des vis, écrous et rondelles normalisés dans les trous des pièces' : 'Insérez d’abord une pièce percée.'}
+        title={count ? 'Poser des vis, écrous, rondelles et inserts dans les trous des pièces' : 'Insérez d’abord une pièce percée.'}
         onClick={() => {
           if (!count) return c.explain('Insérez d’abord une pièce percée dans l’assemblage.');
           if (active) return c.cancelFastener();
@@ -258,7 +258,7 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
         {data.hole ? (
           <p class="field-help" id="fastener-hole">
             Trou de « {data.part} » : Ø {mm(data.hole.diameter)}
-            {data.holeKind === 'tapped' ? ` (à tarauder ${data.size})` : data.holeKind === 'clearance' ? ` (passage ${data.size} : ${mm(HOLES[data.size].fine)} à ${mm(HOLES[data.size].coarse)})` : ''}
+            {data.holeKind === 'insert' ? ` (insert ${data.size} : perçage conseillé ${mm(INSERTS[data.size]?.hole ?? 0)})` : data.holeKind === 'tapped' ? ` (à tarauder ${data.size})` : data.holeKind === 'clearance' ? ` (passage ${data.size} : ${mm(HOLES[data.size].fine)} à ${mm(HOLES[data.size].coarse)})` : ''}
             {data.hole.depth > 0 ? `, profondeur ${mm(data.hole.depth)}` : ''}.
           </p>
         ) : null}

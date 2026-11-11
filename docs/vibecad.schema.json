@@ -1872,9 +1872,10 @@
                 "thread": {
                   "enum": [
                     "tap",
-                    "plastic"
+                    "plastic",
+                    "insert"
                   ],
-                  "description": "trou fileté : perçage avant taraudage (tap) ou vis qui forme son filet dans le plastique imprimé (plastic, 0,9 × d)"
+                  "description": "trou fileté : perçage avant taraudage (tap) ou vis qui forme son filet dans le plastique imprimé (plastic, 0,9 × d) ; perçage conseillé pour un insert fileté posé à chaud (insert)"
                 }
               }
             }
@@ -3169,9 +3170,10 @@
                   "iso10642",
                   "iso4017",
                   "iso4032",
-                  "iso7089"
+                  "iso7089",
+                  "insert"
                 ],
-                "description": "Vis CHC, BHC, FHC, H ; écrou H ; rondelle plate."
+                "description": "Vis CHC, BHC, FHC, H ; écrou H ; rondelle plate ; insert fileté à chaud."
               },
               "size": {
                 "enum": [

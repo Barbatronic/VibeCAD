@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fastenerGroups, fastenerMesh, sizesForHole } from '../../src/app/fasteners';
-import { designation, holeMatches, lengthsOf, matchHole, sizesOf, suggestedLength } from '../../src/domain/fasteners';
+import { designation, holeMatches, INSERTS, lengthsOf, matchHole, sizesOf, suggestedLength } from '../../src/domain/fasteners';
+import { holeDiameter } from '../../src/features/hole/definition';
 import type { Assembly } from '../../src/domain/model';
 import { meshVolume } from '../../src/sim/study';
 import { billOfMaterials, bomCsv } from '../../src/app/drawings';
@@ -87,7 +88,7 @@ describe('visserie : maillages', () => {
   });
 
   it('toutes les formes et tailles : surfaces fermées et orientées', () => {
-    for (const kind of ['iso4762', 'iso7380', 'iso10642', 'iso4017', 'iso4032', 'iso7089'] as const) {
+    for (const kind of ['iso4762', 'iso7380', 'iso10642', 'iso4017', 'iso4032', 'iso7089', 'insert'] as const) {
       for (const size of sizesOf(kind)) {
         const length = lengthsOf(kind, size)[0];
         const { mesh } = fastenerMesh(kind, size, length);
@@ -95,6 +96,31 @@ describe('visserie : maillages', () => {
         expect(signedVolume(mesh), `${kind} ${size}`).toBeGreaterThan(0);
       }
     }
+  });
+
+  it('insert à chaud : seulement dans un trou percé pour lui, affleurant, désigné avec sa longueur', () => {
+    expect(sizesForHole('insert', 4)).toEqual([{ size: 'M3', hole: 'insert' }]);
+    expect(sizesForHole('insert', 4.2)[0]?.size).toBe('M3');
+    // Trou de passage M3 large (3,6) ou perçage à tarauder : pas d'insert. (3,2 à 3,4 : insert M2.)
+    expect(sizesForHole('insert', 3.6)).toEqual([]);
+    expect(sizesForHole('insert', 3.4)[0]?.size).toBe('M2');
+    expect(sizesForHole('insert', 2.5)).toEqual([]);
+    expect(designation('insert', 'M3')).toBe('Insert fileté à chaud M3 × 5,7');
+    const { mesh } = fastenerMesh('insert', 'M3');
+    expect(closed(mesh)).toBe(true);
+    // Dans le trou : de −5,7 à 0 mm, rien ne dépasse de la face.
+    const zs = Array.from(mesh.positions).filter((_, i) => i % 3 === 2);
+    expect(Math.max(...zs)).toBeCloseTo(0, 6);
+    expect(Math.min(...zs)).toBeCloseTo(-5.7, 6);
+    const tube = Math.PI * (2.3 ** 2 - 1.5 ** 2) * 5.7;
+    expect(signedVolume(mesh) / tube).toBeGreaterThan(0.85);
+    expect(signedVolume(mesh) / tube).toBeLessThan(1);
+  });
+
+  it('perçage fileté pour insert : le diamètre conseillé de l’insert', () => {
+    const base = { sketchId: 's', kind: 'tapped', size: 'M3', fit: 'medium', through: false, depth: 8, headDiameter: 0, headDepth: 0 } as const;
+    expect(holeDiameter({ ...base, thread: 'insert' } as never)).toBe(INSERTS.M3!.hole);
+    expect(holeDiameter({ ...base, thread: 'tap' } as never)).toBe(2.5);
   });
 
   it('regroupement : éléments identiques comptés ensemble', () => {
