@@ -698,6 +698,8 @@ export class AppController {
   commit(doc: CadDocument, label: string, extra: Partial<AppState> = {}): void {
     // Une modification pendant l'animation d'un mécanisme l'arrête, à la position atteinte.
     if (this.animation) this.stopJointAnimation(false);
+    // Une action franche clôt tout réglage en continu resté ouvert : le prochain glisser repart d'ici.
+    this.liveStart = null;
     const s = this.state;
     // Conception en contexte : les voisines suivent l'assemblage modifié (même étape d'annulation).
     doc = this.syncContexts(doc);
