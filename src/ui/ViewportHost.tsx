@@ -47,7 +47,6 @@ import { STANDARD_VIEWS, type StandardView } from '../viewport/camera-rig';
 import { useAppState, useController } from './context';
 import { IconButton } from './components/controls';
 import { NumberInput } from './components/number-input';
-import { Timeline } from './Timeline';
 import { MascotBubble } from './Mascot';
 import { formatNumber } from '../domain/units';
 import { Icon } from './icons';
@@ -1152,7 +1151,6 @@ export function ViewportHost() {
       <Banner />
       <ViewControls />
       <SectionPanel />
-      <Timeline />
       <MascotBubble />
       {viewport && session?.editor ? <DimensionEditorPopup session={session} viewport={viewport} /> : null}
       {session?.input && session.start ? <DrawInputBox session={session} /> : null}

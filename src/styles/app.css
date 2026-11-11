@@ -142,8 +142,7 @@ textarea {
     --surface: color-mix(in srgb, var(--surface-solid) var(--glass-alpha), transparent);
     --surface-2: color-mix(in srgb, var(--surface-2-solid) calc(var(--glass-alpha) + 8%), transparent);
   }
-  /* Éléments posés sur la vue (frise de l'historique, boutons de vue, bandeau, coupe) : même verre. */
-  .main .timeline,
+  /* Éléments posés sur la vue (boutons de vue, bandeau, coupe) : même verre. */
   .main .view-controls .cluster,
   .main .overlay-banner,
   .main .section-panel,
@@ -565,113 +564,6 @@ textarea {
   height: 32px;
 }
 
-/* ------------------------------------------------------- Frise de l'historique */
-
-.timeline {
-  position: absolute;
-  left: calc(50% + var(--vp-shift));
-  bottom: 12px;
-  transform: translateX(-50%);
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  max-width: calc(100% - 260px);
-  padding: 6px 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-2);
-}
-
-.timeline.is-rolled-back {
-  border-color: var(--accent);
-}
-
-.tl-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-}
-
-.tl-track {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  overflow-x: auto;
-  padding: 2px 4px;
-}
-
-.tl-step,
-.tl-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.tl-step {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.tl-step.is-after {
-  background: transparent;
-  color: var(--text-faint);
-  border: 1px dashed var(--border-strong);
-}
-
-.tl-step:hover,
-.tl-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.tl-btn:disabled {
-  color: var(--text-faint);
-  cursor: default;
-}
-
-.tl-step svg,
-.tl-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.tl-marker {
-  flex: none;
-  width: 8px;
-  height: 40px;
-  margin: 0 3px;
-  border-radius: 4px;
-  background: var(--accent);
-  cursor: ew-resize;
-  touch-action: none;
-}
-
-.tl-marker:focus-visible {
-  outline: 3px solid var(--accent-soft);
-  outline-offset: 2px;
-}
-
-.tl-caption {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
 .tl-link {
   flex: none;
   white-space: nowrap;
@@ -695,18 +587,45 @@ textarea {
 
 .rollback-marker {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin: 6px 0;
-  padding: 6px 8px;
-  border-top: 3px solid var(--accent);
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0;
+  padding: 5px 4px;
+  border-radius: var(--radius-sm);
   font-size: 12.5px;
   color: var(--text-muted);
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
 }
 
 .rollback-marker .rollback-line {
-  display: none;
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+
+.rollback-marker:hover .rollback-line,
+.rollback-marker:focus-visible .rollback-line,
+.rollback-marker.is-rolled-back .rollback-line {
+  opacity: 1;
+}
+
+.rollback-marker:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 1px;
+}
+
+.rollback-marker .rollback-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  padding: 0 4px;
 }
 
 /* ------------------------------------------------------------------ Menus */

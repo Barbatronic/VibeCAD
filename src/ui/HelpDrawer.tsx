@@ -23,7 +23,7 @@ const GLOSSARY: [string, string][] = [
   ['Arc', 'Une portion de cercle : on clique le centre, le départ, puis on tourne dans le sens voulu jusqu’à l’arrivée. Variante « Arc 3 points » : le départ, l’arrivée, puis un point par lequel il passe.'],
   ['Construction', 'Un trait en pointillés qui sert de repère pour coter ; il ne compte pas pour le volume.'],
   ['Projeter', 'Reprendre une arête de la pièce (le bord d’un trou, un côté) dans l’esquisse pour s’en servir comme repère.'],
-  ['Frise', 'La bande d’icônes en bas de la vue : faites glisser le repère pour revoir la pièce à une étape plus ancienne.'],
+  ['Barre de retour', 'La barre bleue de l’historique : faites-la glisser pour revoir la pièce à une étape plus ancienne.'],
   ['Assemblage', 'L’onglet où l’on réunit les pièces du projet et où on les fait bouger les unes par rapport aux autres.'],
   ['Repère', 'Un point et une direction posés sur une pièce : le centre d’une face plane, le centre d’un trou, le milieu d’une arête.'],
   ['Collision', 'Deux pièces qui se rentrent dedans : impossible en vrai. Le volume en trop est montré en rouge.'],

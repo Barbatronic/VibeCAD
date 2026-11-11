@@ -811,7 +811,7 @@ export class AppController {
   }
 
   // =========================================================================
-  // Barre de retour en arrière (frise de l'historique)
+  // Barre de retour en arrière (historique du panneau de gauche)
 
   /** Place la barre après les `count` premières étapes de la pièce (toutes : fin de l'historique). */
   setRollback(partId: Id, count: number): void {
@@ -1283,7 +1283,7 @@ export class AppController {
     if (!found) return;
     const { feature, part } = found;
     if (part.features.indexOf(feature) >= activeCount(part, this.state.rollback)) {
-      return this.explain(`« ${feature.name} » est après la barre de retour : avancez la barre (frise en bas de la vue) pour la recalculer avant de la modifier.`);
+      return this.explain(`« ${feature.name} » est après la barre de retour : descendez la barre de l’historique pour la recalculer avant de la modifier.`);
     }
     if (feature.type === 'sketch') {
       const result = this.state.display[part.id]?.result.sketches.find((s) => s.featureId === featureId);

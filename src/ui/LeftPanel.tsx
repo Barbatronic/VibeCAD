@@ -653,6 +653,7 @@ function HistorySection() {
   const rollback = useAppState((s) => s.rollback);
   const [renaming, setRenaming] = useState<Id | null>(null);
   const [foldHistory, toggleFoldHistory] = useFolded('history');
+  const list = useRef<HTMLOListElement>(null);
   if (!part) return null;
   const statusOf = (id: Id) => statuses?.find((st) => st.featureId === id);
   const active = activeCount(part, rollback);
@@ -672,15 +673,61 @@ function HistorySection() {
       </div>
     </li>
   ) : null;
+  const n = part.features.length;
+  /** Nombre d'étapes actives pour une position verticale du pointeur (milieu des lignes d'étape). */
+  const countAt = (clientY: number): number =>
+    Array.from(list.current?.querySelectorAll<HTMLElement>(':scope > li[data-step]') ?? []).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top + r.height / 2 < clientY;
+    }).length;
+  const onMarkerKey = (e: KeyboardEvent) => {
+    const moves: Record<string, number> = { ArrowUp: active - 1, ArrowDown: active + 1, Home: 0, End: n };
+    const to = moves[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    e.stopPropagation();
+    c.setRollback(part.id, to);
+  };
   const rollbackMarker = (
-    <li class="rollback-marker" key="rollback-marker">
+    <li
+      class={`rollback-marker${active < n ? ' is-rolled-back' : ''}`}
+      key="rollback-marker"
+      role="slider"
+      tabIndex={0}
+      aria-orientation="vertical"
+      aria-label="Barre de retour"
+      aria-valuemin={0}
+      aria-valuemax={n}
+      aria-valuenow={active}
+      aria-valuetext={active === n ? `Toutes les étapes (${n})` : `${active} étapes sur ${n}`}
+      title="Glisser pour revenir dans l’historique (↑ ↓)"
+      onKeyDown={onMarkerKey}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).focus();
+        // La barre change de place dans la liste pendant le glissement (capture du pointeur perdue) :
+        // le suivi se fait sur la fenêtre.
+        const move = (ev: PointerEvent) => c.setRollback(part.id, countAt(ev.clientY));
+        const stop = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', stop);
+          window.removeEventListener('pointercancel', stop);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+        window.addEventListener('pointercancel', stop);
+      }}
+    >
       <span class="rollback-line" aria-hidden="true" />
-      <span class="rollback-text">
-        Barre de retour : les étapes suivantes ne sont pas calculées. Une nouvelle étape s’ajoute ici.
-      </span>
-      <button type="button" class="tl-link" onClick={() => c.rollbackToEnd(part.id)}>
-        Revenir à la fin
-      </button>
+      {active < n ? (
+        <span class="rollback-info">
+          <span class="rollback-text">{n - active} non calculée{n - active > 1 ? 's' : ''}</span>
+          <button type="button" class="tl-link" onClick={() => c.rollbackToEnd(part.id)}>
+            Revenir à la fin
+          </button>
+        </span>
+      ) : null}
     </li>
   );
   return (
@@ -704,7 +751,7 @@ function HistorySection() {
             Pièce vide.
           </p>
         ) : null}
-        <ol class="feature-list" aria-label={`Étapes de construction de ${part.name}`}>
+        <ol class="feature-list" ref={list} aria-label={`Étapes de construction de ${part.name}`}>
           {active === 0 && part.features.length > 0 && !foldHistory ? [draftRow, rollbackMarker] : null}
           {part.features.flatMap((f, index) => {
             if (foldHistory && f.id !== shownId) return [];
@@ -713,7 +760,7 @@ function HistorySection() {
             const def = definitionOf(f);
             const selected = selection?.kind === 'feature' && selection.featureId === f.id;
             const row = (
-              <li key={f.id}>
+              <li key={f.id} data-step>
                 <div
                   class={`feature-row${selected || editingSketch === f.id ? ' is-selected' : ''}${status?.state === 'blocked' ? ' is-blocked' : ''}${after ? ' is-rolled-back' : ''}`}
                 >
@@ -778,6 +825,7 @@ function HistorySection() {
             return index === active - 1 && active < part.features.length ? [row, draftRow, rollbackMarker] : [row];
           })}
           {active === part.features.length || foldHistory ? draftRow : null}
+          {active === part.features.length && part.features.length > 0 && !foldHistory ? rollbackMarker : null}
         </ol>
       </div>
     </section>

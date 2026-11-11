@@ -625,20 +625,6 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="0.9" fill="currentColor" />
     </>
   ),
-  'tl-first': (
-    <>
-      <path d="M6 5v14" />
-      <path d="M18 5l-9 7 9 7z" />
-    </>
-  ),
-  'tl-prev': <path d="M15 5l-8 7 8 7" />,
-  'tl-next': <path d="M9 5l8 7-8 7" />,
-  'tl-last': (
-    <>
-      <path d="M18 5v14" />
-      <path d="M6 5l9 7-9 7z" />
-    </>
-  ),
   pivot: (
     <>
       <circle cx="9" cy="15" r="5.5" />

@@ -1,6 +1,6 @@
 /**
  * Conseils du chat : à partir de l'état réel de l'application (statuts des étapes, session
- * d'esquisse, frise), une phrase courte et, si possible, une action concrète. Règles locales,
+ * d'esquisse, historique), une phrase courte et, si possible, une action concrète. Règles locales,
  * sans réseau. Le chat complète les messages déjà affichés ; il ne modifie jamais le modèle
  * de lui-même (les actions sont des boutons que l'utilisateur choisit de cliquer).
  */
@@ -137,7 +137,7 @@ export function currentAdvice(s: AppState): Advice | null {
       id: `rollback:${part.id}`,
       level: 'conseil',
       mood: 'tip',
-      text: 'Tu regardes la pièce à une étape plus ancienne : une nouvelle étape sera ajoutée à cet endroit de la frise.',
+      text: 'Tu regardes la pièce à une étape plus ancienne : une nouvelle étape sera ajoutée à cet endroit de l’historique.',
       action: { kind: 'rollback-end', partId: part.id, label: 'Revenir à la fin' },
     };
   }
