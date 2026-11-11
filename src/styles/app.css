@@ -935,13 +935,82 @@ textarea {
   padding: 0;
 }
 
-.part-row {
+/*
+ * Liste des pièces : elle prend la place qu'il lui faut, puis défile. Quand tout ne tient pas, la
+ * liste et l'historique se partagent le panneau au prorata, l'historique gardant au moins 30 %.
+ */
+.parts-section {
+  flex: 0 1 auto;
+  position: relative;
+}
+
+.parts-section ~ .panel-section.grow {
+  flex: 1 1 auto;
+  min-height: 30%;
+}
+
+.parts-section ~ .params-section {
+  flex-shrink: 0;
+  max-height: 40%;
+}
+
+/* Hauteur choisie à la poignée : elle est tenue. */
+.parts-section.has-height {
+  flex-shrink: 0;
+}
+
+.parts-section .panel-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 8px;
+  overflow: hidden;
+}
+
+.part-list {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.parts-resize {
+  flex: none;
+  height: 10px;
+  margin: -2px 12px 0;
+  cursor: row-resize;
+  touch-action: none;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border-radius: var(--radius);
+  justify-content: center;
+}
+
+.parts-resize::before {
+  content: '';
+  width: 36px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.parts-resize:hover::before {
+  background: var(--accent);
+}
+
+/* Ligne compacte : les actions ne se montrent qu'au survol et sur la pièce active (l'œil reste, estompé). */
+.part-row {
+  --row: 30px;
+  --row-btn: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 0 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
+}
+
+.part-row:hover,
+.part-row.has-menu {
+  background: var(--surface-2);
 }
 
 .part-row.is-active {
@@ -950,19 +1019,21 @@ textarea {
 }
 
 .part-select {
-  container-type: inline-size;
   display: flex;
   align-items: center;
-  gap: 8px;
   flex: 1;
   min-width: 0;
-  min-height: var(--target);
-  padding: 4px 6px;
+  min-height: var(--row);
+  padding: 2px 4px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
+  font-weight: 500;
+}
+
+.part-row.is-active .part-select {
   font-weight: 600;
 }
 
@@ -974,11 +1045,207 @@ textarea {
   white-space: nowrap;
 }
 
-/* Pièce masquée : toute la ligne grisée (pastille de couleur décolorée), avec la mention « masquée ». */
-.part-row.is-hidden {
+.part-row .rename-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: calc(var(--row) - 4px);
+  padding: 0 6px;
+}
+
+.part-row .row-actions {
+  display: flex;
+  flex: none;
+}
+
+.part-row .row-actions > span {
+  display: flex;
+}
+
+.part-row .icon-btn.small {
+  width: var(--row-btn);
+  height: var(--row-btn);
+}
+
+.part-row .icon-btn.small svg {
+  width: 16px;
+  height: 16px;
+}
+
+.part-row .row-actions > .on-demand {
+  display: none;
+}
+
+.part-row:hover .row-actions > .on-demand,
+.part-row:focus-within .row-actions > .on-demand,
+.part-row.is-active .row-actions > .on-demand,
+.part-row.has-menu .row-actions > .on-demand,
+.part-row .row-actions > .on-demand.is-on {
+  display: flex;
+}
+
+.part-row .eye {
+  opacity: 0.4;
+}
+
+.part-row:hover .eye,
+.part-row:focus-within .eye,
+.part-row.is-active .eye,
+.part-row .eye.is-on {
+  opacity: 1;
+}
+
+/* Dossier : rangement seul. Ses pièces sont en retrait dessous. */
+.folder-row {
+  --row: 30px;
+  --row-btn: 26px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px 0 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.folder-row:hover,
+.folder-row.has-menu {
   background: var(--surface-2);
 }
 
+.folder-row.is-drop,
+.part-list.is-drop {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+
+.folder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--row);
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-weight: 600;
+}
+
+.folder-toggle .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-row svg.folder-chevron {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.folder-row svg.folder-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.folder-row .folder-count {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-row .rename-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: calc(var(--row) - 4px);
+  padding: 0 6px;
+}
+
+.folder-row .row-actions {
+  display: flex;
+  flex: none;
+}
+
+.folder-row .row-actions > span {
+  display: flex;
+}
+
+.folder-row .icon-btn.small {
+  width: var(--row-btn);
+  height: var(--row-btn);
+}
+
+.folder-row .icon-btn.small svg {
+  width: 16px;
+  height: 16px;
+}
+
+.folder-row .row-actions > .on-demand {
+  display: none;
+}
+
+.folder-row:hover .row-actions > .on-demand,
+.folder-row:focus-within .row-actions > .on-demand,
+.folder-row.has-menu .row-actions > .on-demand {
+  display: flex;
+}
+
+.folder-row .eye {
+  opacity: 0.4;
+}
+
+.folder-row:hover .eye,
+.folder-row:focus-within .eye,
+.folder-row .eye.is-on {
+  opacity: 1;
+}
+
+/* Ensemble : un bloc qui se déplace d'un seul tenant (icône en couleur d'accent). */
+.folder-row.is-ensemble svg.folder-icon {
+  color: var(--accent);
+}
+
+.part-select .copies {
+  flex: none;
+  margin-left: 6px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.part-row.in-folder {
+  margin-left: 22px;
+}
+
+@media (pointer: coarse) {
+  .folder-row {
+    --row: 40px;
+    --row-btn: 36px;
+  }
+  .folder-row .icon-btn.small svg {
+    width: 20px;
+    height: 20px;
+  }
+  /* Pas de survol : le menu du dossier reste à portée. */
+  .folder-row .row-actions > .on-demand {
+    display: flex;
+  }
+  .folder-row .eye {
+    opacity: 0.6;
+  }
+}
+
+/* Pièce masquée : nom grisé, pastille décolorée, œil barré toujours visible. */
 .part-row.is-hidden .color-swatch {
   opacity: 0.35;
   filter: grayscale(1);
@@ -989,21 +1256,27 @@ textarea {
   font-style: italic;
 }
 
-.part-select .hidden-tag {
-  flex: none;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  color: var(--text-faint);
-  font-size: 11.5px;
+/* Doigt : pas de survol, cibles plus grandes ; les actions sont sur la pièce active. */
+@media (pointer: coarse) {
+  .part-row {
+    --row: 40px;
+    --row-btn: 36px;
+  }
+  .part-row .icon-btn.small svg {
+    width: 20px;
+    height: 20px;
+  }
+  .part-row .eye {
+    opacity: 0.6;
+  }
+  .parts-resize {
+    height: 18px;
+  }
 }
 
-/* Colonne étroite : le nom de la pièce passe avant l'étiquette (la ligne reste grisée). */
-@container (max-width: 160px) {
-  .part-select .hidden-tag {
-    display: none;
-  }
+.part-menu {
+  position: fixed;
+  min-width: 190px;
 }
 
 .color-swatch {
@@ -1016,6 +1289,19 @@ textarea {
   cursor: pointer;
   flex: none;
   overflow: hidden;
+}
+
+.part-row .color-swatch {
+  width: 16px;
+  height: 16px;
+  border-width: 1px;
+}
+
+@media (pointer: coarse) {
+  .part-row .color-swatch {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 .color-swatch input {

@@ -24,6 +24,8 @@ export interface CadDocument {
   name: string;
   units: LengthUnit;
   parts: Part[];
+  /** Dossiers de la liste des pièces (facultatif : rangement seul). */
+  folders?: PartFolder[];
   /** Fiches matière utilisées par les pièces (voir `domain/material-sheets.ts`), copiées du catalogue. */
   materials?: MaterialSheet[];
   /** Ressources embarquées (contenu géométrique des imports), référencées par identifiant. */
@@ -325,6 +327,12 @@ export interface Assembly {
   couplings?: JointCoupling[];
 }
 
+/** Dossier de la liste des pièces : rangement seul (voir `domain/folders.ts`). */
+export interface PartFolder {
+  id: Id;
+  name: string;
+}
+
 export interface Part {
   id: Id;
   name: string;
@@ -343,6 +351,8 @@ export interface Part {
   make?: Id;
   /** Pièce imprimée : faces peintes dans d'autres matières (voir `domain/paint.ts`). */
   paint?: PartPaint;
+  /** Dossier de la liste des pièces où elle est rangée (identifiant dans `CadDocument.folders`). */
+  folder?: Id;
   /** Historique de construction, évalué dans l'ordre. */
   features: Feature[];
 }

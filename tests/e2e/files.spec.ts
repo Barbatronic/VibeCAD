@@ -99,7 +99,7 @@ test('deux pièces nommées, masquées et exportées séparément', async ({ pag
 
   // Seconde pièce : un bloc 15 × 15 × 10 posé à côté de la plaque.
   await page.click('#part-add');
-  await page.getByRole('button', { name: 'Renommer « Pièce 2 »' }).click();
+  await page.locator('.part-row', { hasText: 'Pièce 2' }).locator('.part-select').dblclick();
   await page.getByRole('textbox', { name: 'Nouveau nom de la pièce' }).fill('Cale');
   await page.getByRole('textbox', { name: 'Nouveau nom de la pièce' }).press('Enter');
   await page.click('#tool-sketch');

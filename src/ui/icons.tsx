@@ -414,6 +414,22 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="12" cy="16.8" r="0.9" fill="currentColor" />
     </>
   ),
+  /** Ensemble : plusieurs pièces tenues dans un même cadre. */
+  group: (
+    <>
+      <path d="M3.5 3.5h17v17h-17z" stroke-dasharray="2.5 2.5" />
+      <path d="M7 7h5.5v5.5H7zM12.5 12.5H17V17h-4.5z" />
+    </>
+  ),
+  /** Copie liée : deux exemplaires l'un derrière l'autre. */
+  copy: <path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4" />,
+  folder: <path d="M3.5 18.5v-12h6l2 2.5h9v9.5z" />,
+  'folder-plus': (
+    <>
+      <path d="M3.5 18.5v-12h6l2 2.5h9v9.5z" />
+      <path d="M12 11.5v4.5M9.75 13.75h4.5" />
+    </>
+  ),
   eye: (
     <>
       <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />

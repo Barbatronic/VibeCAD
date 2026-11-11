@@ -26,6 +26,8 @@ test('isoler une pièce en un clic, puis revenir exactement à l’affichage d�
   await page.getByRole('button', { name: 'Masquer « Pièce 3 »' }).click();
   await expect.poll(() => shown(page)).toEqual([true, true, false]);
 
+  // Les actions d'une ligne apparaissent au survol.
+  await page.locator('.part-row', { hasText: 'Pièce 1' }).hover();
   await page.getByRole('button', { name: /Isoler « Pièce 1 »/ }).click();
   await expect.poll(() => shown(page)).toEqual([true, false, false]);
   await expect(page.getByRole('status').filter({ hasText: '« Pièce 1 » est isolée' })).toBeVisible();
@@ -37,6 +39,7 @@ test('isoler une pièce en un clic, puis revenir exactement à l’affichage d�
   expect(await page.evaluate(() => (window as any).vibecad.controller.state.doc.parts.map((p: any) => p.visible))).toEqual([true, true, false]);
 
   // Isoler une pièce masquée l'affiche seule ; « Tout réafficher » revient en arrière.
+  await page.locator('.part-row', { hasText: 'Pièce 3' }).hover();
   await page.getByRole('button', { name: /Isoler « Pièce 3 »/ }).click();
   await expect.poll(() => shown(page)).toEqual([false, false, true]);
   await page.getByRole('button', { name: 'Tout réafficher' }).click();

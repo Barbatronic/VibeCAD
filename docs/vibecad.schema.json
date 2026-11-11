@@ -601,6 +601,25 @@
               }
             }
           }
+        },
+        "folders": {
+          "type": "array",
+          "description": "Dossiers de la liste des pièces : rangement seul, sans effet sur la géométrie.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -677,6 +696,10 @@
               }
             }
           }
+        },
+        "folder": {
+          "type": "string",
+          "description": "Dossier où la pièce est rangée (identifiant dans « folders »). Absent : hors dossier."
         }
       }
     },

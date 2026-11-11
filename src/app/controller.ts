@@ -40,6 +40,8 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
+import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
+import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
 import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
@@ -1040,6 +1042,135 @@ export class AppController {
     const part = findPart(this.state.doc, partId);
     if (!part) return;
     this.commit(setPartVisible(this.state.doc, partId, !part.visible), part.visible ? `Masquer « ${part.name} »` : `Afficher « ${part.name} »`);
+  }
+
+  // ----- Dossiers de la liste des pièces (rangement seul)
+
+  /** Crée un dossier (et y range la pièce donnée) ; rend son identifiant. */
+  addFolder(partId?: Id): Id {
+    const r = addFolder(this.state.doc);
+    this.commit(partId ? setPartFolder(r.doc, partId, r.folderId) : r.doc, 'Nouveau dossier');
+    return r.folderId;
+  }
+
+  renameFolder(folderId: Id, name: string): void {
+    const folder = folderList(this.state.doc).find((f) => f.id === folderId);
+    const trimmed = name.trim();
+    if (!folder || !trimmed || trimmed === folder.name) return;
+    this.commit(renameFolder(this.state.doc, folderId, trimmed), `Renommer le dossier « ${trimmed} »`);
+  }
+
+  /** Supprime le dossier ; ses pièces restent dans le projet, hors dossier. */
+  deleteFolder(folderId: Id): void {
+    const folder = folderList(this.state.doc).find((f) => f.id === folderId);
+    if (!folder) return;
+    this.commit(removeFolder(this.state.doc, folderId), `Supprimer le dossier « ${folder.name} »`);
+  }
+
+  movePartToFolder(partId: Id, folderId: Id | null): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || (part.folder ?? null) === folderId) return;
+    const folder = folderList(this.state.doc).find((f) => f.id === folderId);
+    if (folderId !== null && !folder) return;
+    this.commit(setPartFolder(this.state.doc, partId, folderId), folder ? `Ranger « ${part.name} » dans « ${folder.name} »` : `Sortir « ${part.name} » de son dossier`);
+  }
+
+  toggleFolderVisible(folderId: Id): void {
+    const folder = folderList(this.state.doc).find((f) => f.id === folderId);
+    const parts = this.state.doc.parts.filter((p) => p.folder === folderId);
+    if (!folder || parts.length === 0) return;
+    const show = parts.some((p) => !p.visible);
+    this.commit(setFolderVisible(this.state.doc, folderId, show), show ? `Afficher le dossier « ${folder.name} »` : `Masquer le dossier « ${folder.name} »`);
+  }
+
+  // ----- Ensembles de la liste des pièces (sous-assemblages maniés depuis la liste)
+
+  /** Les ensembles touchent à l'assemblage : hors opération en cours, et sans liaison à casser. */
+  private ensembleBlocked(partId: Id): boolean {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return true;
+    if (this.state.mode.kind !== 'model') {
+      this.explain('Terminez d’abord l’opération en cours.');
+      return true;
+    }
+    if (partIsJointed(this.state.doc, partId)) {
+      this.explain(`« ${part.name} » porte des liaisons ou de la visserie : retirez-les d’abord dans l’onglet Assemblage.`);
+      return true;
+    }
+    return false;
+  }
+
+  /** Crée un ensemble contenant la pièce ; rend son identifiant. */
+  createEnsemble(partId: Id): Id | null {
+    if (this.ensembleBlocked(partId)) return null;
+    const r = createEnsemble(this.state.doc, partId);
+    this.commit(r.doc, 'Nouvel ensemble');
+    return r.id;
+  }
+
+  movePartToEnsemble(partId: Id, subId: Id | null): void {
+    if (ensembleOf(this.state.doc, partId) === subId || this.ensembleBlocked(partId)) return;
+    const part = findPart(this.state.doc, partId)!;
+    const name = subassemblyList(this.state.doc).find((s) => s.id === subId)?.name;
+    const doc = movePartToEnsemble(this.state.doc, partId, subId);
+    if (doc === this.state.doc) return;
+    this.commit(doc, name ? `Ranger « ${part.name} » dans l’ensemble « ${name} »` : `Sortir « ${part.name} » de son ensemble`);
+  }
+
+  renameEnsemble(subId: Id, name: string): void {
+    const clean = name.trim();
+    if (!clean) return;
+    const doc = renameEnsemble(this.state.doc, subId, clean);
+    if (doc !== this.state.doc) this.commit(doc, `Renommer l’ensemble « ${clean} »`);
+  }
+
+  /** Défait l'ensemble : ses pièces restent dans le projet et dans l'assemblage. */
+  dissolveEnsemble(subId: Id): void {
+    const sub = subassemblyList(this.state.doc).find((s) => s.id === subId);
+    if (!sub) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const users = subassemblyUses(this.state.doc, subId).filter((u) => u !== 'l’assemblage principal');
+    if (users.length) return this.explain(`« ${sub.name} » est inséré dans ${users.join(', ')} : retirez-le d’abord de là.`);
+    this.commit(dissolveEnsemble(this.state.doc, subId), `Défaire l’ensemble « ${sub.name} »`, { assemblySelection: null });
+    if (sub.joints.length) this.toast('info', `Ensemble « ${sub.name} » défait : ses liaisons internes sont perdues.`, { actionLabel: 'Annuler', action: () => this.undo() });
+  }
+
+  /** Copie liée d'une pièce : un exemplaire de plus dans l'assemblage, à côté du précédent. */
+  duplicatePart(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const bbox = this.state.display[partId]?.result.analysis?.bbox;
+    const doc = addLinkedCopy(this.state.doc, partId, bbox ? bbox.max.x - bbox.min.x + 10 : 20);
+    this.commit(doc, `Dupliquer « ${part.name} »`);
+    this.toast('info', `Copie liée de « ${part.name} » ajoutée à l’assemblage.`, { actionLabel: 'Voir', action: () => this.setWorkspace('assembly') });
+  }
+
+  /** Copie liée d'un ensemble : un bloc de plus dans l'assemblage. */
+  duplicateEnsemble(subId: Id): void {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const before = this.state.doc;
+    this.insertSubassembly(subId);
+    if (this.state.doc === before) return;
+    const name = subassemblyList(this.state.doc).find((s) => s.id === subId)?.name ?? 'Ensemble';
+    this.toast('info', `Copie liée de « ${name} » ajoutée à l’assemblage.`, { actionLabel: 'Voir', action: () => this.setWorkspace('assembly') });
+  }
+
+  toggleEnsembleVisible(subId: Id): void {
+    const sub = subassemblyList(this.state.doc).find((s) => s.id === subId);
+    if (!sub) return;
+    const ids = new Set(sub.instances.map((i) => i.partId));
+    const parts = this.state.doc.parts.filter((p) => ids.has(p.id));
+    if (parts.length === 0) return;
+    const show = parts.some((p) => !p.visible);
+    const doc = { ...this.state.doc, parts: this.state.doc.parts.map((p) => (ids.has(p.id) && p.visible !== show ? { ...p, visible: show } : p)) };
+    this.commit(doc, show ? `Afficher l’ensemble « ${sub.name} »` : `Masquer l’ensemble « ${sub.name} »`);
+  }
+
+  /** Ouvre l'ensemble dans l'onglet Assemblage (liaisons entre ses pièces). */
+  openEnsemble(subId: Id): void {
+    this.setWorkspace('assembly');
+    if (this.state.workspace === 'assembly') this.editSubassembly(subId);
   }
 
   setPartColor(partId: Id, color: string): void {

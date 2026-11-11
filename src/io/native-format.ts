@@ -83,8 +83,10 @@ export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISO
         ...(p.material ? { material: p.material } : {}),
         ...(p.make ? { make: p.make } : {}),
         ...(p.paint ? { paint: p.paint } : {}),
+        ...(p.folder ? { folder: p.folder } : {}),
         features: p.features.map((f) => ({ ...f, dependsOn: featureDependencies(f) })),
       })),
+      ...(doc.folders?.length ? { folders: doc.folders } : {}),
       ...(doc.materials?.length ? { materials: doc.materials } : {}),
       resources: doc.resources,
       ...(doc.assembly ? { assembly: doc.assembly } : {}),
@@ -229,7 +231,7 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
 }
 
 /** Champs connus du document (schéma 1). */
-const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'materials', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'folders', 'materials', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
 
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
@@ -261,6 +263,21 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     parts: parts.filter((p): p is Part => p !== null),
     resources,
   };
+  if (o.folders !== undefined) {
+    const folders = arr(v, o, 'folders', path).map((raw, i) => {
+      const fp = `${path}.folders[${i}]`;
+      const fo = obj(v, raw, fp) ?? {};
+      return { id: str(v, fo, 'id', fp), name: str(v, fo, 'name', fp) };
+    });
+    if (folders.length) doc.folders = folders;
+  }
+  // Une pièce rangée dans un dossier qui n'existe pas revient hors dossier.
+  const folderIds = new Set((doc.folders ?? []).map((f) => f.id));
+  doc.parts = doc.parts.map((p) => {
+    if (!p.folder || folderIds.has(p.folder)) return p;
+    const { folder: _lost, ...rest } = p;
+    return rest;
+  });
   if (o.materials !== undefined) {
     const materials = arr(v, o, 'materials', path).flatMap((m, i) => {
       const mp = `${path}.materials[${i}]`;
@@ -647,6 +664,7 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
     ...(material ? { material } : {}),
     ...(o.make !== undefined ? { make: str(v, o, 'make', path) } : {}),
     ...(o.paint !== undefined ? { paint: readPaint(v, o.paint, `${path}.paint`) } : {}),
+    ...(typeof o.folder === 'string' && o.folder ? { folder: o.folder } : {}),
     features: features.filter((f): f is Feature => f !== null),
   };
 }
