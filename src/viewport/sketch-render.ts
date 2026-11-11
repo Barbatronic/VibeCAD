@@ -8,7 +8,7 @@ import type { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type SketchParams } from '../domain/model';
+import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type ConstraintType, type SketchConstraint, type SketchParams, type SketchPoint } from '../domain/model';
 import { formatAngle, formatLength } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
@@ -332,6 +332,7 @@ export class SketchView {
       axis(AXIS_X_ID, [{ x: -span, y: 0 }, { x: span, y: 0 }], p.axisX);
       axis(AXIS_Y_ID, [{ x: 0, y: -span }, { x: 0, y: span }], p.axisY);
       for (const seg of circleSegments({ x: 0, y: 0 }, 6 * px, 24)) strong.add(seg, sel.has(ORIGIN_POINT_ID) || input.hover === ORIGIN_POINT_ID ? cSel : cDim);
+      if (sel.has(ORIGIN_POINT_ID) || picks.has(ORIGIN_POINT_ID)) for (const seg of circleSegments({ x: 0, y: 0 }, 11 * px, 24)) strong.add(seg, cSel);
     }
 
     // Cotes et symboles
@@ -415,10 +416,17 @@ export class SketchView {
         if (e.type === 'circle' && e.reference) refPoints.add(e.center);
         if (e.type === 'arc' && e.reference) refPoints.add(e.center).add(e.start).add(e.end);
       }
-      for (const e of sketch.entities) {
-        if (e.type !== 'point') continue;
+      // Points confondus (coin d'un rectangle : une extrémité par segment) : le dernier tracé
+      // recouvre les autres. Le point survolé puis le point choisi passent donc en dernier, sinon un
+      // point sélectionné paraîtrait ne pas l'être.
+      const rank = (id: string) => (sel.has(id) || picks.has(id) ? 2 : input.hover === id ? 1 : 0);
+      const drawn = sketch.entities.filter((e): e is SketchPoint => e.type === 'point').sort((a, b) => rank(a.id) - rank(b.id));
+      for (const e of drawn) {
         const base = refPoints.has(e.id) ? cRef : free.has(e.id) ? cFree : cDone;
-        const style = sel.has(e.id) || picks.has(e.id) ? { color: cSel } : input.hover === e.id ? { color: cHover } : { color: base };
+        const chosen = sel.has(e.id) || picks.has(e.id);
+        const style = chosen ? { color: cSel } : input.hover === e.id ? { color: cHover } : { color: base };
+        // Point choisi : entouré d'un anneau, sinon le petit carré se perd parmi les traits.
+        if (chosen) for (const seg of circleSegments(e, 10 * px, 24)) strong.add(seg, cSel);
         pointPositions.push(e.x, e.y, 0);
         pointColors.push(style.color.r, style.color.g, style.color.b);
       }
