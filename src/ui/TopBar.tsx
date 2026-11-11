@@ -199,10 +199,13 @@ function UndoRedo() {
  */
 const PART_SECTORS: { name: string; title: string; fold: number; types: FeatureType[]; main: FeatureType[] }[] = [
   { name: 'Esquisse', title: 'esquisse, plans et axes de construction, images de référence', fold: 3, types: ['plane', 'axis', 'image'], main: [] },
-  { name: 'Ajouter', title: 'ajouter de la matière', fold: 5, types: ['extrude', 'revolve', 'loft', 'sweep', 'thicken', 'primitive', 'gear', 'beam'], main: ['extrude', 'primitive'] },
+  { name: 'Ajouter', title: 'ajouter de la matière', fold: 5, types: ['extrude', 'revolve', 'loft', 'sweep', 'thicken'], main: ['extrude', 'revolve'] },
   { name: 'Enlever', title: 'enlever de la matière', fold: 4, types: ['pocket', 'engrave', 'hole', 'split'], main: ['pocket', 'hole'] },
   { name: 'Modifier', title: 'arrondis, chanfreins, coques et dépouilles', fold: 2, types: ['fillet', 'chamfer', 'shell', 'draft'], main: ['fillet', 'chamfer'] },
   { name: 'Répéter', title: 'répétitions, symétries et déplacements', fold: 1, types: ['pattern', 'mirror', 'move'], main: ['pattern', 'mirror'] },
+  // Générateurs : une pièce complète à partir de quelques réglages (pas d'esquisse à dessiner).
+  // « Forme » (outil de débutant) reste sortie quand le secteur se regroupe.
+  { name: 'Générer', title: 'formes toutes faites et pièces générées à partir de réglages : engrenages, profilés', fold: 6, types: ['primitive', 'gear', 'beam'], main: ['primitive'] },
   { name: 'Tôle', title: 'tôlerie et pliage : tôle, bords pliés, plis', fold: 0, types: ['sheet', 'flange', 'fold'], main: ['sheet'] },
 ];
 

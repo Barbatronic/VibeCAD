@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, expectVolume, openApp, volumes } from './helpers';
+import { appState, buildPlateViaUi, clickTool, expectVolume, openApp, volumes } from './helpers';
 
 const HOLE = Math.PI * 9 * 5;
 
@@ -8,7 +8,7 @@ test('répétition : le trou refait 3 fois en ligne, puis en grille 3 × 2', asy
   await buildPlateViaUi(page);
   await expectVolume(page, 9000 - HOLE);
 
-  await page.click('#tool-pattern');
+  await clickTool(page, 'tool-pattern');
   // L'étape proposée est la dernière poche (le trou).
   const steps = page.getByRole('group', { name: 'Étapes à répéter' });
   await expect(steps.getByRole('checkbox', { name: 'Poche 1' })).toBeChecked();

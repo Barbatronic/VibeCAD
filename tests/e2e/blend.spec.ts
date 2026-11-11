@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { appState, buildPlateViaUi, expectVolume, openApp, PLATE_VOLUME, worldToScreen } from './helpers';
+import { appState, buildPlateViaUi, clickTool, expectVolume, openApp, PLATE_VOLUME, worldToScreen } from './helpers';
 
 test('congé sur des arêtes choisies à la souris, avec aperçu', async ({ page }) => {
   await openApp(page);
@@ -10,7 +10,7 @@ test('congé sur des arêtes choisies à la souris, avec aperçu', async ({ page
   const edge = await worldToScreen(page, 30, 0, 5);
   await page.mouse.click(edge.x, edge.y);
   await expect.poll(() => appState(page, (s) => s.selection?.kind)).toBe('edge');
-  await page.click('#tool-fillet');
+  await clickTool(page, 'tool-fillet');
   await expect(page.getByText('1 arête', { exact: true })).toBeVisible();
   await page.locator('#draft-size').fill('2');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
