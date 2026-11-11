@@ -3599,7 +3599,7 @@ export class AppController {
   }
 
   private explainForced(size: string, diameter: number): void {
-    this.explain(`Aucune taille normalisée ne correspond à ce trou (Ø ${formatLength(diameter)}) : ${size} est posée en taille forcée. Changez-la au besoin dans le panneau.`);
+    this.explain(`Aucune taille normalisée ne correspond à ce trou (Ø ${formatLength(diameter)}) : ${size} est posée, la plus proche. Changez-la au besoin dans le panneau.`);
   }
 
   /** Trou où est posé un élément de visserie (null s'il a disparu). */

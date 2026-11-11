@@ -3746,6 +3746,27 @@ select optgroup {
   color: var(--text-muted);
 }
 
+.label-with-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fit-warning {
+  display: inline-flex;
+  color: var(--warning);
+  cursor: help;
+}
+
+.fit-warning svg {
+  width: 14px;
+  height: 14px;
+}
+
+option.is-unfit {
+  color: var(--text-muted);
+}
+
 .fab-face {
   display: flex;
   align-items: center;

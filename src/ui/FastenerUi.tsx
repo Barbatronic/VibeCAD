@@ -191,9 +191,8 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
         holeKind: matches.find((m) => m.size === first.size)?.hole ?? null,
         part: holes[0]?.part ?? '?',
         forced: items.some((f) => f.forced),
-        // Tailles qui vont dans le trou d'abord ; les autres se choisissent en taille forcée.
+        // Tailles qui vont dans le trou ; les autres restent au choix (signalées à côté du champ).
         sizes: sizesFor(first.kind),
-        otherSizes: sizesOf(first.kind).filter((size) => !sizesFor(first.kind).includes(size)),
         firstFit: Object.fromEntries(FASTENER_TYPES.map((t) => [t.kind, sizesFor(t.kind)[0] ?? null])),
         kinds: FASTENER_TYPES.map((t) => ({ kind: t.kind, label: `${t.label} (${t.standard})` })),
         issue: items.map((f) => placement?.issues.get(f.id)).find(Boolean) ?? null,
@@ -205,6 +204,9 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
   const t = fastenerType(data.kind);
   const lengths = lengthsOf(data.kind, data.size);
   const plural = data.count > 1;
+  const unfitNote = data.hole
+    ? `${data.size} non adaptée au trou Ø ${mm(data.hole.diameter)}${data.sizes.length > 0 ? ` (prévu pour ${data.sizes.join(', ')})` : ''}.`
+    : '';
   return (
     <>
       <div class="panel-title">
@@ -218,7 +220,7 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
         {data.issue ? <Callout kind="error">{FASTENER_ISSUE_MESSAGES[data.issue]}</Callout> : null}
         {data.issue === 'size' ? (
           <Button small icon="check" onClick={() => c.updateFasteners(ids, { size: data.size }, `Forcer la taille ${data.size}`)}>
-            Garder {data.size} (taille forcée)
+            Garder {data.size}
           </Button>
         ) : null}
         <label class="field">
@@ -242,32 +244,27 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
         </label>
         <div class="limits-row">
           <label class="mini-field">
-            <span>Taille</span>
+            <span class="label-with-note">
+              Taille
+              {data.hole && !data.sizes.includes(data.size) ? (
+                <span
+                  class="fit-warning"
+                  id="fastener-unfit"
+                  tabIndex={0}
+                  role="img"
+                  aria-label={unfitNote}
+                  title={unfitNote}
+                >
+                  <Icon name="warning" />
+                </span>
+              ) : null}
+            </span>
             <select id="fastener-size" class="select" value={data.size} onChange={(e) => c.updateFasteners(ids, { size: (e.target as HTMLSelectElement).value as MetricSize }, 'Changer la taille de visserie')}>
-              {data.sizes.length > 0 && data.otherSizes.length > 0 ? (
-                <>
-                  <optgroup label="Adaptées au trou">
-                    {data.sizes.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Autres (taille forcée)">
-                    {data.otherSizes.map((s) => (
-                      <option key={s} value={s}>
-                        {s} (forcée)
-                      </option>
-                    ))}
-                  </optgroup>
-                </>
-              ) : (
-                [...data.sizes, ...data.otherSizes].map((s) => (
-                  <option key={s} value={s}>
-                    {data.sizes.includes(s) ? s : `${s} (forcée)`}
-                  </option>
-                ))
-              )}
+              {sizesOf(data.kind).map((s) => (
+                <option key={s} value={s} class={data.sizes.includes(s) ? undefined : 'is-unfit'}>
+                  {s}
+                </option>
+              ))}
             </select>
           </label>
           {t.screw ? (
@@ -283,11 +280,6 @@ export function FastenerPanel({ ids }: { ids: string[] }) {
             </label>
           ) : null}
         </div>
-        {data.forced ? (
-          <p class="field-help" id="fastener-forced">
-            Taille forcée : elle ne correspond pas au diamètre du trou, mais elle est gardée telle quelle.
-          </p>
-        ) : null}
         {data.hole ? (
           <p class="field-help" id="fastener-hole">
             Trou de « {data.part} » : Ø {mm(data.hole.diameter)}

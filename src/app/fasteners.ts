@@ -556,7 +556,7 @@ export function placeFasteners(assembly: Assembly, meshOf: (partId: Id) => MeshD
 
 export const FASTENER_ISSUE_MESSAGES: Record<FastenerIssue, string> = {
   lost: 'Le trou où elle était posée a disparu (pièce modifiée) : supprimez-la ou reposez-la.',
-  size: 'Le trou a changé de diamètre : cette taille n’y va plus. Choisissez une autre taille, ou gardez-la en taille forcée.',
+  size: 'Le trou a changé de diamètre : cette taille n’y va plus. Choisissez une autre taille, ou gardez-la.',
 };
 
 // ---------------------------------------------------------------------------
