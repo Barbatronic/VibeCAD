@@ -43,7 +43,7 @@ export interface ComponentSpec {
 }
 
 export const COLLECTIONS: CollectionSpec[] = [
-  { id: 'bearings', name: 'Roulements', description: 'Roulements à billes à gorge profonde, avec flasques (2RS).' },
+  { id: 'bearings', name: 'Roulements', description: 'Roulements à billes à gorge profonde, à joints (2RS) ou flasques métalliques (ZZ), avec ou sans collerette.' },
   { id: 'motors', name: 'Moteurs', description: 'Moteurs pas à pas NEMA, avec centreur, arbre et taraudages de fixation.' },
   { id: 'pulleys', name: 'Poulies', description: 'Poulies crantées GT2 pour courroie de 6 mm, alésage 5 mm.' },
   { id: 'couplers', name: 'Accouplements', description: 'Accouplements rigides entre deux arbres, avec vis de pression.' },
@@ -65,17 +65,26 @@ function circleSketch(doc: CadDocument, partId: Id, support: SketchSupport, list
   return { doc: addFeature(doc, partId, { ...sk, params: c.sketch }), sketchId: sk.id, circles: c.ids };
 }
 
-/** Roulement à billes : bague d × D × B, flasques en léger retrait, chanfreins. */
-function bearing(code: string, d: number, D: number, B: number): ComponentSpec {
+/**
+ * Roulement à billes : bague d × D × B, flasques en léger retrait, chanfreins. Par défaut un
+ * roulement « 2RS » (joints) ; `designation` donne la référence complète (MF83ZZ : flasques
+ * métalliques), `flange` une collerette [diamètre, épaisseur] du côté de la face de départ.
+ */
+function bearing(code: string, d: number, D: number, B: number, opts: { designation?: string; flange?: [number, number] } = {}): ComponentSpec {
+  const ref = opts.designation ?? `${code}-2RS`;
+  const fmt = (v: number) => String(v).replace('.', ',');
+  const flange = opts.flange;
   return {
     collection: 'bearings',
-    id: `${code.toLowerCase()}-2rs`,
-    name: `Roulement ${code}-2RS`,
-    description: `Roulement à billes ${code}-2RS : alésage ${d} mm, diamètre extérieur ${D} mm, largeur ${B} mm.`,
-    tags: ['roulement', code, `${d}x${D}x${B}`],
-    dimensions: { d, D, B },
+    id: ref.toLowerCase(),
+    name: `Roulement ${ref}`,
+    description: flange
+      ? `Roulement à billes à collerette ${ref} : alésage ${fmt(d)} mm, diamètre extérieur ${fmt(D)} mm, largeur ${fmt(B)} mm, collerette Ø ${fmt(flange[0])} × ${fmt(flange[1])} mm.`
+      : `Roulement à billes ${ref} : alésage ${d} mm, diamètre extérieur ${D} mm, largeur ${B} mm.`,
+    tags: ['roulement', code, `${d}x${D}x${B}`, ...(flange ? ['collerette'] : [])],
+    dimensions: { d, D, B, ...(flange ? { D1: flange[0], C1: flange[1] } : {}) },
     build: () => {
-      let { doc, partId } = single(`Roulement ${code}-2RS`, '#b8c0ca', 'steel');
+      let { doc, partId } = single(`Roulement ${ref}`, '#b8c0ca', 'steel');
       const s1 = circleSketch(doc, partId, { kind: 'plane', plane: 'XY', offset: 0 }, [
         { x: 0, y: 0, r: D / 2 },
         { x: 0, y: 0, r: d / 2 },
@@ -90,7 +99,9 @@ function bearing(code: string, d: number, D: number, B: number): ComponentSpec {
         ],
       });
       const c = Math.min(0.5, B / 12);
-      doc = addFeature(doc, partId, makeChamferFeature(doc, findPart(doc, partId)!, s1.circles.flatMap((id) => [edge(id, 'start'), edge(id, 'end')]), c));
+      // Collerette : le bord extérieur de la face de départ est pris dedans, il n'est pas chanfreiné.
+      const chamfered = s1.circles.flatMap((id, k) => (flange && k === 0 ? [edge(id, 'end')] : [edge(id, 'start'), edge(id, 'end')]));
+      doc = addFeature(doc, partId, makeChamferFeature(doc, findPart(doc, partId)!, chamfered, c));
       // Flasques : anneau en retrait de 0,3 mm sur chaque face.
       const w = (D - d) / 2;
       const seal = [
@@ -101,6 +112,15 @@ function bearing(code: string, d: number, D: number, B: number): ComponentSpec {
         const s = circleSketch(doc, partId, { kind: 'face', ref: { featureId: ex.id, role } }, seal);
         doc = s.doc;
         doc = addFeature(doc, partId, makePocketFeature(doc, findPart(doc, partId)!, s.sketchId, { kind: 'distance', distance: 0.3 }));
+      }
+      if (flange) {
+        // Anneau de la collerette, qui mord de 0,2 mm sur la bague (soudure franche).
+        const f = circleSketch(doc, partId, { kind: 'plane', plane: 'XY', offset: 0 }, [
+          { x: 0, y: 0, r: flange[0] / 2 },
+          { x: 0, y: 0, r: D / 2 - 0.2 },
+        ]);
+        doc = f.doc;
+        doc = addFeature(doc, partId, makeExtrudeFeature(doc, findPart(doc, partId)!, f.sketchId, flange[1]));
       }
       return doc;
     },
@@ -269,6 +289,7 @@ export const COMPONENTS: ComponentSpec[] = [
   bearing('608', 8, 22, 7),
   bearing('6800', 10, 19, 5),
   bearing('6001', 12, 28, 8),
+  bearing('MF83', 3, 8, 3, { designation: 'MF83ZZ', flange: [9.2, 0.6] }),
   nema17(34),
   nema17(40),
   nema17(48),
