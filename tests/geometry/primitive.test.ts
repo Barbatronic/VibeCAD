@@ -45,6 +45,45 @@ describe('formes toutes faites', () => {
     expect(res.analysis!.bbox).toEqual({ min: { x: 5, y: -5, z: 2 }, max: { x: 35, y: 15, z: 12 } });
   });
 
+  it('cône, pyramide, prisme et rampe aux volumes exacts, faces repérées sans doublon', () => {
+    // Polygone régulier à n côtés inscrit dans un cercle de rayon r.
+    const poly = (n: number, r: number) => (n / 2) * r * r * Math.sin((2 * Math.PI) / n);
+    const frustum = (a: number, b: number, h: number) => (h / 3) * (a + b + Math.sqrt(a * b));
+    const cases: [Partial<PrimitiveParams>, number][] = [
+      [{ shape: 'cone', diameter: 20, topDiameter: 0, height: 30 }, (Math.PI * 100 * 30) / 3],
+      [{ shape: 'cone', diameter: 20, topDiameter: 10, height: 30 }, frustum(Math.PI * 100, Math.PI * 25, 30)],
+      [{ shape: 'pyramid', sides: 4, diameter: 20, topDiameter: 0, height: 15 }, (poly(4, 10) * 15) / 3],
+      [{ shape: 'pyramid', sides: 3, diameter: 20, topDiameter: 8, height: 15 }, frustum(poly(3, 10), poly(3, 4), 15)],
+      [{ shape: 'prism', sides: 6, diameter: 20, height: 12 }, poly(6, 10) * 12],
+      [{ shape: 'wedge', width: 30, depth: 10, height: 20 }, (30 * 20 * 10) / 2],
+    ];
+    for (const [params, volume] of cases) {
+      const { doc, id } = withPrimitive(createDocument('Forme'), { ...params, position: { x: 5, y: -5, z: 2 } });
+      const { res } = evaluate(doc);
+      expect(res.statuses.at(-1)!.state, params.shape).toBe('ok');
+      expect(res.analysis!.volume, `${params.shape}`).toBeCloseTo(volume, 3);
+      expect(res.analysis!.bbox!.min.z, `${params.shape}`).toBeCloseTo(2, 6);
+      // Chaque pan plat porte un repère unique (une esquisse peut s'y poser durablement).
+      const sideIds = kernel.mesh(res.shape!, { linearDeflection: 0.05, angularDeflection: 0.3 }).faces.flatMap((f) => f.tags.filter((t) => t.featureId === id && t.role === 'side' && t.entityId !== 'wall' && t.entityId !== 'surface').map((t) => t.entityId));
+      expect(new Set(sideIds).size, `${params.shape}`).toBe(sideIds.length);
+    }
+  });
+
+  it('pyramide régulière : arêtes toutes égales (tétraèdre à 3 côtés), refusée au-delà de 5 côtés', () => {
+    // Tétraèdre d'arête a : volume a³ / (6√2) ; base inscrite dans Ø 20 → a = 10√3.
+    const a = 10 * Math.sqrt(3);
+    const tetra = withPrimitive(createDocument('Tétraèdre'), { shape: 'pyramid', sides: 3, diameter: 20, height: 99, topDiameter: 5, regular: true });
+    const { res } = evaluate(tetra.doc);
+    expect(res.statuses.at(-1)!.state).toBe('ok');
+    expect(res.analysis!.volume).toBeCloseTo(a ** 3 / (6 * Math.SQRT2), 3);
+    expect(res.analysis!.bbox!.max.z).toBeCloseTo(a * Math.sqrt(2 / 3), 6);
+    // 4 côtés : faces latérales équilatérales, hauteur = R.
+    const square = evaluate(withPrimitive(createDocument('Pyramide'), { shape: 'pyramid', sides: 4, diameter: 20, height: 99, regular: true }).doc).res;
+    expect(square.analysis!.bbox!.max.z).toBeCloseTo(10, 6);
+    const flat = evaluate(withPrimitive(createDocument('Plate'), { shape: 'pyramid', sides: 6, diameter: 20, regular: true }).doc).res;
+    expect(flat.statuses.at(-1)!.state).toBe('error');
+  });
+
   it('creuser une boule dans une boîte, puis répéter le creux', () => {
     let { doc } = withPrimitive(createDocument('Bac'), { shape: 'box', width: 60, depth: 20, height: 10 });
     const hole = withPrimitive(doc, { shape: 'sphere', diameter: 10, position: { x: 10, y: 10, z: 10 }, operation: 'cut' });

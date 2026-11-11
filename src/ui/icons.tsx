@@ -229,6 +229,29 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4 12a8 3 0 0 0 16 0" opacity="0.6" />
     </>
   ),
+  'prim-cone': (
+    <>
+      <path d="M12 3.5L4.5 18M12 3.5L19.5 18" />
+      <ellipse cx="12" cy="18" rx="7.5" ry="2.5" />
+    </>
+  ),
+  'prim-pyramid': (
+    <>
+      <path d="M12 3.5L3.5 17l7 3.5L20.5 16z" />
+      <path d="M12 3.5l-1.5 17" />
+    </>
+  ),
+  'prim-prism': (
+    <>
+      <path d="M7.5 5h9l3 3.5-3 3.5h-9l-3-3.5z" />
+      <path d="M4.5 8.5V16l3 3.5h9l3-3.5V8.5M7.5 12v7.5M16.5 12v7.5" />
+    </>
+  ),
+  'prim-wedge': (
+    <>
+      <path d="M3.5 18.5h13l4-3h-13zM3.5 18.5V8l4-3v10.5M3.5 8l13 10.5M7.5 5l13 10.5" />
+    </>
+  ),
   'prim-torus': (
     <>
       <ellipse cx="12" cy="12" rx="9" ry="5" />

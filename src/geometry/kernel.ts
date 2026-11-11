@@ -64,13 +64,15 @@ export interface LoftRequest {
  */
 export interface PrimitiveRequest {
   featureId: Id;
-  shape: 'box' | 'cylinder' | 'sphere' | 'torus';
+  shape: 'box' | 'cylinder' | 'sphere' | 'torus' | 'cone' | 'pyramid' | 'prism' | 'wedge';
   position: Vec3;
   width: number;
   depth: number;
   height: number;
   diameter: number;
   thickness: number;
+  topDiameter?: number;
+  sides?: number;
 }
 
 export interface BoundingBox {

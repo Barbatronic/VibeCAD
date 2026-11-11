@@ -378,33 +378,91 @@ export class OcctKernel implements GeometryKernel {
   makePrimitive(request: PrimitiveRequest): KernelShape {
     const oc = this.oc;
     const r = request;
-    const positive = r.shape === 'box' ? [r.width, r.depth, r.height] : r.shape === 'cylinder' ? [r.diameter, r.height] : r.shape === 'sphere' ? [r.diameter] : [r.diameter, r.thickness];
+    const top = r.topDiameter ?? 0;
+    const sides = Math.round(r.sides ?? (r.shape === 'prism' ? 6 : 4));
+    const positive =
+      r.shape === 'box' || r.shape === 'wedge'
+        ? [r.width, r.depth, r.height]
+        : r.shape === 'cylinder' || r.shape === 'cone' || r.shape === 'pyramid' || r.shape === 'prism'
+          ? [r.diameter, r.height]
+          : r.shape === 'sphere'
+            ? [r.diameter]
+            : [r.diameter, r.thickness];
     if (positive.some((v) => !(v > 0))) throw new KernelError('Les dimensions de la forme doivent être positives.');
     if (r.shape === 'torus' && r.thickness >= r.diameter) throw new KernelError('L’épaisseur de l’anneau doit être plus petite que son diamètre.');
+    if ((r.shape === 'cone' || r.shape === 'pyramid') && !(top >= 0)) throw new KernelError('Le diamètre du haut ne peut pas être négatif.');
+    if ((r.shape === 'pyramid' || r.shape === 'prism') && !(sides >= 3 && sides <= 24)) throw new KernelError('Le nombre de côtés doit être compris entre 3 et 24.');
     return this.guard('forme', () =>
       withScope((scope) => {
-        // Construction à l'origine (constructeurs sans ambiguïté), puis déplacement.
-        const maker =
-          r.shape === 'box'
-            ? scope.track(new oc.BRepPrimAPI_MakeBox(r.width, r.depth, r.height))
-            : r.shape === 'cylinder'
-              ? scope.track(new oc.BRepPrimAPI_MakeCylinder(r.diameter / 2, r.height))
-              : r.shape === 'sphere'
-                ? scope.track(new oc.BRepPrimAPI_MakeSphere(r.diameter / 2))
-                : scope.track(new oc.BRepPrimAPI_MakeTorus(r.diameter / 2, r.thickness / 2));
+        // Polygone fermé (contour) passant par ces points.
+        const polygon = (pts: Vec3[]) => {
+          const mw = scope.track(new oc.BRepBuilderAPI_MakeWire());
+          pts.forEach((a, k) => {
+            const me = scope.track(new oc.BRepBuilderAPI_MakeEdge(this.pnt(scope, a), this.pnt(scope, pts[(k + 1) % pts.length]!)));
+            mw.Add(scope.track(me.Edge()));
+          });
+          return scope.track(mw.Wire());
+        };
+        // Polygone régulier inscrit dans un cercle de diamètre d, à la hauteur z (un côté face à −Y).
+        const regular = (d: number, z: number) =>
+          polygon(Array.from({ length: sides }, (_, k) => {
+            const a = -Math.PI / 2 + Math.PI / sides + (2 * Math.PI * k) / sides;
+            return { x: (d / 2) * Math.cos(a), y: (d / 2) * Math.sin(a), z };
+          }));
+        const circle = (d: number, z: number) => {
+          const ax2 = scope.track(new oc.gp_Ax2(this.pnt(scope, { x: 0, y: 0, z }), this.dir(scope, { x: 0, y: 0, z: 1 }), this.dir(scope, { x: 1, y: 0, z: 0 })));
+          const edge = scope.track(new oc.BRepBuilderAPI_MakeEdge(scope.track(new oc.gp_Circ(ax2, d / 2))));
+          const mw = scope.track(new oc.BRepBuilderAPI_MakeWire());
+          mw.Add(scope.track(edge.Edge()));
+          return scope.track(mw.Wire());
+        };
+        // Solide réglé entre une section du bas et une du haut (ou une pointe).
+        const loft = (bottom: TopoDS_Wire, topWire: TopoDS_Wire | null, apex: Vec3) => {
+          const ts = scope.track(new oc.BRepOffsetAPI_ThruSections(true, true, 1e-6));
+          ts.AddWire(bottom);
+          if (topWire) ts.AddWire(topWire);
+          else ts.AddVertex(scope.track(scope.track(new oc.BRepBuilderAPI_MakeVertex(this.pnt(scope, apex))).Vertex()));
+          ts.Build(scope.track(new oc.Message_ProgressRange()));
+          if (!ts.IsDone()) throw new KernelError('La forme n’a pas pu être construite avec ces dimensions.');
+          return ts.Shape();
+        };
+        // Construction à l'origine, puis déplacement.
+        let built: TopoDS_Shape;
+        if (r.shape === 'box') built = scope.track(new oc.BRepPrimAPI_MakeBox(r.width, r.depth, r.height)).Shape();
+        else if (r.shape === 'cylinder') built = scope.track(new oc.BRepPrimAPI_MakeCylinder(r.diameter / 2, r.height)).Shape();
+        else if (r.shape === 'sphere') built = scope.track(new oc.BRepPrimAPI_MakeSphere(r.diameter / 2)).Shape();
+        else if (r.shape === 'torus') built = scope.track(new oc.BRepPrimAPI_MakeTorus(r.diameter / 2, r.thickness / 2)).Shape();
+        else if (r.shape === 'cone') built = loft(circle(r.diameter, 0), top > 0 ? circle(top, r.height) : null, { x: 0, y: 0, z: r.height });
+        else if (r.shape === 'pyramid') built = loft(regular(r.diameter, 0), top > 0 ? regular(top, r.height) : null, { x: 0, y: 0, z: r.height });
+        else if (r.shape === 'prism') built = loft(regular(r.diameter, 0), regular(r.diameter, r.height), { x: 0, y: 0, z: 0 });
+        else {
+          // Rampe : triangle rectangle dans le plan XZ (haut en X = 0), poussé le long de Y.
+          const tri = polygon([{ x: 0, y: 0, z: 0 }, { x: r.width, y: 0, z: 0 }, { x: 0, y: 0, z: r.height }]);
+          const face = scope.track(new oc.BRepBuilderAPI_MakeFace(tri, true));
+          if (!face.IsDone()) throw new KernelError('La rampe n’a pas pu être construite.');
+          const prism = scope.track(new oc.BRepPrimAPI_MakePrism(scope.track(face.Face()), this.vec(scope, { x: 0, y: r.depth, z: 0 }), false, true));
+          if (!prism.IsDone()) throw new KernelError('La rampe n’a pas pu être construite.');
+          built = prism.Shape();
+        }
         const trsf = scope.track(new oc.gp_Trsf());
         trsf.SetTranslation(this.vec(scope, r.position));
-        const moved = scope.track(new oc.BRepBuilderAPI_Transform(maker.Shape(), trsf, true, false));
+        const moved = scope.track(new oc.BRepBuilderAPI_Transform(built, trsf, true, false));
         const shape = moved.Shape();
         const faces = this.taggedFaces(shape);
         for (const f of faces) {
           const info = this.surfaceInfo(scope, f.face);
           let tag: FaceTag;
           if (info.plane && Math.abs(info.plane.normal.z) > 0.99) tag = { featureId: r.featureId, role: info.plane.normal.z < 0 ? 'start' : 'end' };
-          else if (info.plane) {
+          else if (info.plane && (r.shape === 'pyramid' || r.shape === 'prism')) {
+            // Pan d'un polygone : numéroté d'après sa direction (le premier face à −Y).
+            const n = info.plane.normal;
+            const step = (2 * Math.PI) / sides;
+            const k = (((Math.round((Math.atan2(n.y, n.x) + Math.PI / 2) / step) % sides) + sides) % sides);
+            tag = { featureId: r.featureId, role: 'side', entityId: `side-${k}` };
+          } else if (info.plane) {
             const n = info.plane.normal;
             tag = { featureId: r.featureId, role: 'side', entityId: Math.abs(n.x) > Math.abs(n.y) ? (n.x < 0 ? 'x-' : 'x+') : n.y < 0 ? 'y-' : 'y+' };
-          } else tag = { featureId: r.featureId, role: 'side', entityId: r.shape === 'cylinder' ? 'wall' : 'surface' };
+          } else tag = { featureId: r.featureId, role: 'side', entityId: r.shape === 'cylinder' || r.shape === 'cone' ? 'wall' : 'surface' };
           addTags(f.tags, [tag]);
         }
         return new OcctShape(shape, faces);

@@ -427,7 +427,7 @@ export function makePrimitiveFeature(doc: CadDocument, part: Part, shape: Primit
     id: newFeatureId(doc, 'primitive'),
     type: 'primitive',
     name: nextFeatureName(part, 'primitive'),
-    params: { shape, position: { x: 0, y: 0, z: 0 }, width: 20, depth: 20, height: 20, diameter: 20, thickness: 6, operation },
+    params: { shape, position: { x: 0, y: 0, z: 0 }, width: 20, depth: 20, height: 20, diameter: 20, thickness: 6, topDiameter: 0, operation },
   };
 }
 

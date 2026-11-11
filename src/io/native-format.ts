@@ -761,13 +761,16 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: {
-          shape: oneOf(v, p, 'shape', pp, ['box', 'cylinder', 'sphere', 'torus'] as const),
+          shape: oneOf(v, p, 'shape', pp, ['box', 'cylinder', 'sphere', 'torus', 'cone', 'pyramid', 'prism', 'wedge'] as const),
           position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
           width: num(v, p, 'width', pp, { min: 0 }),
           depth: num(v, p, 'depth', pp, { min: 0 }),
           height: num(v, p, 'height', pp, { min: 0 }),
           diameter: num(v, p, 'diameter', pp, { min: 0 }),
           thickness: num(v, p, 'thickness', pp, { min: 0 }),
+          ...(p.topDiameter !== undefined ? { topDiameter: num(v, p, 'topDiameter', pp, { min: 0 }) } : {}),
+          ...(p.sides !== undefined ? { sides: num(v, p, 'sides', pp, { min: 3, max: 24, integer: true }) } : {}),
+          ...(p.regular === true ? { regular: true } : {}),
           operation: oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),
         },
       };

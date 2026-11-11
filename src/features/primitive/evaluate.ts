@@ -2,14 +2,14 @@ import type { PrimitiveFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
 import type { KernelShape } from '../../geometry/kernel';
 import type { FeatureEvaluator } from '../evaluation';
-import { primitiveDefinition } from './definition';
+import { effectivePrimitive, primitiveDefinition } from './definition';
 
 export const evaluatePrimitive: FeatureEvaluator<PrimitiveFeature> = (feature, ctx) => {
   const paramIssues = primitiveDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
   const p = feature.params;
   if (p.operation !== 'add' && !ctx.shape) return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
-  const tool = ctx.kernel.makePrimitive({ featureId: feature.id, ...p });
+  const tool = ctx.kernel.makePrimitive({ featureId: feature.id, ...effectivePrimitive(p) });
   let shape: KernelShape = tool;
   if (ctx.shape) {
     try {

@@ -944,7 +944,7 @@ export interface SplitParams {
   gap: number;
 }
 
-export type PrimitiveShape = 'box' | 'cylinder' | 'sphere' | 'torus';
+export type PrimitiveShape = 'box' | 'cylinder' | 'sphere' | 'torus' | 'cone' | 'pyramid' | 'prism' | 'wedge';
 
 /**
  * Ce que fait un volume dessiné avec la pièce : l'ajouter, le creuser, ou ne garder que la
@@ -956,8 +956,12 @@ export type VolumeOperation = 'add' | 'cut' | 'common';
  * Forme toute faite, ajoutée à la pièce ou creusée dedans (`cut`, comme un trou). Boîte : coin
  * en `position`, `width` (X) × `depth` (Y) × `height` (Z) ; cylindre : centre de la base,
  * `diameter` × `height` ; sphère : centre, `diameter` ; tore (anneau) : centre, `diameter` de la
- * ligne centrale et `thickness` (diamètre du tube). Les dimensions inutiles sont conservées pour
- * pouvoir changer de forme sans tout ressaisir.
+ * ligne centrale et `thickness` (diamètre du tube) ; cône : centre de la base, `diameter` en bas,
+ * `topDiameter` en haut (0 : pointe), `height` ; pyramide : base polygonale régulière à `sides`
+ * côtés inscrite dans `diameter`, sommet de `topDiameter` (0 : pointe) ; prisme : polygone régulier
+ * à `sides` côtés inscrit dans `diameter`, sur `height` ; rampe : coin en `position`, `width` (X,
+ * sens de la pente) × `depth` (Y) × `height` (Z, côté haut en X = 0). Les dimensions inutiles sont
+ * conservées pour pouvoir changer de forme sans tout ressaisir.
  */
 export interface PrimitiveParams {
   shape: PrimitiveShape;
@@ -967,6 +971,16 @@ export interface PrimitiveParams {
   height: number;
   diameter: number;
   thickness: number;
+  /** Cône, pyramide : diamètre du haut (0 : pointe). Absent : 0. */
+  topDiameter?: number;
+  /** Pyramide, prisme : nombre de côtés (3 à 24). Absent : 4 (pyramide), 6 (prisme). */
+  sides?: number;
+  /**
+   * Pyramide régulière : toutes les arêtes de même longueur (faces latérales en triangles
+   * équilatéraux ; 3 côtés : tétraèdre, 4 faces identiques). La hauteur est alors calculée, le haut
+   * est une pointe. Possible jusqu'à 5 côtés.
+   */
+  regular?: boolean;
   operation: VolumeOperation;
 }
 

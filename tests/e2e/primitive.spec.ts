@@ -6,7 +6,7 @@ test('forme toute faite au niveau Débutant : une boîte, puis une boule creusé
   await page.click('#tool-primitive');
   const shapes = page.getByRole('group', { name: 'Forme' });
   // Débutant : boîte, cylindre, boule (l'anneau est pour le niveau Intermédiaire).
-  await expect(shapes.getByRole('button')).toHaveCount(3);
+  await expect(shapes.getByRole('button')).toHaveCount(4);
   await page.locator('#draft-width').fill('40');
   await page.locator('#draft-depth').fill('30');
   await page.locator('#draft-height').fill('10');

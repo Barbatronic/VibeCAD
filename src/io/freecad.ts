@@ -19,6 +19,7 @@ import { patternSources } from '../domain/document';
 import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../domain/model';
 import { expressionNames } from '../domain/units';
 import { holeDiameter } from '../features/hole/definition';
+import { primitiveSides } from '../features/primitive/definition';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
 import { ellipseOf, findLine, pointPosition, standalonePoints } from '../sketch/model';
@@ -96,8 +97,10 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
     case 'pocket':
       return f.params.direction !== 'twoSides';
     case 'revolve':
-    case 'primitive':
       return f.params.operation !== 'common';
+    case 'primitive':
+      // Pas d'équivalent PartDesign simple pour la pyramide et la rampe : reprises comme formes figées.
+      return f.params.operation !== 'common' && f.params.shape !== 'pyramid' && f.params.shape !== 'wedge';
     case 'fillet':
     case 'chamfer':
     case 'hole':
@@ -583,8 +586,14 @@ export function freecadScript(input: FreecadInput): string {
         case 'primitive': {
           const pr = f.params;
           const sub = pr.operation === 'cut';
-          const kind = { box: 'Box', cylinder: 'Cylinder', sphere: 'Sphere', torus: 'Torus' }[pr.shape];
-          lines.push(`${v} = ${body}.newObject("PartDesign::${sub ? 'Subtractive' : 'Additive'}${kind}", ${py(kind)})`, label, `${v}.MapMode = "Deactivated"`, `${v}.Placement = App.Placement(${vec(pr.position)}, App.Rotation())`);
+          const kind = ({ box: 'Box', cylinder: 'Cylinder', sphere: 'Sphere', torus: 'Torus', cone: 'Cone', prism: 'Prism' } as Partial<Record<typeof pr.shape, string>>)[pr.shape];
+          if (!kind) break;
+          // Prisme FreeCAD : premier sommet sur +X ; ici un côté face à −Y (tourné de −90° + 180°/n).
+          const sides = primitiveSides(pr);
+          const turn = pr.shape === 'prism' ? `App.Rotation(V(0, 0, 1), ${num(-90 + 180 / sides)})` : 'App.Rotation()';
+          lines.push(`${v} = ${body}.newObject("PartDesign::${sub ? 'Subtractive' : 'Additive'}${kind}", ${py(kind)})`, label, `${v}.MapMode = "Deactivated"`, `${v}.Placement = App.Placement(${vec(pr.position)}, ${turn})`);
+          if (pr.shape === 'cone') lines.push(`${v}.Radius1 = ${num(pr.diameter / 2)}`, `${v}.Radius2 = ${num((pr.topDiameter ?? 0) / 2)}`, `${v}.Height = ${num(pr.height)}`);
+          if (pr.shape === 'prism') lines.push(`${v}.Polygon = ${sides}`, `${v}.Circumradius = ${num(pr.diameter / 2)}`, `${v}.Height = ${num(pr.height)}`);
           if (pr.shape === 'box') lines.push(`${v}.Length = ${num(pr.width)}`, `${v}.Width = ${num(pr.depth)}`, `${v}.Height = ${num(pr.height)}`);
           if (pr.shape === 'cylinder') lines.push(`${v}.Radius = ${num(pr.diameter / 2)}`, `${v}.Height = ${num(pr.height)}`);
           if (pr.shape === 'sphere') lines.push(`${v}.Radius = ${num(pr.diameter / 2)}`);

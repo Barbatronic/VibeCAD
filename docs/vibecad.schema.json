@@ -1177,7 +1177,11 @@
                     "box",
                     "cylinder",
                     "sphere",
-                    "torus"
+                    "torus",
+                    "cone",
+                    "pyramid",
+                    "prism",
+                    "wedge"
                   ]
                 },
                 "position": {
@@ -1225,6 +1229,21 @@
                     "cut",
                     "common"
                   ]
+                },
+                "topDiameter": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Cône, pyramide : diamètre du haut (0 ou absent : pointe)."
+                },
+                "sides": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 24,
+                  "description": "Pyramide, prisme : nombre de côtés (absent : 4 pour une pyramide, 6 pour un prisme)."
+                },
+                "regular": {
+                  "type": "boolean",
+                  "description": "Pyramide régulière : toutes les arêtes égales, hauteur calculée, pointe en haut (3 à 5 côtés)."
                 }
               }
             }
