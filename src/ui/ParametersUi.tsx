@@ -20,7 +20,9 @@ function CommitInput(props: { value: string; label: string; class: string; onCom
       defaultValue={props.value}
       spellcheck={false}
       autoComplete="off"
-      onChange={(e) => {
+      // À la sortie du champ seulement (pas `onChange`, qui se déclenche à chaque frappe) : rien n'est
+      // recalculé pendant la saisie, et le champ garde le focus.
+      onBlur={(e) => {
         const input = e.target as HTMLInputElement;
         const text = input.value.trim();
         if (text && text !== props.value) props.onCommit(text);

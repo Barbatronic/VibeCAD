@@ -51,7 +51,7 @@ export function SubassemblyBar() {
               aria-label="Nom du sous-assemblage"
               value={name}
               onInput={(e) => setName((e.target as HTMLInputElement).value)}
-              onChange={() => c.renameSubassemblyTo(current.id, name)}
+              onBlur={() => c.renameSubassemblyTo(current.id, name)}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             />
             <IconButton icon="trash" small label={`Supprimer le sous-assemblage « ${current.name} »`} onClick={() => c.deleteSubassembly(current.id)} />
