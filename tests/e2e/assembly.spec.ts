@@ -123,6 +123,20 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await expect.poll(async () => (await pinOrigin(page)).z).toBeCloseTo(0, 5);
   await page.screenshot({ path: 'tests/output/e2e-assemblage-glissiere.png' });
 
+  // Zéro de la liaison : la position courante devient 0, rien ne bouge.
+  await page.getByRole('button', { name: 'Définir comme zéro' }).click();
+  await expect.poll(async () => (await joint(page))?.zero).toMatchObject({ offset: -5 });
+  expect((await joint(page))?.offset).toBe(0);
+  expect((await pinOrigin(page)).z).toBeCloseTo(0, 5);
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    c.setJoint(c.state.doc.assembly.joints[0].id, { offset: 3 });
+  });
+  await expect.poll(async () => (await pinOrigin(page)).z).toBeCloseTo(3, 5);
+  // Remise à zéro de toutes les liaisons : retour au zéro défini.
+  await page.click('#joints-reset');
+  await expect.poll(async () => (await pinOrigin(page)).z).toBeCloseTo(0, 5);
+
   // Outil Main, à la souris : la goupille ne bouge que le long de l'axe du trou.
   await page.click('#as-hand');
   await expect(page.locator('#as-hand')).toHaveAttribute('aria-pressed', 'true');
@@ -156,4 +170,5 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   const recover = page.getByRole('button', { name: /Récupérer|Reprendre/ });
   if (await recover.count()) await recover.first().click();
   await expect.poll(() => appState(page, (s) => s.doc.assembly?.joints.length ?? 0)).toBe(1);
+  expect((await joint(page))?.zero).toMatchObject({ offset: -5 });
 });

@@ -3777,6 +3777,69 @@ export class AppController {
     this.commit(this.settleLoops(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), jointId), label);
   }
 
+  /**
+   * Définit la position courante d'une liaison comme son zéro : les réglages libres (angle, décalage,
+   * glissements) passent dans `zero` et repartent de 0. Rien ne bouge ; limites, calage des
+   * engrenages et étude du mécanisme sont décalés d'autant.
+   */
+  setJointZero(jointId: Id): void {
+    const doc = this.state.doc;
+    const joint = doc.assembly?.joints.find((j) => j.id === jointId);
+    if (!joint) return;
+    const free = jointFreedoms(joint.kind);
+    const da = free.angle ? joint.angle : 0;
+    const dd = free.offset ? joint.offset : 0;
+    const dx = free.slide ? (joint.slideX ?? 0) : 0;
+    const dy = free.slide ? (joint.slideY ?? 0) : 0;
+    if (!da && !dd && !dx && !dy) return this.explain(`« ${joint.name} » est déjà à zéro.`);
+    const shift = (l: [number, number] | undefined, d: number): [number, number] | undefined => (l && d ? [l[0] - d, l[1] - d] : l);
+    const z = joint.zero;
+    const zero = {
+      angle: (z?.angle ?? 0) + da,
+      offset: (z?.offset ?? 0) + dd,
+      ...(free.slide || z?.slideX || z?.slideY ? { slideX: (z?.slideX ?? 0) + dx, slideY: (z?.slideY ?? 0) + dy } : {}),
+    };
+    let out = updateJoint(doc, jointId, (j) => ({
+      ...j,
+      zero,
+      angle: j.angle - da,
+      offset: j.offset - dd,
+      ...(free.slide ? { slideX: (j.slideX ?? 0) - dx, slideY: (j.slideY ?? 0) - dy } : {}),
+      angleLimits: shift(j.angleLimits, da),
+      offsetLimits: shift(j.offsetLimits, dd),
+    }));
+    const assembly = out.assembly!;
+    for (const cp of assembly.couplings ?? []) {
+      if (cp.driver === jointId || cp.driven === jointId) out = updateCoupling(out, cp.id, (x) => ({ ...x, phase: couplingPhase(out.assembly!, x) }));
+    }
+    const study = out.simulation?.mechanism;
+    if (study?.jointId === jointId) {
+      const d = free.angle && joint.kind !== 'spherical' ? da : dd;
+      if (d) out = { ...out, simulation: { ...out.simulation!, mechanism: { ...study, from: study.from - d, to: study.to - d } } };
+    }
+    this.commit(out, `Zéro de « ${joint.name} »`);
+  }
+
+  /** Remet toutes les liaisons à leur zéro (mouvements libres seulement, dans leurs limites). */
+  resetJoints(): void {
+    const doc = this.state.doc;
+    const joints = doc.assembly?.joints ?? [];
+    if (joints.length === 0) return;
+    let out = doc;
+    for (const joint of joints) {
+      const free = jointFreedoms(joint.kind);
+      out = updateJoint(out, joint.id, (j) => ({
+        ...j,
+        ...(free.angle ? { angle: clampToLimits(0, j.angleLimits) } : {}),
+        ...(free.offset ? { offset: clampToLimits(0, j.offsetLimits) } : {}),
+        ...(free.tilt ? { tilt: 0, tiltDirection: 0 } : {}),
+        ...(free.slide ? { slideX: 0, slideY: 0 } : {}),
+      }));
+    }
+    if (out === doc) return;
+    this.commit(this.settleLoops(out), 'Remettre les liaisons à zéro');
+  }
+
   /** Bloc souple (ou rigide à nouveau) : ses liaisons internes deviennent réglables à cette insertion. */
   setBlockFlexible(instanceId: Id, on: boolean): void {
     this.commit(

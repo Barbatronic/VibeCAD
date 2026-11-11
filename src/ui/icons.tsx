@@ -876,6 +876,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4 19h16" />
     </>
   ),
+  'joints-zero': (
+    <>
+      <path d="M5 12a7 7 0 1 0 2.05-4.95" />
+      <path d="M5 4.5v3.5h3.5" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+    </>
+  ),
   target: (
     <>
       <circle cx="12" cy="12" r="7.5" />

@@ -457,20 +457,23 @@ export function AssemblySection() {
         <ExplodeSlider />
         <CollisionReport />
         {data.joints.length > 0 ? (
-          <button
-            type="button"
-            class="list-title asm-joints-toggle"
-            aria-expanded={!jointsFolded}
-            onClick={() => {
-              jointsFolded = !jointsFolded;
-              refresh((n) => n + 1);
-            }}
-          >
-            <Icon name={jointsFolded ? 'chevron-right' : 'chevron-down'} class="asm-chevron" />
-            Liaisons
-            <span class="count">{data.joints.length}</span>
-            {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
-          </button>
+          <div class="asm-joints-head">
+            <button
+              type="button"
+              class="list-title asm-joints-toggle"
+              aria-expanded={!jointsFolded}
+              onClick={() => {
+                jointsFolded = !jointsFolded;
+                refresh((n) => n + 1);
+              }}
+            >
+              <Icon name={jointsFolded ? 'chevron-right' : 'chevron-down'} class="asm-chevron" />
+              Liaisons
+              <span class="count">{data.joints.length}</span>
+              {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
+            </button>
+            <IconButton id="joints-reset" icon="joints-zero" small label="Remettre toutes les liaisons à zéro" onClick={() => c.resetJoints()} />
+          </div>
         ) : null}
         {jointsFolded ? null : (
           <ul class="feature-list asm-list" aria-label="Liaisons de l’assemblage">
@@ -627,6 +630,9 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
         <div class="joint-animate">
           <Button small icon={animating ? 'close' : 'play'} variant={animating ? 'default' : 'primary'} onClick={() => c.toggleJointAnimation(joint.id)}>
             {animating ? 'Arrêter' : 'Animer le mécanisme'}
+          </Button>
+          <Button small icon="target" disabled={animating} onClick={() => c.setJointZero(joint.id)}>
+            Définir comme zéro
           </Button>
         </div>
       ) : null}

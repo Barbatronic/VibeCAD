@@ -271,6 +271,18 @@ export interface AssemblyJoint {
   /** Appui plan : glissement (mm) dans le plan, le long des axes X et Y du repère de référence. */
   slideX?: number;
   slideY?: number;
+  /**
+   * Zéro de la liaison : position de référence ajoutée aux réglages libres (angle, décalage,
+   * glissements). « Définir comme zéro » y reporte la position courante, les réglages repartent de 0.
+   */
+  zero?: JointZero;
+}
+
+export interface JointZero {
+  angle: number;
+  offset: number;
+  slideX?: number;
+  slideY?: number;
 }
 
 /**

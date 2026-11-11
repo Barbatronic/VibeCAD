@@ -4981,6 +4981,17 @@ option.is-unfit {
   font-variant-numeric: tabular-nums;
 }
 
+.asm-joints-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.asm-joints-head .asm-joints-toggle {
+  flex: 1;
+  min-width: 0;
+}
+
 .asm-joints-toggle {
   display: flex;
   align-items: center;

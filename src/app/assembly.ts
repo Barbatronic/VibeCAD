@@ -137,7 +137,7 @@ export function isSphereLcs(mesh: MeshData, ref: LcsRef): boolean {
 
 /** Matrice de placement de la pièce mobile d'une liaison. */
 export function jointMatrix(
-  joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'> & Partial<Pick<AssemblyJoint, 'kind' | 'tilt' | 'tiltDirection' | 'slideX' | 'slideY'>>,
+  joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'> & Partial<Pick<AssemblyJoint, 'kind' | 'tilt' | 'tiltDirection' | 'slideX' | 'slideY' | 'zero'>>,
   baseMatrix: Mat4,
   baseFrame: Frame3D,
   movingFrame: Frame3D,
@@ -150,9 +150,12 @@ export function jointMatrix(
     m = multiply4(m, multiply4(rotationZ4(dir), multiply4(rotationX4(-(joint.tilt * Math.PI) / 180), rotationZ4(-dir))));
   }
   // Appui plan : la pièce glisse dans le plan du repère de référence, puis tourne sur place.
-  if (joint.kind === 'planar' && (joint.slideX || joint.slideY)) m = multiply4(m, translation4({ x: joint.slideX ?? 0, y: joint.slideY ?? 0, z: 0 }));
-  m = multiply4(m, rotationZ4((joint.angle * Math.PI) / 180));
-  m = multiply4(m, translation4({ x: 0, y: 0, z: joint.offset }));
+  const z = joint.zero;
+  const sx = (joint.slideX ?? 0) + (z?.slideX ?? 0);
+  const sy = (joint.slideY ?? 0) + (z?.slideY ?? 0);
+  if (joint.kind === 'planar' && (sx || sy)) m = multiply4(m, translation4({ x: sx, y: sy, z: 0 }));
+  m = multiply4(m, rotationZ4(((joint.angle + (z?.angle ?? 0)) * Math.PI) / 180));
+  m = multiply4(m, translation4({ x: 0, y: 0, z: joint.offset + (z?.offset ?? 0) }));
   // Par défaut, les axes Z sont opposés : les faces se touchent, la goupille entre dans le trou.
   if (!joint.flip) m = multiply4(m, flipX4());
   return multiply4(m, invertRigid4(frameMatrix4(movingFrame)));

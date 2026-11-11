@@ -3219,6 +3219,17 @@
               "slideY": {
                 "type": "number",
                 "description": "Appui plan : glissement (mm) le long de l'axe Y du repère de référence."
+              },
+              "zero": {
+                "type": "object",
+                "description": "Zéro de la liaison : position de référence ajoutée aux réglages libres (angle, décalage, glissements).",
+                "required": ["angle", "offset"],
+                "properties": {
+                  "angle": { "type": "number" },
+                  "offset": { "type": "number" },
+                  "slideX": { "type": "number" },
+                  "slideY": { "type": "number" }
+                }
               }
             }
           }

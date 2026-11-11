@@ -583,6 +583,13 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
     for (const key of ['tilt', 'tiltDirection', 'tiltLimit', 'slideX', 'slideY'] as const) {
       if (jo[key] !== undefined) joint[key] = num(v, jo, key, jp, key === 'tiltLimit' ? { min: 0, max: 180 } : {});
     }
+    if (jo.zero !== undefined) {
+      const zo = obj(v, jo.zero, `${jp}.zero`);
+      if (zo) {
+        joint.zero = { angle: num(v, zo, 'angle', `${jp}.zero`), offset: num(v, zo, 'offset', `${jp}.zero`) };
+        for (const key of ['slideX', 'slideY'] as const) if (zo[key] !== undefined) joint.zero[key] = num(v, zo, key, `${jp}.zero`);
+      }
+    }
     if (!ids.has(joint.moving.instanceId) || !ids.has(joint.base.instanceId)) {
       v.warnings.push(`Assemblage : la liaison « ${joint.name} » vise une pièce retirée ; elle est supprimée.`);
       return;
