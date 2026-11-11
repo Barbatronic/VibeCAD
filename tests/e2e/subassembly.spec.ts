@@ -25,7 +25,7 @@ test('sous-assemblage : créé, rempli, puis inséré comme un bloc dans l’ass
   await page.click('#as-insert');
   await page.getByRole('menuitem', { name: 'Sous-assemblage : Bloc plaque' }).click();
   await expect.poll(() => appState(page, (s) => s.doc.assembly.instances.at(-1).subassemblyId)).toMatch(/sa-/);
-  await expect(page.getByRole('list', { name: 'Pièces de l’assemblage' })).toContainText('bloc : sous-assemblage « Bloc plaque »');
+  await expect(page.getByRole('list', { name: 'Pièces de l’assemblage' })).toContainText('bloc « Bloc plaque »');
   expect(await page.evaluate(() => (window as any).vibecad.controller.assemblyLeaves().map((l: any) => l.name))).toEqual(['Plaque', 'Plaque (2)', 'Bloc plaque › Pièce 1']);
 
   // Un bloc inséré ne peut pas être supprimé ; ouvrir et refermer ne marque pas le projet modifié.
@@ -46,7 +46,7 @@ test('bloc souple : le pivot du bloc se règle à cette insertion, sans changer 
   doc.assembly = { instances: [{ id: 'in-b', partId: '', subassemblyId: 'sa-1', name: 'Charnière', position: { x: 0, y: 0, z: 0 } }], joints: [] };
   await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), JSON.stringify(file));
   await page.click('#tab-assembly');
-  await page.getByRole('list', { name: 'Pièces de l’assemblage' }).getByText('Charnière').click();
+  await page.getByRole('list', { name: 'Pièces de l’assemblage' }).getByText('Charnière', { exact: true }).click();
   await page.locator('#as-block-flexible').check();
   const angle = page.getByLabel('Angle exact');
   await expect(angle).toHaveValue('30');

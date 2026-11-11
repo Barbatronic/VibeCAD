@@ -329,6 +329,47 @@ function ExplodeSlider() {
   );
 }
 
+/**
+ * Groupes de la liste d'assemblage ouverts ou repliés à la main (gardés d'un affichage à l'autre) ;
+ * sans choix, un groupe s'ouvre s'il contient la pièce sélectionnée.
+ */
+const openGroups = new Map<string, boolean>();
+let jointsFolded = false;
+
+interface InstanceRowData {
+  id: string;
+  partId: string;
+  name: string;
+  block: string | null;
+  color: string;
+  fixed: boolean;
+  joints: number;
+}
+
+/** Ligne compacte d'une pièce insérée : nom, et un repère (fixe, bloc, liaisons ou libre). */
+function InstanceRow(props: { i: InstanceRowData; selected: boolean; nested?: boolean }) {
+  const c = useController();
+  const { i } = props;
+  const tag = i.fixed ? '📌 fixe' : i.joints > 0 ? `${i.joints} liaison${i.joints > 1 ? 's' : ''}` : 'libre';
+  const title = `${i.name} — ${i.fixed ? 'fixe (référence de l’assemblage)' : i.block ? `bloc : sous-assemblage « ${i.block} »` : 'pièce insérée'}${i.fixed ? '' : i.joints > 0 ? `, ${tag}` : ', aucune liaison (déplaçable librement)'}`;
+  return (
+    <li>
+      <div class={`feature-row asm-row${props.nested ? ' is-nested' : ''}${props.selected ? ' is-selected' : ''}`}>
+        <button type="button" class="feature-main" title={title} aria-pressed={props.selected} onClick={() => c.selectInAssembly({ kind: 'instance', id: i.id })}>
+          <span class="color-swatch" style={{ background: i.color }} />
+          <span class="name">{i.name}</span>
+          {i.block ? <span class="asm-tag">bloc « {i.block} »</span> : null}
+          <span class={`asm-tag${!i.fixed && i.joints === 0 ? ' is-free' : ''}`}>{tag}</span>
+        </button>
+        <span class="row-actions">
+          {!i.block ? <IconButton icon="edit" small label={`Modifier « ${i.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(i.id)} /> : null}
+          <IconButton icon="trash" small label={`Retirer « ${i.name} » de l’assemblage`} onClick={() => c.removeInstance(i.id)} />
+        </span>
+      </div>
+    </li>
+  );
+}
+
 /** Panneau de gauche : pièces insérées (la première est fixe) et liaisons. */
 export function AssemblySection() {
   const c = useController();
@@ -337,12 +378,18 @@ export function AssemblySection() {
       const a = s.doc.assembly ?? { instances: [], joints: [] };
       const placement = c.assemblyPlacement();
       return {
-        instances: a.instances.map((i) => ({
-          id: i.id,
-          name: i.name,
-          block: i.subassemblyId ? (subassemblyList(s.doc).find((x) => x.id === i.subassemblyId)?.name ?? '?') : null,
-          color: s.doc.parts.find((p) => p.id === i.partId)?.color ?? '#888',
-        })),
+        instances: a.instances.map(
+          (i, index): InstanceRowData => ({
+            id: i.id,
+            partId: i.partId,
+            name: i.name,
+            block: i.subassemblyId ? (subassemblyList(s.doc).find((x) => x.id === i.subassemblyId)?.name ?? '?') : null,
+            color: s.doc.parts.find((p) => p.id === i.partId)?.color ?? '#888',
+            fixed: index === 0,
+            joints: a.joints.filter((j) => j.moving.instanceId === i.id || j.base.instanceId === i.id).length,
+          }),
+        ),
+        partNames: Object.fromEntries(s.doc.parts.map((p) => [p.id, p.name])),
         joints: a.joints.map((j) => ({
           id: j.id,
           name: j.name,
@@ -356,10 +403,27 @@ export function AssemblySection() {
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
+  const [, refresh] = useState(0);
+  const selectedId = data.sel?.kind === 'instance' ? data.sel.id : null;
+  // Pièces identiques (même pièce, hors blocs) regroupées sous une ligne repliable, à la place
+  // de la première ; la pièce fixe reste seule en tête.
+  const groups: { key: string; items: InstanceRowData[] }[] = [];
+  for (const i of data.instances) {
+    const key = i.block || i.fixed ? i.id : `part:${i.partId}`;
+    const g = groups.find((x) => x.key === key);
+    if (g) g.items.push(i);
+    else groups.push({ key, items: [i] });
+  }
+  const toggleGroup = (key: string, open: boolean) => {
+    openGroups.set(key, !open);
+    refresh((n) => n + 1);
+  };
+  const issues = data.joints.filter((j) => j.issue).length;
   return (
     <section class="panel-section grow" aria-labelledby="assembly-title">
       <div class="panel-header">
         <span id="assembly-title">Assemblage</span>
+        {data.instances.length > 0 ? <span class="count">{data.instances.length}</span> : null}
       </div>
       <div class="panel-body">
         <SubassemblyBar />
@@ -368,62 +432,80 @@ export function AssemblySection() {
             Assemblage vide. La première pièce insérée est fixe.
           </p>
         ) : null}
-        <ul class="feature-list" aria-label="Pièces de l’assemblage">
-          {data.instances.map((i, index) => (
-            <li key={i.id}>
-              <div class={`feature-row${data.sel?.kind === 'instance' && data.sel.id === i.id ? ' is-selected' : ''}`}>
-                <button type="button" class="feature-main" aria-pressed={data.sel?.kind === 'instance' && data.sel.id === i.id} onClick={() => c.selectInAssembly({ kind: 'instance', id: i.id })}>
-                  <span class="color-swatch" style={{ background: i.color, width: '16px', height: '16px' }} />
-                  <span class="feature-texts">
-                    <span class="name">{i.name}</span>
-                    <span class="summary">
-                      {index === 0 ? '📌 fixe (référence de l’assemblage)' : i.block ? `bloc : sous-assemblage « ${i.block} »` : 'pièce insérée'}
-                    </span>
-                  </span>
-                </button>
-                <span class="row-actions">
-                  {!i.block ? <IconButton icon="edit" small label={`Modifier « ${i.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(i.id)} /> : null}
-                  <IconButton icon="trash" small label={`Retirer « ${i.name} » de l’assemblage`} onClick={() => c.removeInstance(i.id)} />
-                </span>
-              </div>
-            </li>
-          ))}
+        <ul class="feature-list asm-list" aria-label="Pièces de l’assemblage">
+          {groups.map((g) => {
+            if (g.items.length === 1) return <InstanceRow key={g.key} i={g.items[0]!} selected={selectedId === g.items[0]!.id} />;
+            const first = g.items[0]!;
+            const open = openGroups.get(g.key) ?? g.items.some((x) => x.id === selectedId);
+            const free = g.items.filter((x) => x.joints === 0).length;
+            return [
+              <li key={g.key}>
+                <div class="feature-row asm-row asm-group">
+                  <button type="button" class="feature-main" aria-expanded={open} onClick={() => toggleGroup(g.key, open)} title={open ? 'Replier' : 'Montrer chaque exemplaire'}>
+                    <Icon name={open ? 'chevron-down' : 'chevron-right'} class="asm-chevron" />
+                    <span class="color-swatch" style={{ background: first.color }} />
+                    <span class="name">{data.partNames[first.partId] ?? first.name}</span>
+                    <span class="asm-count">×{g.items.length}</span>
+                    {free > 0 ? <span class="asm-tag is-free">{free === g.items.length ? 'libres' : `${free} libre${free > 1 ? 's' : ''}`}</span> : null}
+                  </button>
+                </div>
+              </li>,
+              ...(open ? g.items.map((i) => <InstanceRow key={i.id} i={i} nested selected={selectedId === i.id} />) : []),
+            ];
+          })}
         </ul>
         <ExplodeSlider />
         <CollisionReport />
-        {data.joints.length > 0 ? <h3 class="list-title">Liaisons</h3> : null}
-        <ul class="feature-list" aria-label="Liaisons de l’assemblage">
-          {data.joints.map((j) => (
-            <li key={j.id}>
-              <div class={`feature-row${data.sel?.kind === 'joint' && data.sel.id === j.id ? ' is-selected' : ''}`}>
-                <button
-                  type="button"
-                  class="feature-main"
-                  aria-pressed={data.sel?.kind === 'joint' && data.sel.id === j.id}
-                  title={`${JOINT_LABELS[j.kind]} : ${JOINT_EXPLANATIONS[j.kind]}`}
-                  onClick={() => c.selectInAssembly({ kind: 'joint', id: j.id })}
-                >
-                  <Icon name={`joint-${j.kind}`} class="feature-icon" />
-                  <span class="feature-texts">
-                    <span class="name">
-                      {j.name} · {JOINT_LABELS[j.kind]}
-                    </span>
-                    <span class="status-line">
-                      {j.issue ? <span class="status-badge status-error">Souci</span> : null}
-                      <span class="summary">
-                        {j.moving} → {j.base}
+        {data.joints.length > 0 ? (
+          <button
+            type="button"
+            class="list-title asm-joints-toggle"
+            aria-expanded={!jointsFolded}
+            onClick={() => {
+              jointsFolded = !jointsFolded;
+              refresh((n) => n + 1);
+            }}
+          >
+            <Icon name={jointsFolded ? 'chevron-right' : 'chevron-down'} class="asm-chevron" />
+            Liaisons
+            <span class="count">{data.joints.length}</span>
+            {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
+          </button>
+        ) : null}
+        {jointsFolded ? null : (
+          <ul class="feature-list asm-list" aria-label="Liaisons de l’assemblage">
+            {data.joints.map((j) => (
+              <li key={j.id}>
+                <div class={`feature-row asm-row${data.sel?.kind === 'joint' && data.sel.id === j.id ? ' is-selected' : ''}`}>
+                  <button
+                    type="button"
+                    class="feature-main"
+                    aria-pressed={data.sel?.kind === 'joint' && data.sel.id === j.id}
+                    title={`${j.name} · ${JOINT_LABELS[j.kind]} : ${j.moving} → ${j.base}\n${JOINT_EXPLANATIONS[j.kind]}`}
+                    onClick={() => c.selectInAssembly({ kind: 'joint', id: j.id })}
+                  >
+                    <Icon name={`joint-${j.kind}`} class="feature-icon" />
+                    <span class="feature-texts">
+                      <span class="name">
+                        {j.name} · {JOINT_LABELS[j.kind]}
+                      </span>
+                      <span class="status-line">
+                        {j.issue ? <span class="status-badge status-error">Souci</span> : null}
+                        <span class="summary">
+                          {j.moving} → {j.base}
+                        </span>
                       </span>
                     </span>
+                  </button>
+                  <span class="row-actions">
+                    <IconButton icon="trash" small label={`Supprimer « ${j.name} »`} onClick={() => c.removeJoint(j.id)} />
                   </span>
-                </button>
-                <span class="row-actions">
-                  <IconButton icon="trash" small label={`Supprimer « ${j.name} »`} onClick={() => c.removeJoint(j.id)} />
-                </span>
-              </div>
-              {j.issue ? <div class="feature-issue error">{JOINT_ISSUE_MESSAGES[j.issue]}</div> : null}
-            </li>
-          ))}
-        </ul>
+                </div>
+                {j.issue ? <div class="feature-issue error">{JOINT_ISSUE_MESSAGES[j.issue]}</div> : null}
+              </li>
+            ))}
+          </ul>
+        )}
         <CouplingList />
         <FastenerList />
       </div>
