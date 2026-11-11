@@ -240,7 +240,7 @@ export function removeInstance(doc: CadDocument, instanceId: Id): CadDocument {
   };
 }
 
-export const JOINT_LABELS: Record<JointKind, string> = { fixed: 'Fixe', revolute: 'Pivot', slider: 'Glissière', cylindrical: 'Pivot glissant', spherical: 'Rotule' };
+export const JOINT_LABELS: Record<JointKind, string> = { fixed: 'Fixe', revolute: 'Pivot', slider: 'Glissière', cylindrical: 'Pivot glissant', spherical: 'Rotule', planar: 'Appui plan' };
 
 /** Ce que fait chaque liaison, avec un exemple de la vie courante. */
 export const JOINT_EXPLANATIONS: Record<JointKind, string> = {
@@ -249,6 +249,7 @@ export const JOINT_EXPLANATIONS: Record<JointKind, string> = {
   slider: 'La pièce glisse le long d’un axe sans tourner, comme un tiroir.',
   cylindrical: 'La pièce tourne et glisse le long d’un axe, comme un piston ou le siège d’un tabouret à vis.',
   spherical: 'La pièce tourne dans tous les sens autour d’un point, comme l’épaule, une lampe de bureau ou une manette de jeu.',
+  planar: 'La pièce glisse et tourne sur un plan sans le quitter, comme un verre posé sur une table.',
 };
 
 export function addJoint(doc: CadDocument, joint: Omit<AssemblyJoint, 'id' | 'name'>): { doc: CadDocument; jointId: Id } {

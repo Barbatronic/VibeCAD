@@ -2391,6 +2391,8 @@ export class AppController {
     ref: Vec3 | null;
     s0: number;
     lastDelta: number;
+    /** Appui plan : point attrapé sur le plan, glissement de départ et axes du plan. */
+    slide?: { p0: Vec3; x0: number; y0: number; x: Vec3; y: Vec3 };
   } | null = null;
 
   setWorkspace(workspace: Workspace): void {
@@ -3474,7 +3476,7 @@ export class AppController {
     const placement = solveAssembly(doc.assembly, (partId) => this.state.display[partId]?.mesh, { ...this.solveOptions(), subassemblyOf: (id) => subassemblyContent(doc, id), ...(driver ? { driver } : {}) });
     let out = doc;
     for (const [id, v] of placement.solvedValues) {
-      out = updateJoint(out, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
+      out = updateJoint(out, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}), ...(j.kind === 'planar' ? { slideX: v.slideX, slideY: v.slideY } : {}) }));
     }
     return out;
   }
@@ -3542,7 +3544,7 @@ export class AppController {
     } else {
       let doc = moved;
       for (const [id, v] of placement.solvedValues) {
-        doc = updateJoint(doc, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}) }));
+        doc = updateJoint(doc, id, (j) => ({ ...j, angle: v.angle, offset: v.offset, ...(j.kind === 'spherical' ? { tilt: v.tilt, tiltDirection: v.tiltDirection } : {}), ...(j.kind === 'planar' ? { slideX: v.slideX, slideY: v.slideY } : {}) }));
       }
       this.set({ doc });
     }
@@ -3580,7 +3582,7 @@ export class AppController {
   }
 
   /** Réglage en continu (curseur, glisser) : le modèle suit sans remplir l'historique. */
-  setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset' | 'tilt' | 'tiltDirection'>>): void {
+  setJointLive(jointId: Id, patch: Partial<Pick<AssemblyJoint, 'angle' | 'offset' | 'tilt' | 'tiltDirection' | 'slideX' | 'slideY'>>): void {
     if (!this.liveStart) this.liveStart = this.state.doc;
     this.set({ doc: this.settleLoops(updateJoint(this.state.doc, jointId, (j) => ({ ...j, ...patch })), jointId) });
   }
@@ -3779,9 +3781,16 @@ export class AppController {
         this.set({ assemblySelection: { kind: 'joint', id: joint.id } });
         return;
       }
-      const rotate = free.angle && (!free.offset || !event.shift);
       const origin = frames.base.origin;
       const axis = frames.base.normal;
+      // Appui plan : glisser fait glisser la pièce sur le plan ; avec Maj, elle tourne sur place.
+      const grab = free.slide && !event.shift ? rayPlane(event.ray, origin, axis) : null;
+      if (grab) {
+        this.drag = { jointId: joint.id, rotate: false, origin, axis, startAngle: joint.angle, startOffset: joint.offset, ref: null, s0: 0, lastDelta: 0, slide: { p0: grab, x0: joint.slideX ?? 0, y0: joint.slideY ?? 0, x: frames.base.xAxis, y: frames.base.yAxis } };
+        this.set({ assemblySelection: { kind: 'joint', id: joint.id } });
+        return;
+      }
+      const rotate = free.angle && (!free.offset || !event.shift);
       const p = rotate ? rayPlane(event.ray, origin, axis) : null;
       const s0 = rotate ? 0 : rayAxisParam(event.ray, origin, axis);
       this.drag = { jointId: joint.id, rotate, origin, axis, startAngle: joint.angle, startOffset: joint.offset, ref: p ? sub3(p, origin) : null, s0: s0 ?? 0, lastDelta: 0 };
@@ -3807,6 +3816,13 @@ export class AppController {
         tilt = Math.min(tilt, joint.tiltLimit ?? 180);
         const dir = tilt < 1e-6 ? (joint.tiltDirection ?? 0) : (Math.atan2(dot3(s1, b.base.y), dot3(s1, b.base.x)) * 180) / Math.PI;
         this.setJointLive(joint.id, { tilt: Math.round(tilt * 10) / 10, tiltDirection: Math.round(dir * 10) / 10 });
+        return;
+      }
+      if (drag.slide) {
+        const p = rayPlane(event.ray, drag.origin, drag.axis);
+        if (!p) return;
+        const d = sub3(p, drag.slide.p0);
+        this.setJointLive(joint.id, { slideX: Math.round((drag.slide.x0 + dot3(d, drag.slide.x)) * 100) / 100, slideY: Math.round((drag.slide.y0 + dot3(d, drag.slide.y)) * 100) / 100 });
         return;
       }
       if (drag.rotate) {

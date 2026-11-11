@@ -532,7 +532,7 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
   const issue = useAppState(() => c.assemblyPlacement()?.issues.get(joint.id) ?? null);
   const animating = useAppState((s) => s.jointAnimation === joint.id);
   const free = jointFreedoms(joint.kind);
-  const kinds: JointKind[] = ['fixed', 'revolute', 'slider', 'cylindrical', 'spherical'];
+  const kinds: JointKind[] = ['fixed', 'revolute', 'slider', 'cylindrical', 'spherical', 'planar'];
   return (
     <>
       <div class="panel-title">
@@ -606,9 +606,25 @@ function JointPanel({ joint }: { joint: AssemblyJoint }) {
           />
         </>
       ) : null}
+      {free.slide
+        ? (['slideX', 'slideY'] as const).map((key) => (
+            <MotionField
+              key={key}
+              id={`joint-${key === 'slideX' ? 'slide-x' : 'slide-y'}`}
+              label={key === 'slideX' ? 'Glissement X (dans le plan)' : 'Glissement Y (dans le plan)'}
+              unit="mm"
+              value={joint[key] ?? 0}
+              limits={undefined}
+              range={[Math.min(-50, (joint[key] ?? 0) - 20), Math.max(50, (joint[key] ?? 0) + 20)]}
+              onLive={(value) => c.setJointLive(joint.id, { [key]: value })}
+              onCommit={() => c.commitLive('Faire glisser la pièce')}
+              onExact={(value) => c.setJoint(joint.id, { [key]: value }, 'Faire glisser la pièce')}
+            />
+          ))
+        : null}
       <MotionField
         id="joint-offset"
-        label={free.offset ? 'Décalage (glissement)' : 'Décalage (fixe)'}
+        label={free.offset ? 'Décalage (glissement)' : free.slide ? 'Écart au plan (fixe)' : 'Décalage (fixe)'}
         unit="mm"
         value={joint.offset}
         limits={joint.offsetLimits}

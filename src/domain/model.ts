@@ -242,7 +242,7 @@ export interface JointEnd {
   lcs: LcsRef;
 }
 
-export type JointKind = 'fixed' | 'revolute' | 'slider' | 'cylindrical' | 'spherical';
+export type JointKind = 'fixed' | 'revolute' | 'slider' | 'cylindrical' | 'spherical' | 'planar';
 
 /**
  * Liaison : le repère de la pièce mobile est superposé à celui de la pièce de référence (axes Z
@@ -266,6 +266,9 @@ export interface AssemblyJoint {
   tiltDirection?: number;
   /** Inclinaison maximale (degrés) d'une rotule. */
   tiltLimit?: number;
+  /** Appui plan : glissement (mm) dans le plan, le long des axes X et Y du repère de référence. */
+  slideX?: number;
+  slideY?: number;
 }
 
 /**

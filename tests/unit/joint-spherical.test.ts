@@ -10,7 +10,7 @@ const deg = (v: { x: number; y: number; z: number }, w: { x: number; y: number; 
 
 describe('liaison rotule', () => {
   it('tourne dans tous les sens autour du point d’accroche, qui reste fixe', () => {
-    expect(jointFreedoms('spherical')).toEqual({ angle: true, offset: false, tilt: true });
+    expect(jointFreedoms('spherical')).toEqual({ angle: true, offset: false, tilt: true, slide: false });
     const base = frame({ x: 10, y: 5, z: 2 });
     const moving = frame();
     const upright = jointMatrix({ kind: 'spherical', angle: 0, offset: 0, flip: true, tilt: 0 }, identity4(), base, moving);

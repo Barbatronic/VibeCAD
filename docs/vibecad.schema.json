@@ -3091,7 +3091,8 @@
                   "revolute",
                   "slider",
                   "cylindrical",
-                  "spherical"
+                  "spherical",
+                  "planar"
                 ]
               },
               "moving": {
@@ -3140,6 +3141,14 @@
                 "minimum": 0,
                 "maximum": 180,
                 "description": "Rotule : inclinaison maximale (degrés)."
+              },
+              "slideX": {
+                "type": "number",
+                "description": "Appui plan : glissement (mm) le long de l'axe X du repère de référence."
+              },
+              "slideY": {
+                "type": "number",
+                "description": "Appui plan : glissement (mm) le long de l'axe Y du repère de référence."
               }
             }
           }

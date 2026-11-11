@@ -137,7 +137,7 @@ export function isSphereLcs(mesh: MeshData, ref: LcsRef): boolean {
 
 /** Matrice de placement de la pièce mobile d'une liaison. */
 export function jointMatrix(
-  joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'> & Partial<Pick<AssemblyJoint, 'kind' | 'tilt' | 'tiltDirection'>>,
+  joint: Pick<AssemblyJoint, 'angle' | 'offset' | 'flip'> & Partial<Pick<AssemblyJoint, 'kind' | 'tilt' | 'tiltDirection' | 'slideX' | 'slideY'>>,
   baseMatrix: Mat4,
   baseFrame: Frame3D,
   movingFrame: Frame3D,
@@ -149,6 +149,8 @@ export function jointMatrix(
     const dir = (((joint.tiltDirection ?? 0) - 90) * Math.PI) / 180;
     m = multiply4(m, multiply4(rotationZ4(dir), multiply4(rotationX4(-(joint.tilt * Math.PI) / 180), rotationZ4(-dir))));
   }
+  // Appui plan : la pièce glisse dans le plan du repère de référence, puis tourne sur place.
+  if (joint.kind === 'planar' && (joint.slideX || joint.slideY)) m = multiply4(m, translation4({ x: joint.slideX ?? 0, y: joint.slideY ?? 0, z: 0 }));
   m = multiply4(m, rotationZ4((joint.angle * Math.PI) / 180));
   m = multiply4(m, translation4({ x: 0, y: 0, z: joint.offset }));
   // Par défaut, les axes Z sont opposés : les faces se touchent, la goupille entre dans le trou.
@@ -170,6 +172,8 @@ export interface JointValues {
   offset: number;
   tilt: number;
   tiltDirection: number;
+  slideX: number;
+  slideY: number;
 }
 
 export interface AssemblyPlacement {
@@ -193,12 +197,12 @@ function worldFrame(m: Mat4, f: Frame3D): Frame3D {
   return { origin: t(f.origin), xAxis: d(f.xAxis), yAxis: d(f.yAxis), normal: d(f.normal) };
 }
 
-const valuesOf = (j: AssemblyJoint): JointValues => ({ angle: j.angle, offset: j.offset, tilt: j.tilt ?? 0, tiltDirection: j.tiltDirection ?? 0 });
+const valuesOf = (j: AssemblyJoint): JointValues => ({ angle: j.angle, offset: j.offset, tilt: j.tilt ?? 0, tiltDirection: j.tiltDirection ?? 0, slideX: j.slideX ?? 0, slideY: j.slideY ?? 0 });
 
 /** Réglages qu'un type de liaison laisse libres. */
 function freeKeys(kind: JointKind): (keyof JointValues)[] {
   const f = jointFreedoms(kind);
-  return [...(f.angle ? (['angle'] as const) : []), ...(f.offset ? (['offset'] as const) : []), ...(f.tilt ? (['tilt', 'tiltDirection'] as const) : [])];
+  return [...(f.angle ? (['angle'] as const) : []), ...(f.offset ? (['offset'] as const) : []), ...(f.tilt ? (['tilt', 'tiltDirection'] as const) : []), ...(f.slide ? (['slideX', 'slideY'] as const) : [])];
 }
 
 /**
@@ -224,8 +228,8 @@ export function couplingProblem(assembly: Assembly, c: JointCoupling): string | 
   const b = assembly.joints.find((j) => j.id === c.driven);
   if (!a || !b) return 'Une des deux liaisons a été supprimée.';
   if (a.id === b.id) return 'Choisissez deux liaisons différentes.';
-  if (!jointFreedoms(a.kind).angle || a.kind === 'spherical') return `« ${a.name} » doit être un pivot (elle doit pouvoir tourner).`;
-  if (c.kind === 'gear' && (!jointFreedoms(b.kind).angle || b.kind === 'spherical')) return `« ${b.name} » doit être un pivot pour un engrenage.`;
+  if (!jointFreedoms(a.kind).angle || a.kind === 'spherical' || a.kind === 'planar') return `« ${a.name} » doit être un pivot (elle doit pouvoir tourner).`;
+  if (c.kind === 'gear' && (!jointFreedoms(b.kind).angle || b.kind === 'spherical' || b.kind === 'planar')) return `« ${b.name} » doit être un pivot pour un engrenage.`;
   if (c.kind === 'rack' && !jointFreedoms(b.kind).offset) return `« ${b.name} » doit être une glissière pour une crémaillère.`;
   if (c.kind === 'gear' && !(c.teeth[0] >= 1 && c.teeth[1] >= 1)) return 'Indiquez le nombre de dents des deux roues.';
   if (c.kind === 'rack' && !(c.pitchDiameter > 0)) return 'Indiquez le diamètre primitif de la roue.';
@@ -415,6 +419,9 @@ export function solveAssembly(
     switch (j.kind) {
       case 'spherical':
         return v3(dO);
+      case 'planar':
+        // La pièce reste sur le plan (à la hauteur réglée), son axe perpendiculaire au plan.
+        return [dot3(sub3(M.origin, ideal.origin), B.normal), ...v3(axis)];
       case 'revolute':
         return [...v3(dO), ...v3(axis)];
       case 'cylindrical':
@@ -733,8 +740,8 @@ function solveLinear(Ain: number[][], bIn: number[]): number[] | null {
 }
 
 /** Mouvements libres d'un type de liaison. */
-export function jointFreedoms(kind: JointKind): { angle: boolean; offset: boolean; tilt: boolean } {
-  return { angle: kind === 'revolute' || kind === 'cylindrical' || kind === 'spherical', offset: kind === 'slider' || kind === 'cylindrical', tilt: kind === 'spherical' };
+export function jointFreedoms(kind: JointKind): { angle: boolean; offset: boolean; tilt: boolean; slide: boolean } {
+  return { angle: kind === 'revolute' || kind === 'cylindrical' || kind === 'spherical' || kind === 'planar', offset: kind === 'slider' || kind === 'cylindrical', tilt: kind === 'spherical', slide: kind === 'planar' };
 }
 
 /** Valeur ramenée dans ses limites éventuelles. */

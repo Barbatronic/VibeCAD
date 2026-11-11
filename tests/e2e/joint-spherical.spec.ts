@@ -28,7 +28,7 @@ test('rotule : choisie par son icône, expliquée, la pièce penche autour du po
     c.commit(r.doc, 'Créer une liaison', { assemblySelection: { kind: 'joint', id: r.jointId } });
   });
   const kinds = page.getByRole('group', { name: 'Type de liaison' });
-  await expect(kinds.getByRole('button')).toHaveCount(5);
+  await expect(kinds.getByRole('button')).toHaveCount(6);
   await kinds.getByRole('button', { name: 'Rotule' }).click();
   await expect(kinds.getByRole('button', { name: 'Rotule' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.joint-explanation')).toContainText('tous les sens');

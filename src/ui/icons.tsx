@@ -160,6 +160,14 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6.5 9a7 7 0 0 1 3-4" opacity="0.7" />
     </>
   ),
+  /** Appui plan : une pièce posée sur un plan, libre de glisser dans les deux sens. */
+  'joint-planar': (
+    <>
+      <path d="M2.5 19.5l5-6h14l-5 6z" opacity="0.6" />
+      <path d="M9 9h6v5H9z" />
+      <path d="M12 6.5V3M10.5 4.5L12 3l1.5 1.5M17.5 11.5H21M19.5 10l1.5 1.5-1.5 1.5" />
+    </>
+  ),
   collision: (
     <>
       <rect x="3" y="7" width="10" height="10" rx="1" />
