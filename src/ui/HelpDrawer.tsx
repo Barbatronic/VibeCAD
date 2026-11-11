@@ -203,7 +203,7 @@ export function HelpDrawer() {
               <th>Outils d’esquisse</th>
               <td>
                 <kbd>L</kbd> segment · <kbd>R</kbd> rectangle · <kbd>C</kbd> cercle · <kbd>D</kbd> cote · <kbd>H</kbd> horizontal · <kbd>V</kbd> vertical ·{' '}
-                <kbd>O</kbd> coïncidence · <kbd>A</kbd> arc · <kbd>T</kbd> couper · <kbd>P</kbd> projeter
+                <kbd>O</kbd> coïncidence · <kbd>E</kbd> égalité · <kbd>M</kbd> milieu · <kbd>X</kbd> symétrie · <kbd>A</kbd> arc · <kbd>T</kbd> couper · <kbd>P</kbd> projeter
               </td>
             </tr>
             <tr>
