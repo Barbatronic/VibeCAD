@@ -163,8 +163,25 @@ export function updatePart(doc: CadDocument, partId: Id, update: (part: Part) =>
   return { ...doc, parts: doc.parts.map((p) => (p.id === partId ? update(p) : p)) };
 }
 
+/**
+ * Renomme une pièce, et ses insertions dans l'assemblage (et dans les ensembles) qui portaient
+ * encore son nom (« Nom », « Nom (2) ») ; une insertion renommée autrement garde son nom.
+ */
 export function renamePart(doc: CadDocument, partId: Id, name: string): CadDocument {
-  return updatePart(doc, partId, (p) => ({ ...p, name }));
+  const old = findPart(doc, partId)?.name;
+  const next = updatePart(doc, partId, (p) => ({ ...p, name }));
+  if (old === undefined || old === name) return next;
+  const rename = (i: AssemblyInstance): AssemblyInstance => {
+    if (i.partId !== partId || i.subassemblyId) return i;
+    if (i.name === old) return { ...i, name };
+    const suffix = i.name.startsWith(old) && /^ \(\d+\)$/.test(i.name.slice(old.length)) ? i.name.slice(old.length) : null;
+    return suffix ? { ...i, name: `${name}${suffix}` } : i;
+  };
+  return {
+    ...next,
+    ...(next.assembly ? { assembly: { ...next.assembly, instances: next.assembly.instances.map(rename) } } : {}),
+    ...(next.subassemblies ? { subassemblies: next.subassemblies.map((sub) => ({ ...sub, instances: sub.instances.map(rename) })) } : {}),
+  };
 }
 
 export function setPartVisible(doc: CadDocument, partId: Id, visible: boolean): CadDocument {

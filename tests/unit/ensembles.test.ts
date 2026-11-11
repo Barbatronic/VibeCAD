@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addInstance, addPart, createDocument } from '../../src/domain/document';
+import { addInstance, addPart, createDocument, renamePart } from '../../src/domain/document';
 import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../../src/domain/ensembles';
 import { assemblyContents } from '../../src/domain/subassemblies';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
@@ -86,5 +86,18 @@ describe('ensembles de la liste des pièces', () => {
     expect(renamed.assembly!.instances.find((i) => i.subassemblyId)!.name).toBe('Chariot');
     const parsed = parseNativeFile(serializeDocument(renamed));
     expect(parsed.ok && parsed.doc.subassemblies![0]!.instances).toHaveLength(2);
+  });
+
+  it('renommer une pièce renomme ses insertions (assemblage et bloc), sauf celles renommées à part', () => {
+    const { doc, a, b } = sample();
+    let twice = addInstance(doc, a, { x: 0, y: 30, z: 0 }).doc;
+    twice = { ...twice, assembly: { ...twice.assembly!, instances: [...twice.assembly!.instances, { ...twice.assembly!.instances[0]!, id: 'in-x', name: 'Roue avant' }] } };
+    const renamed = renamePart(twice, a, 'Roue');
+    expect(renamed.parts.find((p) => p.id === a)!.name).toBe('Roue');
+    expect(renamed.assembly!.instances.filter((i) => i.partId === a).map((i) => i.name)).toEqual(['Roue', 'Roue (2)', 'Roue avant']);
+    // Dans un bloc aussi.
+    const made = createEnsemble(doc, b);
+    const inBlock = renamePart(made.doc, b, 'Moteur');
+    expect(inBlock.subassemblies![0]!.instances.find((i) => i.partId === b)!.name).toBe('Moteur');
   });
 });
