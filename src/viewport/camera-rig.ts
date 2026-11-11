@@ -2,7 +2,7 @@
  * Caméra de la vue 3D : perspective ou orthographique, vues standard (conventions FreeCAD :
  * Z vers le haut, vue de face depuis −Y), cadrage et transitions douces.
  */
-import { Box3, MathUtils, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three';
+import { Matrix4, Box3, MathUtils, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export type Projection = 'perspective' | 'orthographic';
@@ -205,6 +205,22 @@ export class CameraRig {
       duration: 320,
     };
     this.controls.enabled = false;
+    this.onChange();
+  }
+
+  /**
+   * Le repère de la scène change (autre pièce active dans l'assemblage) : la caméra est déplacée
+   * d'autant, pour que ce que l'on regardait reste au même endroit à l'écran. `m` passe de
+   * l'ancien repère au nouveau. La verticale de la caméra n'est pas tournée.
+   */
+  reframe(m: Matrix4): void {
+    this.transition = null;
+    this.controls.enabled = true;
+    for (const cam of [this.perspective, this.orthographic]) cam.position.applyMatrix4(m);
+    this.controls.target.applyMatrix4(m);
+    this.camera.lookAt(this.controls.target);
+    this.controls.update();
+    this.syncClipping();
     this.onChange();
   }
 

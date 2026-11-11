@@ -444,7 +444,10 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
   const workingPartId = s.mode.kind === 'feature' ? s.mode.draft.partId : s.mode.kind === 'sketch' ? s.mode.session.partId : null;
   // Conception dans l'assemblage : la pièce modifiée seule, entourée des pièces voisines à leur place.
   const context = activeContext(s);
-  const parts: ViewPartInput[] = s.doc.parts.filter((p) => !context || p.id === context.partId).map((p) => {
+  // Contexte pris d'office : les pièces qui ne sont nulle part dans l'assemblage restent visibles, à leur place de dessin.
+  const placedParts = new Set(context?.leaves.map((l) => l.partId));
+  const outOfContext = (p: Part) => !!context && p.id !== context.partId && !(context.auto && !placedParts.has(p.id));
+  const parts: ViewPartInput[] = s.doc.parts.filter((p) => !outOfContext(p)).map((p) => {
     const d = s.display[p.id];
     const sec = cut?.parts[p.id];
     if (cut && sec !== undefined) {
@@ -483,11 +486,12 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       parts.push({
         partId: `${CONTEXT_PREFIX}${leaf.key}`,
         ...lookOf(s, part, d?.mesh),
-        visible: true,
+        visible: part ? partShown(s, part) : true,
         meshKey: d?.meshKey ?? null,
         mesh: d?.mesh ?? null,
         // Atténuées (cliquables pour poser une esquisse) ; transparentes pendant une opération.
-        appearance: workingPartId ? 'ghost' : 'dimmed',
+        // Contexte pris d'office : comme les autres pièces de l'onglet (estompées si une pièce est choisie).
+        appearance: workingPartId ? 'ghost' : !context.auto || mode === 'sketch' ? 'dimmed' : mode === 'model' && s.selection?.kind === 'part' ? 'ghost' : 'normal',
         matrix: leaf.local,
       });
     }
@@ -496,7 +500,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
   const sketches: ViewportInput['sketches'] = [];
   if (mode !== 'sketch') {
     for (const part of s.doc.parts) {
-      if (!partShown(s, part) || (context && part.id !== context.partId)) continue;
+      if (!partShown(s, part) || outOfContext(part)) continue;
       const result = s.display[part.id]?.result;
       if (!result) continue;
       for (const f of part.features) {
@@ -595,12 +599,15 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
       }
     }
   }
+  // Survol dans la liste : la pièce elle-même, ou sa place dans l'assemblage si c'est une voisine.
+  const hoverLeaf = context && s.hoverPart && s.hoverPart !== context.partId ? context.leaves.find((l) => l.partId === s.hoverPart) : undefined;
+  const spotlightId = hoverLeaf ? `${CONTEXT_PREFIX}${hoverLeaf.key}` : s.hoverPart;
   // Étape « Déplacer » en cours : manipulateur sur le centre de rotation, après le décalage.
   const moving = s.mode.kind === 'feature' && s.mode.draft.feature.type === 'move' ? s.mode.draft.feature.params : null;
   const gizmo = moving
     ? { origin: { x: moving.center.x + moving.translation.x, y: moving.center.y + moving.translation.y, z: moving.center.z + moving.translation.z }, rings: true }
     : null;
-  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges, gizmo, spotlight: mode === 'model' ? s.hoverPart : null };
+  return { mode: mode === 'joint' || mode === 'fastener' || mode === 'pick-fab-face' || mode === 'pick-sim-face' ? 'model' : mode, parts, tool, sketches, session, selection: cut ? [] : selection, measure, featurePicking, fitRequest: s.fitRequest, sectionFaces, points, datumPlanes, datumAxes, bendLines, images, chosenEdges, gizmo, spotlight: mode === 'model' ? spotlightId : null };
 }
 
 function DimensionEditorPopup({ session, viewport }: { session: SketchSession; viewport: Viewport }) {
@@ -933,7 +940,7 @@ function Banner() {
         return { kind: 'stale', text: `« ${stale.name} » n’est plus à jour : corrigez l’étape « ${root?.name ?? '?'} » (en rouge dans l’historique).` };
       }
       // Conception dans l'assemblage : rappel, et retour à l'onglet Assemblage.
-      const ctx = s.assemblyContext && s.workspace === 'parts' ? s.doc.assembly?.instances.find((i) => i.id === s.assemblyContext!.instanceId) : undefined;
+      const ctx = s.assemblyContext && !s.assemblyContext.auto && s.workspace === 'parts' ? s.doc.assembly?.instances.find((i) => i.id === s.assemblyContext!.instanceId) : undefined;
       if (ctx && ctx.partId === s.activePartId) return { kind: 'context', text: `Dans l’assemblage : « ${ctx.name} », entourée des pièces voisines (liaisons à zéro)` };
       return null;
     },
@@ -954,6 +961,8 @@ function Banner() {
   );
 }
 
+const IDENTITY_FRAME: readonly number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
 export function ViewportHost() {
   const c = useController();
   const container = useRef<HTMLDivElement>(null);
@@ -967,7 +976,9 @@ export function ViewportHost() {
     () => {
       const partId = state.workspace === 'simulation' ? c.simulationPartId() : null;
       const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
-      return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth };
+      // Repère de la scène dans l'assemblage : celui de la pièce modifiée (onglet Pièces), l'assemblage lui-même sinon.
+      const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
+      return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, ...(frame ? { frame } : {}) };
     },
     [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart],
   );

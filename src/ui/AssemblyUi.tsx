@@ -861,7 +861,7 @@ export function AssemblyRightPanel() {
           <div class="panel-content">
           <ol class="steps">
             <li>
-              <strong>Insérer</strong> les pièces (la première reste fixe).
+              Les pièces sont posées là où elles ont été dessinées ; <strong>Insérer</strong> en ajoute un exemplaire.
             </li>
             <li>
               <strong>Liaison</strong> : un clic sur la pièce qui bouge, un clic sur la pièce de référence.

@@ -62,13 +62,14 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, Math.PI * 9 * 10, 1);
 
-  // Onglet Assemblage : insérer la plaque (fixe) puis la goupille.
+  // Onglet Assemblage : la plaque (fixe) et la goupille y sont posées d'office, là où elles ont
+  // été dessinées ; la goupille est écartée de la plaque pour la voir en entier.
   await page.click('#tab-assembly');
-  for (const name of ['Pièce 1', 'Pièce 2']) {
-    await page.click('#as-insert');
-    await page.getByRole('menuitem', { name }).click();
-  }
   await expect.poll(() => appState(page, (s) => s.doc.assembly?.instances.length)).toBe(2);
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    c.moveInstance(c.state.doc.assembly.instances[1].id, { x: 80, y: 0, z: 0 });
+  });
   // Cadrer jusqu'à ce que la goupille soit bien dans la vue (elle peut s'afficher après un premier cadrage).
   const canvas = (await page.locator('.vp-canvas').boundingBox())!;
   await expect

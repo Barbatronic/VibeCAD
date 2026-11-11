@@ -30,9 +30,8 @@ test('visserie : vis et rondelle normalisées dans le trou, taille imposée par 
   await openApp(page);
   // Plaque 60 × 30 × 5 percée d'un trou Ø 6 : trou de passage pour une vis M6.
   await buildPlateViaUi(page);
+  // Onglet Assemblage : la plaque y est posée d'office, là où elle a été dessinée.
   await page.click('#tab-assembly');
-  await page.click('#as-insert');
-  await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
   await expect.poll(() => appState(page, (s) => s.doc.assembly?.instances.length)).toBe(1);
 
   // Vis CHC : un clic sur le bord du trou ; taille et longueur viennent du trou (5 mm + un diamètre → 12).
@@ -93,8 +92,7 @@ test('visserie : seul un bord de trou rond est accepté', async ({ page }) => {
   await openApp(page);
   await buildPlateViaUi(page);
   await page.click('#tab-assembly');
-  await page.click('#as-insert');
-  await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
+  await expect.poll(() => appState(page, (s) => s.doc.assembly?.instances.length)).toBe(1);
   await page.click('#as-fastener');
   await page.getByRole('menuitem', { name: /Vis BHC/ }).click();
   await stillView(page);

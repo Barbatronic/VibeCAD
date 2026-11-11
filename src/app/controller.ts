@@ -900,7 +900,7 @@ export class AppController {
       const key = pick.partId.slice(CONTEXT_PREFIX.length);
       if (pick.kind === 'face' && mode.kind === 'pick-support') this.sketchOnContextFace(key, pick.index, mode.repairFeatureId, mode.partId);
       else if (pick.kind === 'face' && mode.kind === 'model' && info.double) this.sketchOnContextFace(key, pick.index, null, this.state.activePartId);
-      else if (mode.kind === 'model' && !info.double) this.select(null);
+      else if (mode.kind === 'model' && !info.double) this.activateNeighbour(key);
       else if (mode.kind !== 'model') this.explain('Pièce voisine dans l’assemblage : elle sert d’appui à une esquisse (double-clic sur une de ses faces), pas aux autres outils.');
       return;
     }
@@ -1002,8 +1002,30 @@ export class AppController {
     this.commit(updateFeature<SketchFeature>(this.state.doc, featureId, (f) => ({ ...f, params })), frozen ? `Figer « ${sketch.name} » dans l’assemblage` : `Suivre l’assemblage pour « ${sketch.name} »`);
   }
 
+  /** Clic sur une pièce voisine : elle devient la pièce active, modifiée à cette place-là de l'assemblage. */
+  private activateNeighbour(leafKey: string): void {
+    const ctx = activeContext(this.state);
+    const leaf = ctx?.leaves.find((l) => l.key === leafKey);
+    // « Modifier dans l'assemblage » : la pièce modifiée reste active (un double-clic sur une
+    // voisine y pose son esquisse) ; seule la scène prise d'office change de pièce au clic.
+    if (!ctx?.auto || !leaf || !findPart(this.state.doc, leaf.partId)) return this.select(null);
+    this.set({ activePartId: leaf.partId, selection: { kind: 'part', partId: leaf.partId }, assemblyContext: { instanceId: leafKey, auto: true } });
+  }
+
+  /**
+   * Pièce vue dans l'assemblage sans y être encore (nouvelle pièce) : avant de s'appuyer sur une
+   * voisine, elle y est posée à sa place de dessin, pour que ses références suivent l'assemblage.
+   */
+  private realizeContext(partId: Id): void {
+    const ctx = activeContext(this.state);
+    const part = findPart(this.state.doc, partId);
+    if (!ctx?.virtual || ctx.partId !== partId || !part) return;
+    this.commit(addInstance(this.state.doc, partId, { x: 0, y: 0, z: 0 }).doc, `Placer « ${part.name} » dans l’assemblage`);
+  }
+
   /** Esquisse de la pièce `targetPartId` posée sur la face d'une pièce voisine dans l'assemblage. */
   sketchOnContextFace(leafKey: string, faceIndex: number, repairFeatureId: Id | null, targetPartId: Id): boolean {
+    this.realizeContext(targetPartId);
     const ctx = activeContext(this.state);
     const leaf = ctx?.leaves.find((l) => l.key === leafKey);
     if (!ctx || !leaf) return false;
@@ -1390,6 +1412,7 @@ export class AppController {
   }
 
   private openSession(partId: Id, featureId: Id, isNew: boolean, frame: Frame3D, params: SketchFeature['params'], supportChanged = false): void {
+    this.realizeContext(partId);
     const projectable = this.projectables(partId, frame, featureId);
     let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable });
     if (!this.state.sketchGrid) session = { ...session, snapToGrid: false };
@@ -2538,6 +2561,30 @@ export class AppController {
     this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}), ...(workspace === 'fabrication' ? { fabricationTab: 'materials' as const } : {}), brush: null });
     // Les bibliothèques peuvent proposer des matières : on les charge (une fois par session).
     if (workspace === 'fabrication') void this.loadLibraries();
+    // Hors parcours guidé : les parcours font insérer les pièces une à une.
+    if (workspace === 'assembly' && !this.state.tutorial) this.placeMissingParts();
+  }
+
+  /**
+   * Essai « la liste des pièces est l'assemblage » : toute pièce qui a un volume et n'est insérée
+   * nulle part (assemblage ou sous-assemblage) est posée dans l'assemblage, là où elle a été
+   * dessinée (repère commun de l'onglet Pièces).
+   */
+  private placeMissingParts(): void {
+    const s = this.state;
+    if (s.doc.editingSubassembly) return;
+    const placed = new Set<Id>();
+    for (const a of [s.doc.assembly, ...(s.doc.subassemblies ?? [])]) for (const i of a?.instances ?? []) if (i.partId) placed.add(i.partId);
+    const missing = s.doc.parts.filter((p) => !placed.has(p.id) && (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0);
+    if (missing.length === 0) return;
+    const existing = s.doc.assembly?.instances.length ?? 0;
+    let doc = s.doc;
+    for (const p of missing) doc = addInstance(doc, p.id, { x: 0, y: 0, z: 0 }).doc;
+    this.commit(doc, 'Placer les pièces dans l’assemblage', { fitRequest: s.fitRequest + 1 });
+    // Assemblage déjà commencé : on signale l'ajout, qui peut ne pas être voulu.
+    if (existing > 0) {
+      this.toast('info', missing.length === 1 ? `« ${missing[0]!.name} » ajoutée à l’assemblage.` : `${missing.length} pièces ajoutées à l’assemblage.`, { actionLabel: 'Annuler', action: () => this.undo() });
+    }
   }
 
   // ----- Paramètres du projet

@@ -291,7 +291,8 @@ export interface AppState {
    * Conception en contexte d'assemblage : la pièce de l'insertion `instanceId` se modifie dans
    * l'onglet Pièces, entourée des autres pièces de l'assemblage à leur place.
    */
-  assemblyContext: { instanceId: Id } | null;
+  /** `auto` : contexte pris d'un clic sur une voisine dans l'onglet Pièces (pas de bandeau de retour). */
+  assemblyContext: { instanceId: Id; auto?: boolean } | null;
   /**
    * Étude « Mécanisme » : dernier calcul (`key` : étude et formes utilisées) et position survolée
    * sur la courbe (l'assemblage y est montré).

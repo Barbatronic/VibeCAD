@@ -114,6 +114,11 @@ export interface ViewportInput {
   featurePicking?: boolean;
   /** Compteur de demandes de cadrage : la vue cadre le contenu quand il change. */
   fitRequest?: number;
+  /**
+   * Place, dans l'assemblage, du repère où la scène est exprimée (4 × 4, colonnes). Quand elle
+   * change, la caméra suit : l'assemblage reste immobile à l'écran.
+   */
+  frame?: readonly number[];
   /** Repères des liaisons à montrer (assemblage). */
   markers?: ViewMarker[];
   /** Volumes à signaler (collisions d'un assemblage), en rouge, visibles à travers les pièces. */
@@ -267,6 +272,7 @@ export class Viewport {
   private hoverPending: PointerEvent | null = null;
   private lastPixelSize = 0;
   private lastFitRequest = 0;
+  private lastFrame: readonly number[] | null = null;
   private savedCamera: { position: Vector3; target: Vector3; up: Vector3; projection: Projection } | null = null;
   private readonly viewCube: ViewCube;
   /** Morceau du cube de navigation appuyé (clic en cours). */
@@ -490,6 +496,10 @@ export class Viewport {
     this.syncMarkers(input.markers ?? []);
     this.syncBed(input.bed ?? null);
     if (input.mode !== prevMode) this.onModeChange(prevMode, input.mode);
+    if (input.frame && this.lastFrame && input.frame.some((v, i) => Math.abs(v - this.lastFrame![i]!) > 1e-9)) {
+      this.rig.reframe(new Matrix4().fromArray(input.frame as number[]).invert().multiply(new Matrix4().fromArray(this.lastFrame as number[])));
+    }
+    this.lastFrame = input.frame ?? null;
     if (input.fitRequest !== undefined && input.fitRequest !== this.lastFitRequest) {
       this.lastFitRequest = input.fitRequest;
       const bounds = this.contentBounds();

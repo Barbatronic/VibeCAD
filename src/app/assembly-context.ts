@@ -5,7 +5,7 @@
  * moment : une esquisse posée sur une pièce voisine ne bouge pas quand on anime le mécanisme.
  */
 import type { Assembly, AssemblyContext, CadDocument, Feature, Id } from '../domain/model';
-import { invertRigid4, multiply4, transformDirection4, transformPoint4, type Mat4 } from '../math/mat4';
+import { identity4, invertRigid4, multiply4, transformDirection4, transformPoint4, type Mat4 } from '../math/mat4';
 import type { Frame3D } from '../math/frame';
 import type { MeshData } from '../geometry/kernel';
 import { subassemblyContent } from '../domain/subassemblies';
@@ -29,24 +29,23 @@ export interface ContextLeaf extends PlacedLeaf {
 }
 
 /**
- * Pièces de l'assemblage autour de l'insertion `instanceId` (une pièce insérée directement, pas un
- * bloc), placées dans son repère. Null si l'insertion n'existe pas ou n'est pas placée.
+ * Pièces de l'assemblage autour de la pièce placée `key` (clé d'une pièce dépliée : une insertion
+ * directe, ou « bloc/insertion » pour une pièce d'un bloc), placées dans son repère. Null si elle
+ * n'existe pas ou n'est pas placée.
  */
 export function contextLeaves(
   assembly: Assembly,
-  instanceId: Id,
+  key: Id,
   meshOf: (partId: Id) => MeshData | null | undefined,
   options: SolveOptions = {},
 ): ContextLeaf[] | null {
-  const instance = assembly.instances.find((i) => i.id === instanceId);
-  if (!instance || instance.subassemblyId) return null;
   const reference = referenceAssembly(assembly);
   const placement = solveAssembly(reference, meshOf, options);
   const leaves = flattenAssembly(reference, placement, meshOf, options);
-  const own = leaves.find((l) => l.key === instanceId);
+  const own = leaves.find((l) => l.key === key);
   if (!own) return null;
   const inverse = invertRigid4(own.matrix);
-  return leaves.filter((l) => l.key !== instanceId).map((l) => ({ ...l, local: multiply4(inverse, l.matrix) }));
+  return leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: multiply4(inverse, l.matrix) }));
 }
 
 /** Contexte d'une référence vers la pièce `leaf` depuis l'insertion `instanceId`. */
@@ -61,27 +60,81 @@ export function sameMatrix(a: readonly number[], b: readonly number[]): boolean 
 
 /** Contexte d'assemblage en cours : la pièce modifiée (celle de l'insertion) et ses voisines. */
 export interface ActiveContext {
+  /** Clé de la pièce placée que l'on modifie ('' si elle n'est pas encore dans l'assemblage). */
   instanceId: Id;
   partId: Id;
   name: string;
   leaves: ContextLeaf[];
+  /** Contexte pris d'office (l'assemblage ne suit plus le dessin), sans passer par l'onglet Assemblage. */
+  auto: boolean;
+  /** La pièce modifiée n'est pas encore dans l'assemblage : elle est vue à sa place de dessin. */
+  virtual: boolean;
+  /** Place de la pièce modifiée dans l'assemblage (liaisons à zéro) : le repère de la vue. */
+  matrix: Mat4;
 }
 
 /**
- * Contexte actif : onglet Pièces, insertion toujours présente et sa pièce active ; sinon null (la
- * vue redevient celle des pièces seules).
+ * Vrai si l'assemblage ne se résume plus à « chaque pièce une fois, là où elle a été dessinée » :
+ * une pièce déplacée, copiée, tenue par une liaison, ou un bloc. L'onglet Pièces montre alors
+ * l'assemblage tel qu'il est, autour de la pièce active.
+ */
+export function assemblyDiverged(doc: CadDocument): boolean {
+  const a = doc.assembly;
+  if (!a || a.instances.length === 0) return false;
+  if (a.joints.length > 0) return true;
+  const seen = new Set<Id>();
+  for (const i of a.instances) {
+    if (i.subassemblyId || seen.has(i.partId)) return true;
+    seen.add(i.partId);
+    const p = i.position;
+    const r = i.rotation;
+    if (p.x !== 0 || p.y !== 0 || p.z !== 0 || (r && (r.x !== 0 || r.y !== 0 || r.z !== 0))) return true;
+  }
+  return false;
+}
+
+let lastContext: { assembly: Assembly; subs: CadDocument['subassemblies']; display: AppState['display']; partId: Id; key: Id | null; auto: boolean; result: ActiveContext | null } | null = null;
+
+/**
+ * Contexte actif, dans l'onglet Pièces. Soit celui choisi (« Modifier dans l'assemblage », clic sur
+ * une voisine), tant que sa pièce est la pièce active ; soit, dès que l'assemblage ne suit plus le
+ * dessin (voir `assemblyDiverged`), celui de la pièce active, pris d'office : sa première place
+ * dans l'assemblage, ou sa place de dessin si elle n'y est pas encore. Sinon null (la vue est
+ * celle des pièces seules, dans leur repère commun).
  */
 export function activeContext(s: AppState): ActiveContext | null {
-  const ctx = s.assemblyContext;
   const assembly = s.doc.assembly;
-  if (!ctx || s.workspace !== 'parts' || !assembly) return null;
-  const instance = assembly.instances.find((i) => i.id === ctx.instanceId);
-  if (!instance || instance.partId !== s.activePartId) return null;
-  const leaves = contextLeaves(assembly, instance.id, (partId) => s.display[partId]?.mesh, {
-    sketchesOf: (partId) => s.display[partId]?.result.sketches,
-    subassemblyOf: (id) => subassemblyContent(s.doc, id),
-  });
-  return leaves ? { instanceId: instance.id, partId: instance.partId, name: instance.name, leaves } : null;
+  if (s.workspace !== 'parts' || !assembly || s.doc.editingSubassembly) return null;
+  const chosen = s.assemblyContext?.instanceId ?? null;
+  if (!chosen && !assemblyDiverged(s.doc)) return null;
+  const last = lastContext;
+  if (last && last.assembly === assembly && last.subs === s.doc.subassemblies && last.display === s.display && last.partId === s.activePartId && last.key === chosen && last.auto === !!s.assemblyContext?.auto) return last.result;
+  const meshOf = (partId: Id) => s.display[partId]?.mesh;
+  const options: SolveOptions = { sketchesOf: (partId) => s.display[partId]?.result.sketches, subassemblyOf: (id) => subassemblyContent(s.doc, id) };
+  const reference = referenceAssembly(assembly);
+  const leaves = flattenAssembly(reference, solveAssembly(reference, meshOf, options), meshOf, options);
+  let own = chosen ? leaves.find((l) => l.key === chosen && l.partId === s.activePartId) : undefined;
+  let result: ActiveContext | null = null;
+  if (own) {
+    const inverse = invertRigid4(own.matrix);
+    const key = own.key;
+    result = { instanceId: key, partId: own.partId, name: own.name, leaves: leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: multiply4(inverse, l.matrix) })), auto: !!s.assemblyContext?.auto, virtual: false, matrix: own.matrix };
+  } else if (assemblyDiverged(s.doc)) {
+    own = leaves.find((l) => l.partId === s.activePartId);
+    const inverse = own ? invertRigid4(own.matrix) : null;
+    const key = own?.key ?? '';
+    result = {
+      instanceId: key,
+      partId: s.activePartId,
+      name: own?.name ?? s.doc.parts.find((p) => p.id === s.activePartId)?.name ?? '',
+      leaves: leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: inverse ? multiply4(inverse, l.matrix) : l.matrix })),
+      auto: true,
+      virtual: !own,
+      matrix: own?.matrix ?? identity4(),
+    };
+  }
+  lastContext = { assembly, subs: s.doc.subassemblies, display: s.display, partId: s.activePartId, key: chosen, auto: !!s.assemblyContext?.auto, result };
+  return result;
 }
 
 /** Clé d'affichage d'une pièce voisine (préfixe `ctx:` + clé de la pièce dépliée). */

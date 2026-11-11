@@ -40,13 +40,14 @@ test('composants : parcourir une bibliothèque, chercher, insérer une pièce pa
   // Esquisses masquées : seul le volume du composant s'affiche.
   expect(part.features.filter((f: any) => f.type === 'sketch').map((f: any) => f.visible)).toEqual([false, false, false]);
 
-  // Atelier Assemblage : la poulie est ajoutée au projet et insérée dans l'assemblage.
+  // Atelier Assemblage : le roulement y est posé d'office ; la poulie est ajoutée au projet et
+  // insérée dans l'assemblage.
   await page.click('#tab-assembly');
   await page.click('#as-insert');
   await page.click('#as-insert-component');
   await dialog.getByRole('button', { name: /Poulies/ }).click();
   await dialog.getByRole('list', { name: 'Composants' }).getByRole('button', { name: /Poulie GT2 20 dents/ }).click();
-  await expect.poll(() => appState(page, (s) => (s.doc.assembly?.instances ?? []).map((i: any) => i.name))).toEqual(['Poulie GT2 20 dents']);
+  await expect.poll(() => appState(page, (s) => (s.doc.assembly?.instances ?? []).map((i: any) => i.name))).toEqual(['Roulement 608-2RS', 'Poulie GT2 20 dents']);
   expect(await appState(page, (s) => s.doc.parts.length)).toBe(3);
 });
 

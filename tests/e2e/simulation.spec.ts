@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectVolume, openApp, worldToScreen } from './helpers';
+import { appState, expectVolume, openApp, worldToScreen } from './helpers';
 
 /** Centre de la face plane de normale donnée (pièce active). */
 async function faceCenter(page: Page, normal: [number, number, number]) {
@@ -136,11 +136,11 @@ test('simulation : assemblage collé, deux moitiés de poutre ; une pièce isol�
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, 5000);
+  // Onglet Assemblage : la demi-poutre y est posée d'office ; on en insère une seconde.
   await page.click('#tab-assembly');
-  for (let i = 0; i < 2; i++) {
-    await page.click('#as-insert');
-    await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
-  }
+  await expect.poll(() => appState(page, (s) => s.doc.assembly?.instances.length)).toBe(1);
+  await page.click('#as-insert');
+  await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
   const place = (x: number) =>
     page.evaluate((dx) => {
       const c = (window as any).vibecad.controller;
