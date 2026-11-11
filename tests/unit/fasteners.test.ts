@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fastenerGroups, fastenerMesh, sizesForHole } from '../../src/app/fasteners';
+import { fastenerForHole, fastenerGroups, fastenerMesh, nearestSize, sizeFitsHole, sizesForHole } from '../../src/app/fasteners';
 import { designation, holeMatches, INSERTS, lengthsOf, matchHole, sizesOf, suggestedLength } from '../../src/domain/fasteners';
 import { holeDiameter } from '../../src/features/hole/definition';
 import type { Assembly } from '../../src/domain/model';
@@ -41,6 +41,19 @@ describe('visserie : normes', () => {
     // 2,5 mm : passage M2,5 ou taraudage M3 ; les deux sont proposés.
     expect(holeMatches(2.5)).toContainEqual({ size: 'M3', hole: 'tapped' });
     expect(holeMatches(2.5)[0]).toEqual({ size: 'M2.5', hole: 'clearance' });
+  });
+
+  it('taille forcée : la plus proche quand aucune ne va dans le trou, rien si le trou est trop loin', () => {
+    const edge = { faces: [] } as never;
+    // 3,8 mm : ni passage ni taraudage normalisé ; M4 est la plus proche, posée en taille forcée.
+    expect(sizeFitsHole('iso4762', 'M4', 3.8)).toBe(false);
+    expect(nearestSize('iso4762', 3.8)).toBe('M4');
+    expect(fastenerForHole('iso4762', { edge, diameter: 3.8, depth: 5 } as never)).toMatchObject({ kind: 'iso4762', size: 'M4', forced: true });
+    // Une taille qui va : pas forcée.
+    expect(fastenerForHole('iso4762', { edge, diameter: 3.4, depth: 5 } as never)).not.toHaveProperty('forced');
+    // Un grand alésage n'est pas un trou de vis : toujours refusé, avec l'explication.
+    expect(nearestSize('iso4762', 30)).toBeNull();
+    expect(fastenerForHole('iso4762', { edge, diameter: 30, depth: 5 } as never)).toHaveProperty('reason');
   });
 
   it('tailles et longueurs normalisées', () => {

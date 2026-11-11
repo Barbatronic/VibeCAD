@@ -36,7 +36,7 @@ import { blockContent, explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame,
 import { subassemblyContent } from '../domain/subassemblies';
 import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
 import { MECHANISM_STUDY, mechanismStudyOf, withValue } from '../app/mechanism';
-import { FASTENER_COLOR, fastenerMesh, placeFasteners } from '../app/fasteners';
+import { fastenerColor, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
 import { engravingLoops, partEngravings } from '../app/engravings';
@@ -138,7 +138,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const matrix = shifted(block.instanceId, block.matrix);
     if (!matrix) continue;
     const { key, mesh } = fastenerMesh(block.fastener.kind, block.fastener.size, block.fastener.length);
-    parts.push({ partId: `fs:${block.key}`, color: FASTENER_COLOR, visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+    parts.push({ partId: `fs:${block.key}`, color: fastenerColor(block.fastener.kind), visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
   }
   // Visserie : un objet par élément, placé sur son bord de trou (maillages partagés).
   const fasteners = assembly.fasteners?.length
@@ -148,7 +148,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const matrix = shifted(f.at.instanceId, fasteners?.matrices.get(f.id));
     if (!matrix) continue;
     const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
-    parts.push({ partId: `fs:${f.id}`, color: FASTENER_COLOR, visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+    parts.push({ partId: `fs:${f.id}`, color: fastenerColor(f.kind), visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
   }
   const markers: ViewMarker[] = [];
   const sel = s.assemblySelection;

@@ -602,6 +602,7 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
       const fastener: AssemblyFastener = { id: str(v, fo, 'id', fp), kind, size, at: { instanceId: str(v, at, 'instanceId', `${fp}.at`), edge: readEdgeRef(v, at.edge, `${fp}.at.edge`) } };
       if (fo.length !== undefined) fastener.length = num(v, fo, 'length', fp, { min: 0 });
       if (fo.flip === true) fastener.flip = true;
+      if (fo.forced === true) fastener.forced = true;
       // La norme fixe les tailles et les longueurs possibles.
       if (!sizesOf(kind).includes(size)) v.error(`${fp}.size`, `taille ${size} absente de la norme ${fastenerType(kind).standard}`);
       if (fastenerType(kind).screw && !lengthsOf(kind, size).includes(fastener.length ?? -1)) v.error(`${fp}.length`, `longueur non normalisée pour ${designation(kind, size)}`);

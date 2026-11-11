@@ -287,6 +287,11 @@ export interface AssemblyFastener {
   length?: number;
   at: { instanceId: Id; edge: EdgeRef };
   flip?: boolean;
+  /**
+   * Taille choisie à la main alors qu'elle ne correspond pas au diamètre du trou (trou imprimé un
+   * peu juste, vis auto-taraudeuse…) : elle n'est pas signalée comme une erreur.
+   */
+  forced?: boolean;
 }
 
 /**

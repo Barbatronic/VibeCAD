@@ -35,6 +35,13 @@ const SOCKET: Partial<Record<FastenerKind, Partial<Record<MetricSize, number>>>>
 
 /** Couleur d'affichage de la visserie (acier). */
 export const FASTENER_COLOR = '#9aa4ae';
+/** Laiton des inserts filetés à chaud. */
+export const INSERT_COLOR = '#c9a43c';
+
+/** Couleur d'un élément de visserie : acier, ou laiton doré pour un insert. */
+export function fastenerColor(kind: FastenerKind): string {
+  return kind === 'insert' ? INSERT_COLOR : FASTENER_COLOR;
+}
 
 // ---------------------------------------------------------------------------
 // Maillage
@@ -450,10 +457,37 @@ export function sizesForHole(kind: FastenerKind, diameter: number): HoleMatch[] 
   return out;
 }
 
-/** Nouvel élément pour ce trou (taille la plus probable, longueur proposée), ou l'explication. */
+/** La taille donnée va-t-elle dans un trou de ce diamètre (sans la forcer) ? */
+export function sizeFitsHole(kind: FastenerKind, size: MetricSize, diameter: number): boolean {
+  return sizesForHole(kind, diameter).some((m) => m.size === size);
+}
+
+/**
+ * Taille la plus proche d'un trou où aucune taille normalisée ne va (trou imprimé un peu juste,
+ * vis auto-taraudeuse…), à poser en taille forcée ; aucune si le trou est vraiment trop loin
+ * (plus de 35 % d'écart : sans doute un autre cercle que le trou voulu).
+ */
+export function nearestSize(kind: FastenerKind, diameter: number): MetricSize | null {
+  const ref = (size: MetricSize) => (kind === 'insert' ? (INSERTS[size]?.hole ?? Infinity) : nominal(size));
+  let best: MetricSize | null = null;
+  for (const size of sizesOf(kind)) if (!best || Math.abs(diameter - ref(size)) < Math.abs(diameter - ref(best))) best = size;
+  return best && Math.abs(diameter - ref(best)) <= 0.35 * ref(best) ? best : null;
+}
+
+/**
+ * Nouvel élément pour ce trou (taille la plus probable, longueur proposée), ou l'explication. Si
+ * aucune taille normalisée ne va, la plus proche est posée en taille forcée (`forced`).
+ */
 export function fastenerForHole(kind: FastenerKind, hole: HoleInfo): Omit<AssemblyFastener, 'id' | 'at'> | { reason: string } {
   const options = sizesForHole(kind, hole.diameter);
   const first = options[0];
+  const near = first ? null : nearestSize(kind, hole.diameter);
+  if (near) {
+    // Trou plus petit que la vis : elle s'y visse (comme dans un trou taraudé).
+    const fit = kind === 'insert' ? 'insert' : hole.diameter < nominal(near) ? 'tapped' : 'clearance';
+    const length = suggestedLength(kind, near, hole.depth, fit);
+    return { kind, size: near, ...(length !== null ? { length } : {}), forced: true };
+  }
   if (!first && kind === 'insert') {
     const d = hole.diameter.toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
     const list = Object.entries(INSERTS)
@@ -506,7 +540,7 @@ export function placeFasteners(assembly: Assembly, meshOf: (partId: Id) => MeshD
       issues.set(f.id, 'lost');
       continue;
     }
-    if (!sizesForHole(f.kind, hole.diameter).some((m) => m.size === f.size)) issues.set(f.id, 'size');
+    if (!f.forced && !sizesForHole(f.kind, hole.diameter).some((m) => m.size === f.size)) issues.set(f.id, 'size');
     const key = `${f.at.instanceId}|${JSON.stringify(f.at.edge)}|${f.flip ? 1 : 0}`;
     let offset = stacked.get(key) ?? 0;
     stacked.set(key, offset + stackHeight(f));
@@ -522,7 +556,7 @@ export function placeFasteners(assembly: Assembly, meshOf: (partId: Id) => MeshD
 
 export const FASTENER_ISSUE_MESSAGES: Record<FastenerIssue, string> = {
   lost: 'Le trou où elle était posée a disparu (pièce modifiée) : supprimez-la ou reposez-la.',
-  size: 'Le trou a changé de diamètre : cette taille n’y va plus. Choisissez une autre taille.',
+  size: 'Le trou a changé de diamètre : cette taille n’y va plus. Choisissez une autre taille, ou gardez-la en taille forcée.',
 };
 
 // ---------------------------------------------------------------------------

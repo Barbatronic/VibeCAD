@@ -3256,6 +3256,10 @@
               },
               "flip": {
                 "type": "boolean"
+              },
+              "forced": {
+                "type": "boolean",
+                "description": "Taille choisie à la main sans correspondre au diamètre du trou : pas signalée comme une erreur."
               }
             },
             "required": [

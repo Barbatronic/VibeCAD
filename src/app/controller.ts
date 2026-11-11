@@ -90,7 +90,7 @@ import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewpor
 import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, toggleEdge } from './edges';
 import type { Store } from './store';
-import { FASTENER_COLOR, fastenerForHole, fastenerMesh, holeFromPick, holeOf, placeFasteners, type FastenerPlacement } from './fasteners';
+import { fastenerColor, fastenerForHole, fastenerMesh, holeFromPick, holeOf, placeFasteners, sizeFitsHole, type FastenerPlacement } from './fasteners';
 import { toGlb, type GltfMesh, type GltfNode } from '../io/gltf';
 import { APP_NAME, APP_VERSION } from '../meta';
 import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
@@ -2376,7 +2376,7 @@ export class AppController {
         const matrix = fasteners?.matrices.get(f.id);
         if (!matrix) continue;
         const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
-        if (!meshes.some((m) => m.key === key)) meshes.push({ key, name: designation(f.kind, f.size, f.length), color: FASTENER_COLOR, positions: mesh.positions, normals: mesh.normals, indices: mesh.indices });
+        if (!meshes.some((m) => m.key === key)) meshes.push({ key, name: designation(f.kind, f.size, f.length), color: fastenerColor(f.kind), positions: mesh.positions, normals: mesh.normals, indices: mesh.indices });
         nodes.push({ name: designation(f.kind, f.size, f.length), mesh: key, matrix });
       }
     } else {
@@ -3555,7 +3555,9 @@ export class AppController {
       const spec = fastenerForHole(kind, { edge: onto.at.edge, ...found });
       if ('reason' in spec) return this.explain(spec.reason);
       const added = addFastener(s.doc, { ...spec, at: onto.at, ...(onto.flip ? { flip: true } : {}) });
-      return this.commit(added.doc, `Poser ${designation(spec.kind, spec.size, spec.length)}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
+      this.commit(added.doc, `Poser ${designation(spec.kind, spec.size, spec.length)}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
+      if (spec.forced) this.explainForced(spec.size, found.diameter);
+      return;
     }
     if (pick.partId.startsWith('fs:')) return;
     if (pick.partId.includes('/')) return this.explain('Cette pièce fait partie d’un sous-assemblage : ouvrez-le (en haut du panneau de gauche) pour y poser de la visserie.');
@@ -3572,6 +3574,18 @@ export class AppController {
     const added = addFastener(s.doc, { ...spec, at: { instanceId: inst.id, edge: hole.edge } });
     const name = designation(spec.kind, spec.size, spec.length);
     this.commit(added.doc, `Poser ${name}`, { assemblySelection: { kind: 'fasteners', ids: [added.fastenerId] } });
+    if (spec.forced) this.explainForced(spec.size, hole.diameter);
+  }
+
+  private explainForced(size: string, diameter: number): void {
+    this.explain(`Aucune taille normalisée ne correspond à ce trou (Ø ${formatLength(diameter)}) : ${size} est posée en taille forcée. Changez-la au besoin dans le panneau.`);
+  }
+
+  /** Trou où est posé un élément de visserie (null s'il a disparu). */
+  private fastenerHoleDiameter(f: AssemblyFastener): number | null {
+    const inst = this.state.doc.assembly?.instances.find((i) => i.id === f.at.instanceId);
+    const mesh = inst && this.state.display[inst.partId]?.mesh;
+    return mesh ? (holeOf(mesh, f.at.edge)?.diameter ?? null) : null;
   }
 
   /** Modifie des éléments (un groupe identique) ; la longueur est ramenée à une longueur normalisée. */
@@ -3579,7 +3593,13 @@ export class AppController {
     let doc = this.state.doc;
     for (const id of ids) {
       doc = updateFastener(doc, id, (f) => {
-        const next = { ...f, ...patch };
+        let next: AssemblyFastener = { ...f, ...patch };
+        // Taille ou type changés : la taille est « forcée » si elle ne va pas dans le trou.
+        if (patch.kind !== undefined || patch.size !== undefined) {
+          const d = this.fastenerHoleDiameter(f);
+          const { forced: _f, ...rest } = next;
+          next = d !== null && !sizeFitsHole(next.kind, next.size, d) ? { ...rest, forced: true } : rest;
+        }
         const lengths = lengthsOf(next.kind, next.size);
         if (lengths.length === 0) {
           const { length: _l, ...rest } = next;

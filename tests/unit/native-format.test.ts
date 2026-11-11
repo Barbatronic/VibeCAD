@@ -180,6 +180,7 @@ describe('format natif .vibecad', () => {
       fasteners: [
         { id: 'fs1', kind: 'iso4762' as const, size: 'M3' as const, length: 12, at: { instanceId: 'i1', edge } },
         { id: 'fs2', kind: 'iso4032' as const, size: 'M3' as const, at: { instanceId: 'i1', edge }, flip: true },
+        { id: 'fs3', kind: 'iso4762' as const, size: 'M4' as const, length: 12, at: { instanceId: 'i1', edge }, forced: true },
       ],
     };
     const text = serializeDocument({ ...doc, assembly });

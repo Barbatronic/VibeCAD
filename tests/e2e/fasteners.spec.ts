@@ -74,12 +74,19 @@ test('visserie : vis et rondelle normalisées dans le trou, taille imposée par 
   await expect(group.locator('summary .count')).toHaveText('2');
   await group.locator('summary').click();
   await group.getByRole('button', { name: /^Vis CHC ISO 4762 M6 × 12/ }).click();
-  // Seule la taille permise par le trou est proposée ; les longueurs sont celles de la norme.
-  await expect(page.locator('#fastener-size option')).toHaveText(['M6']);
+  // La taille permise par le trou d'abord, les autres en taille forcée ; longueurs de la norme.
+  await expect(page.locator('#fastener-size optgroup').first().locator('option')).toHaveText(['M6']);
+  await expect(page.locator('#fastener-size option', { hasText: 'M4 (forcée)' })).toHaveCount(1);
   await expect(page.locator('#fastener-length option').first()).toHaveText('10 mm');
   await page.locator('#fastener-length').selectOption('16');
   await expect.poll(async () => (await fasteners(page))[0].length).toBe(16);
   await expect(page.locator('#fastener-hole')).toContainText('passage M6');
+  // Taille forcée : M4 dans le trou de M6, gardée sans erreur.
+  await page.locator('#fastener-size').selectOption('M4');
+  await expect.poll(async () => (await fasteners(page))[0]).toMatchObject({ size: 'M4', forced: true });
+  await expect(page.locator('#fastener-forced')).toBeVisible();
+  await page.locator('#fastener-size').selectOption('M6');
+  await expect.poll(async () => (await fasteners(page))[0].forced).toBeUndefined();
 
   // Nomenclature (Fabrication › Documents) : la pièce puis la visserie.
   await page.click('#tab-fabrication');
