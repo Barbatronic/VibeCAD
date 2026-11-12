@@ -302,7 +302,7 @@ interface ServoSize {
   tabs: { length: number; thickness: number; z: number };
   /** Trous des pattes : diamètre, entraxe en longueur et en largeur (0 : un trou par patte), largeur de la fente vers le bout. */
   holes: { d: number; spanX: number; spanY: number; slot: number };
-  /** Nervure sous chaque patte, au milieu : épaisseur, saillie le long de la patte, hauteur sous la patte. */
+  /** Nervure sur chaque patte, au milieu : épaisseur, saillie le long de la patte, hauteur au-dessus de la patte. */
   rib: [number, number, number];
   /**
    * Sortie : distance de l'axe au bout du boîtier, tour (Ø, hauteur), dôme du pignon voisin
@@ -363,24 +363,6 @@ function servo(id: string, code: string, size: ServoSize, color: string, realMas
       doc = tabs.doc;
       const exTabs = named(makeExtrudeFeature(doc, part(), tabs.sketchId, size.tabs.thickness), 'Pattes');
       doc = addFeature(doc, partId, exTabs);
-      // Nervure triangulaire sous chaque patte, entre le boîtier et le trou (mord de 0,3 mm dans le boîtier et la patte).
-      const [rt, rl, rh] = size.rib;
-      const ribs = sketchOn(doc, partId, XZ(-rt / 2), 'Esquisse des nervures', (p) => {
-        let q = p;
-        for (const sx of [-1, 1]) {
-          const x0 = cx + sx * (L / 2 - 0.3);
-          const x1 = cx + sx * (L / 2 + rl);
-          q = polygon(q, [
-            { x: x0, y: size.tabs.z + 0.3 },
-            { x: x1, y: size.tabs.z + 0.3 },
-            { x: x1, y: size.tabs.z },
-            { x: x0, y: size.tabs.z - rh },
-          ]).sketch;
-        }
-        return q;
-      });
-      doc = ribs.doc;
-      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), ribs.sketchId, rt), 'Nervures des pattes'));
       // Trous et fentes des pattes (la fente débouche au bout de la patte).
       const hx = size.holes.spanX / 2;
       const ys = size.holes.spanY ? [-size.holes.spanY / 2, size.holes.spanY / 2] : [0];
@@ -405,6 +387,25 @@ function servo(id: string, code: string, size: ServoSize, color: string, realMas
         doc = g.doc;
         doc = addFeature(doc, partId, named(makePocketFeature(doc, part(), g.sketchId, { kind: 'distance', distance: 0.6 }), `Joint ${label}`));
       }
+      // Nervure triangulaire sur chaque patte, contre le boîtier, entre le boîtier et le trou (mord de 0,3 mm dans le boîtier et la patte).
+      const [rt, rl, rh] = size.rib;
+      const zt = size.tabs.z + size.tabs.thickness;
+      const ribs = sketchOn(doc, partId, XZ(-rt / 2), 'Esquisse des nervures', (p) => {
+        let q = p;
+        for (const sx of [-1, 1]) {
+          const x0 = cx + sx * (L / 2 - 0.3);
+          const x1 = cx + sx * (L / 2 + rl);
+          q = polygon(q, [
+            { x: x0, y: zt - 0.3 },
+            { x: x1, y: zt - 0.3 },
+            { x: x1, y: zt },
+            { x: x0, y: zt + rh },
+          ]).sketch;
+        }
+        return q;
+      });
+      doc = ribs.doc;
+      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), ribs.sketchId, rt), 'Nervures des pattes'));
       // Vis du fond, aux quatre coins.
       const bs = size.bottomScrews;
       const screws = circleSketch(
