@@ -15,6 +15,7 @@ import {
   makeExtrudeFeature,
   makeFilletFeature,
   makeGearFeature,
+  makeLoftFeature,
   makePatternFeature,
   makePocketFeature,
   makeSketchFeature,
@@ -23,7 +24,8 @@ import {
   setPartMaterial,
 } from '../../src/domain/document';
 import type { CadDocument, EdgeRef, Id, SketchParams, SketchSupport } from '../../src/domain/model';
-import { circles, hexagonPoints, octagonPoints, polygon, rectangle, solved } from './sketch';
+import { textWidth } from '../../src/sketch/text';
+import { circles, hexagonPoints, octagonPoints, polygon, rectangle, solved, text } from './sketch';
 
 export interface CollectionSpec {
   /** Nom du dossier. */
@@ -467,18 +469,209 @@ function servo(id: string, code: string, size: ServoSize, color: string, realMas
   };
 }
 
-/** Format standard (TowerPro MG996R) : cannelure 25 dents Ø 5,8, vis du palonnier M3. */
-const STANDARD_SERVO: ServoSize = {
-  body: [40.7, 19.7, 36.8],
-  round: 1,
-  seams: [6, 29.1],
-  tabs: { length: 54.5, thickness: 2.5, z: 26.6 },
-  holes: { d: 4.6, spanX: 49.5, spanY: 10, slot: 1.2 },
-  rib: [1.6, 3.5, 4.5],
-  output: { fromEnd: 10, tower: [13.6, 2], dome: [0, 0], spline: [5.8, 4.1, 25], screw: 2.5 },
-  bottomScrews: { d: 2, inset: 2.6 },
-  cable: { boot: [8, 4, 2], ribbon: [3.6, 1.1, 15] },
-};
+/** Rectangle donné par ses bornes (X de x0 à x1, Y de y0 à y1). */
+const box = (p: SketchParams, x0: number, x1: number, y0: number, y1: number) => rectangle(p, x1 - x0, y1 - y0, (x0 + x1) / 2, (y0 + y1) / 2);
+
+/**
+ * Servomoteur TowerPro MG996R, d'après son modèle 3D de référence. Repère de montage : axe de
+ * sortie sur Z (X = Y = 0), dessous des pattes en Z = 0 (le servo se pose par là), câble vers +X.
+ *  - fond (Z −28 à −21) chanfreiné de 2 mm, puis dépouille jusqu'au boîtier central (Z −1) ;
+ *  - boîtier central 40 × 20 (Z −1 à 7,5), pattes de 54 × 19 × 2,4 avec trous Ø 4 (entraxe
+ *    49 × 10) ouverts vers le bout et nervure inclinée ;
+ *  - couvercle, tour Ø 20, bloc de l'étiquette, bagues Ø 13,2 et Ø 10,8, cannelure 25 dents Ø 6
+ *    taraudée M3 (sommet en Z 15,5) ;
+ *  - quatre vis à tête bombée cruciforme sous le fond, passe-fil et trois fils Ø 1,4.
+ */
+function mg996r(): ComponentSpec {
+  return {
+    collection: 'servos',
+    id: 'mg996r',
+    name: 'Servomoteur MG996R',
+    description:
+      'Servomoteur TowerPro MG996R : boîtier 40,7 × 20,5 × 40 mm, pattes de 54 mm percées Ø 4 (entraxe 49 × 10 mm), cannelure 25 dents Ø 6 taraudée M3. Repère de montage : axe de sortie sur Z, dessous des pattes en Z = 0. Pignons métal, couple ≈ 1 N·m sous 6 V. Masse réelle ≈ 55 g (moteur et engrenages).',
+    tags: ['servomoteur', 'servo', 'MG996R', 'TowerPro', 'modélisme'],
+    dimensions: { L: 40.7, W: 20.5, H: 40, pattes: 54, entraxe: 49, dents: 25 },
+    build: () => {
+      let { doc, partId } = single('Servomoteur MG996R', '#4a4d52', 'abs');
+      const part = () => findPart(doc, partId)!;
+      const add = <T extends Parameters<typeof addFeature>[2]>(f: T, name: string): T => {
+        const g = named(f, name);
+        doc = addFeature(doc, partId, g);
+        return g;
+      };
+      const draw = (support: SketchSupport, name: string, fn: (p: SketchParams) => SketchParams) => {
+        const r = sketchOn(doc, partId, support, name, fn);
+        doc = r.doc;
+        return r.sketchId;
+      };
+      const sides = (featureId: Id, lines: string[], role: 'start' | 'end'): EdgeRef[] => lines.map((l) => ({ faces: [{ featureId, role: 'side', entityId: l }, { featureId, role }] }));
+      const verticals = (featureId: Id, lines: string[]): EdgeRef[] =>
+        lines.map((l, i) => ({ faces: [{ featureId, role: 'side', entityId: l }, { featureId, role: 'side', entityId: lines[(i + 1) % lines.length]! }] }));
+
+      // Fond : 40,7 × 20,5, arêtes du dessous chanfreinées de 2 mm.
+      let bottomLines: string[] = [];
+      const skBottom = draw(XY(-28), 'Esquisse du fond', (p) => {
+        const r = box(p, -30.35, 10.35, -10.25, 10.25);
+        bottomLines = r.lines;
+        return r.sketch;
+      });
+      const exBottom = add(makeExtrudeFeature(doc, part(), skBottom, 7), 'Fond');
+      add(makeChamferFeature(doc, part(), sides(exBottom.id, bottomLines, 'start'), 2), 'Chanfrein du fond');
+      // Dépouille : du fond (40,7 × 20,5) au boîtier central (40 × 19,8), Z −21 à −1.
+      const draftLow = draw(XY(-21), 'Esquisse du pied de dépouille', (p) => box(p, -30.35, 10.35, -10.25, 10.25).sketch);
+      const draftHigh = draw(XY(-1), 'Esquisse du haut de dépouille', (p) => box(p, -30, 10, -9.9, 9.9).sketch);
+      const loft = makeLoftFeature(doc, part(), [draftLow, draftHigh]);
+      add({ ...loft, params: { ...loft.params, ruled: true } }, 'Dépouille');
+      // Boîtier central 40 × 20, jusqu'au couvercle.
+      const skMiddle = draw(XY(-1), 'Esquisse du boîtier central', (p) => box(p, -30, 10, -10, 10).sketch);
+      add(makeExtrudeFeature(doc, part(), skMiddle, 8.5), 'Boîtier central');
+
+      // Pattes : 54 × 19 × 2,4, coins arrondis R 0,5.
+      let tabLines: string[] = [];
+      const skTabs = draw(XY(0), 'Esquisse des pattes', (p) => {
+        const r = box(p, -37, 17, -9.5, 9.5);
+        tabLines = r.lines;
+        return r.sketch;
+      });
+      const exTabs = add(makeExtrudeFeature(doc, part(), skTabs, 2.4), 'Pattes');
+      add(makeFilletFeature(doc, part(), verticals(exTabs.id, tabLines), 0.5), 'Coins des pattes');
+      // Trous Ø 4 (entraxe 49 × 10), ouverts vers le bout par une fente de 2,4 aux bords arrondis.
+      const holeXs = [-34.5, 14.5];
+      const skHoles = draw(XY(0), 'Esquisse des trous de fixation', (p) => circles(p, holeXs.flatMap((x) => [-5, 5].map((y) => ({ x, y, r: 2 })))).sketch);
+      add(makePocketFeature(doc, part(), skHoles, { kind: 'throughAll' }, 'reversed'), 'Trous de fixation');
+      const slotLines: string[][] = [];
+      const skSlots = draw(XY(0), 'Esquisse des fentes', (p) => {
+        let q = p;
+        for (const [x0, x1] of [
+          [-38, -34.5],
+          [14.5, 18],
+        ] as const)
+          for (const y of [-5, 5]) {
+            const r = box(q, x0, x1, y - 1.2, y + 1.2);
+            slotLines.push(r.lines);
+            q = r.sketch;
+          }
+        return q;
+      });
+      const pkSlots = add(makePocketFeature(doc, part(), skSlots, { kind: 'throughAll' }, 'reversed'), 'Fentes des pattes');
+      // Arêtes de l'entrée des fentes : les flancs de la fente (bas, haut) contre le bout de la patte (gauche : ligne 3, droite : ligne 1).
+      const mouths: EdgeRef[] = slotLines.flatMap((lines, k) =>
+        [lines[0]!, lines[2]!].map((l) => ({ faces: [{ featureId: pkSlots.id, role: 'side' as const, entityId: l }, { featureId: exTabs.id, role: 'side' as const, entityId: tabLines[k < 2 ? 3 : 1]! }] })),
+      );
+      add(makeFilletFeature(doc, part(), mouths, 0.5), 'Entrées des fentes');
+      // Nervure sur chaque patte : 1 mm de large, de 3,6 mm de haut contre le boîtier à rien au bout.
+      const skRibs = draw(XZ(-0.5), 'Esquisse des nervures', (p) => {
+        let q = p;
+        for (const sx of [-1, 1]) {
+          const wall = sx > 0 ? 10 : -30;
+          const tip = sx > 0 ? 17 : -37;
+          const x0 = wall - sx * 0.3;
+          q = polygon(q, [
+            { x: x0, y: 2 },
+            { x: tip, y: 2 },
+            { x: tip, y: 2.4 },
+            { x: x0, y: 3.6 + (0.3 * 1.2) / 7 },
+          ]).sketch;
+        }
+        return q;
+      });
+      add(makeExtrudeFeature(doc, part(), skRibs, 1), 'Nervures des pattes');
+
+      // Couvercle (inscrit à 0,5 mm du bord), tour Ø 20 du réducteur.
+      const skCover = draw(XY(7.5), 'Esquisse du couvercle', (p) => box(p, -29.5, 9.5, -9.5, 9.5).sketch);
+      add(makeExtrudeFeature(doc, part(), skCover, 0.5), 'Couvercle');
+      const skTower = draw(XY(7.5), 'Esquisse de la tour', (p) => circles(p, [{ x: 0, y: 0, r: 10 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skTower, 2.5), 'Tour du réducteur');
+      // Bloc de l'étiquette : 18 de large, arrondi Ø 12 à l'arrière, partie haute jusqu'à Z 11.
+      const skBlock = draw(XY(8), 'Esquisse du bloc', (p) => box(p, -24, -2, -9, 9).sketch);
+      add(makeExtrudeFeature(doc, part(), skBlock, 2), 'Bloc');
+      const skNose = draw(XY(8), 'Esquisse de l’arrondi du bloc', (p) => circles(p, [{ x: -20.5, y: 0, r: 6 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skNose, 2), 'Arrondi du bloc');
+      const skRaised = draw(XY(10), 'Esquisse du dessus du bloc', (p) => box(p, -24, -11, -9, 9).sketch);
+      add(makeExtrudeFeature(doc, part(), skRaised, 1), 'Dessus du bloc');
+      const skBoss = draw(XY(10), 'Esquisse du bossage', (p) => circles(p, [{ x: -10.6, y: 0, r: 2 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skBoss, 0.8), 'Bossage du pignon');
+      // Étiquette : logement de 0,2 mm, cadre et inscriptions en relief de 0,15 mm (lisibles depuis +X).
+      const skLabel = draw(XY(11), 'Esquisse du logement de l’étiquette', (p) => box(p, -23, -12, -8, 8).sketch);
+      add(makePocketFeature(doc, part(), skLabel, { kind: 'distance', distance: 0.2 }), 'Logement de l’étiquette');
+      const skPrint = draw(XY(10.8), 'Esquisse de l’étiquette', (p) => {
+        let q = box(box(p, -22.4, -13.8, -7.1, 7.1).sketch, -22.1, -14.1, -6.8, 6.8).sketch;
+        // Chaque ligne fait 12,6 mm de large, centrée sur Y = 0.
+        for (const [line, base] of [
+          ['MG996R', -20.1],
+          ['DIGI HI TORQUE', -21.55],
+        ] as const) {
+          const h = 12.6 / textWidth(line, 1);
+          q = text(q, base, 6.3, line, h, -90);
+        }
+        return q;
+      });
+      add(makeExtrudeFeature(doc, part(), skPrint, 0.15), 'Étiquette');
+
+      // Bagues Ø 13,2 et Ø 10,8, cannelure Ø 6 de 25 dents en V (fond Ø 5,4), taraudage M3.
+      const skRing = draw(XY(10), 'Esquisse de la bague', (p) => circles(p, [{ x: 0, y: 0, r: 6.6 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skRing, 1.5), 'Bague');
+      const skCollar = draw(XY(11.5), 'Esquisse du collet', (p) => circles(p, [{ x: 0, y: 0, r: 5.4 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skCollar, 0.5), 'Collet');
+      const skSpline = draw(XY(12), 'Esquisse de la cannelure', (p) => circles(p, [{ x: 0, y: 0, r: 3 }]).sketch);
+      add(makeExtrudeFeature(doc, part(), skSpline, 3.5), 'Cannelure');
+      const flank = 0.21 / 0.29;
+      const skGroove = draw(XY(15.5), 'Esquisse d’un creux de cannelure', (p) =>
+        polygon(p, [
+          { x: 2.7, y: 0 },
+          { x: 3.3, y: 0.6 * flank },
+          { x: 3.3, y: -0.6 * flank },
+        ]).sketch,
+      );
+      const pkGroove = add(makePocketFeature(doc, part(), skGroove, { kind: 'distance', distance: 3.5 }), 'Creux de cannelure');
+      const pattern = makePatternFeature(doc, part(), pkGroove.id, 'circular');
+      add({ ...pattern, params: { ...pattern.params, axis: { kind: 'axis', axis: 'Z' }, count: 25, angle: 360 } }, 'Dents de la cannelure');
+      const skTap = draw(XY(15.5), 'Esquisse du taraudage', (p) => circles(p, [{ x: 0, y: 0, r: 1.25 }]).sketch);
+      add(makePocketFeature(doc, part(), skTap, { kind: 'distance', distance: 8 }), 'Taraudage M3');
+
+      // Vis du fond : lamages Ø 4 × 1, têtes bombées Ø 3,2 (0,26 sous le fond), empreintes cruciformes.
+      const screws = [-28.35, 8.35].flatMap((x) => [-8.25, 8.25].map((y) => ({ x, y })));
+      const skBores = draw(XY(-28), 'Esquisse des lamages', (p) => circles(p, screws.map((c) => ({ ...c, r: 2 }))).sketch);
+      add(makePocketFeature(doc, part(), skBores, { kind: 'distance', distance: 1 }, 'reversed'), 'Lamages');
+      const heads = circleSketch(doc, partId, XY(-26.9), screws.map((c) => ({ ...c, r: 1.6 })), 'Esquisse des têtes de vis');
+      doc = heads.doc;
+      const exHeads = add(makeExtrudeFeature(doc, part(), heads.sketchId, 1.36, 'reversed'), 'Têtes de vis');
+      add(makeFilletFeature(doc, part(), sides(exHeads.id, heads.circles, 'start'), 0.5), 'Bombé des têtes');
+      for (const [w, h, label] of [
+        [1.6, 0.35, 'longues'],
+        [0.35, 1.6, 'courtes'],
+      ] as const) {
+        const sk = draw(XY(-28.26), `Esquisse des empreintes (branches ${label})`, (p) => {
+          let q = p;
+          for (const c of screws) q = rectangle(q, w, h, c.x, c.y).sketch;
+          return q;
+        });
+        add(makePocketFeature(doc, part(), sk, { kind: 'distance', distance: 0.6 }, 'reversed'), `Empreintes (branches ${label})`);
+      }
+
+      // Passe-fil : collerette 7,4 × 4,6 × 0,8 puis corps effilé jusqu'à X 16 ; trois fils Ø 1,4.
+      const zc = -22;
+      const skFlange = draw(YZ(10.2), 'Esquisse de la collerette du passe-fil', (p) => rectangle(p, 7.4, 4.6, 0, zc).sketch);
+      add(makeExtrudeFeature(doc, part(), skFlange, 0.8), 'Collerette du passe-fil');
+      const bootProfile = (half: number, flat: number, h: number, cut: number) => [
+        { x: -flat, y: zc - h },
+        { x: flat, y: zc - h },
+        { x: half, y: zc - h + cut },
+        { x: half, y: zc + h - cut },
+        { x: flat, y: zc + h },
+        { x: -flat, y: zc + h },
+        { x: -half, y: zc + h - cut },
+        { x: -half, y: zc - h + cut },
+      ];
+      const bootRoot = draw(YZ(11), 'Esquisse du pied du passe-fil', (p) => polygon(p, bootProfile(3.61, 1.42, 1.9, 1.1)).sketch);
+      const bootTip = draw(YZ(16), 'Esquisse du bout du passe-fil', (p) => polygon(p, bootProfile(2.81, 1.1, 1.5, 0.85)).sketch);
+      add(makeLoftFeature(doc, part(), [bootRoot, bootTip]), 'Passe-fil');
+      const skWires = draw(YZ(15.5), 'Esquisse des fils', (p) => circles(p, [-1.42, 0, 1.42].map((y) => ({ x: y, y: zc, r: 0.7 }))).sketch);
+      add(makeExtrudeFeature(doc, part(), skWires, 7.1), 'Fils');
+      return doc;
+    },
+  };
+}
 
 /** Micro-servo (SG90, MG90S) : tour Ø 11,8 et dôme du pignon voisin, cannelure 21 dents Ø 4,8, vis M2. */
 const MICRO_SERVO: ServoSize = {
@@ -507,7 +700,7 @@ export const COMPONENTS: ComponentSpec[] = [
   gt2(36),
   coupler(5, 5),
   coupler(5, 8),
-  servo('mg996r', 'MG996R', STANDARD_SERVO, '#626a76', 55, 'Format standard, pignons métal, couple ≈ 1 N·m sous 6 V.'),
+  mg996r(),
   servo('sg90', 'SG90', MICRO_SERVO, '#3d7fd6', 9, 'Micro-servo, pignons plastique, couple ≈ 0,18 N·m sous 4,8 V.'),
   servo('mg90s', 'MG90S', MICRO_SERVO, '#737b87', 13.4, 'Micro-servo, pignons métal, couple ≈ 0,22 N·m sous 4,8 V.'),
 ];

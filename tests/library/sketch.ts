@@ -5,7 +5,7 @@
  * changeant une cote.
  */
 import { ORIGIN_POINT_ID, type SketchParams } from '../../src/domain/model';
-import { addCircle, addClosedPolyline, addConstraint, addRectangle } from '../../src/sketch/model';
+import { addCircle, addClosedPolyline, addConstraint, addRectangle, addText } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 
 /** Place un point par deux cotes depuis l'origine (horizontale puis verticale), ou le colle à l'origine. */
@@ -47,6 +47,12 @@ export function circles(sketch: SketchParams, list: { x: number; y: number; r: n
     ids.push(r.circleId);
   }
   return { sketch: solveSketch(s).sketch, ids };
+}
+
+/** Texte : point d'ancrage (début de la ligne de base) placé depuis l'origine, hauteur des capitales, inclinaison (degrés). */
+export function text(sketch: SketchParams, x: number, y: number, content: string, height: number, angle = 0): SketchParams {
+  const t = addText(sketch, { x: x + 0.1, y: y - 0.1 }, content, height, angle);
+  return placePoint(t.sketch, t.anchor, x, y);
 }
 
 export const solved = (sketch: SketchParams) => solveSketch(sketch).sketch;
