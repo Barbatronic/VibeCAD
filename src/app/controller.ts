@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature } from '../domain/model';
+import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -87,7 +87,7 @@ import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
-import { activePart, exportAvailability, measureAvailability, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
+import { activePart, exportAvailability, lockedReason, measureAvailability, partLocked, sketchAvailability, suggestedSketch, toolAvailability } from './availability';
 import { blendIndexFromFacePick, edgeRefFromPick, faceEdgeRefs, toggleEdge, toggleFaceEdges } from './edges';
 import type { Store } from './store';
 import { fastenerColor, fastenerForHole, fastenerMesh, holeFromPick, holeOf, placeFasteners, sizeFitsHole, type FastenerPlacement } from './fasteners';
@@ -341,10 +341,20 @@ export class AppController {
   // ----- Bibliothèques de composants (voir docs/bibliotheques.md)
 
   /** Ouvre la fenêtre des composants ; les catalogues se chargent (une fois par session). */
-  openComponents(): void {
+  openComponents(replacing?: Id): void {
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
-    this.set({ dialog: { kind: 'components', inserting: null } });
+    this.set({ dialog: { kind: 'components', inserting: null, ...(replacing ? { replacing } : {}) } });
     void this.loadLibraries();
+  }
+
+  /** Rend modifiable l'historique d'un composant de bibliothèque. */
+  unlockComponent(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part?.component || part.component.editable) return;
+    this.commit(
+      { ...this.state.doc, parts: this.state.doc.parts.map((p) => (p.id === partId ? { ...p, component: { ...part.component!, editable: true } } : p)) },
+      `Rendre « ${part.name} » modifiable`,
+    );
   }
 
   /** Charge les catalogues pas encore chargés (tous si `force`, pour actualiser). */
@@ -396,9 +406,12 @@ export class AppController {
     const component = catalog?.status === 'ready' ? catalog.index.collections.flatMap((c) => c.components).find((k) => k.id === componentId) : undefined;
     if (!catalog || catalog.status !== 'ready' || !component) return;
     const fetcher = this.deps.fetch ?? fetch;
-    this.set({ dialog: { kind: 'components', inserting: `${source}|${componentId}` } });
+    const dialog = this.state.dialog;
+    const replacing = dialog?.kind === 'components' && dialog.replacing ? findPart(this.state.doc, dialog.replacing) : undefined;
+    this.set({ dialog: { kind: 'components', inserting: `${source}|${componentId}`, ...(replacing ? { replacing: replacing.id } : {}) } });
     try {
       if (!component.files.vibecad) {
+        if (replacing) throw new Error('Ce composant n’existe qu’en STEP : il ne peut pas en remplacer un autre. Insérez-le comme nouvelle pièce.');
         const res = await fetcher(`${catalog.base}${component.files.step}`);
         if (!res.ok) throw new Error(`Fichier STEP introuvable (réponse ${res.status}).`);
         const bytes = new Uint8Array(await res.arrayBuffer());
@@ -415,28 +428,64 @@ export class AppController {
       const partId = copy.partIds[0]!;
       // Nom unique dans le projet : « Roulement 608-2RS (2) » pour un second exemplaire.
       const base = findPart(copy.doc, partId)!.name;
-      const taken = new Set(this.state.doc.parts.map((p) => p.name));
+      const taken = new Set(this.state.doc.parts.filter((p) => p.id !== replacing?.id).map((p) => p.name));
       let name = base;
       for (let n = 2; taken.has(name); n++) name = `${base} (${n})`;
       let doc = name === base ? copy.doc : renamePart(copy.doc, partId, name);
+      // Origine : le composant garde un historique verrouillé tant qu'il n'est pas rendu modifiable.
+      const origin: PartComponent = { library: source, id: component.id, name: component.name };
+      doc = { ...doc, parts: doc.parts.map((p) => (p.id === partId ? { ...p, component: origin } : p)) };
       // Matière : les fiches du composant s'il en a, sinon une fiche « achetée » d'après sa matière (acier, aluminium).
       doc = importSheetsFor(doc, partId, parsed.doc.materials);
       const inserted = findPart(doc, partId)!;
       const bought = inserted.make ? undefined : STARTER_MATERIALS.find((m) => m.process === 'bought' && m.base === inserted.material);
       if (bought) doc = assignSheet(doc, partId, bought);
+      if (replacing) return this.finishReplace(doc, replacing, partId);
       const inAssembly = this.state.workspace === 'assembly';
       if (!inAssembly) this.fitPending = true;
       this.commit(doc, `Insérer le composant « ${name} »`, {
         dialog: null,
         ...(inAssembly ? {} : { activePartId: partId, selection: { kind: 'part' as const, partId } }),
       });
-      this.toast('success', `« ${name} » ajouté au projet (${catalog.index.name}), avec son historique : il se modifie comme une pièce dessinée ici.`);
+      this.toast('success', `« ${name} » ajouté au projet (${catalog.index.name}).`);
       if (inAssembly) await this.insertWhenComputed(partId);
     } catch (err) {
       const d = this.state.dialog;
       if (d?.kind === 'components') this.set({ dialog: { ...d, inserting: null } });
       this.toast('error', `Le composant « ${component.name} » n’a pas pu être inséré.`, { detail: (err as Error).message });
     }
+  }
+
+  /**
+   * Remplace une pièce par un composant fraîchement copié (`newId`) : la pièce garde son
+   * identifiant (assemblage, dossier, visibilité), prend la forme, le nom et la matière du composant.
+   * Si les deux historiques ont la même suite d'étapes (même famille de composants), les liaisons
+   * et la visserie qui s'accrochaient à l'ancienne forme suivent la nouvelle.
+   */
+  private finishReplace(doc: CadDocument, old: Part, newId: Id): void {
+    const fresh = findPart(doc, newId)!;
+    const same = fresh.features.length === old.features.length && fresh.features.every((f, i) => f.type === old.features[i]!.type);
+    const map = new Map(same ? old.features.map((f, i) => [f.id, fresh.features[i]!.id] as const) : []);
+    const { folder, visible } = old;
+    const replaced: Part = { ...fresh, id: old.id, visible, ...(folder ? { folder } : {}) };
+    if (!folder) delete replaced.folder;
+    doc = { ...doc, parts: doc.parts.filter((p) => p.id !== newId).map((p) => (p.id === old.id ? replaced : p)) };
+    // Exemplaires dans l'assemblage nommés d'après l'ancienne pièce : nommés d'après la nouvelle.
+    if (doc.assembly) {
+      const rename = (n: string) => (n.startsWith(old.name) ? replaced.name + n.slice(old.name.length) : n);
+      doc = { ...doc, assembly: { ...doc.assembly, instances: doc.assembly.instances.map((i) => (i.partId === old.id ? { ...i, name: rename(i.name) } : i)) } };
+    }
+    if (map.size) {
+      const remap = <T>(value: T): T => JSON.parse(JSON.stringify(value), (_k, v) => (typeof v === 'string' && map.has(v) ? map.get(v) : v)) as T;
+      doc = { ...doc, ...(doc.assembly ? { assembly: remap(doc.assembly) } : {}), ...(doc.subassemblies ? { subassemblies: remap(doc.subassemblies) } : {}) };
+    }
+    const { [old.id]: _r, ...rollback } = this.state.rollback;
+    this.commit(doc, `Remplacer « ${old.name} » par « ${replaced.name} »`, { dialog: null, rollback, selection: { kind: 'part', partId: old.id } });
+    const used = (this.state.doc.assembly?.instances ?? []).some((i) => i.partId === old.id);
+    this.toast(
+      'success',
+      used && !same ? `« ${old.name} » remplacé par « ${replaced.name} ». Les liaisons accrochées à l’ancienne forme sont à reprendre.` : `« ${old.name} » remplacé par « ${replaced.name} ».`,
+    );
   }
 
   /** Insère la pièce dans l'assemblage dès que son volume est calculé. */
@@ -819,7 +868,7 @@ export class AppController {
   setRollback(partId: Id, count: number): void {
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours pour revenir en arrière dans l’historique.');
     const part = findPart(this.state.doc, partId);
-    if (!part) return;
+    if (!part || this.refuseLocked(partId)) return;
     const rollback = withRollbackAt(this.state.rollback, part, count);
     if (activeCount(part, rollback) === activeCount(part, this.state.rollback)) return;
     const sel = this.state.selection;
@@ -1241,10 +1290,18 @@ export class AppController {
     this.toast('info', `Pièce « ${part.name} » supprimée.`, { actionLabel: 'Annuler', action: () => this.undo() });
   }
 
+  /** Vrai (avec explication) si la pièce est un composant verrouillé. */
+  private refuseLocked(partId: Id): boolean {
+    const part = findPart(this.state.doc, partId);
+    if (!part || !partLocked(part)) return false;
+    this.explain(lockedReason(part));
+    return true;
+  }
+
   renameFeature(featureId: Id, name: string): void {
     const found = findFeature(this.state.doc, featureId);
     const trimmed = name.trim();
-    if (!found || !trimmed || trimmed === found.feature.name) return;
+    if (!found || !trimmed || trimmed === found.feature.name || this.refuseLocked(found.part.id)) return;
     this.commit(renameFeature(this.state.doc, featureId, trimmed), `Renommer « ${trimmed} »`);
   }
 
@@ -1261,7 +1318,7 @@ export class AppController {
 
   deleteFeature(featureId: Id): void {
     const found = findFeature(this.state.doc, featureId);
-    if (!found || this.state.mode.kind !== 'model') return;
+    if (!found || this.state.mode.kind !== 'model' || this.refuseLocked(found.part.id)) return;
     const { doc, removed } = removeFeaturesCascade(this.state.doc, found.part.id, [featureId], featureDependencies);
     const names = removed.map((id) => found.part.features.find((f) => f.id === id)?.name ?? id);
     const label = names.length > 1 ? `Supprimer « ${names[0]} » et ${names.length - 1} étape(s) dépendante(s)` : `Supprimer « ${names[0]} »`;
@@ -1284,6 +1341,7 @@ export class AppController {
     const found = findFeature(this.state.doc, featureId);
     if (!found) return;
     const { feature, part } = found;
+    if (this.refuseLocked(part.id)) return;
     if (part.features.indexOf(feature) >= activeCount(part, this.state.rollback)) {
       return this.explain(`« ${feature.name} » est après la barre de retour : descendez la barre de l’historique pour la recalculer avant de la modifier.`);
     }
@@ -1389,7 +1447,7 @@ export class AppController {
   private beginSketchOn(partId: Id, support: SketchSupport, frame: Frame3D, repairFeatureId: Id | null): void {
     const s = this.state;
     const part = findPart(s.doc, partId);
-    if (!part) return;
+    if (!part || this.refuseLocked(partId)) return;
     if (repairFeatureId) {
       const found = findFeature(s.doc, repairFeatureId);
       if (!found || found.feature.type !== 'sketch') return;
@@ -1776,6 +1834,7 @@ export class AppController {
   }
 
   private openDraft(draft: FeatureDraft): void {
+    if (this.refuseLocked(draft.partId)) return;
     this.set({ mode: { kind: 'feature', draft }, activePartId: draft.partId, selection: null, preview: null });
     void this.previewDraft();
   }
@@ -2214,6 +2273,7 @@ export class AppController {
     doc = addResource(doc, resource);
     const baseName = d.fileName.replace(/\.(step|stp|stl)$/i, '');
     let partId = this.state.activePartId;
+    if (d.target !== 'new-part' && this.refuseLocked(partId)) return;
     if (d.target === 'new-part') {
       const r = addPart(doc, d.inspection.productNames.length === 1 ? d.inspection.productNames[0]! : baseName);
       doc = r.doc;

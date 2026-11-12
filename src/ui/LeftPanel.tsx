@@ -5,6 +5,7 @@ import type { AssemblyInstance, Feature, Id, Part, PartFolder, SubAssembly } fro
 import type { FeatureStatus } from '../domain/status';
 import { definitionOf, featureSummary } from '../features/registry';
 import { activeCount } from '../app/rollback';
+import { partLocked } from '../app/availability';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
 import { FabricationSection } from './FabricationUi';
@@ -651,6 +652,10 @@ function HistorySection() {
   const draft = useAppState((s) => (s.mode.kind === 'feature' && s.mode.draft.isNew ? s.mode.draft.feature : null));
   const editingSketch = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.featureId : null));
   const rollback = useAppState((s) => s.rollback);
+  const libraryName = useAppState((s) => {
+    const cat = part?.component ? s.libraryCatalogs.find((k) => k.source === part.component!.library) : undefined;
+    return cat?.status === 'ready' ? cat.index.name : null;
+  });
   const [renaming, setRenaming] = useState<Id | null>(null);
   const [foldHistory, toggleFoldHistory] = useFolded('history');
   const list = useRef<HTMLOListElement>(null);
@@ -742,10 +747,36 @@ function HistorySection() {
         >
           <Icon name={foldHistory ? 'chevron-right' : 'chevron-down'} />
           <span id="history-title" title={`Historique — ${part.name}`}>Historique — {part.name}</span>
-          {part.features.length > 1 ? <span class="count">{part.features.length}</span> : null}
+          {part.features.length > 1 && !partLocked(part) ? <span class="count">{part.features.length}</span> : null}
         </button>
       </div>
       <div class="panel-body">
+        {part.component ? (
+          <div class={`component-origin${part.component.editable ? ' is-editable' : ''}`}>
+            <Icon name={part.component.editable ? 'part' : 'lock'} class="component-origin-icon" />
+            <span class="component-origin-texts">
+              <span class="name">{part.component.name}</span>
+              <span class="summary" title={part.component.library}>
+                {part.component.editable ? 'Composant modifié' : 'Composant'}
+                {libraryName ? ` · ${libraryName}` : ''}
+              </span>
+            </span>
+            {part.component.editable ? (
+              <IconButton id="component-replace" icon="swap" small label={`Remplacer « ${part.name} » par un autre composant`} onClick={() => c.openComponents(part.id)} />
+            ) : (
+              <span class="component-origin-actions">
+                <Button small id="component-unlock" icon="edit" onClick={() => c.unlockComponent(part.id)}>
+                  Rendre modifiable
+                </Button>
+                <Button small id="component-replace" icon="swap" hint={`Remplacer « ${part.name} » par un autre composant`} onClick={() => c.openComponents(part.id)}>
+                  Remplacer…
+                </Button>
+              </span>
+            )}
+          </div>
+        ) : null}
+        {part.component && !part.component.editable ? null : (
+        <>
         {part.features.length === 0 && !draft ? (
           <p class="empty-hint">
             Pièce vide.
@@ -827,6 +858,8 @@ function HistorySection() {
           {active === part.features.length || foldHistory ? draftRow : null}
           {active === part.features.length && part.features.length > 0 && !foldHistory ? rollbackMarker : null}
         </ol>
+        </>
+        )}
       </div>
     </section>
   );

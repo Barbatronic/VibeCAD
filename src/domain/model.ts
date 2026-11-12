@@ -370,8 +370,22 @@ export interface Part {
   paint?: PartPaint;
   /** Dossier de la liste des pièces où elle est rangée (identifiant dans `CadDocument.folders`). */
   folder?: Id;
+  /** Composant inséré depuis une bibliothèque : son historique est verrouillé tant qu'il n'est pas rendu modifiable. */
+  component?: PartComponent;
   /** Historique de construction, évalué dans l'ordre. */
   features: Feature[];
+}
+
+/** Origine d'une pièce insérée depuis une bibliothèque de composants. */
+export interface PartComponent {
+  /** Adresse de la bibliothèque. */
+  library: string;
+  /** Identifiant du composant dans la bibliothèque. */
+  id: string;
+  /** Nom du composant dans la bibliothèque. */
+  name: string;
+  /** Historique rendu modifiable par l'utilisateur. */
+  editable?: boolean;
 }
 
 export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | BeamFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;

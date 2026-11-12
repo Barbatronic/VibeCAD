@@ -18,6 +18,16 @@ export function activePart(state: AppState): Part | undefined {
   return findPart(state.doc, state.activePartId) ?? state.doc.parts[0];
 }
 
+/** Composant de bibliothèque dont l'historique est verrouillé. */
+export function partLocked(part: Part | undefined): boolean {
+  return !!part?.component && !part.component.editable;
+}
+
+/** Explication pour une modification refusée sur un composant verrouillé. */
+export function lockedReason(part: Part): string {
+  return `« ${part.name} » est un composant de bibliothèque : rendez-le modifiable (panneau Historique) pour changer sa forme.`;
+}
+
 export function sketchProfileOk(state: AppState, partId: Id, sketchId: Id): boolean | null {
   const result = state.display[partId]?.result;
   const sk = result?.sketches.find((s) => s.featureId === sketchId);
@@ -66,7 +76,8 @@ function baseAvailability(state: AppState): Availability | null {
 }
 
 export function sketchAvailability(state: AppState): Availability {
-  return baseAvailability(state) ?? yes;
+  const part = activePart(state);
+  return baseAvailability(state) ?? (part && partLocked(part) ? no(lockedReason(part)) : yes);
 }
 
 /** Disponibilité d'une opération de la barre d'outils (extrusion, poche…), avec explication. */
@@ -77,6 +88,7 @@ export function toolAvailability(state: AppState, type: FeatureType): Availabili
   if (!def.tool) return no('Cette opération ne se crée pas depuis la barre d’outils.');
   const part = activePart(state);
   if (!part) return no('Créez d’abord une pièce.');
+  if (partLocked(part)) return no(lockedReason(part));
   const label = def.label.toLowerCase();
   if (def.tool.requiresSolid && !partHasSolid(state, part.id)) {
     return no(def.tool.requiresSolidReason ?? `Il faut d’abord un volume pour créer une ${label}.`);

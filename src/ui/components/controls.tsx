@@ -82,6 +82,7 @@ export function Button(props: {
   small?: boolean;
   autoFocus?: boolean;
   type?: 'button' | 'submit';
+  id?: string;
 }) {
   const unavailable = !!props.disabledReason;
   const ref = useRef<HTMLButtonElement>(null);
@@ -91,6 +92,7 @@ export function Button(props: {
   return (
     <button
       ref={ref}
+      id={props.id}
       type={props.type ?? 'button'}
       class={`btn${props.variant && props.variant !== 'default' ? ` btn-${props.variant}` : ''}${props.small ? ' btn-small' : ''}`}
       disabled={props.disabled}

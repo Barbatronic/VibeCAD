@@ -876,6 +876,18 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4 19h16" />
     </>
   ),
+  lock: (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  swap: (
+    <>
+      <path d="M4 8h14l-3.5-3.5" />
+      <path d="M20 16H6l3.5 3.5" />
+    </>
+  ),
   'joints-zero': (
     <>
       <path d="M5 12a7 7 0 1 0 2.05-4.95" />

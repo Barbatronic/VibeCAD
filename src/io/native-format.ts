@@ -8,6 +8,7 @@
 import { sheetProblems, toSheet } from '../domain/material-sheets';
 import { PART_MATERIALS } from '../domain/part-material';
 import type {
+  PartComponent,
   AssemblyContext,
   SketchReference,
   SubAssembly,
@@ -84,6 +85,7 @@ export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISO
         ...(p.make ? { make: p.make } : {}),
         ...(p.paint ? { paint: p.paint } : {}),
         ...(p.folder ? { folder: p.folder } : {}),
+        ...(p.component ? { component: p.component } : {}),
         features: p.features.map((f) => ({ ...f, dependsOn: featureDependencies(f) })),
       })),
       ...(doc.folders?.length ? { folders: doc.folders } : {}),
@@ -673,7 +675,19 @@ function readPart(v: Validator, x: unknown, path: string): Part | null {
     ...(o.make !== undefined ? { make: str(v, o, 'make', path) } : {}),
     ...(o.paint !== undefined ? { paint: readPaint(v, o.paint, `${path}.paint`) } : {}),
     ...(typeof o.folder === 'string' && o.folder ? { folder: o.folder } : {}),
+    ...(o.component !== undefined ? { component: readComponent(v, o.component, `${path}.component`) } : {}),
     features: features.filter((f): f is Feature => f !== null),
+  };
+}
+
+/** Origine d'un composant de bibliothèque. */
+function readComponent(v: Validator, raw: unknown, path: string): PartComponent {
+  const o = obj(v, raw, path) ?? {};
+  return {
+    library: str(v, o, 'library', path),
+    id: str(v, o, 'id', path),
+    name: str(v, o, 'name', path),
+    ...(o.editable === true ? { editable: true } : {}),
   };
 }
 

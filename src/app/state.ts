@@ -128,8 +128,11 @@ export type ThemeChoice = 'auto' | 'light' | 'dark';
 
 export type Dialog =
   | { kind: 'preferences' }
-  /** Bibliothèques de composants : `inserting` = composant en cours de chargement (source|id). */
-  | { kind: 'components'; inserting: string | null }
+  /**
+   * Bibliothèques de composants : `inserting` = composant en cours de chargement (source|id) ;
+   * `replacing` = pièce à remplacer par le composant choisi.
+   */
+  | { kind: 'components'; inserting: string | null; replacing?: Id }
   | { kind: 'open'; projects: ProjectSummary[]; drafts: Omit<AutosaveRecord, 'text'>[]; loading: boolean }
   | { kind: 'export'; format: ExportFormat; partIds: Id[]; busy: boolean; assembly?: boolean; /** Export d'un plateau d'impression (son rang) ou de tous. */ plate?: number | 'all' }
   | {

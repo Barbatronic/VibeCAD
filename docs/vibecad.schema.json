@@ -700,6 +700,17 @@
         "folder": {
           "type": "string",
           "description": "Dossier où la pièce est rangée (identifiant dans « folders »). Absent : hors dossier."
+        },
+        "component": {
+          "type": "object",
+          "description": "Composant inséré depuis une bibliothèque : historique verrouillé tant que « editable » n'est pas vrai.",
+          "required": ["library", "id", "name"],
+          "properties": {
+            "library": { "type": "string", "description": "Adresse de la bibliothèque." },
+            "id": { "type": "string", "description": "Identifiant du composant dans la bibliothèque." },
+            "name": { "type": "string", "description": "Nom du composant dans la bibliothèque." },
+            "editable": { "type": "boolean", "description": "Historique rendu modifiable." }
+          }
         }
       }
     },

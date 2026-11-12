@@ -39,6 +39,17 @@ test('composants : parcourir une bibliothèque, chercher, insérer une pièce pa
   expect(await appState(page, (s) => s.display[s.doc.parts[1].id].result.sketches.map((k: any) => k.dof))).toEqual([0, 0, 0]);
   // Esquisses masquées : seul le volume du composant s'affiche.
   expect(part.features.filter((f: any) => f.type === 'sketch').map((f: any) => f.visible)).toEqual([false, false, false]);
+  // Composant verrouillé : historique masqué, pas de nouvelle étape tant qu'il n'est pas rendu modifiable.
+  expect(part.component).toMatchObject({ id: '608-2rs', name: 'Roulement 608-2RS' });
+  await expect(page.locator('.component-origin')).toContainText('Roulement 608-2RS');
+  await expect(page.locator('.feature-list')).toHaveCount(0);
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  expect(await appState(page, (s) => s.mode.kind)).toBe('model');
+  await page.click('#component-unlock');
+  await expect(page.locator('.feature-list > li[data-step]')).toHaveCount(7);
+  expect(await appState(page, (s) => s.doc.parts[1].component.editable)).toBe(true);
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.feature-list')).toHaveCount(0);
 
   // Atelier Assemblage : le roulement y est posé d'office ; la poulie est ajoutée au projet et
   // insérée dans l'assemblage.
@@ -49,6 +60,22 @@ test('composants : parcourir une bibliothèque, chercher, insérer une pièce pa
   await dialog.getByRole('list', { name: 'Composants' }).getByRole('button', { name: /Poulie GT2 20 dents/ }).click();
   await expect.poll(() => appState(page, (s) => (s.doc.assembly?.instances ?? []).map((i: any) => i.name))).toEqual(['Roulement 608-2RS', 'Poulie GT2 20 dents']);
   expect(await appState(page, (s) => s.doc.parts.length)).toBe(3);
+
+  // Remplacer le roulement par une poulie : même pièce (même place dans l'assemblage), autre forme.
+  const bearingId = await appState(page, (s) => s.doc.parts[1].id);
+  await page.evaluate((id) => (window as any).vibecad.controller.openComponents(id), bearingId);
+  const replace = page.getByRole('dialog', { name: 'Remplacer « Roulement 608-2RS »' });
+  await replace.getByRole('button', { name: /Poulies/ }).click();
+  await replace.getByRole('list', { name: 'Composants' }).getByRole('button', { name: /Poulie GT2 20 dents/ }).click();
+  await expect(replace).toHaveCount(0);
+  await expect.poll(() => appState(page, (s) => s.doc.parts.map((p: any) => p.name))).toEqual(['Pièce 1', 'Poulie GT2 20 dents (2)', 'Poulie GT2 20 dents']);
+  const swapped = await appState(page, (s) => s.doc.parts[1]);
+  expect(swapped.id).toBe(bearingId);
+  expect(swapped.component).toMatchObject({ name: 'Poulie GT2 20 dents' });
+  expect(await appState(page, (s) => s.doc.assembly.instances.map((i: any) => [i.partId === s.doc.parts[1].id, i.name]))).toEqual([
+    [true, 'Poulie GT2 20 dents (2)'],
+    [false, 'Poulie GT2 20 dents'],
+  ]);
 });
 
 test('composants : ajouter et retirer une bibliothèque, erreurs expliquées', async ({ page }) => {

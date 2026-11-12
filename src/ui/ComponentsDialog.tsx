@@ -19,6 +19,7 @@ export function ComponentsDialog() {
   const catalogs = useAppState((s) => s.libraryCatalogs);
   const inserting = useAppState((s) => (s.dialog?.kind === 'components' ? s.dialog.inserting : null));
   const workspace = useAppState((s) => s.workspace);
+  const replacing = useAppState((s) => (s.dialog?.kind === 'components' && s.dialog.replacing ? (s.doc.parts.find((p) => p.id === (s.dialog as { replacing: string }).replacing)?.name ?? null) : null));
   const [query, setQuery] = useState('');
   // Collection choisie : « source|id », ou toutes.
   const [current, setCurrent] = useState<string | null>(null);
@@ -35,13 +36,13 @@ export function ComponentsDialog() {
   const close = () => c.setDialog(null);
   return (
     <Modal
-      title="Composants"
+      title={replacing ? `Remplacer « ${replacing} »` : 'Composants'}
       onClose={close}
       wide
       footer={
         <>
           <span class="field-help components-hint">
-            {workspace === 'assembly' ? 'Le composant est ajouté au projet puis inséré dans l’assemblage.' : 'Le composant est ajouté au projet comme une nouvelle pièce, avec son historique.'}
+            {replacing ? 'Le composant choisi prend la place de la pièce, dans l’assemblage aussi.' : workspace === 'assembly' ? 'Le composant est ajouté au projet puis inséré dans l’assemblage.' : 'Le composant est ajouté au projet comme une nouvelle pièce.'}
           </span>
           <Button onClick={() => c.setDialog({ kind: 'preferences' })} icon="settings">
             Bibliothèques…
