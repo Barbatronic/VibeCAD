@@ -5,7 +5,7 @@
  * changeant une cote.
  */
 import { ORIGIN_POINT_ID, type SketchParams } from '../../src/domain/model';
-import { addCircle, addConstraint, addRectangle } from '../../src/sketch/model';
+import { addCircle, addClosedPolyline, addConstraint, addRectangle } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 
 /** Place un point par deux cotes depuis l'origine (horizontale puis verticale), ou le colle à l'origine. */
@@ -50,3 +50,39 @@ export function circles(sketch: SketchParams, list: { x: number; y: number; r: n
 }
 
 export const solved = (sketch: SketchParams) => solveSketch(sketch).sketch;
+
+/** Contour fermé de segments, chaque sommet placé par deux cotes depuis l'origine. */
+export function polygon(sketch: SketchParams, points: { x: number; y: number }[]): { sketch: SketchParams; lines: string[] } {
+  // Dessiné un peu décalé puis contraint : c'est le solveur qui le met en place.
+  const r = addClosedPolyline(
+    sketch,
+    points.map((p) => ({ x: p.x * 0.97 + 0.1, y: p.y * 1.02 - 0.1 })),
+  );
+  let s = r.sketch;
+  const lines = s.entities.filter((e): e is Extract<typeof e, { type: 'line' }> => e.type === 'line' && r.lineIds.includes(e.id));
+  lines.forEach((l, i) => {
+    s = placePoint(s, l.a, points[i]!.x, points[i]!.y);
+  });
+  return { sketch: solveSketch(s).sketch, lines: r.lineIds };
+}
+
+/** Octogone : carré de demi-côté `half`, coins abattus de `chamfer` (le long de chaque côté). */
+export function octagonPoints(half: number, chamfer: number): { x: number; y: number }[] {
+  const k = half - chamfer;
+  return [
+    { x: -k, y: -half },
+    { x: k, y: -half },
+    { x: half, y: -k },
+    { x: half, y: k },
+    { x: k, y: half },
+    { x: -k, y: half },
+    { x: -half, y: k },
+    { x: -half, y: -k },
+  ];
+}
+
+/** Hexagone régulier de côtés parallèles à X, `across` entre plats, centré en (cx, cy). */
+export function hexagonPoints(across: number, cx = 0, cy = 0): { x: number; y: number }[] {
+  const r = across / Math.sqrt(3);
+  return Array.from({ length: 6 }, (_, i) => ({ x: cx + r * Math.cos((Math.PI / 3) * i), y: cy + r * Math.sin((Math.PI / 3) * i) }));
+}
