@@ -312,7 +312,7 @@ interface ServoSize {
   /** Vis du fond : diamètre, retrait depuis les bords. */
   bottomScrews: { d: number; inset: number };
   /**
-   * Sortie du câble (bout opposé à la sortie) : passe-fil logé dans une encoche du boîtier
+   * Sortie du câble (sous l'axe de sortie, au bout le plus proche) : passe-fil logé dans une encoche du boîtier
    * (largeur, hauteur, saillie), nappe (largeur, épaisseur, longueur).
    */
   cable: { boot: [number, number, number]; ribbon: [number, number, number] };
@@ -443,25 +443,25 @@ function servo(id: string, code: string, size: ServoSize, color: string, realMas
       const screw = circleSketch(doc, partId, XY(top + o.spline[1]), [{ x: 0, y: 0, r: o.screw / 2 }], 'Esquisse du taraudage');
       doc = screw.doc;
       doc = addFeature(doc, partId, named(makePocketFeature(doc, part(), screw.sketchId, { kind: 'distance', distance: o.spline[1] + 1 }), 'Taraudage du palonnier'));
-      // Sortie du câble, au bas du bout opposé à la sortie : encoche de 1 mm dans le boîtier,
-      // passe-fil logé dedans (0,4 mm de jeu autour), nappe à trois fils.
-      const end = o.fromEnd - L;
+      // Sortie du câble, au bas du bout le plus proche de l'axe de sortie (X = fromEnd) : encoche
+      // de 1 mm dans le boîtier, passe-fil logé dedans (0,4 mm de jeu autour), nappe à trois fils.
+      const end = o.fromEnd;
       const [bw, bh, bp] = size.cable.boot;
       const [ww, wt, wl] = size.cable.ribbon;
       const zb = Math.max(size.seams[0] + 0.6 + bh / 2 + 0.5, bh / 2 + 1);
       const notch = sketchOn(doc, partId, YZ(end), 'Esquisse de l’encoche du câble', (p) => rectangle(p, bw + 0.8, bh + 0.8, 0, zb).sketch);
       doc = notch.doc;
-      doc = addFeature(doc, partId, named(makePocketFeature(doc, part(), notch.sketchId, { kind: 'distance', distance: 1 }, 'reversed'), 'Encoche du câble'));
-      const boot = sketchOn(doc, partId, YZ(end + 1.2), 'Esquisse du passe-fil', (p) => rectangle(p, bw, bh, 0, zb).sketch);
+      doc = addFeature(doc, partId, named(makePocketFeature(doc, part(), notch.sketchId, { kind: 'distance', distance: 1 }), 'Encoche du câble'));
+      const boot = sketchOn(doc, partId, YZ(end - 1.2), 'Esquisse du passe-fil', (p) => rectangle(p, bw, bh, 0, zb).sketch);
       doc = boot.doc;
-      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), boot.sketchId, bp + 1.2, 'reversed'), 'Passe-fil'));
-      const ribbon = sketchOn(doc, partId, YZ(end - bp), 'Esquisse de la nappe', (p) => {
+      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), boot.sketchId, bp + 1.2), 'Passe-fil'));
+      const ribbon = sketchOn(doc, partId, YZ(end + bp), 'Esquisse de la nappe', (p) => {
         let q = p;
         for (let k = -1; k <= 1; k++) q = circles(q, [{ x: (k * ww) / 3, y: zb, r: wt / 2 }]).sketch;
         return q;
       });
       doc = ribbon.doc;
-      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), ribbon.sketchId, wl, 'reversed'), 'Fils'));
+      doc = addFeature(doc, partId, named(makeExtrudeFeature(doc, part(), ribbon.sketchId, wl), 'Fils'));
       return doc;
     },
   };
