@@ -27,9 +27,13 @@ test('vignettes des composants', async ({ page }) => {
     const parsed = parseNativeFile(readFileSync(file, 'utf8'));
     expect(parsed.ok, file).toBe(true);
     if (!parsed.ok) continue;
+    // Les composants ont tous la même pièce « part-1 » : la vue précédente est vidée d'abord, pour
+    // ne pas photographier l'ancien composant avant le calcul du nouveau.
+    await page.evaluate((doc) => (window as any).vibecad.controller.commit({ ...doc, parts: [] }, 'Vide'), parsed.doc as any);
+    await expect.poll(() => page.evaluate(() => Object.keys((window as any).vibecad.store.get().display).length), { timeout: 60_000 }).toBe(0);
     await page.evaluate((doc) => (window as any).vibecad.controller.commit(doc, 'Composant'), parsed.doc as any);
     await expect
-      .poll(() => page.evaluate(() => { const s = (window as any).vibecad.store.get(); return s.doc.parts.every((p: any) => s.display[p.id]?.mesh); }), { timeout: 60_000 })
+      .poll(() => page.evaluate(() => { const s = (window as any).vibecad.store.get(); return !s.evaluating && s.doc.parts.every((p: any) => s.display[p.id]?.mesh); }), { timeout: 60_000 })
       .toBe(true);
     // Rien de sélectionné : arêtes dans leur couleur normale.
     await page.evaluate(() => (window as any).vibecad.controller.select(null));
