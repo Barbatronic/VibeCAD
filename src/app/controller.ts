@@ -60,7 +60,7 @@ import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
 import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
-import { pickFile, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile } from '../persistence/files';
+import { ensureWritable, pickFile, pickFileWithHandle, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile, type SaveTarget } from '../persistence/files';
 import { importSvgShape } from '../io/svg-import';
 import type { StampShape } from '../sketch/stamp';
 import { chooseStamp, createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
@@ -814,7 +814,7 @@ export class AppController {
     this.afterChange();
   }
 
-  private loadFromText(text: string, meta: { savedAt: string | null; dirty: boolean; fileName?: string }): boolean {
+  private loadFromText(text: string, meta: { savedAt: string | null; dirty: boolean; file?: SaveTarget }): boolean {
     const parsed = parseNativeFile(text);
     if (!parsed.ok) {
       this.set({ dialog: { kind: 'problem', title: 'Impossible d’ouvrir ce projet', message: parsed.error, details: parsed.details } });
@@ -829,7 +829,7 @@ export class AppController {
     return true;
   }
 
-  private loadDocument(docIn: CadDocument, meta: { savedAt: string | null; dirty: boolean; fileName?: string }): void {
+  private loadDocument(docIn: CadDocument, meta: { savedAt: string | null; dirty: boolean; file?: SaveTarget }): void {
     const doc = docIn.parts.length > 0 ? docIn : addPart(docIn).doc;
     this.autosave?.cancel();
     this.newSketch = null;
@@ -851,7 +851,7 @@ export class AppController {
         ...this.state.project,
         savedAt: meta.savedAt,
         savedRevision: meta.dirty ? (meta.savedAt ? 0 : null) : 0,
-        file: meta.fileName ? { name: meta.fileName } : null,
+        file: meta.file ?? null,
         autosave: { kind: 'idle' },
       },
     });
@@ -2158,22 +2158,32 @@ export class AppController {
   async openFile(force = false): Promise<void> {
     if (!force && this.guardUnsaved('open-file')) return;
     this.set({ dialog: null });
-    const file = await pickFile(`${NATIVE_EXTENSION},.json,application/json,.step,.stp,.stl`);
-    if (!file) return;
+    const picked = await pickFileWithHandle([
+      { description: 'Projet VibeCAD', accept: { [NATIVE_MIME]: [NATIVE_EXTENSION], 'application/json': ['.json'] } },
+      { description: 'STEP ou STL', accept: { 'model/step': ['.step', '.stp'], 'model/stl': ['.stl'] } },
+    ]);
+    if (!picked) return;
+    const { file, handle } = picked;
     if (/\.(step|stp|stl)$/i.test(file.name)) {
       await this.beginImport(file);
       return;
     }
     const text = await file.text();
-    if (this.loadFromText(text, { savedAt: new Date(file.lastModified || Date.now()).toISOString(), dirty: false, fileName: file.name })) {
+    // Un .json n'est pas réécrit : Ctrl+S demandera où enregistrer le projet.
+    const target: SaveTarget = handle && file.name.toLowerCase().endsWith(NATIVE_EXTENSION) ? { name: file.name, handle } : { name: file.name };
+    if (this.loadFromText(text, { savedAt: new Date(file.lastModified || Date.now()).toISOString(), dirty: false, file: target })) {
       // Le projet ouvert rejoint la liste « Mes projets » du navigateur.
-      await this.save(true);
+      await this.save({ silent: true, browserOnly: true });
       this.toast('success', `Fichier « ${file.name} » ouvert.`);
     }
   }
 
-  /** Enregistre dans le navigateur (et dans le fichier choisi si le navigateur le permet). */
-  async save(silent = false): Promise<boolean> {
+  /**
+   * Enregistre dans le navigateur et, si le projet vient d'un fichier dont le navigateur donne
+   * l'accès (Chrome, Edge), dans ce fichier. `browserOnly` : le fichier est déjà à jour.
+   */
+  async save(options: { silent?: boolean; browserOnly?: boolean } = {}): Promise<boolean> {
+    const { silent = false, browserOnly = false } = options;
     const s = this.state;
     const savedAt = new Date().toISOString();
     const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
@@ -2181,31 +2191,15 @@ export class AppController {
       if (!silent) return this.saveAs();
       return false;
     }
+    const file = s.project.file;
+    const handle = browserOnly ? undefined : file?.handle;
+    // L'autorisation d'écrire se demande tant que le geste (Ctrl+S, clic) est récent.
+    let fileError: string | null = null;
+    const writable = handle ? await ensureWritable(handle).catch((err: Error) => ((fileError = err.message), false)) : false;
+    if (handle && !writable) fileError ??= 'Autorisation d’écriture refusée.';
     try {
       await this.deps.projects.putProject({ id: s.doc.id, name: s.doc.name, savedAt, text, size: text.length });
       await this.deps.projects.setSetting('lastProjectId', s.doc.id);
-      if (s.project.file?.handle) {
-        await saveFile(new Blob([text], { type: NATIVE_MIME }), s.project.file.name, {
-          description: 'Projet VibeCAD',
-          mime: NATIVE_MIME,
-          extension: NATIVE_EXTENSION,
-          reuse: s.project.file,
-        });
-      }
-      this.autosave?.cancel();
-      await this.deps.projects.deleteAutosave(s.doc.id);
-      this.patchProject({ savedAt, savedRevision: s.revision, autosave: { kind: 'idle' } });
-      if (!silent) {
-        const first = !(await this.deps.projects.getSetting<boolean>('downloadHintShown'));
-        this.toast(
-          'success',
-          first
-            ? 'Projet enregistré dans ce navigateur. Pour en garder une copie sûre, utilisez aussi « Enregistrer sous… » (fichier).'
-            : `Projet enregistré${s.project.file?.handle ? ` (navigateur et fichier « ${s.project.file.name} »)` : ' dans ce navigateur'}.`,
-        );
-        if (first) await this.deps.projects.setSetting('downloadHintShown', true);
-      }
-      return true;
     } catch (err) {
       this.toast(
         'error',
@@ -2216,6 +2210,36 @@ export class AppController {
       );
       return false;
     }
+    if (handle && writable && file) {
+      try {
+        await saveFile(new Blob([text], { type: NATIVE_MIME }), file.name, { description: 'Projet VibeCAD', mime: NATIVE_MIME, extension: NATIVE_EXTENSION, reuse: file });
+      } catch (err) {
+        fileError = (err as Error).message;
+      }
+    }
+    this.autosave?.cancel();
+    await this.deps.projects.deleteAutosave(s.doc.id).catch(() => undefined);
+    this.patchProject({ savedAt, savedRevision: s.revision, autosave: { kind: 'idle' } });
+    if (fileError && file) {
+      this.toast('error', `Projet enregistré dans le navigateur, mais « ${file.name} » n’a pas pu être modifié.`, { detail: fileError });
+      return true;
+    }
+    if (silent || browserOnly) return true;
+    if (handle && file) {
+      this.toast('success', `Projet enregistré dans « ${file.name} ».`);
+    } else if (file) {
+      this.toast('info', `Projet enregistré dans le navigateur. « ${file.name} » n’est pas modifié : Enregistrer sous… (Ctrl+Maj+S) pour l’enregistrer.`);
+    } else {
+      const first = !(await this.deps.projects.getSetting<boolean>('downloadHintShown'));
+      this.toast(
+        'success',
+        first
+          ? 'Projet enregistré dans ce navigateur. Pour en garder une copie sûre, utilisez aussi « Enregistrer sous… » (fichier).'
+          : 'Projet enregistré dans ce navigateur.',
+      );
+      if (first) await this.deps.projects.setSetting('downloadHintShown', true);
+    }
+    return true;
   }
 
   /** Télécharge le projet (ou l'écrit dans un fichier choisi, si le navigateur le permet). */
@@ -2232,7 +2256,7 @@ export class AppController {
       });
       if (!target) return false;
       this.patchProject({ file: target });
-      await this.save(true);
+      await this.save({ silent: true, browserOnly: true });
       this.toast('success', target.handle ? `Projet enregistré dans « ${target.name} ».` : `Fichier « ${target.name} » téléchargé.`);
       return true;
     } catch (err) {

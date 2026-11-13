@@ -21,6 +21,8 @@ export interface FileSystemFileHandleLike {
   name: string;
   createWritable(): Promise<FileSystemWritableLike>;
   getFile(): Promise<File>;
+  queryPermission?(options: { mode: 'readwrite' }): Promise<PermissionState>;
+  requestPermission?(options: { mode: 'readwrite' }): Promise<PermissionState>;
 }
 
 interface PickerWindow {
@@ -88,6 +90,41 @@ export async function saveFile(
   }
   downloadBlob(blob, suggestedName);
   return { name: suggestedName };
+}
+
+/**
+ * Autorisation d'écrire dans un fichier ouvert : le navigateur la demande une fois (à appeler
+ * pendant un geste de l'utilisateur, comme Ctrl+S). Faux si elle est refusée.
+ */
+export async function ensureWritable(handle: FileSystemFileHandleLike): Promise<boolean> {
+  if (!handle.queryPermission || !handle.requestPermission) return true;
+  if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+  return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+}
+
+export interface FileType {
+  description: string;
+  /** Type MIME → extensions (avec le point). */
+  accept: Record<string, string[]>;
+}
+
+/**
+ * Ouvre un fichier en gardant, si le navigateur le permet, un accès à son emplacement : on peut
+ * alors réenregistrer dedans. Sinon, simple sélecteur de fichier (lecture seule).
+ */
+export async function pickFileWithHandle(types: FileType[]): Promise<{ file: File; handle?: FileSystemFileHandleLike } | null> {
+  if (supportsFileSystemAccess()) {
+    try {
+      const [handle] = await (globalThis as unknown as PickerWindow).showOpenFilePicker!({ types, multiple: false });
+      if (!handle) return null;
+      return { file: await handle.getFile(), handle };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return null;
+      // Repli sur le sélecteur classique en cas de refus ou d'erreur de l'API.
+    }
+  }
+  const file = await pickFile(types.flatMap((t) => Object.entries(t.accept).flatMap(([mime, exts]) => [...exts, mime])).join(','));
+  return file ? { file } : null;
 }
 
 /** Ouvre un sélecteur de fichier ; renvoie le fichier choisi (ou null si l'utilisateur annule). */

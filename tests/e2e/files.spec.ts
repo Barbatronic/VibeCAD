@@ -168,3 +168,52 @@ test('exporter en GLB (3D pour le web) : un maillage coloré par pièce, en mèt
   expect(max.map((v: number) => Math.round(v))).toEqual([60, 30, 5]);
   expect(j.nodes[0].matrix[0]).toBe(0.001);
 });
+
+test('un projet ouvert depuis le disque se réenregistre dans le même fichier (Ctrl+S)', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'File System Access : Chrome et Edge seulement.');
+  // Sélecteurs du système simulés : un seul fichier « plaque.vibecad » dont on garde les écritures.
+  await page.addInitScript(() => {
+    const w = window as any;
+    w.__disk = { text: '', writes: 0, asked: 0 };
+    const handle = {
+      name: 'plaque.vibecad',
+      getFile: async () => new File([w.__disk.text], 'plaque.vibecad'),
+      createWritable: async () => {
+        let next = '';
+        return {
+          write: async (d: Blob | string) => void (next = typeof d === 'string' ? d : await d.text()),
+          close: async () => void ((w.__disk.text = next), w.__disk.writes++),
+        };
+      },
+      queryPermission: async () => (w.__disk.asked > 0 ? 'granted' : 'prompt'),
+      requestPermission: async () => (w.__disk.asked++, 'granted'),
+    };
+    w.showSaveFilePicker = async () => handle;
+    w.showOpenFilePicker = async () => [handle];
+  });
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await page.keyboard.press('Control+Shift+s');
+  await expect(page.getByText(/Projet enregistré dans « plaque.vibecad »/)).toBeVisible();
+
+  await openFileMenu(page);
+  await page.getByRole('menuitem', { name: 'Nouveau projet' }).click();
+  await expect.poll(() => appState(page, (s) => s.doc.parts[0].features.length)).toBe(0);
+
+  await page.keyboard.press('Control+o');
+  await page.getByRole('button', { name: /Ouvrir un fichier/ }).click();
+  await expectVolume(page, PLATE_VOLUME);
+  // L'ouverture n'écrit pas dans le fichier.
+  expect(await page.evaluate(() => (window as any).__disk.writes)).toBe(1);
+
+  await openFileMenu(page);
+  await page.getByRole('textbox', { name: 'Nom du projet' }).fill('Plaque modifiée');
+  await page.getByRole('textbox', { name: 'Nom du projet' }).press('Enter');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+s');
+  await expect(page.getByText(/Projet enregistré dans « plaque.vibecad »/)).toBeVisible();
+  const disk = await page.evaluate(() => (window as any).__disk);
+  expect(disk.writes).toBe(2);
+  expect(disk.asked).toBe(1);
+  expect(disk.text).toContain('Plaque modifiée');
+});
