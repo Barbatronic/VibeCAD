@@ -472,6 +472,7 @@ export function AssemblySection() {
               <span class="count">{data.joints.length}</span>
               {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
             </button>
+            <IconButton id="joints-set-zero" icon="target" small label="Prendre la pose actuelle comme zéro (position de référence de l’onglet Pièces)" onClick={() => c.setAllJointsZero()} />
             <IconButton id="joints-reset" icon="joints-zero" small label="Remettre toutes les liaisons à zéro" onClick={() => c.resetJoints()} />
           </div>
         ) : null}

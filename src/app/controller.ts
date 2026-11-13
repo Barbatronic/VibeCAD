@@ -1112,10 +1112,16 @@ export class AppController {
       this.explain(`« ${part.name} » reprend déjà cette pièce : s’appuyer sur elle ferait une boucle. Choisissez une autre face ou un plan.`);
       return false;
     }
+    // Les références en contexte suivent la position de référence (liaisons à zéro) : la voisine
+    // vue ailleurs, l'esquisse ne serait pas là où l'on a cliqué.
+    if (leaf.moved) {
+      this.explain(`« ${leaf.name} » n’est pas à sa position de référence : dans l’onglet Assemblage, remettez les liaisons à zéro ou prenez la pose actuelle comme zéro.`);
+      return false;
+    }
     const ref = pickFaceReference(face.tags, part);
     if (!ref) return false;
     // Repère de la face dans le repère de la pièce modifiée (la voisine placée comme dans l'assemblage).
-    const frame = canonicalFrame(transformPoint4(leaf.local, face.plane.origin), transformDirection4(leaf.local, face.plane.normal));
+    const frame = canonicalFrame(transformPoint4(leaf.reference, face.plane.origin), transformDirection4(leaf.reference, face.plane.normal));
     this.beginSketchOn(targetPartId, { kind: 'face', ref, partId: leaf.partId, context: contextOf(ctx.instanceId, leaf) }, frame, repairFeatureId);
     return true;
   }
@@ -1474,8 +1480,8 @@ export class AppController {
     if (ctx && ctx.partId === partId) {
       const neighbours = ctx.leaves.flatMap((leaf) => {
         const p = findPart(s.doc, leaf.partId);
-        if (!p || p.id === partId || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
-        const local = frameInFrame(invertRigid4(leaf.local), frame);
+        if (!p || p.id === partId || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
+        const local = frameInFrame(invertRigid4(leaf.reference), frame);
         const context = contextOf(ctx.instanceId, leaf);
         return projectableCurves(s.display[p.id]?.mesh, local, p, featureId, true).map((c) => ({ ...c, context }));
       });
@@ -3843,41 +3849,20 @@ export class AppController {
    * engrenages et étude du mécanisme sont décalés d'autant.
    */
   setJointZero(jointId: Id): void {
-    const doc = this.state.doc;
-    const joint = doc.assembly?.joints.find((j) => j.id === jointId);
+    const joint = this.state.doc.assembly?.joints.find((j) => j.id === jointId);
     if (!joint) return;
-    const free = jointFreedoms(joint.kind);
-    const da = free.angle ? joint.angle : 0;
-    const dd = free.offset ? joint.offset : 0;
-    const dx = free.slide ? (joint.slideX ?? 0) : 0;
-    const dy = free.slide ? (joint.slideY ?? 0) : 0;
-    if (!da && !dd && !dx && !dy) return this.explain(`« ${joint.name} » est déjà à zéro.`);
-    const shift = (l: [number, number] | undefined, d: number): [number, number] | undefined => (l && d ? [l[0] - d, l[1] - d] : l);
-    const z = joint.zero;
-    const zero = {
-      angle: (z?.angle ?? 0) + da,
-      offset: (z?.offset ?? 0) + dd,
-      ...(free.slide || z?.slideX || z?.slideY ? { slideX: (z?.slideX ?? 0) + dx, slideY: (z?.slideY ?? 0) + dy } : {}),
-    };
-    let out = updateJoint(doc, jointId, (j) => ({
-      ...j,
-      zero,
-      angle: j.angle - da,
-      offset: j.offset - dd,
-      ...(free.slide ? { slideX: (j.slideX ?? 0) - dx, slideY: (j.slideY ?? 0) - dy } : {}),
-      angleLimits: shift(j.angleLimits, da),
-      offsetLimits: shift(j.offsetLimits, dd),
-    }));
-    const assembly = out.assembly!;
-    for (const cp of assembly.couplings ?? []) {
-      if (cp.driver === jointId || cp.driven === jointId) out = updateCoupling(out, cp.id, (x) => ({ ...x, phase: couplingPhase(out.assembly!, x) }));
-    }
-    const study = out.simulation?.mechanism;
-    if (study?.jointId === jointId) {
-      const d = free.angle && joint.kind !== 'spherical' ? da : dd;
-      if (d) out = { ...out, simulation: { ...out.simulation!, mechanism: { ...study, from: study.from - d, to: study.to - d } } };
-    }
+    const out = jointZeroed(this.state.doc, jointId);
+    if (!out) return this.explain(`« ${joint.name} » est déjà à zéro.`);
     this.commit(out, `Zéro de « ${joint.name} »`);
+  }
+
+  /** La pose du moment devient le zéro de toutes les liaisons : la position de référence de l'onglet Pièces. */
+  setAllJointsZero(): void {
+    const doc = this.state.doc;
+    let out = doc;
+    for (const j of doc.assembly?.joints ?? []) out = jointZeroed(out, j.id) ?? out;
+    if (out === doc) return this.explain('Les liaisons sont déjà à zéro : la pose actuelle est la position de référence.');
+    this.commit(out, 'Prendre la pose actuelle comme zéro');
   }
 
   /** Remet toutes les liaisons à leur zéro (mouvements libres seulement, dans leurs limites). */
@@ -4340,4 +4325,46 @@ export function partDependsOn(doc: CadDocument, a: Id, b: Id): boolean {
     for (const f of findPart(doc, id)?.features ?? []) stack.push(...externalParts(f));
   }
   return false;
+}
+
+/**
+ * Position courante de la liaison `jointId` reportée dans son zéro : les réglages libres (angle,
+ * décalage, glissements) repartent de 0 sans que rien ne bouge ; limites, calage des engrenages et
+ * étude du mécanisme sont décalés d'autant. Null si elle est déjà à zéro.
+ */
+function jointZeroed(doc: CadDocument, jointId: Id): CadDocument | null {
+  const joint = doc.assembly?.joints.find((j) => j.id === jointId);
+  if (!joint) return null;
+    const free = jointFreedoms(joint.kind);
+    const da = free.angle ? joint.angle : 0;
+    const dd = free.offset ? joint.offset : 0;
+    const dx = free.slide ? (joint.slideX ?? 0) : 0;
+    const dy = free.slide ? (joint.slideY ?? 0) : 0;
+    if (!da && !dd && !dx && !dy) return null;
+    const shift = (l: [number, number] | undefined, d: number): [number, number] | undefined => (l && d ? [l[0] - d, l[1] - d] : l);
+    const z = joint.zero;
+    const zero = {
+      angle: (z?.angle ?? 0) + da,
+      offset: (z?.offset ?? 0) + dd,
+      ...(free.slide || z?.slideX || z?.slideY ? { slideX: (z?.slideX ?? 0) + dx, slideY: (z?.slideY ?? 0) + dy } : {}),
+    };
+    let out = updateJoint(doc, jointId, (j) => ({
+      ...j,
+      zero,
+      angle: j.angle - da,
+      offset: j.offset - dd,
+      ...(free.slide ? { slideX: (j.slideX ?? 0) - dx, slideY: (j.slideY ?? 0) - dy } : {}),
+      angleLimits: shift(j.angleLimits, da),
+      offsetLimits: shift(j.offsetLimits, dd),
+    }));
+    const assembly = out.assembly!;
+    for (const cp of assembly.couplings ?? []) {
+      if (cp.driver === jointId || cp.driven === jointId) out = updateCoupling(out, cp.id, (x) => ({ ...x, phase: couplingPhase(out.assembly!, x) }));
+    }
+    const study = out.simulation?.mechanism;
+    if (study?.jointId === jointId) {
+      const d = free.angle && joint.kind !== 'spherical' ? da : dd;
+      if (d) out = { ...out, simulation: { ...out.simulation!, mechanism: { ...study, from: study.from - d, to: study.to - d } } };
+    }
+    return out;
 }

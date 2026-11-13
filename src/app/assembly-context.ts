@@ -1,8 +1,8 @@
 /**
  * Conception en contexte d'assemblage (voir docs/conception-en-contexte.md) : une pièce insérée se
- * modifie à sa place, entourée des autres pièces de l'assemblage. Les positions viennent de la
- * position de référence de l'assemblage (toutes les liaisons à zéro), pas de la position du
- * moment : une esquisse posée sur une pièce voisine ne bouge pas quand on anime le mécanisme.
+ * modifie à sa place, entourée des autres pièces de l'assemblage, vues à la pose du moment. Les
+ * références en contexte viennent de la position de référence (toutes les liaisons à zéro) : une
+ * esquisse posée sur une pièce voisine ne bouge pas quand on anime le mécanisme.
  */
 import type { Assembly, AssemblyContext, CadDocument, Feature, Id } from '../domain/model';
 import { identity4, invertRigid4, multiply4, transformDirection4, transformPoint4, type Mat4 } from '../math/mat4';
@@ -17,7 +17,14 @@ export function referenceAssembly(assembly: Assembly): Assembly {
   const zero = { angle: 0, offset: 0 };
   return {
     ...assembly,
-    joints: assembly.joints.map((j) => ({ ...j, ...zero, ...(j.tilt !== undefined ? { tilt: 0 } : {}), ...(j.tiltDirection !== undefined ? { tiltDirection: 0 } : {}) })),
+    joints: assembly.joints.map((j) => ({
+      ...j,
+      ...zero,
+      ...(j.tilt !== undefined ? { tilt: 0 } : {}),
+      ...(j.tiltDirection !== undefined ? { tiltDirection: 0 } : {}),
+      ...(j.slideX !== undefined ? { slideX: 0 } : {}),
+      ...(j.slideY !== undefined ? { slideY: 0 } : {}),
+    })),
     instances: assembly.instances.map((i) => (i.jointValues ? { ...i, jointValues: Object.fromEntries(Object.keys(i.jointValues).map((k) => [k, { ...zero }])) } : i)),
   };
 }
@@ -26,6 +33,14 @@ export function referenceAssembly(assembly: Assembly): Assembly {
 export interface ContextLeaf extends PlacedLeaf {
   /** Placement dans le repère de la pièce modifiée (colonnes). */
   local: Mat4;
+}
+
+/** Voisine du contexte actif : vue à la pose du moment, référencée à la position de référence. */
+export interface ActiveLeaf extends ContextLeaf {
+  /** Placement dans le repère de la pièce modifiée, liaisons à zéro : celui des références en contexte. */
+  reference: Mat4;
+  /** La pose du moment diffère de la position de référence (liaisons hors de leur zéro). */
+  moved: boolean;
 }
 
 /**
@@ -48,9 +63,9 @@ export function contextLeaves(
   return leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: multiply4(inverse, l.matrix) }));
 }
 
-/** Contexte d'une référence vers la pièce `leaf` depuis l'insertion `instanceId`. */
-export function contextOf(instanceId: Id, leaf: ContextLeaf): AssemblyContext {
-  return { instanceId, otherInstanceId: leaf.key, matrix: [...leaf.local] };
+/** Contexte d'une référence vers la pièce `leaf` depuis l'insertion `instanceId` (position de référence). */
+export function contextOf(instanceId: Id, leaf: ContextLeaf | ActiveLeaf): AssemblyContext {
+  return { instanceId, otherInstanceId: leaf.key, matrix: [...('reference' in leaf ? leaf.reference : leaf.local)] };
 }
 
 /** Deux matrices de placement égales (à 1e-6 près) : rien à recalculer. */
@@ -64,12 +79,13 @@ export interface ActiveContext {
   instanceId: Id;
   partId: Id;
   name: string;
-  leaves: ContextLeaf[];
+  /** Voisines, à la pose du moment (celle de l'onglet Assemblage). */
+  leaves: ActiveLeaf[];
   /** Contexte pris d'office (l'assemblage ne suit plus le dessin), sans passer par l'onglet Assemblage. */
   auto: boolean;
   /** La pièce modifiée n'est pas encore dans l'assemblage : elle est vue à sa place de dessin. */
   virtual: boolean;
-  /** Place de la pièce modifiée dans l'assemblage (liaisons à zéro) : le repère de la vue. */
+  /** Place de la pièce modifiée dans l'assemblage, à la pose du moment : le repère de la vue. */
   matrix: Mat4;
 }
 
@@ -111,23 +127,35 @@ export function activeContext(s: AppState): ActiveContext | null {
   if (last && last.assembly === assembly && last.subs === s.doc.subassemblies && last.display === s.display && last.partId === s.activePartId && last.key === chosen && last.auto === !!s.assemblyContext?.auto) return last.result;
   const meshOf = (partId: Id) => s.display[partId]?.mesh;
   const options: SolveOptions = { sketchesOf: (partId) => s.display[partId]?.result.sketches, subassemblyOf: (id) => subassemblyContent(s.doc, id) };
+  // Vue : la pose du moment, comme dans l'onglet Assemblage. Références en contexte : la position
+  // de référence (liaisons à zéro), pour qu'animer le mécanisme ne modifie pas les pièces.
+  const leaves = flattenAssembly(assembly, solveAssembly(assembly, meshOf, options), meshOf, options);
   const reference = referenceAssembly(assembly);
-  const leaves = flattenAssembly(reference, solveAssembly(reference, meshOf, options), meshOf, options);
+  const referenceLeaves = new Map(flattenAssembly(reference, solveAssembly(reference, meshOf, options), meshOf, options).map((l) => [l.key, l.matrix]));
+  const around = (own: PlacedLeaf | undefined): ActiveLeaf[] => {
+    const inverse = own ? invertRigid4(own.matrix) : null;
+    const ownReference = own && referenceLeaves.get(own.key);
+    const inverseReference = ownReference ? invertRigid4(ownReference) : inverse;
+    return leaves
+      .filter((l) => l.key !== own?.key)
+      .map((l) => {
+        const local = inverse ? multiply4(inverse, l.matrix) : l.matrix;
+        const at = referenceLeaves.get(l.key);
+        const reference = at ? (inverseReference ? multiply4(inverseReference, at) : at) : local;
+        return { ...l, local, reference, moved: !sameMatrix(local, reference) };
+      });
+  };
   let own = chosen ? leaves.find((l) => l.key === chosen && l.partId === s.activePartId) : undefined;
   let result: ActiveContext | null = null;
   if (own) {
-    const inverse = invertRigid4(own.matrix);
-    const key = own.key;
-    result = { instanceId: key, partId: own.partId, name: own.name, leaves: leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: multiply4(inverse, l.matrix) })), auto: !!s.assemblyContext?.auto, virtual: false, matrix: own.matrix };
+    result = { instanceId: own.key, partId: own.partId, name: own.name, leaves: around(own), auto: !!s.assemblyContext?.auto, virtual: false, matrix: own.matrix };
   } else if (assemblyDiverged(s.doc)) {
     own = leaves.find((l) => l.partId === s.activePartId);
-    const inverse = own ? invertRigid4(own.matrix) : null;
-    const key = own?.key ?? '';
     result = {
-      instanceId: key,
+      instanceId: own?.key ?? '',
       partId: s.activePartId,
       name: own?.name ?? s.doc.parts.find((p) => p.id === s.activePartId)?.name ?? '',
-      leaves: leaves.filter((l) => l.key !== key).map((l) => ({ ...l, local: inverse ? multiply4(inverse, l.matrix) : l.matrix })),
+      leaves: around(own),
       auto: true,
       virtual: !own,
       matrix: own?.matrix ?? identity4(),

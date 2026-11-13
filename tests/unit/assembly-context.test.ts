@@ -27,6 +27,8 @@ describe('conception en contexte d’assemblage', () => {
     const joint = { id: 'j1', name: 'Pivot', kind: 'revolute', base: {}, moving: {}, angle: 35, offset: 4 } as never;
     const ref = referenceAssembly({ ...doc.assembly!, joints: [joint] });
     expect(ref.joints[0]).toMatchObject({ angle: 0, offset: 0 });
+    const planar = { id: 'j2', name: 'Appui', kind: 'planar', base: {}, moving: {}, angle: 10, offset: 0, slideX: 3, slideY: -2, zero: { angle: 5, offset: 0, slideX: 1 } } as never;
+    expect(referenceAssembly({ ...doc.assembly!, joints: [planar] }).joints[0]).toMatchObject({ angle: 0, slideX: 0, slideY: 0, zero: { angle: 5, slideX: 1 } });
   });
 
   it('la place de la voisine suit l’assemblage, sauf lien figé ; rien ne change si elle est déjà à jour', () => {
