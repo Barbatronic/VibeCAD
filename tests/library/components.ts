@@ -52,6 +52,7 @@ export const COLLECTIONS: CollectionSpec[] = [
   { id: 'pulleys', name: 'Poulies', description: 'Poulies crantées GT2 pour courroie de 6 mm, alésage 5 mm.' },
   { id: 'couplers', name: 'Accouplements', description: 'Accouplements rigides entre deux arbres, avec vis de pression.' },
   { id: 'servos', name: 'Servomoteurs', description: 'Servomoteurs de modélisme : format standard (MG996R) et micro (SG90, MG90S), boîtier en trois parties, pattes de fixation, cannelure dentée et sortie du câble. Axe de sortie à l’origine.' },
+  { id: 'horns', name: 'Palonniers', description: 'Palonniers métalliques pour servomoteurs : cannelure dentée et trous taraudés. Axe de la cannelure sur Z, face de la cannelure en Z = 0.' },
 ];
 
 /** Pièce unique : nom, couleur, matière. */
@@ -686,6 +687,87 @@ const MICRO_SERVO: ServoSize = {
   cable: { boot: [5, 2.6, 1.5], ribbon: [3, 0.9, 12] },
 };
 
+/**
+ * Palonnier disque en aluminium pour cannelure 25 dents (MG996R) : disque Ø 20 × 2, moyeu Ø 9,
+ * hauteur totale 4,5, cannelure Ø 5,5 chanfreinée à 0,5 × 45°, trou de la vis M3 au centre,
+ * 4 taraudages M3 à 14 mm d'entraxe. Axe sur Z, face de la cannelure (dessous du moyeu) en Z = 0.
+ */
+function discHorn(): ComponentSpec {
+  const D = 20;
+  const disc = 2;
+  const hub = 9;
+  const H = 4.5;
+  const bore = 5.5;
+  const spline = 3.5;
+  const teeth = 25;
+  const pitch = 14;
+  return {
+    collection: 'horns',
+    id: 'disc-25t-20',
+    name: 'Palonnier disque Ø 20 mm 25T',
+    description: `Palonnier disque en aluminium pour servomoteur à cannelure ${teeth} dents (MG996R, MG995, DS3218) : disque Ø ${D} × ${disc} mm, moyeu Ø ${hub} mm, hauteur ${String(H).replace('.', ',')} mm, cannelure Ø ${String(bore).replace('.', ',')} mm, 4 taraudages M3 à ${pitch} mm d'entraxe, vis M3 au centre. Repère : axe sur Z, face de la cannelure en Z = 0.`,
+    tags: ['palonnier', 'servo', 'servomoteur', '25T', 'MG996R', 'disque', 'M3'],
+    dimensions: { D, e: disc, moyeu: hub, H, cannelure: bore, entraxe: pitch, dents: teeth },
+    build: () => {
+      let { doc, partId } = single('Palonnier disque Ø 20 25T', '#c3c9d1', 'aluminium');
+      const part = () => findPart(doc, partId)!;
+      const add = <T extends Parameters<typeof addFeature>[2]>(f: T, name: string): T => {
+        const g = named(f, name);
+        doc = addFeature(doc, partId, g);
+        return g;
+      };
+      const draw = (support: SketchSupport, name: string, fn: (p: SketchParams) => SketchParams) => {
+        const r = sketchOn(doc, partId, support, name, fn);
+        doc = r.doc;
+        return r.sketchId;
+      };
+
+      // Moyeu Ø 9, puis disque Ø 20 × 2 au-dessus.
+      const skHub = circleSketch(doc, partId, XY(0), [{ x: 0, y: 0, r: hub / 2 }], 'Esquisse du moyeu');
+      doc = skHub.doc;
+      const exHub = add(makeExtrudeFeature(doc, part(), skHub.sketchId, H - disc), 'Moyeu');
+      const skDisc = circleSketch(doc, partId, XY(H - disc), [{ x: 0, y: 0, r: D / 2 }], 'Esquisse du disque');
+      doc = skDisc.doc;
+      const exDisc = add(makeExtrudeFeature(doc, part(), skDisc.sketchId, disc), 'Disque');
+      add(
+        makeChamferFeature(doc, part(), [{ faces: [{ featureId: exDisc.id, role: 'side', entityId: skDisc.circles[0]! }, { featureId: exDisc.id, role: 'end' }] }], 0.3),
+        'Chanfrein du disque',
+      );
+
+      // Cannelure : alésage Ø 5,5 sur 3,5 mm, chanfrein d'entrée 0,5 × 45°, 25 creux en V.
+      const skBore = circleSketch(doc, partId, XY(0), [{ x: 0, y: 0, r: bore / 2 }], 'Esquisse de la cannelure');
+      doc = skBore.doc;
+      const pkBore = add(makePocketFeature(doc, part(), skBore.sketchId, { kind: 'distance', distance: spline }, 'reversed'), 'Cannelure');
+      add(
+        makeChamferFeature(doc, part(), [{ faces: [{ featureId: pkBore.id, role: 'side', entityId: skBore.circles[0]! }, { featureId: exHub.id, role: 'start' }] }], 0.5),
+        'Chanfrein de la cannelure',
+      );
+      const skGroove = draw(XY(0), 'Esquisse d’un creux de cannelure', (p) =>
+        polygon(p, [
+          { x: bore / 2 + 0.3, y: 0 },
+          { x: bore / 2 - 0.15, y: 0.45 },
+          { x: bore / 2 - 0.15, y: -0.45 },
+        ]).sketch,
+      );
+      const pkGroove = add(makePocketFeature(doc, part(), skGroove, { kind: 'distance', distance: spline }, 'reversed'), 'Creux de cannelure');
+      const pattern = makePatternFeature(doc, part(), pkGroove.id, 'circular');
+      add({ ...pattern, params: { ...pattern.params, axis: { kind: 'axis', axis: 'Z' }, count: teeth, angle: 360 } }, 'Dents de la cannelure');
+
+      // Passage de la vis M3 au centre, 4 taraudages M3 (perçage Ø 2,5) dans le disque.
+      const skScrew = draw(XY(H), 'Esquisse du passage de vis', (p) => circles(p, [{ x: 0, y: 0, r: 1.6 }]).sketch);
+      add(makePocketFeature(doc, part(), skScrew, { kind: 'distance', distance: H - spline + 0.5 }), 'Passage de vis');
+      const skTaps = draw(XY(H), 'Esquisse des taraudages', (p) =>
+        circles(
+          p,
+          [0, 1, 2, 3].map((k) => ({ x: (pitch / 2) * Math.cos((k * Math.PI) / 2), y: (pitch / 2) * Math.sin((k * Math.PI) / 2), r: 1.25 })),
+        ).sketch,
+      );
+      add(makePocketFeature(doc, part(), skTaps, { kind: 'throughAll' }), 'Taraudages M3');
+      return doc;
+    },
+  };
+}
+
 export const COMPONENTS: ComponentSpec[] = [
   bearing('625', 5, 16, 5),
   bearing('608', 8, 22, 7),
@@ -703,4 +785,5 @@ export const COMPONENTS: ComponentSpec[] = [
   mg996r(),
   servo('sg90', 'SG90', MICRO_SERVO, '#3d7fd6', 9, 'Micro-servo, pignons plastique, couple ≈ 0,18 N·m sous 4,8 V.'),
   servo('mg90s', 'MG90S', MICRO_SERVO, '#737b87', 13.4, 'Micro-servo, pignons métal, couple ≈ 0,22 N·m sous 4,8 V.'),
+  discHorn(),
 ];
