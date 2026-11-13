@@ -2527,6 +2527,23 @@ details.advanced summary {
   background: var(--danger);
 }
 
+.statusbar .install-btn {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.statusbar .install-btn:hover {
+  background: var(--accent-soft, transparent);
+  border-color: var(--accent);
+}
+
 /* ------------------------------------------------------------------ Dialogues */
 
 .modal-backdrop {

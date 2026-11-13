@@ -3,6 +3,7 @@ import { render } from 'preact';
 import './styles/app.css';
 import { AppController } from './app/controller';
 import { installKeyboard } from './app/keyboard';
+import { setupInstall } from './app/install';
 import { setupOffline } from './app/offline';
 import { initialState, type AppState } from './app/state';
 import { Store } from './app/store';
@@ -13,6 +14,7 @@ import { App } from './ui/App';
 import { ControllerContext } from './ui/context';
 
 async function boot(): Promise<void> {
+  setupInstall();
   const store = new Store<AppState>(initialState());
   const client = new GeometryClient(() => new Worker(new URL('./workers/geometry.worker.ts', import.meta.url), { type: 'module', name: 'calcul-geometrique' }));
   const projects = await ProjectStore.open().catch(() => null);

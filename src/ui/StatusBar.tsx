@@ -5,6 +5,8 @@ import { formatLength, formatNumber, formatVolume } from '../domain/units';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { describeFaceRef, pickFaceReference } from '../features/sketch/support';
 import { TOOL_HELP } from '../sketch/session';
+import { useEffect, useState } from 'preact/hooks';
+import { installOffer, onInstallOffer, promptInstall } from '../app/install';
 import { applyUpdate } from '../app/offline';
 import type { ModelPick } from '../viewport/viewport';
 import { useAppState, useController } from './context';
@@ -64,6 +66,22 @@ function helpText(s: AppState): string {
       return NAVIGATION_HINT;
     }
   }
+}
+
+function InstallButton() {
+  const c = useController();
+  const [offer, setOffer] = useState(installOffer);
+  useEffect(() => onInstallOffer(setOffer), []);
+  if (offer.kind === 'none') return null;
+  const onClick = () => {
+    if (offer.kind === 'prompt') void promptInstall();
+    else c.toast('info', offer.mobile ? 'Bouton Partager, puis « Sur l’écran d’accueil »' : 'Menu Fichier, puis « Ajouter au Dock »');
+  };
+  return (
+    <button type="button" class="item install-btn" title="Installer VibeCAD sur cet ordinateur : icône sur le bureau, fenêtre dédiée, fonctionne sans réseau" onClick={onClick}>
+      <Icon name="save" /> Installer
+    </button>
+  );
 }
 
 function time(iso: string | null): string {
@@ -143,6 +161,7 @@ export function StatusBar() {
           <span class="dot bad" /> Mode hors ligne indisponible
         </span>
       ) : null}
+      <InstallButton />
     </footer>
   );
 }
