@@ -52,6 +52,7 @@ export const COLLECTIONS: CollectionSpec[] = [
   { id: 'pulleys', name: 'Poulies', description: 'Poulies crantées GT2 pour courroie de 6 mm, alésage 5 mm.' },
   { id: 'couplers', name: 'Accouplements', description: 'Accouplements rigides entre deux arbres, avec vis de pression.' },
   { id: 'servos', name: 'Servomoteurs', description: 'Servomoteurs de modélisme : format standard (MG996R) et micro (SG90, MG90S), boîtier en trois parties, pattes de fixation, cannelure dentée et sortie du câble. Axe de sortie à l’origine.' },
+  { id: 'makerbeam', name: 'MakerBeam', description: 'Accessoires pour profilés MakerBeam 10 × 10 (le profilé lui-même : étape « Profilé », système MakerBeam).' },
   { id: 'horns', name: 'Palonniers', description: 'Palonniers métalliques pour servomoteurs : cannelure dentée et trous taraudés. Axe de la cannelure sur Z, face de la cannelure en Z = 0.' },
 ];
 
@@ -595,19 +596,7 @@ function mg996r(): ComponentSpec {
       // Étiquette : logement de 0,2 mm, cadre et inscriptions en relief de 0,15 mm (lisibles depuis +X).
       const skLabel = draw(XY(11), 'Esquisse du logement de l’étiquette', (p) => box(p, -23, -12, -8, 8).sketch);
       add(makePocketFeature(doc, part(), skLabel, { kind: 'distance', distance: 0.2 }), 'Logement de l’étiquette');
-      const skPrint = draw(XY(10.8), 'Esquisse de l’étiquette', (p) => {
-        let q = box(box(p, -22.4, -13.8, -7.1, 7.1).sketch, -22.1, -14.1, -6.8, 6.8).sketch;
-        // Chaque ligne fait 12,6 mm de large, centrée sur Y = 0.
-        for (const [line, base] of [
-          ['MG996R', -20.1],
-          ['DIGI HI TORQUE', -21.55],
-        ] as const) {
-          const h = 12.6 / textWidth(line, 1);
-          q = text(q, base, 6.3, line, h, -90);
-        }
-        return q;
-      });
-      add(makeExtrudeFeature(doc, part(), skPrint, 0.15), 'Étiquette');
+      // (Cadre et inscriptions de l'étiquette : en dernière étape, voir plus bas.)
 
       // Bagues Ø 13,2 et Ø 10,8, cannelure Ø 6 de 25 dents en V (fond Ø 5,4), taraudage M3.
       const skRing = draw(XY(10), 'Esquisse de la bague', (p) => circles(p, [{ x: 0, y: 0, r: 6.6 }]).sketch);
@@ -669,6 +658,21 @@ function mg996r(): ComponentSpec {
       add(makeLoftFeature(doc, part(), [bootRoot, bootTip]), 'Passe-fil');
       const skWires = draw(YZ(15.5), 'Esquisse des fils', (p) => circles(p, [-1.42, 0, 1.42].map((y) => ({ x: y, y: zc, r: 0.7 }))).sketch);
       add(makeExtrudeFeature(doc, part(), skWires, 7.1), 'Fils');
+      // Cadre et inscriptions de l'étiquette, en relief de 0,15 mm, en DERNIER : le texte ajoute des
+      // centaines de petites faces, et chaque étape suivante les traînerait (recalcul 6,5 s → 3,6 s).
+      const skPrint = draw(XY(10.8), 'Esquisse de l’étiquette', (p) => {
+        let q = box(box(p, -22.4, -13.8, -7.1, 7.1).sketch, -22.1, -14.1, -6.8, 6.8).sketch;
+        // Chaque ligne fait 12,6 mm de large, centrée sur Y = 0.
+        for (const [line, base] of [
+          ['MG996R', -20.1],
+          ['DIGI HI TORQUE', -21.55],
+        ] as const) {
+          const h = 12.6 / textWidth(line, 1);
+          q = text(q, base, 6.3, line, h, -90);
+        }
+        return q;
+      });
+      add(makeExtrudeFeature(doc, part(), skPrint, 0.15), 'Étiquette');
       return doc;
     },
   };
@@ -768,6 +772,73 @@ function discHorn(): ComponentSpec {
   };
 }
 
+/**
+ * Cube d'angle MakerBeam 10 × 10 × 10 en aluminium anodisé noir : un trou Ø 3 traversant sur
+ * chaque axe (vis M3 dans le taraudage du bout du profilé), et sur les trois faces opposées un
+ * lamage Ø 6 qui loge la tête de vis, jusqu'à 2 mm de la face d'appui. Cube centré sur l'origine ;
+ * faces d'appui des profilés en X, Y et Z = −5.
+ */
+function makerbeamCube(): ComponentSpec {
+  const A = 10;
+  const wall = 2;
+  return {
+    collection: 'makerbeam',
+    id: 'corner-cube',
+    name: 'Cube d’angle MakerBeam',
+    description: `Cube d'angle MakerBeam ${A} × ${A} × ${A} mm, aluminium anodisé noir : trou Ø 3 traversant sur chaque axe, lamages Ø 6 pour les têtes de vis M3 sur trois faces. Repère : cube centré sur l'origine, faces d'appui des profilés en X, Y et Z = −5.`,
+    tags: ['MakerBeam', 'cube', 'angle', 'équerre', 'profilé', '10x10', 'M3'],
+    dimensions: { A, trou: 3, lamage: 6 },
+    build: () => {
+      let { doc, partId } = single('Cube d’angle MakerBeam', '#2b2d31', 'aluminium');
+      const part = () => findPart(doc, partId)!;
+      const add = <T extends Parameters<typeof addFeature>[2]>(f: T, name: string): T => {
+        const g = named(f, name);
+        doc = addFeature(doc, partId, g);
+        return g;
+      };
+      const draw = (support: SketchSupport, name: string, fn: (p: SketchParams) => SketchParams) => {
+        const r = sketchOn(doc, partId, support, name, fn);
+        doc = r.doc;
+        return r.sketchId;
+      };
+      let cubeLines: string[] = [];
+      const skCube = draw(XY(-A / 2), 'Esquisse du cube', (p) => {
+        const r = rectangle(p, A, A);
+        cubeLines = r.lines;
+        return r.sketch;
+      });
+      const exCube = add(makeExtrudeFeature(doc, part(), skCube, A), 'Cube');
+      // Arêtes verticales légèrement cassées, comme une pièce usinée.
+      add(
+        makeChamferFeature(
+          doc,
+          part(),
+          cubeLines.map((l, i) => ({ faces: [{ featureId: exCube.id, role: 'side', entityId: l }, { featureId: exCube.id, role: 'side', entityId: cubeLines[(i + 1) % 4]! }] })),
+          0.3,
+        ),
+        'Arêtes cassées',
+      );
+      const hole = (support: SketchSupport, name: string) => {
+        const sk = draw(support, `Esquisse du ${name.toLowerCase()}`, (p) => circles(p, [{ x: 0, y: 0, r: 1.5 }]).sketch);
+        add(makePocketFeature(doc, part(), sk, { kind: 'throughAll' }, 'symmetric'), name);
+      };
+      hole(XY(0), 'Trou selon Z');
+      hole(XZ(0), 'Trou selon Y');
+      hole(YZ(0), 'Trou selon X');
+      // Lamages Ø 6 depuis les faces X, Y et Z = +5, jusqu'à 2 mm de la face opposée.
+      const bore = (support: SketchSupport, name: string, direction?: 'reversed') => {
+        const sk = draw(support, `Esquisse du ${name.toLowerCase()}`, (p) => circles(p, [{ x: 0, y: 0, r: 3 }]).sketch);
+        add(makePocketFeature(doc, part(), sk, { kind: 'distance', distance: A - wall }, direction), name);
+      };
+      bore(XY(A / 2), 'Lamage selon Z');
+      // Plan XZ : normale −Y, donc la face Y = +5 est en décalage −5 et la poche part en sens inverse.
+      bore(XZ(-A / 2), 'Lamage selon Y', 'reversed');
+      bore(YZ(A / 2), 'Lamage selon X');
+      return doc;
+    },
+  };
+}
+
 export const COMPONENTS: ComponentSpec[] = [
   bearing('625', 5, 16, 5),
   bearing('608', 8, 22, 7),
@@ -786,4 +857,5 @@ export const COMPONENTS: ComponentSpec[] = [
   servo('sg90', 'SG90', MICRO_SERVO, '#3d7fd6', 9, 'Micro-servo, pignons plastique, couple ≈ 0,18 N·m sous 4,8 V.'),
   servo('mg90s', 'MG90S', MICRO_SERVO, '#737b87', 13.4, 'Micro-servo, pignons métal, couple ≈ 0,22 N·m sous 4,8 V.'),
   discHorn(),
+  makerbeamCube(),
 ];
