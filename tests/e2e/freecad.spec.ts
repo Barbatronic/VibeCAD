@@ -7,7 +7,7 @@ test('export FreeCAD : script qui reconstruit l’historique, et document .FCStd
   await buildPlateViaUi(page);
 
   const dialog = await openExport(page, 'FreeCAD');
-  await expect(dialog).toContainText('Macro → Macros…');
+  await expect(dialog).toContainText('Macro › Macros…');
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
   expect(download.suggestedFilename()).toMatch(/\.py$/);
   await download.saveAs('tests/output/e2e-freecad.py');

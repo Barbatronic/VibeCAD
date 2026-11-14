@@ -26,7 +26,7 @@ test('importer un STL : une boîte exportée en STL revient en solide à six fac
   await chooser.setFiles('tests/output/e2e-boite.stl');
   const dialog = page.getByRole('dialog', { name: /Importer/ });
   await expect(dialog.getByText(/1 solide trouvé à partir de 12 triangles/)).toBeVisible();
-  await expect(dialog.getByText(/surfaces courbes restent en facettes/)).toBeVisible();
+  await expect(dialog.getByText(/surfaces courbes en facettes/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Importer' }).click();
   await expectVolume(page, 8000, 1);
   await expect.poll(() => page.evaluate(() => { const c = (window as any).vibecad.controller; return c.state.display[c.state.doc.parts[1].id]?.mesh?.faces.length; })).toBe(6);

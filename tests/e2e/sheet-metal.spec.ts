@@ -105,7 +105,7 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await page.click('#tab-fabrication');
   await page.click('#fab-laser');
   await page.getByLabel('Exemplaires à découper de « Pièce 1 »').fill('1');
-  await expect(page.locator('.sheet-bend')).toHaveCount(4);
+  await expect(page.locator('.laser-bend')).toHaveCount(4);
   await page.screenshot({ path: 'tests/output/e2e-tolerie-laser.png' });
   const [svg] = await Promise.all([page.waitForEvent('download'), page.click('#fab-export-svg')]);
   await svg.saveAs('tests/output/e2e-tolerie-laser.svg');

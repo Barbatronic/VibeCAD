@@ -28,7 +28,7 @@ test('modes d’affichage : choisis dans le bouton « Affichage », retenus au r
   await page.click('#view-display');
   await page.locator('#view-edge-width').fill('3');
   await expect.poll(() => appState(page, (s) => s.edgeWidth)).toBe(3);
-  await expect(page.locator('.edge-width-field')).toContainText('3 px');
+  await expect(page.locator('.edge-width-field', { has: page.locator('#view-edge-width') })).toContainText('3 px');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: 'tests/output/e2e-aretes-epaisses.png' });
 });

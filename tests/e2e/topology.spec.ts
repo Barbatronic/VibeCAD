@@ -124,7 +124,7 @@ test('simulation : alléger une console (optimisation topologique), régler le s
   await expect.poll(async () => (await solid())?.solids ?? 0, { timeout: 60_000 }).toBeGreaterThan(0);
   // D'un seul tenant (pas de contact par une arête qui couperait la forme en morceaux).
   expect((await solid())!.solids).toBe(1);
-  await page.getByRole('tab', { name: 'Pièces' }).click();
+  await page.getByRole('tab', { name: 'Modéliser' }).click();
   await page.screenshot({ path: 'tests/output/e2e-topologie-piece.png' });
   const v = (await solid())!.volume;
   expect(v).toBeGreaterThan(0.15 * 32000);
