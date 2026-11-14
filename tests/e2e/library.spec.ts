@@ -105,3 +105,34 @@ test('composants : ajouter et retirer une bibliothèque, erreurs expliquées', a
   await page.getByRole('button', { name: 'Retirer la bibliothèque https://exemple.invalid/biblio' }).click();
   await expect(list.getByRole('listitem')).toHaveCount(1);
 });
+
+test('composants : « Actualiser » recharge les catalogues, et garde l’ancien si le réseau manque', async ({ page }) => {
+  let mode: 'old' | 'new' | 'down' = 'old';
+  await page.route('https://raw.githubusercontent.com/Barbatronic/VibeCAD-Components/HEAD/**', (route) => {
+    const path = new URL(route.request().url()).pathname.split('/HEAD/')[1]!;
+    if (mode === 'down') return route.fulfill({ status: 500, body: '' });
+    try {
+      let body: string | Buffer = readFileSync(`tests/fixtures/library/${decodeURIComponent(path)}`);
+      if (path === 'index.json' && mode === 'new') {
+        const index = JSON.parse(body.toString());
+        index.collections.push({ ...index.collections[0], id: 'makerbeam', name: 'MakerBeam' });
+        body = JSON.stringify(index);
+      }
+      return route.fulfill({ status: 200, body, headers: { 'access-control-allow-origin': '*' } });
+    } catch {
+      return route.fulfill({ status: 404, body: '' });
+    }
+  });
+  await openApp(page);
+  await page.click('#part-component');
+  const dialog = page.getByRole('dialog', { name: 'Composants' });
+  await expect(dialog.getByRole('button', { name: /Roulements/ })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /MakerBeam/ })).toHaveCount(0);
+  mode = 'new';
+  await dialog.getByRole('button', { name: 'Actualiser' }).click();
+  await expect(dialog.getByRole('button', { name: /MakerBeam/ })).toBeVisible();
+  mode = 'down';
+  await dialog.getByRole('button', { name: 'Actualiser' }).click();
+  await expect(page.getByText(/Bibliothèque non actualisée/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /MakerBeam/ })).toBeVisible();
+});

@@ -1,6 +1,6 @@
 # Références entre pièces d'un même projet
 
-Dans l'onglet Pièces, toutes les pièces partagent le même repère : une pièce peut s'appuyer sur
+En mode Modéliser, toutes les pièces partagent le même repère : une pièce peut s'appuyer sur
 une autre, comme la conception « dans le contexte » de Fusion 360 ou les liens de FreeCAD.
 
 ## Utilisation

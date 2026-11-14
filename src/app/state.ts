@@ -113,6 +113,8 @@ export interface PartDisplay {
   meshKey: string | null;
   /** La géométrie affichée n'est plus à jour (une étape est en erreur). */
   stale: boolean;
+  /** Dernière durée de calcul connue de chaque étape (ms), gardée quand l'étape vient du cache. */
+  stepMs?: Record<Id, number>;
 }
 
 export interface Toast {
@@ -192,6 +194,8 @@ export interface AppState {
   hover: ModelPick | null;
   display: Record<Id, PartDisplay>;
   evaluating: boolean;
+  /** Projet en cours d'ouverture : nom et avancement du premier calcul (0 à 1). */
+  opening: { name: string; progress: number } | null;
   lastEvaluation: { durationMs: number; memoryBytes: number } | null;
   /**
    * Chat assistant : masqué (préférence de l'appareil), réduit (bulle repliée), et dernier
@@ -329,6 +333,7 @@ export function initialState(): AppState {
     hover: null,
     display: {},
     evaluating: false,
+    opening: null,
     lastEvaluation: null,
     fitRequest: 0,
     rollback: {},

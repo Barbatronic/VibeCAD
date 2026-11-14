@@ -29,7 +29,7 @@ export function importProjectAsSubassembly(docIn: CadDocument, text: string, fil
   if (!parsed.ok) return { ok: false, error: `« ${fileName} » ne peut pas être lu : ${parsed.error}` };
   const src = closedDocument(parsed.doc);
   if (!src.assembly?.instances.length) {
-    return { ok: false, error: `« ${src.name} » n’a pas d’assemblage : ouvrez-le, insérez ses pièces dans l’onglet Assemblage et enregistrez-le, puis importez-le à nouveau.` };
+    return { ok: false, error: `« ${src.name} » n’a pas d’assemblage : ouvrez-le, placez ses pièces en mode Assembler et enregistrez-le, puis importez-le à nouveau.` };
   }
   // Identifiants déjà pris dans le projet (ouvert ou non sur un sous-assemblage).
   const doc = docIn;

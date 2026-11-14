@@ -919,6 +919,15 @@ textarea {
   min-height: 30%;
 }
 
+/* Onglet Assemblage : l'arbre est la liste principale, l'outillage (liaisons…) dessous. */
+.parts-section.in-assembly {
+  max-height: 65%;
+}
+
+.parts-section.in-assembly ~ .panel-section.grow {
+  min-height: 20%;
+}
+
 .parts-section ~ .params-section {
   flex-shrink: 0;
   max-height: 40%;
@@ -1049,6 +1058,7 @@ textarea {
 .part-row:hover .row-actions > .on-demand,
 .part-row:focus-within .row-actions > .on-demand,
 .part-row.is-active .row-actions > .on-demand,
+.part-row.is-selected .row-actions > .on-demand,
 .part-row.has-menu .row-actions > .on-demand,
 .part-row .row-actions > .on-demand.is-on {
   display: flex;
@@ -1061,6 +1071,7 @@ textarea {
 .part-row:hover .eye,
 .part-row:focus-within .eye,
 .part-row.is-active .eye,
+.part-row.is-selected .eye,
 .part-row .eye.is-on {
   opacity: 1;
 }
@@ -1195,6 +1206,118 @@ textarea {
 
 .part-row.in-folder {
   margin-left: 22px;
+}
+
+/* Exemplaires d'une pièce (copies liées) ou insertions d'un ensemble, sous leur ligne. */
+.copy-row {
+  margin-left: 22px;
+}
+
+.copy-row.deep {
+  margin-left: 44px;
+}
+
+.copy-row .part-select .name {
+  color: var(--text-muted);
+}
+
+.copies-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 22px;
+  margin-left: -6px;
+  margin-right: -4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.copies-toggle:hover {
+  color: var(--text);
+  background: var(--surface-3, var(--surface-2));
+}
+
+.copies-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Onglet Assemblage : exemplaire choisi, repère (fixe, liaisons, libre) à droite du nom. */
+.part-row.is-selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.part-row .asm-tag {
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.folder-toggle .asm-tag {
+  margin-left: auto;
+}
+
+/* Ensemble ouvert dans l'onglet Assemblage, et fil du niveau ouvert en haut de la liste. */
+.folder-row.is-open {
+  background: var(--accent-soft);
+}
+
+.level-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 6px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+
+.level-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px 2px 2px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.level-back:hover {
+  background: var(--surface);
+}
+
+.level-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+.level-sep {
+  color: var(--text-faint);
+}
+
+.level-bar > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+
+.level-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (pointer: coarse) {
@@ -1344,6 +1467,21 @@ textarea {
 .feature-row:focus-within .row-actions,
 .feature-row.is-selected .row-actions {
   opacity: 1;
+}
+
+/* Durée de calcul d'une étape lente (historique). */
+.step-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--warning);
+}
+
+.step-time.is-slow {
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .status-badge {
@@ -2440,6 +2578,66 @@ details.advanced summary {
   }
 }
 
+/* Ouverture d'un projet : n'apparaît que si le calcul dure, ne bloque pas la vue. */
+.opening-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 9;
+  pointer-events: none;
+  animation: opening-in 0.2s ease-out 0.4s both;
+}
+
+@keyframes opening-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.opening-card {
+  width: min(340px, calc(100% - 32px));
+  gap: 10px;
+}
+
+.opening-card strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opening-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.opening-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+
+.opening-percent {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opening-bar > span {
+    transition: none;
+  }
+}
+
 .busy-indicator {
   position: absolute;
   bottom: 12px;
@@ -3031,6 +3229,147 @@ kbd {
 }
 
 /* Barre d'état : rappel de la pièce active (un clic ouvre Propriétés). */
+/* Moniteur de charge : pastille de la barre d'état et panneau du détail, au-dessus. */
+.statusbar .perf-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.statusbar .perf-item {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.statusbar .perf-item:hover,
+.statusbar .perf-item[aria-expanded='true'] {
+  color: var(--accent);
+}
+
+.perf-panel {
+  position: fixed;
+  z-index: 60;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  white-space: normal;
+}
+
+.perf-panel .dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.perf-panel .dot.ok {
+  background: var(--success);
+}
+
+.perf-panel .dot.warn {
+  background: var(--warning);
+}
+
+.perf-panel .dot.bad {
+  background: var(--danger);
+}
+
+.perf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.perf-panel h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.perf-kv {
+  font-size: 13px;
+}
+
+.perf-kv dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-kv dd {
+  text-align: right;
+}
+
+.perf-spark {
+  display: block;
+  width: 100%;
+  height: 32px;
+  margin-top: 6px;
+}
+
+.perf-spark .bar-ok {
+  fill: var(--success);
+}
+
+.perf-spark .bar-warn {
+  fill: var(--warning);
+}
+
+.perf-spark .bar-high {
+  fill: var(--danger);
+}
+
+.perf-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.perf-steps li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 1px 0;
+}
+
+.perf-steps button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.perf-steps span {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-cache {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.perf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .statusbar .part-readout {
   display: inline-flex;
   align-items: center;
@@ -3737,6 +4076,15 @@ select optgroup {
 .workspace-tabs button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Onglet Conception : ses deux modes (Modéliser, Assembler), regroupés dans un cadre discret. */
+.design-tabs {
+  display: flex;
+  gap: 2px;
+  padding-right: 3px;
+  margin-right: 1px;
+  border-right: 1px solid var(--border);
 }
 
 .motion-field input[type='range'] {
@@ -4908,26 +5256,6 @@ option.is-unfit {
   width: 100%;
 }
 
-/* Sous-assemblages : choix de l'assemblage modifié (haut du panneau Assemblage) */
-.subassembly-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.subassembly-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.subassembly-row .select,
-.subassembly-row .input {
-  flex: 1;
-  min-width: 0;
-}
-
 .block-joint {
   margin-top: 6px;
   padding-top: 6px;
@@ -4991,6 +5319,36 @@ option.is-unfit {
 .asm-row .name {
   flex: 1;
   min-width: 0;
+}
+
+/* Œil toujours là, estompé ; pièce masquée : nom grisé, pastille décolorée. */
+.asm-row .eye {
+  display: flex;
+  flex: none;
+  opacity: 0.4;
+}
+
+.asm-row:hover .eye,
+.asm-row:focus-within .eye,
+.asm-row.is-selected .eye,
+.asm-row .eye.is-on {
+  opacity: 1;
+}
+
+.asm-row.is-hidden .color-swatch {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.asm-row.is-hidden .name {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+@media (pointer: coarse) {
+  .asm-row .eye {
+    opacity: 0.6;
+  }
 }
 
 .asm-row.is-nested {

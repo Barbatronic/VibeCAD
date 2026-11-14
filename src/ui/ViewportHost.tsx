@@ -119,13 +119,16 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const o = offsets?.get(id);
     return m && o ? multiply4(translation4(o), m) : m;
   };
+  // Masquées : la pièce (tous ses exemplaires), ou un exemplaire, ici ou dans un ensemble inséré.
+  // Elles restent dans la vue (sélection, liaisons), simplement invisibles.
+  const hidden = new Set([...assembly.instances, ...(s.doc.subassemblies ?? []).flatMap((x) => x.instances)].filter((i) => i.hidden).map((i) => i.id));
   const parts: ViewPartInput[] = leaves.map((leaf) => {
     const part = s.doc.parts.find((p) => p.id === leaf.partId);
     const d = s.display[leaf.partId];
     return {
       partId: leaf.key,
       ...lookOf(s, part, d?.mesh),
-      visible: true,
+      visible: (part?.visible ?? true) && !hidden.has(leaf.instanceId) && !leaf.member.some((id) => hidden.has(id)),
       meshKey: d?.meshKey ?? null,
       mesh: d?.mesh ?? null,
       appearance: 'normal',
@@ -137,7 +140,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const matrix = shifted(block.instanceId, block.matrix);
     if (!matrix) continue;
     const { key, mesh } = fastenerMesh(block.fastener.kind, block.fastener.size, block.fastener.length);
-    parts.push({ partId: `fs:${block.key}`, color: fastenerColor(block.fastener.kind), visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+    parts.push({ partId: `fs:${block.key}`, color: fastenerColor(block.fastener.kind), visible: !hidden.has(block.instanceId), meshKey: key, mesh, appearance: 'normal', matrix });
   }
   // Visserie : un objet par élément, placé sur son bord de trou (maillages partagés).
   const fasteners = assembly.fasteners?.length
@@ -147,7 +150,7 @@ function buildAssemblyInput(s: AppState): ViewportInput {
     const matrix = shifted(f.at.instanceId, fasteners?.matrices.get(f.id));
     if (!matrix) continue;
     const { key, mesh } = fastenerMesh(f.kind, f.size, f.length);
-    parts.push({ partId: `fs:${f.id}`, color: fastenerColor(f.kind), visible: true, meshKey: key, mesh, appearance: 'normal', matrix });
+    parts.push({ partId: `fs:${f.id}`, color: fastenerColor(f.kind), visible: !hidden.has(f.at.instanceId), meshKey: key, mesh, appearance: 'normal', matrix });
   }
   const markers: ViewMarker[] = [];
   const sel = s.assemblySelection;
@@ -494,13 +497,15 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     };
   });
   if (context) {
+    // Exemplaires masqués dans l'arbre (ici ou dans un ensemble) : cachés aussi en contexte.
+    const hiddenCopies = new Set([...(s.doc.assembly?.instances ?? []), ...(s.doc.subassemblies ?? []).flatMap((x) => x.instances)].filter((i) => i.hidden).map((i) => i.id));
     for (const leaf of context.leaves) {
       const part = s.doc.parts.find((p) => p.id === leaf.partId);
       const d = s.display[leaf.partId];
       parts.push({
         partId: `${CONTEXT_PREFIX}${leaf.key}`,
         ...lookOf(s, part, d?.mesh),
-        visible: part ? partShown(s, part) : true,
+        visible: (part ? partShown(s, part) : true) && !hiddenCopies.has(leaf.instanceId) && !leaf.member.some((id) => hiddenCopies.has(id)),
         meshKey: d?.meshKey ?? null,
         mesh: d?.mesh ?? null,
         // Atténuées (cliquables pour poser une esquisse) ; transparentes pendant une opération.
@@ -1154,7 +1159,17 @@ export function ViewportHost() {
       <MascotBubble />
       {viewport && session?.editor ? <DimensionEditorPopup session={session} viewport={viewport} /> : null}
       {session?.input && session.start ? <DrawInputBox session={session} /> : null}
-      {state.evaluating && kernel.status === 'ready' ? (
+      {state.opening && kernel.status === 'ready' ? (
+        <div class="opening-overlay">
+          <div class="loading-card opening-card" role="status">
+            <strong>Ouverture de « {state.opening.name} »</strong>
+            <div class="opening-bar" role="progressbar" aria-label="Avancement de l’ouverture" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(state.opening.progress * 100)}>
+              <span style={{ width: `${Math.round(state.opening.progress * 100)}%` }} />
+            </div>
+            <span class="opening-percent">{Math.round(state.opening.progress * 100)} %</span>
+          </div>
+        </div>
+      ) : state.evaluating && kernel.status === 'ready' ? (
         <div class="busy-indicator" role="status">
           <span class="spinner" />
           Calcul…

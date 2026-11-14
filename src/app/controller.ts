@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { AssemblyFastener, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -67,6 +67,7 @@ import { chooseStamp, createSession, setPixelSize, setProjectable, setTool, type
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
 import type { MeshData } from '../geometry/kernel';
+import { perfSnapshot, recordEvaluation, type PerfSnapshot } from './perf';
 import { allows, parseLevel, type Capability, type Level } from './levels';
 import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
@@ -130,8 +131,11 @@ const STUDY_ERRORS: Record<StudyErrorCode, string> = {
 
 function displayFor(prev: PartDisplay | undefined, result: PartResult): PartDisplay {
   const failed = result.failedFeatureId !== null;
-  if (failed && prev?.mesh) return { result, mesh: prev.mesh, meshKey: prev.meshKey, stale: true };
-  return { result, mesh: result.mesh, meshKey: result.meshKey, stale: failed };
+  // Durées : la dernière mesure de chaque étape encore présente (une étape en cache garde la sienne).
+  const present = new Set(result.statuses.map((st) => st.featureId));
+  const stepMs = Object.fromEntries(Object.entries({ ...prev?.stepMs, ...result.stepMs }).filter(([id]) => present.has(id)));
+  if (failed && prev?.mesh) return { result, mesh: prev.mesh, meshKey: prev.meshKey, stale: true, stepMs };
+  return { result, mesh: result.mesh, meshKey: result.meshKey, stale: failed, stepMs };
 }
 
 export class AppController {
@@ -165,6 +169,30 @@ export class AppController {
 
   private patchProject(partial: Partial<AppState['project']>): void {
     this.set({ project: { ...this.state.project, ...partial } });
+  }
+
+  /** Relevé du moniteur de charge (recalculs, mémoire, rendu 3D). */
+  perfSnapshot(): PerfSnapshot {
+    return perfSnapshot(this.viewport?.stats() ?? null);
+  }
+
+  /** Cache des formes (pièces déjà calculées, gardées dans le navigateur) : taille ; `clear` le vide. */
+  async shapeCache(clear = false): Promise<{ count: number; bytes: number } | null> {
+    try {
+      const r = await this.deps.client.shapeCache(clear);
+      if (clear) this.toast('info', 'Cache des formes vidé : les pièces seront recalculées à la prochaine ouverture.');
+      return r;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Moniteur ouvert : la vue mesure aussi le temps de la carte graphique (si le navigateur le permet). */
+  setPerfMonitoring(on: boolean): void {
+    if (this.viewport) {
+      this.viewport.measureGpu = on;
+      this.viewport.requestRender();
+    }
   }
 
   attachViewport(viewport: Viewport | null): void {
@@ -363,12 +391,18 @@ export class AppController {
     const known = new Map(this.state.libraryCatalogs.map((c) => [c.source, c]));
     const todo = sources.filter((src) => force || !known.has(src) || known.get(src)!.status === 'error');
     const order = () => sources.map((src) => known.get(src)).filter((c): c is LibraryCatalog => !!c);
-    for (const src of todo) known.set(src, { source: src, status: 'loading' });
+    // Un catalogue déjà chargé reste affiché pendant qu'on l'actualise.
+    for (const src of todo) if (known.get(src)?.status !== 'ready') known.set(src, { source: src, status: 'loading' });
     this.set({ libraryCatalogs: order() });
     await Promise.all(
       todo.map(async (src) => {
         const catalog = await fetchLibrary(src, this.deps.fetch ?? fetch);
         if (!this.state.libraries.includes(src)) return;
+        // Actualisation ratée : on garde le catalogue déjà chargé.
+        if (catalog.status === 'error' && known.get(src)?.status === 'ready') {
+          this.toast('error', `Bibliothèque non actualisée : ${catalog.error}`);
+          return;
+        }
         known.set(src, catalog);
         this.set({ libraryCatalogs: this.state.libraries.map((l) => known.get(l) ?? this.state.libraryCatalogs.find((c) => c.source === l)).filter((c): c is LibraryCatalog => !!c) });
       }),
@@ -847,6 +881,7 @@ export class AppController {
       display: {},
       preview: null,
       dialog: null,
+      opening: doc.parts.some((p) => p.features.length > 0) ? { name: doc.name, progress: 0 } : null,
       project: {
         ...this.state.project,
         savedAt: meta.savedAt,
@@ -898,9 +933,17 @@ export class AppController {
     if (rollback !== this.state.rollback) this.set({ rollback });
     const seq = ++this.evalSeq;
     this.set({ evaluating: true });
+    // Ouverture d'un projet : la barre d'avancement suit le calcul.
+    const onProgress = this.state.opening
+      ? (progress: number) => {
+          const o = this.state.opening;
+          if (o && seq === this.evalSeq) this.set({ opening: { ...o, progress } });
+        }
+      : undefined;
     try {
-      const result = await this.deps.client.evaluate(rolledBackDocument(doc, rollback));
+      const result = await this.deps.client.evaluate(rolledBackDocument(doc, rollback), undefined, onProgress);
       if (!result || seq !== this.evalSeq || revision !== this.state.revision || rollback !== this.state.rollback) return;
+      recordEvaluation({ durationMs: result.durationMs, memoryBytes: result.memoryBytes, parts: doc.parts.length, steps: doc.parts.reduce((n, p) => n + p.features.length, 0) });
       const prev = this.state.display;
       const hadSolid = Object.values(prev).some((d) => (d.result.analysis?.solidCount ?? 0) > 0);
       const display: Record<Id, PartDisplay> = {};
@@ -913,7 +956,7 @@ export class AppController {
       // Le cadrage voyage avec les maillages : la vue cadre après les avoir reçus.
       const fitRequest = this.fitPending ? this.state.fitRequest + 1 : this.state.fitRequest;
       this.fitPending = false;
-      this.set({ display, fitRequest, evaluating: this.deps.client.busy, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
+      this.set({ display, fitRequest, evaluating: this.deps.client.busy, opening: null, lastEvaluation: { durationMs: result.durationMs, memoryBytes: result.memoryBytes } });
       // Une pièce a changé de forme : les repères des liaisons, donc la place des voisines, aussi.
       // Report silencieux (sans nouvelle étape d'annulation), puis recalcul.
       const synced = this.syncContexts(this.state.doc);
@@ -932,7 +975,7 @@ export class AppController {
       }
     } catch (err) {
       if (seq !== this.evalSeq) return;
-      this.set({ evaluating: false });
+      this.set({ evaluating: false, opening: null });
       this.toast('error', 'Le recalcul de la géométrie a échoué.', { detail: (err as Error).message });
     }
   }
@@ -958,7 +1001,7 @@ export class AppController {
     if (this.state.section && this.state.workspace === 'parts' && pick && this.state.mode.kind !== 'sketch') {
       return this.explain('Vue en coupe : quittez-la (bouton « Coupe ») pour choisir une face ou une arête.');
     }
-    if (this.state.workspace === 'assembly') return this.assemblyPick(pick);
+    if (this.state.workspace === 'assembly') return this.assemblyPick(pick, info.double);
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     if (this.state.workspace === 'simulation') return this.simulationPick(pick);
     const mode = this.state.mode;
@@ -1028,7 +1071,7 @@ export class AppController {
   editInAssembly(instanceId: Id): void {
     const instance = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
     if (!instance) return;
-    if (instance.subassemblyId) return this.explain('Un sous-assemblage se modifie depuis son propre assemblage (Assemblage ▾ en haut du panneau).');
+    if (instance.subassemblyId) return this.explain('Un ensemble se modifie de l’intérieur : choisissez une de ses pièces dans la liste, ou « Ouvrir dans l’assemblage » dans son menu ⋯.');
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
     this.setWorkspace('parts');
     if (this.state.workspace !== 'parts') return;
@@ -1115,7 +1158,7 @@ export class AppController {
     // Les références en contexte suivent la position de référence (liaisons à zéro) : la voisine
     // vue ailleurs, l'esquisse ne serait pas là où l'on a cliqué.
     if (leaf.moved) {
-      this.explain(`« ${leaf.name} » n’est pas à sa position de référence : dans l’onglet Assemblage, remettez les liaisons à zéro ou prenez la pose actuelle comme zéro.`);
+      this.explain(`« ${leaf.name} » n’est pas à sa position de référence : en mode Assembler, remettez les liaisons à zéro ou prenez la pose actuelle comme zéro.`);
       return false;
     }
     const ref = pickFaceReference(face.tags, part);
@@ -1189,17 +1232,27 @@ export class AppController {
       return true;
     }
     if (partIsJointed(this.state.doc, partId)) {
-      this.explain(`« ${part.name} » porte des liaisons ou de la visserie : retirez-les d’abord dans l’onglet Assemblage.`);
+      this.explain(`« ${part.name} » porte des liaisons ou de la visserie : retirez-les d’abord en mode Assembler.`);
       return true;
     }
     return false;
+  }
+
+  /**
+   * Les opérations d'ensemble travaillent sur le document refermé : l'ensemble ouvert dans le mode
+   * Assembler le reste (s'il existe encore), au lieu de ramener à l'assemblage principal.
+   */
+  private keepOpenLevel(doc: CadDocument): CadDocument {
+    const open = this.state.doc.editingSubassembly;
+    if (!open || doc.editingSubassembly || doc === this.state.doc || !doc.subassemblies?.some((s) => s.id === open)) return doc;
+    return openSubassembly(doc, open);
   }
 
   /** Crée un ensemble contenant la pièce ; rend son identifiant. */
   createEnsemble(partId: Id): Id | null {
     if (this.ensembleBlocked(partId)) return null;
     const r = createEnsemble(this.state.doc, partId);
-    this.commit(r.doc, 'Nouvel ensemble');
+    this.commit(this.keepOpenLevel(r.doc), 'Nouvel ensemble');
     return r.id;
   }
 
@@ -1207,7 +1260,7 @@ export class AppController {
     if (ensembleOf(this.state.doc, partId) === subId || this.ensembleBlocked(partId)) return;
     const part = findPart(this.state.doc, partId)!;
     const name = subassemblyList(this.state.doc).find((s) => s.id === subId)?.name;
-    const doc = movePartToEnsemble(this.state.doc, partId, subId);
+    const doc = this.keepOpenLevel(movePartToEnsemble(this.state.doc, partId, subId));
     if (doc === this.state.doc) return;
     this.commit(doc, name ? `Ranger « ${part.name} » dans l’ensemble « ${name} »` : `Sortir « ${part.name} » de son ensemble`);
   }
@@ -1215,7 +1268,7 @@ export class AppController {
   renameEnsemble(subId: Id, name: string): void {
     const clean = name.trim();
     if (!clean) return;
-    const doc = renameEnsemble(this.state.doc, subId, clean);
+    const doc = this.keepOpenLevel(renameEnsemble(this.state.doc, subId, clean));
     if (doc !== this.state.doc) this.commit(doc, `Renommer l’ensemble « ${clean} »`);
   }
 
@@ -1236,7 +1289,7 @@ export class AppController {
     if (!part) return;
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
     const bbox = this.state.display[partId]?.result.analysis?.bbox;
-    const doc = addLinkedCopy(this.state.doc, partId, bbox ? bbox.max.x - bbox.min.x + 10 : 20);
+    const doc = this.keepOpenLevel(addLinkedCopy(this.state.doc, partId, bbox ? bbox.max.x - bbox.min.x + 10 : 20));
     this.commit(doc, `Dupliquer « ${part.name} »`);
     this.toast('info', `Copie liée de « ${part.name} » ajoutée à l’assemblage.`, { actionLabel: 'Voir', action: () => this.setWorkspace('assembly') });
   }
@@ -2668,14 +2721,54 @@ export class AppController {
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
+    const design = (w: Workspace) => w === 'parts' || w === 'assembly';
+    // Modéliser ↔ Assembler : même scène, la caméra reste où elle est et la sélection suit.
+    const switching = design(this.state.workspace) && design(workspace);
+    const follow = switching ? this.followSelection(workspace as 'parts' | 'assembly') : {};
     // Les autres onglets (fabrication, simulation…) travaillent sur l'assemblage principal.
     const closed = workspace !== 'assembly' && this.state.doc.editingSubassembly ? { doc: closedDocument(this.state.doc), explode: 0 } : {};
     // Fabrication : on commence toujours par décider comment chaque pièce est fabriquée.
-    this.set({ workspace, mode: model, selection: null, hover: null, assemblySelection: null, fitRequest: this.state.fitRequest + 1, ...closed, ...(workspace !== 'parts' ? { assemblyContext: null } : {}), ...(workspace === 'fabrication' ? { fabricationTab: 'materials' as const } : {}), brush: null });
+    this.set({
+      workspace,
+      mode: model,
+      selection: null,
+      hover: null,
+      assemblySelection: null,
+      ...(switching ? {} : { fitRequest: this.state.fitRequest + 1 }),
+      ...closed,
+      ...(workspace !== 'parts' ? { assemblyContext: null } : {}),
+      ...(workspace === 'fabrication' ? { fabricationTab: 'materials' as const } : {}),
+      brush: null,
+      ...follow,
+    });
     // Les bibliothèques peuvent proposer des matières : on les charge (une fois par session).
     if (workspace === 'fabrication') void this.loadLibraries();
     // Hors parcours guidé : les parcours font insérer les pièces une à une.
     if (workspace === 'assembly' && !this.state.tutorial) this.placeMissingParts();
+    // Pièce active posée à l'instant : son exemplaire devient la sélection.
+    if (switching && workspace === 'assembly' && !this.state.assemblySelection) {
+      const follow2 = this.followSelection('assembly');
+      if (follow2.assemblySelection) this.set(follow2);
+    }
+  }
+
+  /**
+   * Sélection reprise en changeant de mode dans l'onglet Conception : la pièce active devient
+   * l'exemplaire choisi (si elle n'en a qu'un au niveau ouvert), et l'exemplaire choisi devient la
+   * pièce active, à sa place (s'il a des copies, c'est celui-là que l'on modifie).
+   */
+  private followSelection(to: 'parts' | 'assembly'): Partial<AppState> {
+    const s = this.state;
+    const instances = s.doc.assembly?.instances ?? [];
+    if (to === 'assembly') {
+      const mine = instances.filter((i) => i.partId === s.activePartId && !i.subassemblyId);
+      return mine.length === 1 ? { assemblySelection: { kind: 'instance', id: mine[0]!.id } } : {};
+    }
+    const sel = s.assemblySelection;
+    const inst = sel?.kind === 'instance' && !s.doc.editingSubassembly ? instances.find((i) => i.id === sel.id && !i.subassemblyId) : undefined;
+    if (!inst || !findPart(s.doc, inst.partId)) return {};
+    const copies = instances.filter((i) => i.partId === inst.partId && !i.subassemblyId).length;
+    return { activePartId: inst.partId, ...(copies > 1 ? { assemblyContext: { instanceId: inst.id } } : {}) };
   }
 
   /**
@@ -2693,7 +2786,8 @@ export class AppController {
     const existing = s.doc.assembly?.instances.length ?? 0;
     let doc = s.doc;
     for (const p of missing) doc = addInstance(doc, p.id, { x: 0, y: 0, z: 0 }).doc;
-    this.commit(doc, 'Placer les pièces dans l’assemblage', { fitRequest: s.fitRequest + 1 });
+    // Posées là où elles ont été dessinées : la vue ne bouge pas.
+    this.commit(doc, 'Placer les pièces dans l’assemblage');
     // Assemblage déjà commencé : on signale l'ajout, qui peut ne pas être voulu.
     if (existing > 0) {
       this.toast('info', missing.length === 1 ? `« ${missing[0]!.name} » ajoutée à l’assemblage.` : `${missing.length} pièces ajoutées à l’assemblage.`, { actionLabel: 'Annuler', action: () => this.undo() });
@@ -2917,7 +3011,7 @@ export class AppController {
     const source = partId ? this.simulationSource(partId) : null;
     if (!partId || !source) return this.explain('Choisissez une pièce qui a un volume.');
     const stale = partId === ASSEMBLY_STUDY ? (this.state.doc.assembly?.instances ?? []).some((i) => this.state.display[i.partId]?.stale) : this.state.display[partId]?.stale;
-    if (stale) return this.explain('Une pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
+    if (stale) return this.explain('Une pièce a une erreur : corrigez-la en mode Modéliser avant de lancer le calcul.');
     const study = studyOf(this.state.doc, partId);
     const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
@@ -2970,7 +3064,7 @@ export class AppController {
     const source = partId ? this.simulationSource(partId) : null;
     if (!partId || !source) return this.explain('Choisissez une pièce qui a un volume.');
     if (partId === ASSEMBLY_STUDY) return this.explain('L’allègement se fait sur une pièce à la fois : choisissez une pièce dans la liste.');
-    if (this.state.display[partId]?.stale) return this.explain('La pièce a une erreur : corrigez-la dans l’onglet Pièces avant de lancer le calcul.');
+    if (this.state.display[partId]?.stale) return this.explain('La pièce a une erreur : corrigez-la en mode Modéliser avant de lancer le calcul.');
     const study = studyOf(this.state.doc, partId);
     const problem = studyInput(study, source);
     if (!problem.ok) return this.explain(problem.message);
@@ -3460,7 +3554,7 @@ export class AppController {
     const s = this.state;
     const part = findPart(s.doc, partId);
     if (!part) return;
-    if ((s.display[partId]?.result.analysis?.solidCount ?? 0) === 0) return this.explain(`« ${part.name} » n’a pas encore de volume : construisez-la d’abord dans l’onglet Pièces.`);
+    if ((s.display[partId]?.result.analysis?.solidCount ?? 0) === 0) return this.explain(`« ${part.name} » n’a pas encore de volume : construisez-la d’abord en mode Modéliser.`);
     // Posée à droite des pièces déjà insérées (sans se chevaucher), en attendant une liaison.
     const placement = this.assemblyPlacement();
     let x = 0;
@@ -3482,11 +3576,12 @@ export class AppController {
 
   // ----- Sous-assemblages
 
-  /** Crée un sous-assemblage vide et l'ouvre pour le construire. */
-  createSubassembly(): void {
-    if (!this.can('assembly:subassemblies')) return;
+  /** Crée un sous-assemblage vide et l'ouvre pour le construire ; rend son identifiant. */
+  createSubassembly(): Id | null {
+    if (!this.can('assembly:subassemblies')) return null;
     const r = addSubassembly(closedDocument(this.state.doc));
     this.commit(openSubassembly(r.doc, r.id), 'Créer un sous-assemblage', { assemblySelection: null, mode: model, explode: 0, fitRequest: this.state.fitRequest + 1 });
+    return r.id;
   }
 
   /** Ouvre un sous-assemblage pour le modifier, ou revient à l'assemblage principal (`null`). */
@@ -3568,10 +3663,15 @@ export class AppController {
   /** Esquisses calculées d'une pièce (repères d'assemblage posés sur un point d'esquisse). */
   private sketchesOf = (partId: Id) => this.state.display[partId]?.result.sketches;
 
-  private assemblyPick(pick: ModelPick | null): void {
+  private assemblyPick(pick: ModelPick | null, double = false): void {
     const s = this.state;
     const mode = s.mode;
     if (mode.kind === 'fastener') return this.fastenerPick(pick, mode.fastenerKind);
+    // Double-clic sur une pièce : on passe en Modéliser, sur cet exemplaire, à sa place.
+    if (mode.kind === 'model' && double && pick && !pick.partId.startsWith('fs:')) {
+      if (pick.partId.includes('/')) return this.explain('Pièce d’un ensemble : choisissez-la dans la liste (son ensemble s’ouvre), puis double-cliquez-la.');
+      return this.editInAssembly(pick.partId);
+    }
     if (mode.kind !== 'joint') {
       // Une pièce (ou une vis) d'un sous-assemblage désigne le bloc entier (clé « bloc/… »).
       const fastener = pick?.partId.startsWith('fs:') ? pick.partId.slice(3) : null;
@@ -3907,6 +4007,45 @@ export class AppController {
     }
     if (out === doc) return;
     this.commit(this.settleLoops(out), 'Remettre les liaisons à zéro');
+  }
+
+  /**
+   * Masque ou affiche des exemplaires dans la vue de l'assemblage, quel que soit leur niveau
+   * (assemblage principal ou ensemble, ouvert ou non).
+   */
+  setInstancesHidden(instanceIds: Id[], hidden: boolean): void {
+    const doc0 = this.state.doc;
+    const ids = new Set(instanceIds);
+    const changed: string[] = [];
+    const apply = (list: AssemblyInstance[]) =>
+      list.map((i) => {
+        if (!ids.has(i.id) || !!i.hidden === hidden) return i;
+        changed.push(i.name);
+        if (hidden) return { ...i, hidden: true };
+        const { hidden: _h, ...rest } = i;
+        return rest;
+      });
+    const doc: CadDocument = {
+      ...doc0,
+      ...(doc0.assembly ? { assembly: { ...doc0.assembly, instances: apply(doc0.assembly.instances) } } : {}),
+      ...(doc0.subassemblies ? { subassemblies: doc0.subassemblies.map((s) => ({ ...s, instances: apply(s.instances) })) } : {}),
+    };
+    if (changed.length === 0) return;
+    const what = changed.length === 1 ? `« ${changed[0]} »` : `${changed.length} exemplaires`;
+    this.commit(doc, `${hidden ? 'Masquer' : 'Afficher'} ${what}`);
+  }
+
+  /**
+   * Choisit un exemplaire dans l'onglet Assemblage, en ouvrant son niveau (assemblage principal :
+   * `null`, ou l'ensemble qui le contient) s'il ne l'est pas déjà.
+   */
+  selectAssemblyInstance(level: Id | null, instanceId: Id): void {
+    if (this.state.workspace !== 'assembly') return;
+    if ((this.state.doc.editingSubassembly ?? null) !== level) {
+      if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+      this.editSubassembly(level);
+    }
+    this.selectInAssembly({ kind: 'instance', id: instanceId });
   }
 
   /** Bloc souple (ou rigide à nouveau) : ses liaisons internes deviennent réglables à cette insertion. */

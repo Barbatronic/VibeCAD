@@ -533,6 +533,7 @@ function readAssembly(v: Validator, x: unknown, path: string, partIds: ReadonlyS
       const rot = obj(v, io.rotation, `${ip}.rotation`) ?? {};
       instance.rotation = { x: num(v, rot, 'x', `${ip}.rotation`), y: num(v, rot, 'y', `${ip}.rotation`), z: num(v, rot, 'z', `${ip}.rotation`) };
     }
+    if (io.hidden === true) instance.hidden = true;
     if (subassemblyId) {
       if (io.flexible === true) instance.flexible = true;
       if (io.jointValues !== undefined) {
@@ -877,8 +878,8 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: {
-          system: oneOf(v, p, 'system', pp, ['vslot', 'tslot'] as const),
-          size: oneOf(v, p, 'size', pp, ['2020', '2040', '2060', '2080', '4040', '4080'] as const),
+          system: oneOf(v, p, 'system', pp, ['vslot', 'tslot', 'makerbeam'] as const),
+          size: oneOf(v, p, 'size', pp, ['2020', '2040', '2060', '2080', '4040', '4080', '1010'] as const),
           length: num(v, p, 'length', pp, { min: 0 }),
           axis: oneOf(v, p, 'axis', pp, ['X', 'Y', 'Z'] as const),
           position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },

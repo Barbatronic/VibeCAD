@@ -20,8 +20,9 @@ test('conception dans l’assemblage : esquisse du bloc posée sur la plaque voi
   await page.evaluate((doc) => (window as any).vibecad.controller.commit(doc, 'Projet'), project() as any);
   await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
 
-  // Onglet Assemblage : le bloc, puis « Modifier dans l'assemblage ».
+  // Mode Assembler : le bloc choisi dans l'arbre, puis le crayon de sa ligne (« Modifier dans l'assemblage »).
   await page.click('#tab-assembly');
+  await page.locator('.part-list .part-row', { hasText: 'Bloc' }).first().locator('.part-select').click();
   await page.getByRole('button', { name: /Modifier « Bloc » dans l’assemblage/ }).click();
   await expect(page.locator('#tab-parts')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText(/Dans l’assemblage : « Bloc »/)).toBeVisible();

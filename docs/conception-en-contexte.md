@@ -3,13 +3,14 @@
 Modifier une pièce **à sa place dans l'assemblage**, entourée des pièces voisines, et s'appuyer
 sur elles : par exemple poser l'esquisse des trous de fixation d'une platine sur la face du
 moteur qu'elle porte. Complète les [références entre pièces](references-entre-pieces.md), qui
-travaillent dans le repère commun de l'onglet Pièces, sans les positions de l'assemblage.
+travaillent dans le repère commun du mode Modéliser, sans les positions de l'assemblage.
 
 ## Utilisation
 
-- **Entrer** : onglet Assemblage, sur une pièce insérée, bouton « Modifier dans l'assemblage »
-  (panneau de droite) ou icône crayon de la liste des pièces insérées. On passe dans l'onglet
-  Pièces, sur cette pièce ; un bandeau le rappelle.
+- **Entrer** : en mode Assembler, sur un exemplaire, bouton « Modifier dans l'assemblage »
+  (panneau de droite), icône crayon de sa ligne dans l'arbre, ou double-clic sur la pièce dans la
+  vue ; ou simplement passer en Modéliser avec un exemplaire choisi. On passe en mode Modéliser,
+  sur cet exemplaire ; un bandeau le rappelle quand la pièce a plusieurs exemplaires.
 - **Vue** : la pièce modifiée à l'origine, comme d'habitude, et les autres pièces de l'assemblage
   autour d'elle, atténuées, à leur place relative. Les pièces du projet qui ne sont pas dans
   l'assemblage sont masquées.
@@ -26,7 +27,7 @@ travaillent dans le repère commun de l'onglet Pièces, sans les positions de l'
 - **Figer** : dans l'historique, le bouton à côté d'une esquisse posée sur une voisine fige sa
   place (« figée ») : elle ne suit plus l'assemblage, mais toujours la forme de la voisine. Un
   second clic la libère et la recale aussitôt.
-- **Sortir** : « Revenir à l'assemblage » dans le bandeau (ou l'onglet Assemblage) ; choisir une
+- **Sortir** : « Revenir à l'assemblage » dans le bandeau (ou le mode Assembler) ; choisir une
   autre pièce dans la liste quitte aussi le contexte.
 
 ## Position de référence

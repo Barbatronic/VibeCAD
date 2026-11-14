@@ -24,6 +24,16 @@ export function ComponentsDialog() {
   // Collection choisie : « source|id », ou toutes.
   const [current, setCurrent] = useState<string | null>(null);
   const ready = catalogs.filter((k): k is Ready => k.status === 'ready');
+  const [refreshing, setRefreshing] = useState(false);
+  const loading = refreshing || catalogs.some((k) => k.status === 'loading');
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await c.loadLibraries(true);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const cards = useMemo(
     () =>
       ready.flatMap((cat) =>
@@ -44,6 +54,9 @@ export function ComponentsDialog() {
           <span class="field-help components-hint">
             {replacing ? 'Le composant choisi prend la place de la pièce, dans l’assemblage aussi.' : workspace === 'assembly' ? 'Le composant est ajouté au projet puis inséré dans l’assemblage.' : 'Le composant est ajouté au projet comme une nouvelle pièce.'}
           </span>
+          <Button id="components-refresh" onClick={() => void refresh()} icon="refresh" disabled={loading || catalogs.length === 0} hint="Recharger les catalogues des bibliothèques">
+            {refreshing ? 'Actualisation…' : 'Actualiser'}
+          </Button>
           <Button onClick={() => c.setDialog({ kind: 'preferences' })} icon="settings">
             Bibliothèques…
           </Button>

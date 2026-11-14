@@ -41,7 +41,8 @@ export function ToolGroup({ name, children }: { name: string; children: Componen
  * passent dans le menu ▾ ; puis `is-folded` : le secteur tient en un bouton (le dernier outil
  * utilisé) et son menu. `fold` : ordre de regroupement, le plus petit se regroupe en premier.
  */
-export function Sector({ name, title, fold, tools }: { name: string; title: string; fold: number; tools: SectorTool[] }) {
+/** `noFold` : le secteur se regroupe mais ne se replie jamais (ses outils principaux restent visibles). */
+export function Sector({ name, title, fold, tools, noFold = false }: { name: string; title: string; fold: number; tools: SectorTool[]; noFold?: boolean }) {
   const [open, setOpen] = useState<'extra' | 'all' | null>(null);
   const [last, setLast] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -85,7 +86,7 @@ export function Sector({ name, title, fold, tools }: { name: string; title: stri
     items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
   };
   return (
-    <div class="toolbar-group sector" role="group" aria-label={name} data-fold={fold} ref={root}>
+    <div class="toolbar-group sector" role="group" aria-label={name} data-fold={fold} data-nofold={noFold ? '' : undefined} ref={root}>
       <div class="sector-tools">
         {tools.map((t) => (
           <span key={t.key} class={t.main ? 'sector-main' : 'sector-extra'}>

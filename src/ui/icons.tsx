@@ -368,6 +368,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4.5 9h10a5 5 0 010 10H11" />
     </>
   ),
+  refresh: (
+    <>
+      <path d="M19.5 12a7.5 7.5 0 11-2.2-5.3" />
+      <path d="M19.5 4.5v4h-4" />
+    </>
+  ),
   redo: (
     <>
       <path d="M15 13.5L19.5 9 15 4.5" />

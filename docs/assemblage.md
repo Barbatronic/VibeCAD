@@ -1,19 +1,37 @@
 # Assemblage (conception)
 
-Objectif : assembler très simplement les pièces d'un projet, et les faire bouger, dans un onglet
-à part. Pas de solveur de mécanismes général : une **arborescence de liaisons** à partir d'une
+Objectif : assembler très simplement les pièces d'un projet, et les faire bouger, dans la même
+scène que celle où on les modélise. Pas de solveur de mécanismes général : une **arborescence de liaisons** à partir d'une
 pièce fixe, chaque liaison ayant au plus deux mouvements simples.
 
 ## Ce que voit l'utilisateur
 
 ![Quadrilatère articulé : quatre liaisons pivot, la pièce fixe en orange, la visserie posée sur les liaisons](images/assemblage-visserie.png)
 
-- Les ateliers, en icônes au début de la barre : **Pièces** (la modélisation) et **Assemblage**
-  (puis Fabrication et Simulation).
-- Dans Assemblage, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),
+- Les ateliers, en icônes au début de la barre : l'onglet **Conception**, avec ses deux modes
+  **Modéliser** et **Assembler**, puis Fabrication et Simulation.
+- Modéliser et Assembler partagent la même scène, le même arbre des pièces et la même caméra :
+  seuls la barre d'outils et le panneau de droite changent. En changeant de mode, la sélection
+  suit : la pièce active devient l'exemplaire choisi (si elle n'en a qu'un), l'exemplaire choisi
+  devient la pièce active, à sa place. Un double-clic sur une pièce en mode Assembler passe en
+  Modéliser sur cet exemplaire.
+- En mode Assembler, la barre d'outils est rangée en secteurs : **Insérer** (pièce, visserie),
   **Assembler** (Main, Liaison), **Vérifier** (Collisions, Éclater), **Modifier**, **Exporter**.
-- Panneau de gauche : les pièces insérées (la première est **fixe**, marquée d'une punaise) et les
-  liaisons. Panneau de droite : les réglages de la liaison choisie.
+- Panneau de gauche : l'arbre des pièces, le même dans les deux modes (voir plus bas), puis les
+  liaisons du niveau ouvert. Panneau de droite : les réglages de l'exemplaire ou de la liaison
+  choisis.
+
+## Arbre des pièces
+
+- Ensembles, dossiers, puis pièces. Une pièce posée plusieurs fois (copies liées) affiche **×N** et
+  une flèche qui déplie ses exemplaires.
+- En mode Assembler, chaque exemplaire porte son repère : 📌 **fixe** (le premier du niveau, la
+  référence), le nombre de **liaisons**, ou **libre**. Sous un ensemble apparaissent d'abord ses
+  insertions (ses blocs), puis ses pièces ; la ligne de l'ensemble donne le nombre de liaisons
+  internes.
+- **Visibilité** : l'œil d'une pièce cache tous ses exemplaires, l'œil d'un exemplaire ne cache
+  que lui (champ `hidden` de l'exemplaire), l'œil d'un ensemble tout son contenu. Les deux modes
+  respectent les deux yeux. Une pièce masquée reste en place et garde ses liaisons.
 
 ## Repères (LCS)
 
@@ -83,7 +101,7 @@ Une pièce insérée qu'aucune liaison ne tient se place à la main :
   avec Maj, 0,1 mm et 1°. Un glisser = une étape d'annulation.
 - **Panneau de droite** : position (X, Y, Z) et orientation (degrés autour de X, puis Y, puis Z) ;
   une orientation saisie fait aussi tourner la pièce sur elle-même (son centre reste en place).
-- Le même manipulateur sert à l'étape **Déplacer** de l'onglet Pièces (flèches : décalage ;
+- Le même manipulateur sert à l'étape **Déplacer** du mode Modéliser (flèches : décalage ;
   anneaux : axe et angle de rotation, autour du centre de la pièce).
 
 Le **nom d'une liaison** se modifie en haut de son panneau (clic sur le nom, Entrée pour valider).
@@ -205,11 +223,13 @@ arrête la pose. Le filetage n'est pas dessiné.
 Un sous-assemblage est un **bloc** assemblé une fois (une roue sur son axe avec ses roulements, une
 pince…) puis inséré une ou plusieurs fois dans l'assemblage principal ou dans un autre bloc.
 
-- En haut du panneau Assemblage, « Assemblage : Principal ▾ » choisit ce que l'on modifie ; « + »
-  crée un sous-assemblage vide et l'ouvre. Dans un sous-assemblage, tous les outils de l'onglet
-  servent (Insérer, Liaison, Visserie, engrenages, vue éclatée…) ; un bandeau rappelle lequel est
-  ouvert, permet de le renommer, de le supprimer (refusé tant qu'il est inséré quelque part) et de
-  revenir à l'assemblage principal. Quitter l'onglet Assemblage revient aussi au principal.
+- Dans l'arbre, un sous-assemblage est un **ensemble**. Choisir en mode Assembler un exemplaire
+  rangé dans un ensemble **ouvre** cet ensemble (ou menu ⋯ de l'ensemble : « Ouvrir dans
+  l'assemblage ») ; un fil « ‹ Principal › Nom » en haut de l'arbre rappelle lequel est ouvert et
+  ramène à l'assemblage principal. Dans un ensemble ouvert, tous les outils du mode servent
+  (Insérer, Liaison, Visserie, engrenages, vue éclatée…). L'icône « Nouvel ensemble vide » de
+  l'en-tête de l'arbre en crée un et l'ouvre ; le renommage (F2) et « Défaire l'ensemble » sont sur
+  sa ligne. Passer en Modéliser revient au principal.
 - « Insérer ▾ » propose les sous-assemblages après les pièces. Un bloc ne peut pas s'insérer en
   lui-même, ni dans un bloc qu'il contient.
 - « Insérer ▾ → Importer un projet comme sous-assemblage… » reprend un autre fichier `.vibecad` :

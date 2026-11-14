@@ -7,18 +7,22 @@ ou dans un assemblage.
 ## Utilisation
 
 - **Ouvrir la fenêtre « Composants »** : bouton à côté du « + » de la section Pièces, menu Fichier
-  (logo) → Composants, ou, dans l'atelier Assemblage, Insérer ▾ → Composant d'une bibliothèque.
+  (logo) → Composants, ou, en mode Assembler, Insérer ▾ → Composant d'une bibliothèque.
 - À gauche, les **collections** de chaque bibliothèque (Roulements, Moteurs…) ; en haut, une
   **recherche** (nom, description, mots-clés, sans tenir compte des accents) ; au centre, les
   vignettes avec l'encombrement, la matière et la masse.
 - **Un clic insère le composant** :
-  - atelier Pièces : il devient une nouvelle pièce du projet, avec son **historique complet**
+  - mode Modéliser : il devient une nouvelle pièce du projet, avec son **historique complet**
     (esquisses cotées, extrusions, chanfreins…) et sa matière : il se modifie comme une pièce
     dessinée dans VibeCAD ;
-  - atelier Assemblage : la pièce est ajoutée au projet, puis insérée dans l'assemblage.
+  - mode Assembler : la pièce est ajoutée au projet, puis insérée dans l'assemblage.
   - Un second exemplaire est numéroté (« Roulement 608-2RS (2) »).
   - Un composant livré seulement en STEP passe par la fenêtre d'import (solide exact, sans
     historique).
+- **Actualiser** (bas de la fenêtre) : recharge les catalogues. Ils sont sinon chargés une fois
+  par session, à la première ouverture. Pendant l'actualisation, le catalogue déjà chargé reste
+  affiché ; si elle échoue (réseau), il est gardé et un message le dit. GitHub peut servir
+  l'ancien `index.json` quelques minutes après un envoi.
 - **Préférences → Bibliothèques de composants** : la liste, ajouter l'adresse d'un dépôt
   (`https://github.com/compte/dépôt`, ou `…/tree/branche/dossier`, ou un dossier web contenant
   `index.json`), retirer. La liste est retenue sur l'appareil. Par défaut :

@@ -4,7 +4,7 @@
  * Chrome (vrais événements tactiles) : parcours réservé à Chromium.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { appState, DEV_URL, session, sketchToScreen, volumes, worldToScreen } from './helpers';
+import { appState, clickTool, DEV_URL, session, sketchToScreen, volumes, worldToScreen } from './helpers';
 
 test.use({ viewport: { width: 1180, height: 820 }, hasTouch: true, isMobile: true });
 test.skip(({ browserName }) => browserName !== 'chromium', 'gestes tactiles émulés par Chrome');
@@ -74,7 +74,8 @@ test('tablette : esquisse au doigt, gestes à deux doigts, 3D', async ({ page })
 
   await page.getByRole('button', { name: /Terminer/ }).tap();
   await expect.poll(async () => (await session(page)) === null).toBe(true);
-  await page.locator('#tool-extrude').tap();
+  // Écran de tablette : Extrusion peut être rangée dans le menu de son secteur.
+  await clickTool(page, 'tool-extrude');
   await page.locator('#draft-distance').fill('5');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).tap();

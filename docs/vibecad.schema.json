@@ -1736,7 +1736,8 @@
                 "system": {
                   "enum": [
                     "vslot",
-                    "tslot"
+                    "tslot",
+                    "makerbeam"
                   ]
                 },
                 "size": {
@@ -1746,7 +1747,8 @@
                     "2060",
                     "2080",
                     "4040",
-                    "4080"
+                    "4080",
+                    "1010"
                   ]
                 },
                 "length": {
@@ -3102,6 +3104,10 @@
               "flexible": {
                 "type": "boolean",
                 "description": "Bloc souple : ses liaisons internes prennent les réglages jointValues de cette insertion"
+              },
+              "hidden": {
+                "type": "boolean",
+                "description": "Exemplaire masqué dans la vue de l'assemblage (il reste en place et garde ses liaisons)"
               },
               "jointValues": {
                 "type": "object",

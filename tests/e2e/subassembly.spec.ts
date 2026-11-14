@@ -9,30 +9,35 @@ test('sous-assemblage : créé, rempli, puis inséré comme un bloc dans l’ass
   await page.click('#tab-assembly');
   await expect.poll(() => appState(page, (s) => s.doc.assembly.instances.length)).toBe(2);
 
-  // Nouveau sous-assemblage : il s'ouvre, vide.
+  // Nouvel ensemble vide (en-tête de l'arbre) : il s'ouvre, vide, et se nomme tout de suite.
   await page.click('#as-new-sub');
-  await expect(page.locator('#as-context')).toHaveValue(/sa-/);
-  await expect(page.locator('.callout').filter({ hasText: 'Sous-assemblage' })).toBeVisible();
-  await page.locator('#as-sub-name').fill('Bloc plaque');
-  await page.locator('#as-sub-name').press('Enter');
+  await expect.poll(() => appState(page, (s) => s.doc.editingSubassembly ?? null)).toMatch(/sa-/);
+  const rename = page.getByRole('textbox', { name: 'Nouveau nom de l’ensemble' });
+  await rename.fill('Bloc plaque');
+  await rename.press('Enter');
+  await expect(page.locator('.level-bar')).toContainText('Bloc plaque');
   await page.click('#as-insert');
   await page.getByRole('menuitem', { name: 'Pièce 1' }).click();
   await expect.poll(() => appState(page, (s) => s.doc.assembly.instances.length)).toBe(1);
 
-  // Retour au principal : ses deux plaques sont là ; on insère le bloc.
-  await page.getByRole('button', { name: 'Revenir à l’assemblage principal' }).click();
+  // Retour au principal (fil de l'arbre) : ses deux plaques sont là ; on insère le bloc.
+  await page.click('#as-back');
   await expect.poll(() => appState(page, (s) => [s.doc.editingSubassembly ?? null, s.doc.assembly.instances.length])).toEqual([null, 2]);
   await page.click('#as-insert');
   await page.getByRole('menuitem', { name: 'Sous-assemblage : Bloc plaque' }).click();
   await expect.poll(() => appState(page, (s) => s.doc.assembly.instances.at(-1).subassemblyId)).toMatch(/sa-/);
-  await expect(page.getByRole('list', { name: 'Pièces de l’assemblage' })).toContainText('bloc « Bloc plaque »');
+  const tree = page.locator('.part-list');
+  await expect(tree.locator('.folder-row.is-ensemble', { hasText: 'Bloc plaque' })).toBeVisible();
   expect(await page.evaluate(() => (window as any).vibecad.controller.assemblyLeaves().map((l: any) => l.name))).toEqual(['Plaque', 'Plaque (2)', 'Bloc plaque › Pièce 1']);
 
-  // Un bloc inséré ne peut pas être supprimé ; ouvrir et refermer ne marque pas le projet modifié.
-  await page.locator('#as-context').selectOption({ label: 'Sous-assemblage : Bloc plaque' });
-  await page.getByRole('button', { name: /Supprimer le sous-assemblage/ }).click();
-  await expect(page.getByText(/est inséré dans l’assemblage principal/)).toBeVisible();
-  await page.locator('#as-context').selectOption('');
+  // La pièce posée dans l'ensemble ET dans le principal : ses exemplaires des deux niveaux sont
+  // sous sa ligne ; choisir celui de l'ensemble ouvre l'ensemble, le fil ramène au principal.
+  const row = tree.locator('.part-row:not(.copy-row)', { hasText: 'Pièce 1' });
+  if ((await row.locator('.copies-toggle').getAttribute('aria-expanded')) !== 'true') await row.locator('.copies-toggle').click();
+  await expect(tree.locator('.copy-row', { hasText: /^Plaque.*principal/ })).toHaveCount(2);
+  await tree.locator('.copy-row', { hasText: /^Pièce 1/ }).first().locator('.part-select').click();
+  await expect.poll(() => appState(page, (s) => s.doc.editingSubassembly ?? null)).toMatch(/sa-/);
+  await page.click('#as-back');
   await expect.poll(() => appState(page, (s) => s.doc.subassemblies.length)).toBe(1);
   await page.screenshot({ path: 'tests/output/e2e-sous-assemblage.png' });
 });
@@ -46,7 +51,8 @@ test('bloc souple : le pivot du bloc se règle à cette insertion, sans changer 
   doc.assembly = { instances: [{ id: 'in-b', partId: '', subassemblyId: 'sa-1', name: 'Charnière', position: { x: 0, y: 0, z: 0 } }], joints: [] };
   await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), JSON.stringify(file));
   await page.click('#tab-assembly');
-  await page.getByRole('list', { name: 'Pièces de l’assemblage' }).getByText('Charnière', { exact: true }).click();
+  // L'insertion du bloc, sous la ligne de son ensemble dans l'arbre.
+  await page.locator('.part-list .copy-row', { hasText: 'Charnière' }).locator('.part-select').click();
   await page.locator('#as-block-flexible').check();
   const angle = page.getByLabel('Angle exact');
   await expect(angle).toHaveValue('30');

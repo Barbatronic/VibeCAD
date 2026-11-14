@@ -43,10 +43,11 @@ roulements, une pince, un bras articulé. On veut :
   suffit à la plupart des montages. La variante **souple** (une roue qui tourne encore dans son
   bloc une fois insérée) demande de fusionner les liaisons du bloc dans le solveur principal ; elle
   est possible ensuite, mais plus coûteuse (voir plus bas).
-- **Création** : dans l'onglet Assemblage, un sélecteur « Assemblage : Principal ▾ » permet de
-  créer un sous-assemblage, de passer de l'un à l'autre et de le modifier avec les mêmes outils
-  (Insérer, Liaison, Visserie, Engrenages). « Insérer ▾ » propose ensuite les sous-assemblages en
-  plus des pièces.
+- **Création** : en mode Assembler, l'arbre des pièces montre les sous-assemblages comme des
+  **ensembles** ; « Nouvel ensemble vide » en crée un, choisir une de ses pièces l'ouvre, et un
+  fil « ‹ Principal › Nom » ramène au principal. On le modifie avec les mêmes outils (Insérer,
+  Liaison, Visserie, Engrenages). « Insérer ▾ » propose ensuite les sous-assemblages en plus des
+  pièces. (Le premier sélecteur « Assemblage : Principal ▾ » a été remplacé par l'arbre commun.)
 - **Partout ailleurs**, une seule fonction « déplie » l'assemblage en une liste plate de pièces
   placées (clé, pièce, matrice, chemin de noms) : la vue, les collisions, les exports 3MF et GLB,
   la simulation et la visserie la lisent sans autre changement. La nomenclature regroupe par bloc

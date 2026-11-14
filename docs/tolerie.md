@@ -1,6 +1,6 @@
 # Tôlerie et pliage
 
-Secteur « Tôle » de l'onglet Pièces (niveau Intermédiaire) : des pièces faites d'une plaque fine
+Secteur « Tôle » du mode Modéliser (niveau Intermédiaire) : des pièces faites d'une plaque fine
 pliée — équerre, boîte, support, profilé en U — en métal (plieuse), en plastique (thermoplieuse) ou
 en carton. La pièce garde sa **forme à plat** (le développé), qui se découpe au laser.
 

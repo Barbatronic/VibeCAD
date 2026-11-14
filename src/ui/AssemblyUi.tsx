@@ -1,7 +1,8 @@
 /**
- * Interface de l'onglet Assemblage : outils (insérer, liaison), liste des pièces insérées et des
+ * Mode Assembler de l'onglet Conception : outils (insérer, liaison), liste des
  * liaisons, réglages de la liaison choisie (type, curseurs, limites). Voir docs/assemblage.md.
  */
+import type { Workspace } from '../app/state';
 import { allows } from '../app/levels';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { clampToLimits, JOINT_ISSUE_MESSAGES, jointFreedoms } from '../app/assembly';
@@ -14,7 +15,6 @@ import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 import { FastenerList, FastenerMenu, FastenerModePanel, FastenerPanel } from './FastenerUi';
 import { CouplingList, CouplingPanel } from './CouplingUi';
-import { SubassemblyBar } from './SubassemblyUi';
 import { ToolGroup } from './ToolSectors';
 import { MaterialsToggle } from './MaterialsUi';
 import { subassemblyContains, subassemblyContent, subassemblyList } from '../domain/subassemblies';
@@ -23,40 +23,42 @@ import { subassemblyContains, subassemblyContent, subassemblyList } from '../dom
  * Onglets des ateliers « Pièces / Assemblage / Fabrication / Simulation », dans un bandeau sous la
  * barre d'outils ; grisés pendant une opération (esquisse, étape en cours…).
  */
+/**
+ * Onglets : Conception (pièces et assemblage, une seule scène), Fabrication, Simulation. Conception
+ * a deux modes, Modéliser et Assembler : même vue, même arbre, autre jeu d'outils.
+ */
 export function WorkspaceTabs() {
   const c = useController();
   const workspace = useAppState((s) => s.workspace);
   const assembly = useAppState((s) => allows(s.level, 'workspace:assembly'));
   const simulation = useAppState((s) => allows(s.level, 'workspace:simulation'));
   const busy = useAppState((s) => !['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(s.mode.kind));
+  const tab = (id: Workspace, label: string, icon: string, title: string) => (
+    <button
+      key={id}
+      type="button"
+      role="tab"
+      id={`tab-${id}`}
+      aria-selected={workspace === id}
+      disabled={busy && workspace !== id}
+      title={busy && workspace !== id ? `${label} : ${title} — terminez d’abord l’opération en cours` : `${label} : ${title}`}
+      onClick={() => c.setWorkspace(id)}
+    >
+      <Icon name={icon} />
+      {/* Icône seule dans la barre : le nom reste lu (lecteurs d'écran) et en infobulle. */}
+      <span class="visually-hidden">{label}</span>
+    </button>
+  );
+  const design = workspace === 'parts' || workspace === 'assembly';
   return (
     <nav class="workspace-bar" aria-label="Ateliers">
       <div class="workspace-tabs" role="tablist" aria-label="Espace de travail">
-        {(
-          [
-            ['parts', 'Pièces', 'part', 'Modéliser les pièces'],
-            ['assembly', 'Assemblage', 'pivot', 'Assembler les pièces et les faire bouger'],
-            ['fabrication', 'Fabrication', 'print3d', 'Préparer l’impression 3D et la découpe laser'],
-            ['simulation', 'Simulation', 'simulate', 'Voir comment une pièce se déforme sous une charge'],
-          ] as const
-        )
-          .filter(([id]) => (id !== 'assembly' || assembly) && (id !== 'simulation' || simulation))
-          .map(([id, label, icon, title]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              id={`tab-${id}`}
-              aria-selected={workspace === id}
-              disabled={busy && workspace !== id}
-              title={busy && workspace !== id ? `${label} : ${title} — terminez d’abord l’opération en cours` : `${label} : ${title}`}
-              onClick={() => c.setWorkspace(id)}
-            >
-              <Icon name={icon} />
-              {/* Icône seule dans la barre : le nom reste lu (lecteurs d'écran) et en infobulle. */}
-              <span class="visually-hidden">{label}</span>
-            </button>
-          ))}
+        <div class={`design-tabs${design ? ' is-current' : ''}`} id="tab-design" role="group" aria-label="Conception">
+          {tab('parts', 'Modéliser', 'part', 'Conception — esquisses et étapes de la pièce active')}
+          {assembly ? tab('assembly', 'Assembler', 'pivot', 'Conception — placer les pièces, les relier, les faire bouger') : null}
+        </div>
+        {tab('fabrication', 'Fabrication', 'print3d', 'Préparer l’impression 3D et la découpe laser')}
+        {simulation ? tab('simulation', 'Simulation', 'simulate', 'Voir comment une pièce se déforme sous une charge') : null}
       </div>
     </nav>
   );
@@ -329,46 +331,7 @@ function ExplodeSlider() {
   );
 }
 
-/**
- * Groupes de la liste d'assemblage ouverts ou repliés à la main (gardés d'un affichage à l'autre) ;
- * sans choix, un groupe s'ouvre s'il contient la pièce sélectionnée.
- */
-const openGroups = new Map<string, boolean>();
 let jointsFolded = false;
-
-interface InstanceRowData {
-  id: string;
-  partId: string;
-  name: string;
-  block: string | null;
-  color: string;
-  fixed: boolean;
-  joints: number;
-}
-
-/** Ligne compacte d'une pièce insérée : nom, et un repère (fixe, bloc, liaisons ou libre). */
-function InstanceRow(props: { i: InstanceRowData; selected: boolean; nested?: boolean }) {
-  const c = useController();
-  const { i } = props;
-  const tag = i.fixed ? '📌 fixe' : i.joints > 0 ? `${i.joints} liaison${i.joints > 1 ? 's' : ''}` : 'libre';
-  const title = `${i.name} — ${i.fixed ? 'fixe (référence de l’assemblage)' : i.block ? `bloc : sous-assemblage « ${i.block} »` : 'pièce insérée'}${i.fixed ? '' : i.joints > 0 ? `, ${tag}` : ', aucune liaison (déplaçable librement)'}`;
-  return (
-    <li>
-      <div class={`feature-row asm-row${props.nested ? ' is-nested' : ''}${props.selected ? ' is-selected' : ''}`}>
-        <button type="button" class="feature-main" title={title} aria-pressed={props.selected} onClick={() => c.selectInAssembly({ kind: 'instance', id: i.id })}>
-          <span class="color-swatch" style={{ background: i.color }} />
-          <span class="name">{i.name}</span>
-          {i.block ? <span class="asm-tag">bloc « {i.block} »</span> : null}
-          <span class={`asm-tag${!i.fixed && i.joints === 0 ? ' is-free' : ''}`}>{tag}</span>
-        </button>
-        <span class="row-actions">
-          {!i.block ? <IconButton icon="edit" small label={`Modifier « ${i.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(i.id)} /> : null}
-          <IconButton icon="trash" small label={`Retirer « ${i.name} » de l’assemblage`} onClick={() => c.removeInstance(i.id)} />
-        </span>
-      </div>
-    </li>
-  );
-}
 
 /** Panneau de gauche : pièces insérées (la première est fixe) et liaisons. */
 export function AssemblySection() {
@@ -378,18 +341,7 @@ export function AssemblySection() {
       const a = s.doc.assembly ?? { instances: [], joints: [] };
       const placement = c.assemblyPlacement();
       return {
-        instances: a.instances.map(
-          (i, index): InstanceRowData => ({
-            id: i.id,
-            partId: i.partId,
-            name: i.name,
-            block: i.subassemblyId ? (subassemblyList(s.doc).find((x) => x.id === i.subassemblyId)?.name ?? '?') : null,
-            color: s.doc.parts.find((p) => p.id === i.partId)?.color ?? '#888',
-            fixed: index === 0,
-            joints: a.joints.filter((j) => j.moving.instanceId === i.id || j.base.instanceId === i.id).length,
-          }),
-        ),
-        partNames: Object.fromEntries(s.doc.parts.map((p) => [p.id, p.name])),
+        count: a.instances.length,
         joints: a.joints.map((j) => ({
           id: j.id,
           name: j.name,
@@ -404,56 +356,15 @@ export function AssemblySection() {
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const [, refresh] = useState(0);
-  const selectedId = data.sel?.kind === 'instance' ? data.sel.id : null;
-  // Pièces identiques (même pièce, hors blocs) regroupées sous une ligne repliable, à la place
-  // de la première ; la pièce fixe reste seule en tête.
-  const groups: { key: string; items: InstanceRowData[] }[] = [];
-  for (const i of data.instances) {
-    const key = i.block || i.fixed ? i.id : `part:${i.partId}`;
-    const g = groups.find((x) => x.key === key);
-    if (g) g.items.push(i);
-    else groups.push({ key, items: [i] });
-  }
-  const toggleGroup = (key: string, open: boolean) => {
-    openGroups.set(key, !open);
-    refresh((n) => n + 1);
-  };
   const issues = data.joints.filter((j) => j.issue).length;
+  // Les pièces et ensembles sont dans l'arbre « Pièces » au-dessus : ici, l'outillage du niveau ouvert.
   return (
     <section class="panel-section grow" aria-labelledby="assembly-title">
       <div class="panel-header">
         <span id="assembly-title">Assemblage</span>
-        {data.instances.length > 0 ? <span class="count">{data.instances.length}</span> : null}
       </div>
       <div class="panel-body">
-        <SubassemblyBar />
-        {data.instances.length === 0 ? (
-          <p class="empty-hint">
-            Assemblage vide. La première pièce insérée est fixe.
-          </p>
-        ) : null}
-        <ul class="feature-list asm-list" aria-label="Pièces de l’assemblage">
-          {groups.map((g) => {
-            if (g.items.length === 1) return <InstanceRow key={g.key} i={g.items[0]!} selected={selectedId === g.items[0]!.id} />;
-            const first = g.items[0]!;
-            const open = openGroups.get(g.key) ?? g.items.some((x) => x.id === selectedId);
-            const free = g.items.filter((x) => x.joints === 0).length;
-            return [
-              <li key={g.key}>
-                <div class="feature-row asm-row asm-group">
-                  <button type="button" class="feature-main" aria-expanded={open} onClick={() => toggleGroup(g.key, open)} title={open ? 'Replier' : 'Montrer chaque exemplaire'}>
-                    <Icon name={open ? 'chevron-down' : 'chevron-right'} class="asm-chevron" />
-                    <span class="color-swatch" style={{ background: first.color }} />
-                    <span class="name">{data.partNames[first.partId] ?? first.name}</span>
-                    <span class="asm-count">×{g.items.length}</span>
-                    {free > 0 ? <span class="asm-tag is-free">{free === g.items.length ? 'libres' : `${free} libre${free > 1 ? 's' : ''}`}</span> : null}
-                  </button>
-                </div>
-              </li>,
-              ...(open ? g.items.map((i) => <InstanceRow key={i.id} i={i} nested selected={selectedId === i.id} />) : []),
-            ];
-          })}
-        </ul>
+        {data.count === 0 ? <p class="empty-hint">Assemblage vide. La première pièce insérée est fixe.</p> : null}
         <ExplodeSlider />
         <CollisionReport />
         {data.joints.length > 0 ? (
@@ -472,7 +383,7 @@ export function AssemblySection() {
               <span class="count">{data.joints.length}</span>
               {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
             </button>
-            <IconButton id="joints-set-zero" icon="target" small label="Prendre la pose actuelle comme zéro (position de référence de l’onglet Pièces)" onClick={() => c.setAllJointsZero()} />
+            <IconButton id="joints-set-zero" icon="target" small label="Prendre la pose actuelle comme zéro (position de référence du mode Modéliser)" onClick={() => c.setAllJointsZero()} />
             <IconButton id="joints-reset" icon="joints-zero" small label="Remettre toutes les liaisons à zéro" onClick={() => c.resetJoints()} />
           </div>
         ) : null}

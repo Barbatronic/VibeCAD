@@ -1,11 +1,12 @@
 import { allows } from '../app/levels';
 import { createPortal } from 'preact/compat';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { AssemblyInstance, Feature, Id, Part, PartFolder, SubAssembly } from '../domain/model';
 import type { FeatureStatus } from '../domain/status';
 import { definitionOf, featureSummary } from '../features/registry';
 import { activeCount } from '../app/rollback';
 import { partLocked } from '../app/availability';
+import { closedDocument } from '../domain/subassemblies';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
 import { FabricationSection } from './FabricationUi';
@@ -57,6 +58,8 @@ function useFolded(key: keyof typeof folded): [boolean, () => void] {
 
 /** Dossiers repliés (gardé d'un atelier à l'autre, pas enregistré dans le projet). */
 const closedFolders = new Set<Id>();
+/** Pièces dont les exemplaires sont dépliés (même portée que les dossiers). */
+const openCopies = new Set<Id>();
 const NO_FOLDERS: PartFolder[] = [];
 const NO_ENSEMBLES: SubAssembly[] = [];
 
@@ -172,20 +175,42 @@ function PartsSection() {
     handle.addEventListener('pointercancel', onUp);
   };
   const folders = useAppState((s) => s.doc.folders ?? NO_FOLDERS);
-  // Ensembles : les sous-assemblages (hors de l'onglet Assemblage, aucun n'est ouvert).
-  const ensembles = useAppState((s) => (s.doc.editingSubassembly ? NO_ENSEMBLES : (s.doc.subassemblies ?? NO_ENSEMBLES)));
-  const mainAssembly = useAppState((s) => (s.doc.editingSubassembly ? undefined : s.doc.assembly));
+  // Même arbre dans les onglets Pièces et Assemblage, lu sur le document refermé : l'ensemble
+  // ouvert dans l'onglet Assemblage y garde sa place.
+  const doc = useAppState((s) => s.doc);
+  const closed = useMemo(() => closedDocument(doc), [doc]);
+  const openLevel = doc.editingSubassembly ?? null;
+  const asm = useAppState((s) => s.workspace === 'assembly');
+  const asmSel = useAppState((s) => (s.assemblySelection?.kind === 'instance' ? s.assemblySelection.id : null));
+  const canSubs = useAppState((s) => allows(s.level, 'assembly:subassemblies'));
+  const ensembles = closed.subassemblies ?? NO_ENSEMBLES;
   const canEnsemble = useAppState((s) => allows(s.level, 'workspace:assembly'));
-  /** Nombre d'exemplaires de chaque pièce dans l'assemblage (copies liées, blocs comptés). */
-  const copies = new Map<Id, number>();
-  const countIn = (instances: readonly AssemblyInstance[], times: number, depth = 0) => {
-    if (depth > 8) return;
-    for (const i of instances) {
-      if (!i.subassemblyId) copies.set(i.partId, (copies.get(i.partId) ?? 0) + times);
-      else countIn(ensembles.find((e) => e.id === i.subassemblyId)?.instances ?? [], times, depth + 1);
-    }
+  /** Contenu d'un niveau : l'assemblage principal (`null`) ou un ensemble. */
+  const levelContent = (level: Id | null) => (level ? ensembles.find((e) => e.id === level) : closed.assembly) ?? { instances: [] as AssemblyInstance[], joints: [] };
+  const levelName = (level: Id | null) => (level ? (ensembles.find((e) => e.id === level)?.name ?? '?') : 'l’assemblage principal');
+  type Copy = { inst: AssemblyInstance; level: Id | null };
+  /**
+   * Exemplaires d'une pièce (copies liées) : d'abord là où elle est rangée, puis ceux posés à un
+   * autre niveau (assemblage principal ou autre ensemble), qui disent où ils sont.
+   */
+  const copiesOf = (p: Part): Copy[] => {
+    const home = ensembleOfPart(p);
+    return [home, ...[null, ...ensembles.map((e) => e.id)].filter((l) => l !== home)].flatMap((level) =>
+      levelContent(level).instances.filter((i) => i.partId === p.id && !i.subassemblyId).map((inst) => ({ inst, level })),
+    );
   };
-  countIn(mainAssembly?.instances ?? [], 1);
+  /** Insertions d'un ensemble (ses blocs), dans l'assemblage principal ou dans un autre ensemble. */
+  const insertionsOf = (subId: Id): Copy[] =>
+    [null, ...ensembles.map((e) => e.id)].flatMap((level) => levelContent(level).instances.filter((i) => i.subassemblyId === subId).map((inst) => ({ inst, level })));
+  /** Repère d'un exemplaire dans l'onglet Assemblage : fixe, nombre de liaisons, ou libre. */
+  const tagOf = ({ inst, level }: Copy, showLevel = false): { text: string; free: boolean } => {
+    const a = levelContent(level);
+    const fixed = a.instances[0]?.id === inst.id;
+    const joints = a.joints.filter((j) => j.moving.instanceId === inst.id || j.base.instanceId === inst.id).length;
+    // Insertion d'un ensemble dans un autre : on dit où (une copie de pièce est déjà sous son ensemble).
+    const where = showLevel ? (level ? `dans « ${levelName(level)} » · ` : 'principal · ') : '';
+    return { text: `${where}${fixed ? '📌 fixe' : joints > 0 ? `${joints} liaison${joints > 1 ? 's' : ''}` : 'libre'}`, free: !fixed && joints === 0 };
+  };
   const ensembleOfPart = (p: Part): Id | null => ensembles.find((e) => e.instances.some((i) => i.partId === p.id && !i.subassemblyId))?.id ?? null;
   /** Ligne sous laquelle la pièce est rangée : son ensemble, sinon son dossier, sinon aucune (''). */
   const groupOf = (p: Part): Id | '' => ensembleOfPart(p) ?? (p.folder && folders.some((f) => f.id === p.folder) ? p.folder : '');
@@ -215,9 +240,72 @@ function PartsSection() {
   const dragId = useRef<Id | null>(null);
   const [dropOn, setDropOn] = useState<Id | '' | null>(null);
   const dropTarget = (e: DragEvent): Id | '' => ((e.target as Element).closest?.('li[data-folder]') as HTMLElement | null)?.dataset.folder ?? '';
+  const [, setCopiesShown] = useState(0);
+  const toggleCopies = (id: Id, open?: boolean) => {
+    if (open ?? !openCopies.has(id)) openCopies.add(id);
+    else openCopies.delete(id);
+    setCopiesShown((n) => n + 1);
+  };
+  // Exemplaire choisi dans la vue de l'assemblage : sa pièce, son dossier et son ensemble se déplient.
+  useEffect(() => {
+    if (!asmSel) return;
+    for (const p of parts) {
+      const list = copiesOf(p);
+      if (!list.some((c) => c.inst.id === asmSel)) continue;
+      if (list.length > 1 && !openCopies.has(p.id)) toggleCopies(p.id, true);
+      const group = groupOf(p);
+      if (group && closedFolders.has(group)) toggleFolder(group, true);
+    }
+    requestAnimationFrame(() => listRef.current?.querySelector('.is-selected')?.scrollIntoView({ block: 'nearest' }));
+  }, [asmSel]);
+  /** Ligne d'un exemplaire (copie d'une pièce ou insertion d'un ensemble). */
+  const copyRow = (copy: Copy, label: string, partId: Id | null, deep = false) => {
+    const { inst, level } = copy;
+    const selected = asm && asmSel === inst.id && openLevel === level;
+    // Le niveau est dit pour une insertion d'ensemble, ou une copie posée ailleurs que sous sa ligne.
+    const tag = asm ? tagOf(copy, !partId || level !== (parts.find((x) => x.id === partId) ? ensembleOfPart(parts.find((x) => x.id === partId)!) : null)) : null;
+    const here = level === openLevel;
+    return (
+      <li key={`copy:${inst.id}`} class={`part-row copy-row${deep ? ' deep' : ''}${selected ? ' is-selected' : ''}${inst.hidden ? ' is-hidden' : ''}`}>
+        <button
+          type="button"
+          class={`part-select${inst.hidden ? ' is-hidden' : ''}`}
+          aria-pressed={selected}
+          title={asm ? `${inst.name} — ${tag!.text}` : inst.name}
+          onClick={() => (asm ? c.selectAssemblyInstance(level, inst.id) : partId && c.setActivePart(partId))}
+        >
+          <span class="name">{label}</span>
+          {tag ? <span class={`asm-tag${tag.free ? ' is-free' : ''}`}>{tag.text}</span> : null}
+          {inst.hidden ? <span class="visually-hidden"> (masqué)</span> : null}
+        </button>
+        <span class="row-actions">
+          {asm && here && partId ? (
+            <span class="on-demand">
+              <IconButton icon="edit" small label={`Modifier « ${inst.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(inst.id)} />
+            </span>
+          ) : null}
+          {asm && here ? (
+            <span class="on-demand">
+              <IconButton icon="trash" small label={`Retirer « ${inst.name} » de l’assemblage`} onClick={() => c.removeInstance(inst.id)} />
+            </span>
+          ) : null}
+          <span class={`eye${inst.hidden ? ' is-on' : ''}`}>
+            <IconButton icon={inst.hidden ? 'eye-off' : 'eye'} small label={`${inst.hidden ? 'Afficher' : 'Masquer'} « ${inst.name} »`} onClick={() => c.setInstancesHidden([inst.id], !inst.hidden)} />
+          </span>
+        </span>
+      </li>
+    );
+  };
   const partRow = (p: Part) => {
             const hidden = isolatedId ? p.id !== isolatedId : !p.visible;
-            return (
+            const copies = copiesOf(p);
+            const many = copies.length > 1;
+            const unfolded = many && openCopies.has(p.id);
+            // Onglet Assemblage : une pièce posée une fois se choisit directement sur sa ligne.
+            const single = asm && copies.length === 1 ? copies[0]! : null;
+            const active = asm ? (single ? asmSel === single.inst.id && openLevel === single.level : false) : p.id === activePartId;
+            const tag = single ? tagOf(single) : null;
+            return [
               <li
                 key={p.id}
                 data-folder={groupOf(p)}
@@ -231,7 +319,7 @@ function PartsSection() {
                   dragId.current = null;
                   setDropOn(null);
                 }}
-                class={`part-row${p.id === activePartId ? ' is-active' : ''}${hidden ? ' is-hidden' : ''}${menu?.id === p.id ? ' has-menu' : ''}${groupOf(p) && !fold ? ' in-folder' : ''}`}
+                class={`part-row${active ? (asm ? ' is-selected' : ' is-active') : ''}${hidden ? ' is-hidden' : ''}${menu?.id === p.id ? ' has-menu' : ''}${groupOf(p) && !fold ? ' in-folder' : ''}`}
                 onPointerEnter={() => c.setHoverPart(p.id)}
                 onPointerLeave={() => c.setHoverPart(null)}
                 onContextMenu={(e) => {
@@ -239,6 +327,11 @@ function PartsSection() {
                   setMenu({ id: p.id, x: e.clientX, y: e.clientY });
                 }}
               >
+                {many ? (
+                  <button type="button" class="copies-toggle" aria-expanded={unfolded} title={unfolded ? 'Replier les exemplaires' : 'Montrer chaque exemplaire'} onClick={() => toggleCopies(p.id)}>
+                    <Icon name={unfolded ? 'chevron-down' : 'chevron-right'} />
+                  </button>
+                ) : null}
                 <label class="color-swatch" style={{ background: p.color }} title={`Couleur de « ${p.name} »`}>
                   <input
                     type="color"
@@ -260,32 +353,52 @@ function PartsSection() {
                   <button
                     type="button"
                     class={`part-select${hidden ? ' is-hidden' : ''}`}
-                    aria-pressed={p.id === activePartId}
-                    title={p.id === activePartId ? 'Pièce active : les nouvelles étapes lui sont ajoutées' : 'Rendre cette pièce active'}
-                    onClick={() => c.setActivePart(p.id)}
+                    aria-pressed={active}
+                    title={
+                      asm
+                        ? single
+                          ? `${p.name} — ${tag!.text}`
+                          : many
+                            ? `${p.name} : ${copies.length} exemplaires`
+                            : p.name
+                        : p.id === activePartId
+                          ? 'Pièce active : les nouvelles étapes lui sont ajoutées'
+                          : 'Rendre cette pièce active'
+                    }
+                    onClick={() => {
+                      if (!asm) return c.setActivePart(p.id);
+                      if (single) return c.selectAssemblyInstance(single.level, single.inst.id);
+                      if (many) toggleCopies(p.id);
+                    }}
                     onDblClick={() => setRenaming(p.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'F2') {
                         e.preventDefault();
                         setRenaming(p.id);
-                      } else if (e.key === 'Delete') {
+                      } else if (e.key === 'Delete' && !asm) {
                         e.preventDefault();
                         c.deletePart(p.id);
                       }
                     }}
                   >
                     <span class="name">{p.name}</span>
-                    {(copies.get(p.id) ?? 0) > 1 ? (
-                      <span class="copies" title={`${copies.get(p.id)} exemplaires dans l’assemblage`}>
-                        ×{copies.get(p.id)}
+                    {many ? (
+                      <span class="copies" title={`${copies.length} exemplaires`}>
+                        ×{copies.length}
                       </span>
                     ) : null}
+                    {tag ? <span class={`asm-tag${tag.free ? ' is-free' : ''}`}>{tag.text}</span> : null}
                     {p.visible ? null : <span class="visually-hidden"> (masquée)</span>}
-                    {p.id === activePartId ? <span class="visually-hidden"> (pièce active)</span> : null}
+                    {p.id === activePartId && !asm ? <span class="visually-hidden"> (pièce active)</span> : null}
                   </button>
                 )}
                 <span class="row-actions">
-                  {parts.length > 1 ? (
+                  {asm && single && single.level === openLevel ? (
+                    <span class="on-demand">
+                      <IconButton icon="edit" small label={`Modifier « ${p.name} » dans l’assemblage (pièces voisines autour)`} onClick={() => c.editInAssembly(single.inst.id)} />
+                    </span>
+                  ) : null}
+                  {parts.length > 1 && !asm ? (
                     <span class={`on-demand${p.id === isolatedId ? ' is-on' : ''}`}>
                       <IconButton
                         icon="isolate"
@@ -308,11 +421,17 @@ function PartsSection() {
                     />
                   </span>
                   <span class={`eye${p.visible ? '' : ' is-on'}`}>
-                    <IconButton icon={p.visible ? 'eye' : 'eye-off'} label={p.visible ? `Masquer « ${p.name} »` : `Afficher « ${p.name} »`} small onClick={() => c.togglePartVisible(p.id)} />
+                    <IconButton
+                      icon={p.visible ? 'eye' : 'eye-off'}
+                      label={`${p.visible ? 'Masquer' : 'Afficher'} « ${p.name} »${many ? ` (ses ${copies.length} exemplaires)` : ''}`}
+                      small
+                      onClick={() => c.togglePartVisible(p.id)}
+                    />
                   </span>
                 </span>
-              </li>
-            );
+              </li>,
+              ...(unfolded ? copies.map((cp) => copyRow(cp, cp.inst.name, p.id, !!groupOf(p) && !fold)) : []),
+            ];
   };
   const groupRow = (g: { kind: 'ensemble' | 'folder'; id: Id; name: string }, inside: Part[]) => {
     const closed = closedFolders.has(g.id);
@@ -321,7 +440,7 @@ function PartsSection() {
       <li
         key={g.id}
         data-folder={g.id}
-        class={`folder-row${g.kind === 'ensemble' ? ' is-ensemble' : ''}${dropOn === g.id ? ' is-drop' : ''}${menu?.id === g.id ? ' has-menu' : ''}`}
+        class={`folder-row${g.kind === 'ensemble' ? ' is-ensemble' : ''}${asm && openLevel === g.id ? ' is-open' : ''}${dropOn === g.id ? ' is-drop' : ''}${menu?.id === g.id ? ' has-menu' : ''}`}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ id: g.id, x: e.clientX, y: e.clientY });
@@ -357,6 +476,11 @@ function PartsSection() {
             <Icon name={g.kind === 'ensemble' ? 'group' : 'folder'} class="folder-icon" />
             <span class="name">{g.name}</span>
             <span class="folder-count">{inside.length}</span>
+            {asm && g.kind === 'ensemble' && levelContent(g.id).joints.length > 0 ? (
+              <span class="asm-tag" title="Liaisons entre les pièces de l’ensemble (ouvrez-le pour les voir)">
+                {levelContent(g.id).joints.length} liaison{levelContent(g.id).joints.length > 1 ? 's' : ''}
+              </span>
+            ) : null}
           </button>
         )}
         <span class="row-actions">
@@ -383,14 +507,15 @@ function PartsSection() {
           ) : null}
         </span>
       </li>,
-      ...(closed ? [] : inside.map(partRow)),
+      // Onglet Assemblage : les insertions de l'ensemble (ses blocs), puis ses pièces.
+      ...(closed ? [] : [...(asm && g.kind === 'ensemble' ? insertionsOf(g.id).map((cp) => copyRow(cp, cp.inst.name, null)) : []), ...inside.map(partRow)]),
     ];
   };
   const menuPart = menu ? parts.find((p) => p.id === menu.id) : undefined;
   const menuEnsemble = menu ? ensembles.find((e) => e.id === menu.id) : undefined;
   const menuFolder = menu ? folders.find((f) => f.id === menu.id) : undefined;
   return (
-    <section class={`panel-section parts-section${height !== null && !fold ? ' has-height' : ''}`} aria-labelledby="parts-title" ref={sectionRef} style={height !== null && !fold ? { maxHeight: `${height}px` } : undefined}>
+    <section class={`panel-section parts-section${asm ? ' in-assembly' : ''}${height !== null && !fold ? ' has-height' : ''}`} aria-labelledby="parts-title" ref={sectionRef} style={height !== null && !fold ? { maxHeight: `${height}px` } : undefined}>
       <div class="panel-header">
         <button
           type="button"
@@ -414,6 +539,20 @@ function PartsSection() {
             setRenaming(c.addFolder());
           }}
         />
+        {asm && canSubs ? (
+          <IconButton
+            id="as-new-sub"
+            icon="group"
+            label="Nouvel ensemble vide (un bloc à construire, à insérer ensuite une ou plusieurs fois)"
+            small
+            disabled={busy}
+            onClick={() => {
+              if (fold) toggleFold();
+              const id = c.createSubassembly();
+              if (id) setRenaming(id);
+            }}
+          />
+        ) : null}
         <IconButton
           id="part-component"
           icon="import"
@@ -432,6 +571,17 @@ function PartsSection() {
         />
       </div>
       <div class="panel-body">
+        {asm && openLevel ? (
+          <div class="level-bar" role="navigation" aria-label="Niveau de l’assemblage">
+            <button type="button" id="as-back" class="level-back" onClick={() => c.editSubassembly(null)} title="Revenir à l’assemblage principal">
+              <Icon name="chevron-left" />
+              Principal
+            </button>
+            <span class="level-sep">›</span>
+            <Icon name="group" class="folder-icon" />
+            <strong class="level-name">{levelName(openLevel)}</strong>
+          </div>
+        ) : null}
         <ul
           class={`part-list${dropOn === '' ? ' is-drop' : ''}`}
           ref={listRef}
@@ -553,6 +703,10 @@ function PartsSection() {
   );
 }
 
+/** Au-delà, la durée de calcul d'une étape s'affiche dans l'historique. */
+const SLOW_STEP_MS = 500;
+const formatStepMs = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1).replace('.', ',')} s` : `${Math.round(ms)} ms`);
+
 function StatusBadge({ status }: { status: FeatureStatus | undefined }) {
   if (!status || status.state === 'ok') return null;
   const map = {
@@ -644,6 +798,7 @@ function HistorySection() {
   const c = useController();
   const part = useAppState((s) => s.doc.parts.find((p) => p.id === s.activePartId) ?? s.doc.parts[0]);
   const statuses = useAppState((s) => (part ? s.display[part.id]?.result.statuses : undefined));
+  const stepMs = useAppState((s) => (part ? s.display[part.id]?.stepMs : undefined));
   const sketchDof = useAppState(
     (s) => Object.fromEntries((part ? (s.display[part.id]?.result.sketches ?? []) : []).map((k) => [k.featureId, k.dof])) as Record<Id, number>,
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -828,6 +983,11 @@ function HistorySection() {
                         <span class="status-line">
                           {after ? <span class="status-badge status-rolled-back">Non calculée</span> : <StatusBadge status={status} />}
                           <span class="summary">{featureSummary(f)}</span>
+                          {!after && (stepMs?.[f.id] ?? 0) >= SLOW_STEP_MS ? (
+                            <span class={`step-time${stepMs![f.id]! >= 1000 ? ' is-slow' : ''}`} title="Durée de calcul de cette étape (dernière mesure)">
+                              {formatStepMs(stepMs![f.id]!)}
+                            </span>
+                          ) : null}
                         </span>
                       </span>
                     </button>
@@ -871,7 +1031,10 @@ export function LeftPanel() {
   return (
     <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : 'Pièces et historique'}>
       {workspace === 'assembly' ? (
-        <AssemblySection />
+        <>
+          <PartsSection />
+          <AssemblySection />
+        </>
       ) : workspace === 'fabrication' ? (
         <FabricationSection />
       ) : workspace === 'simulation' ? (

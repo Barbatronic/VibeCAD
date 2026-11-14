@@ -232,6 +232,8 @@ export interface AssemblyInstance {
    * puis de Z (axes fixes), autour de l'origine de la pièce. Facultative (absente : aucune).
    */
   rotation?: { x: number; y: number; z: number };
+  /** Masquée dans la vue de l'assemblage (elle reste en place et garde ses liaisons). */
+  hidden?: boolean;
 }
 
 export interface JointEnd {
@@ -1081,10 +1083,13 @@ export interface GearParams {
 
 export type GearFeature = FeatureBase<'gear', GearParams>;
 
-/** Profilé aluminium série 20 (rainure de 6 mm) : V-slot (entrée en V) ou T-slot (entrée droite). */
-export type BeamSystem = 'vslot' | 'tslot';
-/** Section en mm : largeur × hauteur, par modules de 20 mm. */
-export type BeamSize = '2020' | '2040' | '2060' | '2080' | '4040' | '4080';
+/**
+ * Profilé aluminium : série 20 (rainure de 6 mm), V-slot (entrée en V) ou T-slot (entrée droite),
+ * ou MakerBeam 10 × 10 (rainure de 3 mm).
+ */
+export type BeamSystem = 'vslot' | 'tslot' | 'makerbeam';
+/** Section en mm : largeur × hauteur, par modules de 20 mm (10 mm pour le MakerBeam). */
+export type BeamSize = '2020' | '2040' | '2060' | '2080' | '4040' | '4080' | '1010';
 
 /**
  * Profilé : section normalisée (une rainure par module de 20 mm sur chaque face, un alésage Ø 4,2

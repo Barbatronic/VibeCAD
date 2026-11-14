@@ -488,6 +488,9 @@ puisque le fichier est figé dans le projet).
 autour de X, puis de Y, puis de Z (axes fixes), autour de l'origine de la pièce, appliquée avant
 `position`. Absente : aucune rotation.
 
+`hidden` (facultatif, `true`) : exemplaire masqué dans la vue (œil de sa ligne dans l'arbre des
+pièces). Il reste en place, garde ses liaisons et compte dans les exports. Absent : visible.
+
 La première pièce insérée est fixe. `position` sert tant qu'une pièce n'est tenue par aucune
 liaison. Repères (`lcs`) : `face` (centre d'une face plane, axe = normale), `circle` (centre d'un
 bord circulaire, axe du cercle), `edge` (milieu d'une arête droite, axe = direction de l'arête), `vertex` (sommet d'une face plane :

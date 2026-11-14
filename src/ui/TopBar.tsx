@@ -132,10 +132,11 @@ function ProjectName() {
   const name = useAppState((s) => s.doc.name);
   const [text, setText] = useState(name);
   useEffect(() => setText(name), [name]);
-  const commit = () => {
-    const t = text.trim();
-    if (t && t !== name) c.renameProject(t);
-    else if (!t) setText(name);
+  // La valeur est lue dans le champ : Entrée peut arriver avant que l'état suive la frappe.
+  const commit = (input: HTMLInputElement) => {
+    const t = input.value.trim();
+    if (t && t !== c.state.doc.name) c.renameProject(t);
+    else if (!t) setText(c.state.doc.name);
   };
   return (
     <input
@@ -144,16 +145,18 @@ function ProjectName() {
       title="Nom du projet (cliquez pour le modifier)"
       value={text}
       onInput={(e) => setText((e.target as HTMLInputElement).value)}
-      onBlur={commit}
+      onBlur={(e) => commit(e.currentTarget)}
       onKeyDown={(e) => {
+        const input = e.currentTarget;
         // Entrée enregistre tout de suite : le menu peut se fermer avant que le champ perde le focus.
         if (e.key === 'Enter') {
-          commit();
-          (e.target as HTMLInputElement).blur();
+          commit(input);
+          input.blur();
         }
         if (e.key === 'Escape') {
-          setText(name);
-          (e.target as HTMLInputElement).blur();
+          input.value = c.state.doc.name;
+          setText(c.state.doc.name);
+          input.blur();
         }
       }}
     />
@@ -280,6 +283,8 @@ function ModelTools() {
           name={s.name}
           title={s.title}
           fold={s.fold}
+          // Le bouton Esquisse, point de départ de toute pièce, reste toujours visible.
+          noFold={s.name === 'Esquisse'}
           tools={[...(s.name === 'Esquisse' ? [sketch] : []), ...s.types.map((t) => tool(t, s.main.includes(t))), ...(s.name === 'Tôle' && s.types.length ? [unfold] : [])]}
         />
       ))}
@@ -467,7 +472,7 @@ function useToolbarFit(bar: { current: HTMLElement | null }, nav: { current: HTM
       const steps: (() => void)[] = [
         () => (el.dataset.compact = '1'),
         ...sectors.filter((g) => g.querySelector('.sector-extra')).map((g) => () => g.classList.add('is-grouped')),
-        ...sectors.filter((g) => g.querySelector('.sector-split')).map((g) => () => g.classList.add('is-folded')),
+        ...sectors.filter((g) => g.querySelector('.sector-split') && g.dataset.nofold === undefined).map((g) => () => g.classList.add('is-folded')),
         () => (el.dataset.compact = '2'),
         () => (el.dataset.compact = '3'),
         () => (el.dataset.compact = '4'),
