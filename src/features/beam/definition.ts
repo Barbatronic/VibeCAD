@@ -2,11 +2,11 @@ import { makeBeamFeature } from '../../domain/document';
 import type { BeamFeature } from '../../domain/model';
 import { formatLength } from '../../domain/units';
 import type { FeatureDefinition, ParamIssue } from '../definition';
-import { BEAM_SIZES, BEAM_SYSTEMS, beamLabel } from './profiles';
+import { BEAM_SYSTEMS, beamLabel, beamRange } from './profiles';
 
 export function beamIssues(p: BeamFeature['params']): ParamIssue[] {
   const issues: ParamIssue[] = [];
-  if (!BEAM_SIZES.includes(p.size)) issues.push({ field: 'size', message: 'Section inconnue.' });
+  if (!beamRange(p.system).sizes.includes(p.size)) issues.push({ field: 'size', message: `Section ${beamLabel(p.size)} inconnue en ${BEAM_SYSTEMS[p.system]}.` });
   if (!(p.length > 0) || p.length > 10000) issues.push({ field: 'length', message: 'La longueur doit être comprise entre 0 et 10 000 mm.' });
   return issues;
 }
@@ -15,7 +15,7 @@ export const beamDefinition: FeatureDefinition<BeamFeature> = {
   type: 'beam',
   label: 'Profilé',
   namePrefix: 'Profilé',
-  explanation: 'Profilé aluminium à rainures (V-slot ou T-slot, série 20) : 20 × 20, 20 × 40, 40 × 40…',
+  explanation: 'Profilé aluminium à rainures : V-slot ou T-slot série 20 (20 × 20, 20 × 40, 40 × 40…), MakerBeam 10 × 10.',
   icon: 'beam',
   affectsSolid: true,
   dependencies: () => [],

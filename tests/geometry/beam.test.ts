@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createDocument, findPart, addFeature, makeBeamFeature } from '../../src/domain/document';
-import type { BeamSize } from '../../src/domain/model';
+import type { BeamSize, BeamSystem } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import { beamModules, beamProfile, BEAM_BORE } from '../../src/features/beam/profiles';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -12,7 +12,7 @@ beforeAll(async () => {
   kernel = await getKernel();
 });
 
-function beam(size: BeamSize, system: 'vslot' | 'tslot', length: number, axis: 'X' | 'Y' | 'Z' = 'Z') {
+function beam(size: BeamSize, system: BeamSystem, length: number, axis: 'X' | 'Y' | 'Z' = 'Z') {
   const doc = createDocument('Profilé');
   const part = findPart(doc, doc.parts[0]!.id)!;
   const f = makeBeamFeature(doc, part);
@@ -34,6 +34,20 @@ describe('profilé aluminium série 20', () => {
       expect(area).toBeLessThan(full - cols * rows * Math.PI * (BEAM_BORE / 2) ** 2);
       expect(area).toBeGreaterThan(full * 0.35);
     }
+  });
+
+  it('MakerBeam 10 × 10 : un solide valide, rainures et alésage Ø 2,5', () => {
+    const ev = beam('1010', 'makerbeam', 100);
+    expect(ev.failedFeatureId).toBeNull();
+    expect(ev.analysis!.solidCount).toBe(1);
+    const b = ev.analysis!.bbox!;
+    expect(b.max.x - b.min.x).toBeCloseTo(10, 3);
+    expect(b.max.y - b.min.y).toBeCloseTo(10, 3);
+    const area = beamProfile('makerbeam', '1010').area;
+    expect(ev.analysis!.volume).toBeCloseTo(area * 100, 0);
+    // Rainures, voiles et alésage : nettement moins que la section pleine de 100 mm².
+    expect(area).toBeGreaterThan(40);
+    expect(area).toBeLessThan(65);
   });
 
   it('encombrement : 20 × 40 × longueur, le long de l’axe choisi', () => {

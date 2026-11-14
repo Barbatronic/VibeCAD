@@ -1,25 +1,45 @@
 /**
- * Section des profilés aluminium série 20 (rainure de 6 mm, la plus courante en fabrication
- * amateur). Cotes approchées des fiches V-slot et T-slot du commerce : de quoi concevoir autour
- * (encombrement, rainures, alésages), pas un plan d'usinage du profilé.
+ * Section des profilés aluminium : série 20 (rainure de 6 mm, la plus courante en fabrication
+ * amateur), V-slot et T-slot, et MakerBeam 10 × 10 (rainure de 3 mm). Cotes approchées des fiches
+ * du commerce : de quoi concevoir autour (encombrement, rainures, alésages), pas un plan d'usinage
+ * du profilé.
  */
 import type { BeamSize, BeamSystem } from '../../domain/model';
 import type { Vec2 } from '../../math/vec';
 import type { ProfileLoop, ProfileRegion, ProfileSegment } from '../../sketch/profiles';
 
-/** Côté d'un module (mm). */
+/** Côté d'un module de la série 20 (mm). */
 export const BEAM_MODULE = 20;
-/** Rayon des arêtes extérieures (mm). */
-const CORNER = 1.5;
-/** Alésage au centre de chaque module : Ø 4,2, à tarauder en M5. */
+/** Alésage au centre de chaque module de la série 20 : Ø 4,2, à tarauder en M5. */
 export const BEAM_BORE = 4.2;
 
-export const BEAM_SIZES: BeamSize[] = ['2020', '2040', '2060', '2080', '4040', '4080'];
-export const BEAM_SYSTEMS: Record<BeamSystem, string> = { vslot: 'V-slot', tslot: 'T-slot' };
+export const BEAM_SYSTEMS: Record<BeamSystem, string> = { vslot: 'V-slot', tslot: 'T-slot', makerbeam: 'MakerBeam' };
+
+/** Gamme d'un système : module, sections, rayon des arêtes, alésage, texte d'aide. */
+interface BeamRange {
+  module: number;
+  sizes: BeamSize[];
+  corner: number;
+  bore: number;
+  help: string;
+}
+
+const SERIES_20: Omit<BeamRange, 'help'> = { module: BEAM_MODULE, sizes: ['2020', '2040', '2060', '2080', '4040', '4080'], corner: 1.5, bore: BEAM_BORE };
+const RANGES: Record<BeamSystem, BeamRange> = {
+  vslot: { ...SERIES_20, help: 'Série 20 · rainure 6 mm · alésages Ø 4,2 (M5)' },
+  tslot: { ...SERIES_20, help: 'Série 20 · rainure 6 mm · alésages Ø 4,2 (M5)' },
+  makerbeam: { module: 10, sizes: ['1010'], corner: 0.5, bore: 2.5, help: 'MakerBeam · rainure 3 mm · alésage Ø 2,5 (M3)' },
+};
+
+export const beamRange = (system: BeamSystem): BeamRange => RANGES[system];
+
+/** Toutes les sections connues. */
+export const BEAM_SIZES: BeamSize[] = [...new Set(Object.values(RANGES).flatMap((r) => r.sizes))];
 
 /** Modules en largeur et en hauteur d'une section (« 2040 » : 1 × 2). */
-export function beamModules(size: BeamSize): { cols: number; rows: number } {
-  return { cols: Number(size.slice(0, 2)) / BEAM_MODULE, rows: Number(size.slice(2)) / BEAM_MODULE };
+export function beamModules(size: BeamSize, system: BeamSystem = 'vslot'): { cols: number; rows: number } {
+  const m = RANGES[system].module;
+  return { cols: Number(size.slice(0, 2)) / m, rows: Number(size.slice(2)) / m };
 }
 
 export const beamLabel = (size: BeamSize) => `${size.slice(0, 2)} × ${size.slice(2)}`;
@@ -29,6 +49,17 @@ export const beamLabel = (size: BeamSize) => `${size.slice(0, 2)} × ${size.slic
  * Entrée (en V à 45° ou droite), lèvre, puis chambre en T qui se resserre vers le cœur.
  */
 function slotPath(system: BeamSystem): Vec2[] {
+  if (system === 'makerbeam') {
+    // MakerBeam : entrée de 3 mm, lèvre de 1 mm, chambre sous la lèvre bordée par les voiles
+    // diagonaux (1 mm) qui relient les coins au cœur (carré de 3,9 mm autour de l'alésage).
+    const left: Vec2[] = [
+      { x: -1.5, y: 0 },
+      { x: -1.5, y: 1 },
+      { x: -3.29, y: 1 },
+      { x: -1.24, y: 3.05 },
+    ];
+    return [...left, ...[...left].reverse().map((p) => ({ x: -p.x, y: p.y }))];
+  }
   const chamber: Vec2[] = [
     { x: -3.1, y: 2 },
     { x: -5.6, y: 2 },
@@ -60,9 +91,10 @@ function signedArea(segments: ProfileSegment[]): number {
 
 /** Section d'un profilé, centrée sur l'origine (x : largeur, y : hauteur). */
 export function beamProfile(system: BeamSystem, size: BeamSize): ProfileRegion {
-  const { cols, rows } = beamModules(size);
-  const w = cols * BEAM_MODULE;
-  const h = rows * BEAM_MODULE;
+  const { module, corner: CORNER, bore } = RANGES[system];
+  const { cols, rows } = beamModules(size, system);
+  const w = cols * module;
+  const h = rows * module;
   // Faces parcourues dans le sens trigonométrique : bas, droite, haut, gauche.
   const corners: Vec2[] = [
     { x: -w / 2, y: -h / 2 },
@@ -85,8 +117,8 @@ export function beamProfile(system: BeamSystem, size: BeamSize): ProfileRegion {
     const n = { x: -t.y, y: t.x };
     const at = (s: number, d = 0): Vec2 => ({ x: a.x + t.x * s + n.x * d, y: a.y + t.y * s + n.y * d });
     const pts: Vec2[] = [at(CORNER)];
-    for (let k = 0; k < length / BEAM_MODULE - 0.5; k++) {
-      const centre = BEAM_MODULE / 2 + k * BEAM_MODULE;
+    for (let k = 0; k < length / module - 0.5; k++) {
+      const centre = module / 2 + k * module;
       for (const p of slot) pts.push(at(centre + p.x, p.y));
     }
     pts.push(at(length - CORNER));
@@ -104,8 +136,8 @@ export function beamProfile(system: BeamSystem, size: BeamSize): ProfileRegion {
   const holes: ProfileLoop[] = [];
   for (let cx = 0; cx < cols; cx++)
     for (let cy = 0; cy < rows; cy++) {
-      const center = sub({ x: (cx + 0.5) * BEAM_MODULE, y: (cy + 0.5) * BEAM_MODULE }, { x: w / 2, y: h / 2 });
-      const hole: ProfileSegment[] = [{ kind: 'circle', entityId: `bore${cx}-${cy}`, center, radius: BEAM_BORE / 2, clockwise: true }];
+      const center = sub({ x: (cx + 0.5) * module, y: (cy + 0.5) * module }, { x: w / 2, y: h / 2 });
+      const hole: ProfileSegment[] = [{ kind: 'circle', entityId: `bore${cx}-${cy}`, center, radius: bore / 2, clockwise: true }];
       holes.push({ segments: hole, signedArea: signedArea(hole) });
     }
   return { outer, holes, area: outer.signedArea + holes.reduce((s, l) => s + l.signedArea, 0) };

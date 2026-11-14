@@ -5,7 +5,13 @@ import { LengthField, Segmented } from '../../ui/components/controls';
 import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 import { beamIssues } from './definition';
-import { BEAM_SIZES, BEAM_SYSTEMS, beamLabel } from './profiles';
+import { BEAM_SYSTEMS, beamLabel, beamRange } from './profiles';
+
+const SYSTEM_TITLES: Record<BeamSystem, string> = {
+  vslot: 'Série 20, entrée de rainure en V (roues à gorge)',
+  tslot: 'Série 20, entrée de rainure droite',
+  makerbeam: 'MakerBeam 10 × 10, rainure de 3 mm',
+};
 
 export function BeamPanel(props: FeaturePanelProps<BeamFeature>) {
   const { draft, update, setField } = props;
@@ -32,19 +38,20 @@ export function BeamPanel(props: FeaturePanelProps<BeamFeature>) {
       <Segmented<BeamSystem>
         label="Système"
         value={p.system}
-        options={(Object.keys(BEAM_SYSTEMS) as BeamSystem[]).map((s) => ({ value: s, label: BEAM_SYSTEMS[s], title: s === 'vslot' ? 'Entrée de rainure en V (roues à gorge)' : 'Entrée de rainure droite' }))}
-        onChange={(system) => update((x) => withParams(x, { system }))}
+        options={(Object.keys(BEAM_SYSTEMS) as BeamSystem[]).map((s) => ({ value: s, label: BEAM_SYSTEMS[s], title: SYSTEM_TITLES[s] }))}
+        // Section gardée si le nouveau système la propose, sinon la première de sa gamme.
+        onChange={(system) => update((x) => withParams(x, { system, size: beamRange(system).sizes.includes(x.params.size) ? x.params.size : beamRange(system).sizes[0]! }))}
       />
       <label class="field">
         <span class="field-label">Section (mm)</span>
         <select id="draft-beam-size" class="select" value={p.size} onChange={(e) => update((x) => withParams(x, { size: (e.target as HTMLSelectElement).value as BeamSize }))}>
-          {BEAM_SIZES.map((s) => (
+          {beamRange(p.system).sizes.map((s) => (
             <option key={s} value={s}>
               {beamLabel(s)}
             </option>
           ))}
         </select>
-        <span class="field-help">Série 20 · rainure 6 mm · alésages Ø 4,2 (M5)</span>
+        <span class="field-help">{beamRange(p.system).help}</span>
       </label>
       <LengthField
         id="draft-length"
