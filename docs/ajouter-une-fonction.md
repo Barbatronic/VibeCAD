@@ -10,7 +10,7 @@ Une fonction = un dossier `src/features/<type>/` contenant trois fichiers :
 
 | Fichier | Couche | Contenu |
 | --- | --- | --- |
-| `definition.ts` | domaine (pur) | libellés, explication pédagogique, validation, dépendances, résumé ; `tool` (création depuis la barre d'outils) |
+| `definition.ts` | domaine (pur) | libellés, explication, validation, dépendances, résumé ; `tool` (création depuis la barre d'outils) |
 | `evaluate.ts` | calcul (worker) | construction géométrique via l'interface `GeometryKernel` uniquement |
 | `panel.tsx` | interface | panneau des paramètres (Preact) |
 

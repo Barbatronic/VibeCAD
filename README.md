@@ -1,9 +1,8 @@
-# VibeCAD — CAO 3D paramétrique pour apprendre
+# VibeCAD — CAO 3D paramétrique dans le navigateur
 
 VibeCAD est un petit logiciel de **CAO 3D paramétrique** qui fonctionne entièrement dans le
-navigateur. Il est conçu pour apprendre les bases réelles de la conception mécanique — choisir un
-plan, dessiner une esquisse cotée, créer un volume, retirer de la matière, modifier une étape
-antérieure — avec une interface sérieuse mais rassurante, en français.
+navigateur : esquisses cotées et contraintes, étapes de construction modifiables, assemblage avec
+liaisons, préparation de la fabrication et simulation, avec une interface en français.
 
 Le résultat se reprend dans **FreeCAD** : export **STEP** (solides exacts, en millimètres, avec
 le nom et la couleur de chaque pièce), document **.FCStd**, ou **script FreeCAD** qui reconstruit
@@ -232,9 +231,9 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   assemblage à sa place avec sa visserie).
 - **Bulles d'explication** au survol de chaque outil (désactivables dans l'Aide).
 - **Niveaux** Débutant, Intermédiaire, Expert : chaque niveau montre plus d'outils (choix en bas à
-  droite ou par l'adresse `?niveau=expert`) ; voir [docs/guide-pedagogique.md](docs/guide-pedagogique.md).
+  droite ou par l'adresse `?niveau=expert`) ; voir [docs/niveaux-et-parcours.md](docs/niveaux-et-parcours.md).
 - **Préférences** (menu Fichier, ouvert par le logo) : niveau, bulles d'explication,
-  environnement des jeunes (le chat), thème automatique / clair / sombre, aimantation à la grille
+  assistant (le chat Java), thème automatique / clair / sombre, aimantation à la grille
   des esquisses ; retenues sur
   l'appareil, jamais dans le projet, avec un retour aux réglages par défaut.
 - **Parcours guidés**, au choix : « la plaque percée » (première pièce), « assembler et faire
@@ -242,8 +241,8 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   (impression 3D, découpe laser, documents). Chaque étape se valide toute seule en observant le
   modèle ; aide intégrée (navigation, vocabulaire, raccourcis).
 - **Java, le chat de VibeCAD** (mascotte noir et blanc, **désactivée par défaut** ; à activer dans
-  Préférences › Environnement des jeunes) : il présente les étapes du parcours, félicite quand une
-  étape est réussie et, quand une étape a un souci, l'explique en une phrase avec un bouton pour
+  Préférences › Assistant) : il présente les étapes du parcours, signale quand une étape est
+  validée et, quand une étape a un souci, l'explique en une phrase avec un bouton pour
   le corriger. Discret (réductible, masquable), sans réseau, il ne modifie jamais la pièce tout
   seul. Ce n'est pas le logo de l'application : le logo (onglet du navigateur, application
   installée, en-tête) est un cube provisoire, dans `public/icons` (`npm run icons` refait les PNG).
@@ -313,7 +312,7 @@ src/
   styles/                jetons visuels (thèmes clair et sombre) et styles
 public/                  manifeste PWA et icônes
 tests/                   unit/ (domaine, solveur…), geometry/ (noyau réel), e2e/ (navigateur), perf/
-docs/                    architecture, format, décisions, performances, navigateurs, pédagogie
+docs/                    architecture, format, décisions, performances, navigateurs, niveaux et parcours
 scripts/                 plugins de build, vérification d'architecture, script FreeCAD
 ```
 
@@ -325,7 +324,7 @@ Pour aller plus loin :
 - [Ajouter un outil, une fonction ou un format](docs/ajouter-une-fonction.md).
 - [Décisions techniques](docs/decisions/) — choix du noyau, de la pile, du format, du solveur…
 - [Performances et mémoire](docs/performance.md) — mesures sur la machine de référence.
-- [Guide pédagogique](docs/guide-pedagogique.md) — parcours guidé et test avec un enfant.
+- [Niveaux et parcours](docs/niveaux-et-parcours.md) — niveaux de l'interface, bulles, assistant, parcours guidés.
 
 ## Héberger en ligne
 

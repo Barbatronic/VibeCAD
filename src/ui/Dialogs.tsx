@@ -352,7 +352,7 @@ function ProblemDialog() {
       </Callout>
       {d.details.length ? (
         <details>
-          <summary>Détails pour l’enseignant</summary>
+          <summary>Détails techniques</summary>
           <ul>
             {d.details.map((x) => (
               <li key={x}>
@@ -533,10 +533,10 @@ function PreferencesDialog() {
         </label>
       </fieldset>
       <fieldset class="prefs-group">
-        <legend>Environnement des jeunes</legend>
+        <legend>Assistant</legend>
         <label class="checkbox-row">
           <input type="checkbox" checked={prefs.cat} onChange={() => c.setMascot({ hidden: prefs.cat, dismissed: null })} />
-          <span>Afficher Java, le chat qui guide, donne des conseils et prévient des problèmes</span>
+          <span>Afficher Java, l’assistant qui présente les parcours et signale les problèmes</span>
         </label>
         
       </fieldset>

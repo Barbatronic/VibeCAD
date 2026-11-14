@@ -37,7 +37,7 @@ async function boot(): Promise<void> {
     root,
   );
   await controller.start();
-  // Accès de diagnostic pour les tests de bout en bout et l'enseignant (console du navigateur).
+  // Accès de diagnostic pour les tests de bout en bout et le support (console du navigateur).
   (window as unknown as { vibecad?: unknown }).vibecad = { controller, store };
 }
 

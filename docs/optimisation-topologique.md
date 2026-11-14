@@ -7,9 +7,8 @@ Statut : **proposition**, à valider avant tout développement (demande du 12 oc
 On part d'une pièce qui « marche » (elle tient la charge dans l'onglet Simulation) et on demande
 au logiciel : **où la matière est-elle vraiment utile ?** Il enlève progressivement la matière qui
 ne porte presque rien, jusqu'à la masse visée, en respectant ce que la machine sait fabriquer.
-Le résultat ressemble souvent à un os ou à une branche d'arbre : c'est spectaculaire et très
-parlant pour des élèves, à condition de le présenter comme une **suggestion** à redessiner, pas
-comme une pièce finie.
+Le résultat ressemble souvent à un os ou à une branche d'arbre : c'est une **suggestion** à
+redessiner, pas une pièce finie.
 
 ## Ce qui existe déjà et qu'on réutilise
 
@@ -32,12 +31,11 @@ comme une pièce finie.
 4. **Projection** en fin de calcul : les densités sont poussées vers 0 ou 1 pour obtenir une
    forme nette, puis la surface est extraite (« marching cubes ») et lissée.
 5. **Zones gardées** : une fine couche autour des faces fixées et chargées reste pleine (on ne
-   retire pas la matière là où l'on visse ou appuie). L'élève peut aussi désigner des faces à
+   retire pas la matière là où l'on visse ou appuie). L'utilisateur peut aussi désigner des faces à
    garder (portée d'un roulement, face d'appui…).
 
 Coût estimé : 40 tours × 1 calcul ≈ 40 s à 1 min 30 pour 8 000 cubes sur un ordinateur récent, avec
-une barre de progression et l'aperçu de la forme qui se dessine au fil des tours (c'est aussi le
-plus pédagogique à regarder). Le calcul repart de la déformation du tour précédent, ce qui divise
+une barre de progression et l'aperçu de la forme qui se dessine au fil des tours. Le calcul repart de la déformation du tour précédent, ce qui divise
 le nombre d'itérations du solveur.
 
 ## Contraintes de fabrication
@@ -52,7 +50,7 @@ le nombre d'itérations du solveur.
 | | largeur minimale (≈ 2 × épaisseur pour le bois) | rayon du filtre |
 | **Fraisage (plus tard)** | pas de contre-dépouille, rayon d'outil | filtre d'accessibilité dans une direction ; rayon minimal des creux |
 
-## Ce que voit l'élève
+## Ce que voit l'utilisateur
 
 1. Onglet Simulation, une étude prête (faces fixées, charge, matériau, verdict « la pièce tient »).
 2. Bouton **« Alléger la pièce »** : choix du procédé (impression 3D / découpe laser), de la masse
@@ -62,7 +60,7 @@ le nombre d'itérations du solveur.
 4. À la fin : comparaison **avant / après** (masse, flèche, verdict recalculé sur la forme obtenue).
 5. Trois suites possibles :
    - **la garder comme gabarit** transparent pour redessiner une pièce propre par-dessus avec les
-     outils habituels (démarche recommandée en classe : on comprend pourquoi la forme est ainsi) ;
+     outils habituels (démarche recommandée : la forme optimisée guide le dessin, qui reste paramétrique) ;
    - **l'ajouter à la pièce** comme étape « Solide optimisé » (maillage transformé en solide, non
      paramétrique, comme un STL importé), niveau Expert ;
    - l'**exporter** (3MF, STL) pour l'imprimer telle quelle.

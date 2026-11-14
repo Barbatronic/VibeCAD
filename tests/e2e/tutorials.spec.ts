@@ -5,10 +5,10 @@ test('parcours guidés : choix du parcours, assemblage puis fabrication suivis p
   await openApp(page);
   await buildPlateViaUi(page);
   const tour = page.locator('.tutorial');
-  const done = tour.getByText('Bravo, c’est fait !');
+  const done = tour.getByText('Étape validée');
 
   await menuItem(page, /Parcours guidés/);
-  await expect(tour.getByRole('heading', { name: 'Que veux-tu apprendre ?' })).toBeVisible();
+  await expect(tour.getByRole('heading', { name: 'Parcours guidés' })).toBeVisible();
   await expect(tour.locator('.tutorial-choice')).toHaveCount(3);
   await page.screenshot({ path: 'tests/output/e2e-parcours-choix.png' });
 

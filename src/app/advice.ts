@@ -31,24 +31,24 @@ export interface Advice {
 
 /** Phrases courtes du chat (tutoiement, vocabulaire réel de CAO). */
 const CAT_LINES: Partial<Record<FeatureIssueCode, string>> = {
-  PROFILE_EMPTY: 'L’esquisse est vide : dessine un contour fermé (rectangle, cercle…) avant de faire un volume.',
-  PROFILE_OPEN: 'Le contour n’est pas fermé : relie les points marqués « À relier » dans l’esquisse.',
+  PROFILE_EMPTY: 'L’esquisse est vide : dessinez un contour fermé (rectangle, cercle…) avant de faire un volume.',
+  PROFILE_OPEN: 'Le contour n’est pas fermé : reliez les points marqués « À relier » dans l’esquisse.',
   PROFILE_BRANCHED: 'Le dessin fait des branches : un contour doit former une seule boucle, sans trait qui dépasse.',
-  PROFILE_SELF_INTERSECTING: 'Le contour se croise lui-même : déplace un point pour qu’il ne se recoupe plus.',
-  PROFILE_OVERLAPPING: 'Deux contours se chevauchent : écarte-les, ou mets l’un entièrement dans l’autre pour faire un trou.',
-  SKETCH_CONFLICT: 'Des cotes ou des contraintes se contredisent : ouvre l’esquisse et supprimes-en une.',
-  SUPPORT_LOST: 'La face sous cette esquisse a disparu : choisis un nouveau support, ton dessin sera gardé.',
-  SUPPORT_NOT_PLANAR: 'Cette esquisse est posée sur une face courbe : choisis une face plate ou un plan.',
-  SUPPORT_AMBIGUOUS: 'Plusieurs faces pourraient porter cette esquisse : choisis la bonne.',
-  INVALID_PARAMETER: 'Une valeur ne convient pas : ouvre l’étape et corrige-la.',
+  PROFILE_SELF_INTERSECTING: 'Le contour se croise lui-même : déplacez un point pour qu’il ne se recoupe plus.',
+  PROFILE_OVERLAPPING: 'Deux contours se chevauchent : écartez-les, ou placez l’un entièrement dans l’autre pour faire un trou.',
+  SKETCH_CONFLICT: 'Des cotes ou des contraintes se contredisent : ouvrez l’esquisse et supprimez-en une.',
+  SUPPORT_LOST: 'La face sous cette esquisse a disparu : choisissez un nouveau support ; le dessin est conservé.',
+  SUPPORT_NOT_PLANAR: 'Cette esquisse est posée sur une face courbe : choisissez une face plate ou un plan.',
+  SUPPORT_AMBIGUOUS: 'Plusieurs faces pourraient porter cette esquisse : choisissez la bonne.',
+  INVALID_PARAMETER: 'Une valeur ne convient pas : ouvrez l’étape et corrigez-la.',
   POCKET_WITHOUT_SOLID: 'Une poche retire de la matière : il faut d’abord un volume (une extrusion).',
   ENGRAVE_WITHOUT_SOLID: 'Une gravure se fait sur une pièce : il faut d’abord un volume (une extrusion).',
-  POCKET_REMOVES_NOTHING: 'La poche ne touche pas la pièce : vérifie son sens ou sa profondeur.',
+  POCKET_REMOVES_NOTHING: 'La poche ne touche pas la pièce : vérifiez son sens ou sa profondeur.',
   POCKET_REMOVES_EVERYTHING: 'La poche enlèverait toute la pièce : réduis-la.',
   DISJOINT_SOLID: 'Ce volume ne touche pas le reste de la pièce : il forme un morceau séparé.',
-  EDGES_EMPTY: 'Choisis au moins une arête en cliquant dessus dans la vue 3D.',
-  EDGE_LOST: 'Une arête choisie n’existe plus : retire-la ou choisis-en une autre.',
-  BLEND_FAILED: 'La valeur est trop grande pour ces arêtes : essaie plus petit.',
+  EDGES_EMPTY: 'Choisissez au moins une arête en cliquant dessus dans la vue 3D.',
+  EDGE_LOST: 'Une arête choisie n’existe plus : retirez-la ou choisissez-en une autre.',
+  BLEND_FAILED: 'La valeur est trop grande pour ces arêtes : essayez plus petit.',
   REFERENCE_LOST: 'Une arête reprise de la pièce a disparu : supprime-la de l’esquisse ou reprends-en une autre.',
 };
 
@@ -128,7 +128,7 @@ export function currentAdvice(s: AppState): Advice | null {
       id: 'empty-part',
       level: 'conseil',
       mood: 'tip',
-      text: 'Pour commencer une pièce, fais une esquisse : choisis un plan, puis dessine et cote ton contour.',
+      text: 'Pour commencer une pièce, créez une esquisse : choisissez un plan, puis dessinez et cotez le contour.',
       action: { kind: 'start-sketch', label: 'Nouvelle esquisse' },
     };
   }
@@ -137,7 +137,7 @@ export function currentAdvice(s: AppState): Advice | null {
       id: `rollback:${part.id}`,
       level: 'conseil',
       mood: 'tip',
-      text: 'Tu regardes la pièce à une étape plus ancienne : une nouvelle étape sera ajoutée à cet endroit de l’historique.',
+      text: 'La pièce est affichée à une étape antérieure : une nouvelle étape sera ajoutée à cet endroit de l’historique.',
       action: { kind: 'rollback-end', partId: part.id, label: 'Revenir à la fin' },
     };
   }

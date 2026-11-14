@@ -460,7 +460,7 @@ export function gearName(part: Part, kind: GearKind, exceptId?: Id): string {
   return `${prefix} ${n}`;
 }
 
-/** Vrai si le nom est encore un nom automatique (l'élève ne l'a pas renommé). */
+/** Vrai si le nom est encore un nom automatique (l'utilisateur ne l'a pas renommé). */
 export function isDefaultGearName(name: string): boolean {
   return Object.values(GEAR_NAMES).some((prefix) => new RegExp(`^${prefix} \\d+$`).test(name));
 }

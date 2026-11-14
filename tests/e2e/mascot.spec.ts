@@ -12,15 +12,15 @@ test('le chat : absent par défaut, activé dans les préférences, conseil avec
   await expect(page.locator('.brand .cat')).toHaveCount(0);
   await expect(page.locator('.brand img.brand-mark')).toHaveAttribute('src', /icons\/icon\.svg$/);
   await expect(page.locator('.mascot-bubble, .mascot-mini')).toHaveCount(0);
-  // Préférences › Environnement des jeunes : on l'active.
+  // Préférences › Assistant : on l'active.
   await menuItem(page, /Préférences/);
-  await page.getByRole('group', { name: 'Environnement des jeunes' }).getByRole('checkbox').check();
+  await page.getByRole('group', { name: 'Assistant' }).getByRole('checkbox').check();
   await page.keyboard.press('Escape');
   // Le chat apparaît comme mascotte, jamais comme logo.
   await expect(page.locator('.brand .cat')).toHaveCount(0);
 
   // Pièce vide : le chat propose de commencer une esquisse.
-  await expect(bubble).toContainText('fais une esquisse');
+  await expect(bubble).toContainText('créez une esquisse');
   await page.screenshot({ path: 'tests/output/e2e-chat-conseil.png' });
   await bubble.getByRole('button', { name: 'Nouvelle esquisse' }).click();
   await expect(page.getByRole('button', { name: /Plan XY/ })).toBeVisible();

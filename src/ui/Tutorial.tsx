@@ -27,7 +27,7 @@ function TutorialChooser({ showCat }: { showCat: boolean }) {
       <div class={`tutorial-body${showCat ? ' with-cat' : ''}`}>
         {showCat ? <CatFigure mood="tip" size={64} animated decorative class="tutorial-cat" /> : null}
         <div>
-          <h3 id="tutorial-title">Que veux-tu apprendre ?</h3>
+          <h3 id="tutorial-title">Parcours guidés</h3>
           <ul class="tutorial-choices">
             {tours.map((t) => (
               <li key={t.id}>
@@ -91,7 +91,7 @@ export function Tutorial() {
       <div class="tutorial-footer">
         {done ? (
           <span class="done">
-            <Icon name="ok" /> Bravo, c’est fait !
+            <Icon name="ok" /> Étape validée
           </span>
         ) : (
           <span class="spacer" style={{ flex: 1 }} />

@@ -11,7 +11,7 @@
  *   (rayon 1,5 cube : pas de damier, pas de détails plus fins que la grille), puis mise à jour par
  *   critère d'optimalité (pas limité à 0,2) en respectant le volume visé ;
  * - les cubes qui touchent une face fixée, chargée ou « à garder » restent pleins (la pièce doit
- *   garder ses appuis, l'endroit où l'on appuie et ce que l'élève veut garder : bord d'un perçage…).
+ *   garder ses appuis, l'endroit où l'on appuie et ce que l'utilisateur veut garder : bord d'un perçage…).
  *
  * Références : Bendsøe et Sigmund, « Topology Optimization » (2003) ; Andreassen et al., « Efficient
  * topology optimization in MATLAB using 88 lines of code » (2011). Fonctions pures : elles tournent

@@ -1,7 +1,7 @@
 # Simulation
 
 Onglet « Simulation » (niveau Intermédiaire) : montrer comment une pièce se déforme et où elle
-risque de casser, sous une charge simple. Le résultat est **indicatif** et pédagogique : une pièce
+risque de casser, sous une charge simple. Le résultat est **indicatif** : une pièce
 imprimée dépend aussi du remplissage et du sens des couches.
 
 ## Utilisation
@@ -168,7 +168,7 @@ amincirait la plaque par l'intérieur, ce qui ne se fabrique pas.
   quand aucune densité ne bouge de plus de 1 %, ou que la souplesse gagne moins de 0,2 % en
   5 itérations (60 au plus).
 - Les cubes qui touchent une face fixée, chargée ou à garder restent pleins : la pièce garde ses
-  appuis, l'endroit où l'on appuie et ce que l'élève a choisi. S'ils font déjà la part demandée
+  appuis, l'endroit où l'on appuie et ce que l'utilisateur a choisi. S'ils font déjà la part demandée
   (une grande face d'une plaque, par exemple), un avertissement le dit. Sur une pièce en 3D, une
   grande face fixée ou chargée reste comme un mur qui cache l'intérieur : le panneau conseille de
   choisir de petites faces (bord d'un trou, plot).
@@ -200,7 +200,7 @@ export STL, résultat périmé quand on change la part gardée, nouvelle pièce 
 
 ## Suite possible
 
-- Optimisation topologique : zones à laisser vides choisies par l'élève, contrainte de fabrication (impression sans support) ; forme lissée
+- Optimisation topologique : zones à laisser vides choisies par l'utilisateur, contrainte de fabrication (impression sans support) ; forme lissée
   par « marching cubes » plutôt que par cubes lissés.
 - mesurer sur un ordinateur d'école ; si besoin, réduire encore le coût d'une itération (produit
   matrice-vecteur par nœud plutôt que par cube).

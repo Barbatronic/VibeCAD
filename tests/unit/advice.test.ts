@@ -39,7 +39,7 @@ describe('conseils du chat', () => {
     const sketch2 = base.doc.parts[0]!.features[2]!;
     const advice = currentAdvice(stateWith([{ featureId: sketch2.id, state: 'error', code: 'SUPPORT_LOST' }]));
     expect(advice).toMatchObject({ level: 'erreur', mood: 'warning', action: { kind: 'repair-support', featureId: sketch2.id } });
-    expect(advice!.text).toContain('choisis un nouveau support');
+    expect(advice!.text).toContain('choisissez un nouveau support');
   });
 
   it('contour ouvert : renvoie vers l’esquisse en cause', () => {
@@ -47,7 +47,7 @@ describe('conseils du chat', () => {
     const [sketch1, extrude] = base.doc.parts[0]!.features;
     const advice = currentAdvice(stateWith([{ featureId: extrude!.id, state: 'error', code: 'PROFILE_OPEN', relatedFeatureId: sketch1!.id }]));
     expect(advice).toMatchObject({ action: { kind: 'edit-feature', featureId: sketch1!.id, label: 'Ouvrir « Esquisse 1 »' } });
-    expect(advice!.text).toContain('relie les points');
+    expect(advice!.text).toContain('reliez les points');
   });
 
   it('frise en arrière : rappelle comment revenir à la fin', () => {

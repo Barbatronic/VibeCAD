@@ -24,7 +24,7 @@ const GLOSSARY: [string, string][] = [
   ['Construction', 'Un trait en pointillés qui sert de repère pour coter ; il ne compte pas pour le volume.'],
   ['Projeter', 'Reprendre une arête de la pièce (le bord d’un trou, un côté) dans l’esquisse pour s’en servir comme repère.'],
   ['Barre de retour', 'La barre bleue de l’historique : faites-la glisser pour revoir la pièce à une étape plus ancienne.'],
-  ['Assemblage', 'L’onglet où l’on réunit les pièces du projet et où on les fait bouger les unes par rapport aux autres.'],
+  ['Assembler', 'Le mode de l’onglet Conception où l’on place les pièces du projet, les relie et les fait bouger les unes par rapport aux autres. Modéliser est l’autre mode : on y construit chaque pièce.'],
   ['Repère', 'Un point et une direction posés sur une pièce : le centre d’une face plane, le centre d’un trou, le milieu d’une arête.'],
   ['Collision', 'Deux pièces qui se rentrent dedans : impossible en vrai. Le volume en trop est montré en rouge.'],
   ['Liaison', 'Ce qui relie deux pièces : fixe, pivot (rotation, comme une roue), glissière (translation, comme un tiroir) ou pivot glissant.'],
@@ -103,8 +103,8 @@ export function HelpDrawer() {
           <CatFigure mood="tip" size={48} decorative />
           <div>
             <p>
-              <strong>Java</strong>, le chat de VibeCAD, t’accompagne dans le parcours et te prévient quand une étape a un souci, avec un bouton pour la
-              corriger. Il ne modifie jamais ta pièce tout seul.
+              <strong>Java</strong>, l’assistant de VibeCAD, accompagne les parcours et signale les étapes en erreur, avec un bouton pour les
+              corriger. Il ne modifie jamais la pièce de lui-même.
             </p>
             <label class="checkbox-row">
               <input type="checkbox" checked={!catHidden} onChange={() => c.setMascot({ hidden: !catHidden, dismissed: null })} />

@@ -1,6 +1,6 @@
 /**
  * Parcours guidé « la plaque percée » : 60 × 30 × 5 mm, trou Ø 6 mm placé par des cotes.
- * Chaque étape se valide en observant l'état réel du modèle (pas de clic imposé) : l'enfant
+ * Chaque étape se valide en observant l'état réel du modèle (pas de clic imposé) : l'utilisateur
  * peut explorer librement, passer une étape ou revenir en arrière.
  */
 import type { AppState } from '../app/state';
@@ -49,18 +49,18 @@ const HOLE = Math.PI * 9 * 5;
 export const PLATE_TUTORIAL: TutorialStep[] = [
   {
     id: 'intro',
-    title: 'Dessinons une plaque percée',
+    title: 'Plaque percée',
     body: [
-      'Nous allons fabriquer une **plaque de 60 × 30 mm**, épaisse de **5 mm**, avec un **trou de 6 mm** de diamètre.',
-      'Comme les vrais logiciels de CAO : on dessine d’abord à plat (une **esquisse**), on lui donne une épaisseur (**extrusion**), puis on retire de la matière (**poche**).',
-      'Tu peux explorer librement à tout moment. Clique sur « Suivant » pour commencer.',
+      'Objectif : une **plaque de 60 × 30 mm**, épaisse de **5 mm**, avec un **trou de 6 mm** de diamètre.',
+      'Démarche : une **esquisse** à plat, une **extrusion** pour lui donner une épaisseur, puis une **poche** pour retirer de la matière.',
+      'Chaque étape se valide d’elle-même. « Suivant » pour commencer.',
     ],
   },
   {
     id: 'sketch-xy',
     title: '1. Choisir un plan',
     body: [
-      'Clique sur le bouton **Esquisse** en haut, puis choisis le **plan XY (dessus)** : c’est comme dessiner sur une table, vu d’en haut.',
+      'Cliquez sur le bouton **Esquisse** en haut, puis choisissez le **plan XY (dessus)**.',
     ],
     target: 'tool-sketch',
     check: (s) =>
@@ -71,8 +71,8 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     id: 'rectangle',
     title: '2. Dessiner le rectangle avec ses cotes',
     body: [
-      'Avec l’outil **Rectangle**, clique sur l’**origine** (le petit cercle au croisement des axes rouge et vert).',
-      'Tape ensuite **60**, appuie sur **Tab**, tape **30**, puis **Entrée**. Les nombres sont des **cotes** : les dimensions exactes du dessin, en millimètres.',
+      'Avec l’outil **Rectangle**, cliquez sur l’**origine** (le petit cercle au croisement des axes rouge et vert).',
+      'Tapez ensuite **60**, appuyez sur **Tab**, tapez **30**, puis **Entrée**. Les nombres sont des **cotes** : les dimensions exactes du dessin, en millimètres.',
     ],
     target: 'sk-rectangle',
     check: (s) => {
@@ -83,15 +83,15 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
   {
     id: 'finish-sketch',
     title: '3. Terminer l’esquisse',
-    body: ['Le dessin est vert : il est **entièrement contraint** (sa forme ne peut plus bouger). Clique sur **Terminer l’esquisse**, à droite.'],
+    body: ['Le dessin est vert : il est **entièrement contraint** (sa forme ne peut plus bouger). Cliquez sur **Terminer l’esquisse**, à droite.'],
     check: (s) => s.mode.kind !== 'sketch' && sketches(s).some((f) => isPlateRectangle(f.params)),
   },
   {
     id: 'extrude',
     title: '4. Donner une épaisseur',
     body: [
-      '**Extrusion** : donner une épaisseur au dessin. Clique sur **Extrusion**, tape **5** dans « Longueur » : l’aperçu vert montre le volume.',
-      'Clique sur **Valider** pour l’ajouter à l’historique.',
+      '**Extrusion** : donner une épaisseur au dessin. Cliquez sur **Extrusion**, tapez **5** dans « Longueur » : l’aperçu vert montre le volume.',
+      'Cliquez sur **Valider** pour l’ajouter à l’historique.',
     ],
     target: 'tool-extrude',
     check: (s) => {
@@ -103,8 +103,8 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     id: 'sketch-top',
     title: '5. Dessiner sur le dessus de la plaque',
     body: [
-      '**Double-clique sur la face du dessus** de la plaque : une nouvelle esquisse s’ouvre directement sur cette face.',
-      '(Autre façon : clique la face, puis le bouton **Esquisse**.)',
+      '**Double-cliquez sur la face du dessus** de la plaque : une nouvelle esquisse s’ouvre directement sur cette face.',
+      '(Autre façon : cliquez la face, puis le bouton **Esquisse**.)',
     ],
     check: (s) =>
       (s.mode.kind === 'sketch' && s.mode.session.sketch.support.kind === 'face') || sketches(s).some((f) => f.params.support.kind === 'face'),
@@ -113,7 +113,7 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     id: 'circle',
     title: '6. Dessiner le trou',
     body: [
-      'Choisis l’outil **Cercle**, clique près du coin de la plaque (vers x = 15, y = 15), puis tape **6** (le diamètre) et **Entrée**.',
+      'Choisissez l’outil **Cercle**, cliquez près du coin de la plaque (vers x = 15, y = 15), puis tapez **6** (le diamètre) et **Entrée**.',
     ],
     target: 'sk-circle',
     check: (s) => {
@@ -125,8 +125,8 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     id: 'position',
     title: '7. Placer le trou avec des cotes',
     body: [
-      'Choisis l’outil **Cote**. Clique le **centre du cercle**, puis l’**origine** : choisis « **Horizontale** », tape **15**, Entrée.',
-      'Recommence pour la cote « **Verticale** » : **15**. Quand tout est vert, le trou est bien placé.',
+      'Choisissez l’outil **Cote**. Cliquez le **centre du cercle**, puis l’**origine** : choisissez « **Horizontale** », tapez **15**, Entrée.',
+      'Recommencez pour la cote « **Verticale** » : **15**. Quand tout est vert, le trou est bien placé.',
     ],
     target: 'sk-dimension',
     check: (s) => {
@@ -139,15 +139,15 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
   {
     id: 'finish-2',
     title: '8. Terminer l’esquisse du trou',
-    body: ['Clique sur **Terminer l’esquisse**.'],
+    body: ['Cliquez sur **Terminer l’esquisse**.'],
     check: (s) => s.mode.kind !== 'sketch' && sketches(s).some((f) => f.params.support.kind === 'face' && hasHoleCircle(f.params)),
   },
   {
     id: 'pocket',
     title: '9. Percer avec une poche',
     body: [
-      '**Poche** : retirer de la matière en suivant le dessin. Clique sur **Poche** : la profondeur « **Traversante** » perce toute la plaque. L’aperçu rouge montre la matière retirée.',
-      'Clique sur **Valider**.',
+      '**Poche** : retirer de la matière en suivant le dessin. Cliquez sur **Poche** : la profondeur « **Traversante** » perce toute la plaque. L’aperçu rouge montre la matière retirée.',
+      'Cliquez sur **Valider**.',
     ],
     target: 'tool-pocket',
     check: (s) => {
@@ -157,10 +157,10 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
   },
   {
     id: 'modify',
-    title: '10. Changer d’avis : 80 mm de large',
+    title: '10. Modifier une cote : 80 mm de large',
     body: [
-      'Le grand intérêt de la CAO : on peut **modifier une étape** et tout se recalcule. Dans l’historique à gauche, **double-clique sur « Esquisse 1 »**.',
-      'Double-clique la cote **60 mm**, tape **80**, Entrée, puis **Terminer l’esquisse** : la plaque s’allonge et le trou reste à 15 mm de l’origine.',
+      'Toute **étape** reste modifiable et le modèle se recalcule. Dans l’historique à gauche, **double-cliquez sur « Esquisse 1 »**.',
+      'Double-cliquez la cote **60 mm**, tapez **80**, Entrée, puis **Terminer l’esquisse** : la plaque s’allonge et le trou reste à 15 mm de l’origine.',
     ],
     check: (s) => {
       const v = volume(s);
@@ -171,8 +171,8 @@ export const PLATE_TUTORIAL: TutorialStep[] = [
     id: 'save',
     title: '11. Enregistrer et partager',
     body: [
-      'Clique sur **Fichier → Enregistrer** (ou Ctrl+S). Pour garder une copie sur l’ordinateur : **Enregistrer sous…**.',
-      'Pour ouvrir la pièce dans **FreeCAD** : **Fichier → Exporter…**, format **STEP**. Bravo, tu as réalisé ta première pièce en CAO !',
+      'Cliquez sur **Fichier → Enregistrer** (ou Ctrl+S). Pour garder une copie sur l’ordinateur : **Enregistrer sous…**.',
+      'Pour ouvrir la pièce dans **FreeCAD** : **Fichier → Exporter…**, format **STEP**. La pièce est terminée.',
     ],
     check: (s) => s.project.savedRevision === s.revision && s.project.savedAt !== null,
   },

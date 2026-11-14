@@ -4,4 +4,4 @@
  */
 export const APP_NAME = 'VibeCAD';
 export const APP_VERSION = '0.1.0';
-export const APP_TAGLINE = 'CAO paramétrique pour apprendre';
+export const APP_TAGLINE = 'CAO paramétrique dans le navigateur';

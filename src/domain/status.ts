@@ -82,7 +82,7 @@ export interface FeatureStatus {
   code?: FeatureIssueCode;
   /** Message destiné à l'utilisateur, en français, sans jargon technique. */
   message?: string;
-  /** Détail technique facultatif (affiché replié, utile à l'enseignant). */
+  /** Détail technique facultatif (affiché replié : « Détails techniques »). */
   detail?: string;
   /** Pour une fonction bloquée : l'étape en cause. */
   blockedBy?: Id;

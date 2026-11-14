@@ -1,7 +1,7 @@
 {
-  "name": "VibeCAD — CAO pour apprendre",
+  "name": "VibeCAD — CAO 3D paramétrique",
   "short_name": "VibeCAD",
-  "description": "CAO 3D paramétrique pédagogique : esquisses cotées, extrusions, poches, historique modifiable, échange STEP avec FreeCAD.",
+  "description": "CAO 3D paramétrique : esquisses cotées, extrusions, poches, historique modifiable, échange STEP avec FreeCAD.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",
