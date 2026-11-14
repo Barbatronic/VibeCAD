@@ -46,6 +46,8 @@ export interface PartResult {
   images?: { featureId: Id; frame: Frame3D }[];
   /** Tôlerie (pièce qui a des plis) : développé et lignes de pli. */
   flat?: SheetFlatResult;
+  /** Durée de calcul (ms) des étapes recalculées à ce passage (les étapes en cache n'y sont pas). */
+  stepMs?: Record<Id, number>;
 }
 
 /**
@@ -129,7 +131,8 @@ export type WorkerRequest =
   | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
   | { id: number; type: 'hiddenLines'; doc: DocumentForWorker; partId: Id; views: { u: Vec3; toViewer: Vec3 }[] }
-  | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] };
+  | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] }
+  | { id: number; type: 'shapeCache'; clear?: boolean };
 
 /** Pièce insérée placée dans l'assemblage, pour la recherche de collisions. */
 export interface CollisionPlacement {
@@ -162,6 +165,7 @@ export interface SectionPart {
 }
 
 export type WorkerResponse =
+  | { id: number; progress: number }
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: { message: string; detail?: string } };
 
@@ -179,6 +183,8 @@ export interface WorkerResultMap {
   /** Traits vus et cachés exacts de chaque vue demandée (vide si la pièce n'a pas de volume). */
   hiddenLines: { views: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] };
   collisions: { collisions: Collision[] };
+  /** Cache des formes du navigateur : pièces gardées et taille estimée (après vidage si demandé). */
+  shapeCache: { count: number; bytes: number };
 }
 
 /** Prépare un document pour le worker : les données des ressources sont retirées. */

@@ -14,6 +14,12 @@ import type { ProfileLoop, ProfileRegion, ProfileSegment } from '../sketch/profi
  */
 export type FaceTag = FaceRef;
 
+/** Forme sérialisée (cache des formes) : texte BRep et étiquettes des faces dans l'ordre de parcours. */
+export interface SerializedShape {
+  brep: string;
+  tags: FaceTag[][];
+}
+
 /** Solide (ou ensemble de solides) détenu par le noyau. Objet opaque, à libérer avec `dispose`. */
 export interface KernelShape {
   readonly __kernelShape: true;
@@ -348,6 +354,13 @@ export interface GeometryKernel {
    * endroit (position portée par la forme, comme FreeCAD l'enregistre).
    */
   brep(shape: KernelShape, matrix?: readonly number[]): string;
+  /**
+   * Forme sérialisée pour le cache des formes : BRep d'Open CASCADE et étiquettes de chaque face,
+   * dans l'ordre de parcours des faces (conservé par la relecture).
+   */
+  serializeShape(shape: KernelShape): SerializedShape;
+  /** Forme relue depuis `serializeShape`, avec ses étiquettes de faces. */
+  deserializeShape(data: SerializedShape): KernelShape;
   exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: StepComponent[], blocks?: StepBlock[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */
   distance(a: { shape: KernelShape; kind: 'face' | 'edge'; index: number }, b: { shape: KernelShape; kind: 'face' | 'edge'; index: number }): DistanceResult;

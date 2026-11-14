@@ -1,0 +1,6106 @@
+{
+  "format": "vibecad",
+  "schemaVersion": 1,
+  "generator": {
+    "name": "VibeCAD",
+    "version": "0.1.0"
+  },
+  "savedAt": "2026-10-25T00:00:00.000Z",
+  "document": {
+    "id": "doc-1",
+    "name": "Servomoteur MG996R",
+    "units": "mm",
+    "createdAt": "2026-10-25T00:00:00.000Z",
+    "modifiedAt": "2026-10-25T00:00:00.000Z",
+    "parts": [
+      {
+        "id": "part-1",
+        "name": "Servomoteur MG996R",
+        "color": "#4a4d52",
+        "visible": true,
+        "material": "abs",
+        "features": [
+          {
+            "id": "sk-1",
+            "type": "sketch",
+            "name": "Esquisse du fond",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -28
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 40.7,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 20.5,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 30.35,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 10.25,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-1",
+            "type": "extrude",
+            "name": "Fond",
+            "params": {
+              "sketchId": "sk-1",
+              "distance": 7,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-1"
+            ]
+          },
+          {
+            "id": "ch-1",
+            "type": "chamfer",
+            "name": "Chanfrein du fond",
+            "params": {
+              "edges": [
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "l1"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "l2"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "l3"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-1",
+                      "role": "side",
+                      "entityId": "l4"
+                    },
+                    {
+                      "featureId": "ex-1",
+                      "role": "start"
+                    }
+                  ]
+                }
+              ],
+              "distance": 2
+            },
+            "dependsOn": [
+              "ex-1"
+            ]
+          },
+          {
+            "id": "sk-2",
+            "type": "sketch",
+            "name": "Esquisse du pied de dépouille",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -21
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 10.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": 10.25
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -30.35,
+                  "y": -10.25
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 40.7,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 20.5,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 30.35,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 10.25,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "sk-3",
+            "type": "sketch",
+            "name": "Esquisse du haut de dépouille",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -1
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -30,
+                  "y": -9.9
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 10,
+                  "y": -9.9
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 10,
+                  "y": -9.9
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 10,
+                  "y": 9.9
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 10,
+                  "y": 9.9
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -30,
+                  "y": 9.9
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -30,
+                  "y": 9.9
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -30,
+                  "y": -9.9
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 40,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 19.8,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 30,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9.9,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "lo-1",
+            "type": "loft",
+            "name": "Dépouille",
+            "params": {
+              "sketchIds": [
+                "sk-2",
+                "sk-3"
+              ],
+              "ruled": true,
+              "operation": "add"
+            },
+            "dependsOn": [
+              "sk-2",
+              "sk-3"
+            ]
+          },
+          {
+            "id": "sk-4",
+            "type": "sketch",
+            "name": "Esquisse du boîtier central",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -1
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -30,
+                  "y": -10
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 10,
+                  "y": -10
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 10,
+                  "y": -10
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 10,
+                  "y": 10
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 10,
+                  "y": 10
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -30,
+                  "y": 10
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -30,
+                  "y": 10
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -30,
+                  "y": -10
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 40,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 20,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 30,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 10,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-2",
+            "type": "extrude",
+            "name": "Boîtier central",
+            "params": {
+              "sketchId": "sk-4",
+              "distance": 8.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-4"
+            ]
+          },
+          {
+            "id": "sk-5",
+            "type": "sketch",
+            "name": "Esquisse des pattes",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -37,
+                  "y": -9.5
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 17,
+                  "y": -9.5
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 17,
+                  "y": -9.5
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 17,
+                  "y": 9.5
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 17,
+                  "y": 9.5
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -37,
+                  "y": 9.5
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -37,
+                  "y": 9.5
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -37,
+                  "y": -9.5
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 54,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 19,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 37,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9.5,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-3",
+            "type": "extrude",
+            "name": "Pattes",
+            "params": {
+              "sketchId": "sk-5",
+              "distance": 2.4,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-5"
+            ]
+          },
+          {
+            "id": "fi-1",
+            "type": "fillet",
+            "name": "Coins des pattes",
+            "params": {
+              "edges": [
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l1"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l3"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l3"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l1"
+                    }
+                  ]
+                }
+              ],
+              "radius": 0.5
+            },
+            "dependsOn": [
+              "ex-3"
+            ]
+          },
+          {
+            "id": "sk-6",
+            "type": "sketch",
+            "name": "Esquisse des trous de fixation",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": -5
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 2
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": 5
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 2
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": -5
+                },
+                {
+                  "id": "c3",
+                  "type": "circle",
+                  "center": "p3",
+                  "radius": 2
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": 5
+                },
+                {
+                  "id": "c4",
+                  "type": "circle",
+                  "center": "p4",
+                  "radius": 2
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 4,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 34.5,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 5,
+                  "id": "k3"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c2",
+                  "value": 4,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 34.5,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 5,
+                  "id": "k6"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c3",
+                  "value": 4,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 14.5,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 5,
+                  "id": "k9"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c4",
+                  "value": 4,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 14.5,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 5,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-1",
+            "type": "pocket",
+            "name": "Trous de fixation",
+            "params": {
+              "sketchId": "sk-6",
+              "extent": {
+                "kind": "throughAll"
+              },
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-6"
+            ]
+          },
+          {
+            "id": "sk-7",
+            "type": "sketch",
+            "name": "Esquisse des fentes",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 0
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -38,
+                  "y": -6.2
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": -6.2
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": -6.2
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": -3.8
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": -3.8
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -38,
+                  "y": -3.8
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -38,
+                  "y": -3.8
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -38,
+                  "y": -6.2
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "p9",
+                  "type": "point",
+                  "x": -38,
+                  "y": 3.8
+                },
+                {
+                  "id": "p10",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": 3.8
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p9",
+                  "b": "p10"
+                },
+                {
+                  "id": "p11",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": 3.8
+                },
+                {
+                  "id": "p12",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": 6.2
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p11",
+                  "b": "p12"
+                },
+                {
+                  "id": "p13",
+                  "type": "point",
+                  "x": -34.5,
+                  "y": 6.2
+                },
+                {
+                  "id": "p14",
+                  "type": "point",
+                  "x": -38,
+                  "y": 6.2
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p13",
+                  "b": "p14"
+                },
+                {
+                  "id": "p15",
+                  "type": "point",
+                  "x": -38,
+                  "y": 6.2
+                },
+                {
+                  "id": "p16",
+                  "type": "point",
+                  "x": -38,
+                  "y": 3.8
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p15",
+                  "b": "p16"
+                },
+                {
+                  "id": "p17",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": -6.2
+                },
+                {
+                  "id": "p18",
+                  "type": "point",
+                  "x": 18,
+                  "y": -6.2
+                },
+                {
+                  "id": "l9",
+                  "type": "line",
+                  "a": "p17",
+                  "b": "p18"
+                },
+                {
+                  "id": "p19",
+                  "type": "point",
+                  "x": 18,
+                  "y": -6.2
+                },
+                {
+                  "id": "p20",
+                  "type": "point",
+                  "x": 18,
+                  "y": -3.8
+                },
+                {
+                  "id": "l10",
+                  "type": "line",
+                  "a": "p19",
+                  "b": "p20"
+                },
+                {
+                  "id": "p21",
+                  "type": "point",
+                  "x": 18,
+                  "y": -3.8
+                },
+                {
+                  "id": "p22",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": -3.8
+                },
+                {
+                  "id": "l11",
+                  "type": "line",
+                  "a": "p21",
+                  "b": "p22"
+                },
+                {
+                  "id": "p23",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": -3.8
+                },
+                {
+                  "id": "p24",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": -6.2
+                },
+                {
+                  "id": "l12",
+                  "type": "line",
+                  "a": "p23",
+                  "b": "p24"
+                },
+                {
+                  "id": "p25",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": 3.8
+                },
+                {
+                  "id": "p26",
+                  "type": "point",
+                  "x": 18,
+                  "y": 3.8
+                },
+                {
+                  "id": "l13",
+                  "type": "line",
+                  "a": "p25",
+                  "b": "p26"
+                },
+                {
+                  "id": "p27",
+                  "type": "point",
+                  "x": 18,
+                  "y": 3.8
+                },
+                {
+                  "id": "p28",
+                  "type": "point",
+                  "x": 18,
+                  "y": 6.2
+                },
+                {
+                  "id": "l14",
+                  "type": "line",
+                  "a": "p27",
+                  "b": "p28"
+                },
+                {
+                  "id": "p29",
+                  "type": "point",
+                  "x": 18,
+                  "y": 6.2
+                },
+                {
+                  "id": "p30",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": 6.2
+                },
+                {
+                  "id": "l15",
+                  "type": "line",
+                  "a": "p29",
+                  "b": "p30"
+                },
+                {
+                  "id": "p31",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": 6.2
+                },
+                {
+                  "id": "p32",
+                  "type": "point",
+                  "x": 14.5,
+                  "y": 3.8
+                },
+                {
+                  "id": "l16",
+                  "type": "line",
+                  "a": "p31",
+                  "b": "p32"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 3.5,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 2.4000000000000004,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 38,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 6.2,
+                  "id": "k12"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p10",
+                  "b": "p11",
+                  "id": "k13"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p12",
+                  "b": "p13",
+                  "id": "k14"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p14",
+                  "b": "p15",
+                  "id": "k15"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p16",
+                  "b": "p9",
+                  "id": "k16"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l5",
+                  "id": "k17"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l7",
+                  "id": "k18"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l6",
+                  "id": "k19"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l8",
+                  "id": "k20"
+                },
+                {
+                  "type": "length",
+                  "line": "l5",
+                  "value": 3.5,
+                  "id": "k21"
+                },
+                {
+                  "type": "length",
+                  "line": "l8",
+                  "value": 2.4000000000000004,
+                  "id": "k22"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p9",
+                  "b": "origin",
+                  "value": 38,
+                  "id": "k23"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p9",
+                  "value": 3.8,
+                  "id": "k24"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p18",
+                  "b": "p19",
+                  "id": "k25"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p20",
+                  "b": "p21",
+                  "id": "k26"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p22",
+                  "b": "p23",
+                  "id": "k27"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p24",
+                  "b": "p17",
+                  "id": "k28"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l9",
+                  "id": "k29"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l11",
+                  "id": "k30"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l10",
+                  "id": "k31"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l12",
+                  "id": "k32"
+                },
+                {
+                  "type": "length",
+                  "line": "l9",
+                  "value": 3.5,
+                  "id": "k33"
+                },
+                {
+                  "type": "length",
+                  "line": "l12",
+                  "value": 2.4000000000000004,
+                  "id": "k34"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p17",
+                  "value": 14.5,
+                  "id": "k35"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p17",
+                  "b": "origin",
+                  "value": 6.2,
+                  "id": "k36"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p26",
+                  "b": "p27",
+                  "id": "k37"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p28",
+                  "b": "p29",
+                  "id": "k38"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p30",
+                  "b": "p31",
+                  "id": "k39"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p32",
+                  "b": "p25",
+                  "id": "k40"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l13",
+                  "id": "k41"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l15",
+                  "id": "k42"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l14",
+                  "id": "k43"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l16",
+                  "id": "k44"
+                },
+                {
+                  "type": "length",
+                  "line": "l13",
+                  "value": 3.5,
+                  "id": "k45"
+                },
+                {
+                  "type": "length",
+                  "line": "l16",
+                  "value": 2.4000000000000004,
+                  "id": "k46"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 14.5,
+                  "id": "k47"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 3.8,
+                  "id": "k48"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-2",
+            "type": "pocket",
+            "name": "Fentes des pattes",
+            "params": {
+              "sketchId": "sk-7",
+              "extent": {
+                "kind": "throughAll"
+              },
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-7"
+            ]
+          },
+          {
+            "id": "fi-2",
+            "type": "fillet",
+            "name": "Entrées des fentes",
+            "params": {
+              "edges": [
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l1"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l3"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l5"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l7"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l4"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l9"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l11"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l13"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "po-2",
+                      "role": "side",
+                      "entityId": "l15"
+                    },
+                    {
+                      "featureId": "ex-3",
+                      "role": "side",
+                      "entityId": "l2"
+                    }
+                  ]
+                }
+              ],
+              "radius": 0.5
+            },
+            "dependsOn": [
+              "po-2",
+              "ex-3"
+            ]
+          },
+          {
+            "id": "sk-8",
+            "type": "sketch",
+            "name": "Esquisse des nervures",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XZ",
+                "offset": -0.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -29.7,
+                  "y": 2
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -37,
+                  "y": 2
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -37,
+                  "y": 2.4
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -29.7,
+                  "y": 3.6514285714285446
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p2",
+                  "b": "p3"
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p4",
+                  "b": "p1"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 9.7,
+                  "y": 2
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": 17,
+                  "y": 2
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": 17,
+                  "y": 2.4
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": 9.7,
+                  "y": 3.6514285714285446
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p6",
+                  "b": "p7"
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p8",
+                  "b": "p5"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 29.7,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 2,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 37,
+                  "id": "k3"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 2,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 37,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 2.4,
+                  "id": "k6"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p4",
+                  "b": "origin",
+                  "value": 29.7,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 3.6514285714285717,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p5",
+                  "value": 9.7,
+                  "id": "k9"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p5",
+                  "value": 2,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p6",
+                  "value": 17,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p6",
+                  "value": 2,
+                  "id": "k12"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p7",
+                  "value": 17,
+                  "id": "k13"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p7",
+                  "value": 2.4,
+                  "id": "k14"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p8",
+                  "value": 9.7,
+                  "id": "k15"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p8",
+                  "value": 3.6514285714285717,
+                  "id": "k16"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-4",
+            "type": "extrude",
+            "name": "Nervures des pattes",
+            "params": {
+              "sketchId": "sk-8",
+              "distance": 1,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-8"
+            ]
+          },
+          {
+            "id": "sk-9",
+            "type": "sketch",
+            "name": "Esquisse du couvercle",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 7.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -29.5,
+                  "y": -9.5
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 9.5,
+                  "y": -9.5
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 9.5,
+                  "y": -9.5
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 9.5,
+                  "y": 9.5
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 9.5,
+                  "y": 9.5
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -29.5,
+                  "y": 9.5
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -29.5,
+                  "y": 9.5
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -29.5,
+                  "y": -9.5
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 39,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 19,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 29.5,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9.5,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-5",
+            "type": "extrude",
+            "name": "Couvercle",
+            "params": {
+              "sketchId": "sk-9",
+              "distance": 0.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-9"
+            ]
+          },
+          {
+            "id": "sk-10",
+            "type": "sketch",
+            "name": "Esquisse de la tour",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 7.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 10
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 20,
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k2"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-6",
+            "type": "extrude",
+            "name": "Tour du réducteur",
+            "params": {
+              "sketchId": "sk-10",
+              "distance": 2.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-10"
+            ]
+          },
+          {
+            "id": "sk-11",
+            "type": "sketch",
+            "name": "Esquisse du bloc",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 8
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -24,
+                  "y": -9
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -2,
+                  "y": -9
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -2,
+                  "y": -9
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -2,
+                  "y": 9
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -2,
+                  "y": 9
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -24,
+                  "y": 9
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -24,
+                  "y": 9
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -24,
+                  "y": -9
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 22,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 18,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 24,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-7",
+            "type": "extrude",
+            "name": "Bloc",
+            "params": {
+              "sketchId": "sk-11",
+              "distance": 2,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-11"
+            ]
+          },
+          {
+            "id": "sk-12",
+            "type": "sketch",
+            "name": "Esquisse de l’arrondi du bloc",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 8
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -20.5,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 6
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 12,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 20.5,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 0,
+                  "id": "k3"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-8",
+            "type": "extrude",
+            "name": "Arrondi du bloc",
+            "params": {
+              "sketchId": "sk-12",
+              "distance": 2,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-12"
+            ]
+          },
+          {
+            "id": "sk-13",
+            "type": "sketch",
+            "name": "Esquisse du dessus du bloc",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 10
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -24,
+                  "y": -9
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -11,
+                  "y": -9
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -11,
+                  "y": -9
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -11,
+                  "y": 9
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -11,
+                  "y": 9
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -24,
+                  "y": 9
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -24,
+                  "y": 9
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -24,
+                  "y": -9
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 13,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 18,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 24,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-9",
+            "type": "extrude",
+            "name": "Dessus du bloc",
+            "params": {
+              "sketchId": "sk-13",
+              "distance": 1,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-13"
+            ]
+          },
+          {
+            "id": "sk-14",
+            "type": "sketch",
+            "name": "Esquisse du bossage",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 10
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -10.6,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 2
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 4,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 10.6,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 0,
+                  "id": "k3"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-10",
+            "type": "extrude",
+            "name": "Bossage du pignon",
+            "params": {
+              "sketchId": "sk-14",
+              "distance": 0.8,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-14"
+            ]
+          },
+          {
+            "id": "sk-15",
+            "type": "sketch",
+            "name": "Esquisse du logement de l’étiquette",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 11
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -23,
+                  "y": -8
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -12,
+                  "y": -8
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -12,
+                  "y": -8
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -12,
+                  "y": 8
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -12,
+                  "y": 8
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -23,
+                  "y": 8
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -23,
+                  "y": 8
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -23,
+                  "y": -8
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 11,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 16,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 23,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 8,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-3",
+            "type": "pocket",
+            "name": "Logement de l’étiquette",
+            "params": {
+              "sketchId": "sk-15",
+              "extent": {
+                "kind": "distance",
+                "distance": 0.2
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-15"
+            ]
+          },
+          {
+            "id": "sk-16",
+            "type": "sketch",
+            "name": "Esquisse de la bague",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 10
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 6.6
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 13.2,
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k2"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-11",
+            "type": "extrude",
+            "name": "Bague",
+            "params": {
+              "sketchId": "sk-16",
+              "distance": 1.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-16"
+            ]
+          },
+          {
+            "id": "sk-17",
+            "type": "sketch",
+            "name": "Esquisse du collet",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 11.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 5.4
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 10.8,
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k2"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-12",
+            "type": "extrude",
+            "name": "Collet",
+            "params": {
+              "sketchId": "sk-17",
+              "distance": 0.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-17"
+            ]
+          },
+          {
+            "id": "sk-18",
+            "type": "sketch",
+            "name": "Esquisse de la cannelure",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 12
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 3
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 6,
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k2"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-13",
+            "type": "extrude",
+            "name": "Cannelure",
+            "params": {
+              "sketchId": "sk-18",
+              "distance": 3.5,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-18"
+            ]
+          },
+          {
+            "id": "sk-19",
+            "type": "sketch",
+            "name": "Esquisse d’un creux de cannelure",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 15.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 2.7,
+                  "y": 0
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 3.3,
+                  "y": 0.4344827586205983
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 3.3,
+                  "y": -0.43448275862068964
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p2",
+                  "b": "p3"
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p1"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 2.7,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p1",
+                  "value": 0,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 3.3,
+                  "id": "k3"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 0.43448275862068964,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 3.3,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 0.43448275862068964,
+                  "id": "k6"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-4",
+            "type": "pocket",
+            "name": "Creux de cannelure",
+            "params": {
+              "sketchId": "sk-19",
+              "extent": {
+                "kind": "distance",
+                "distance": 3.5
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-19"
+            ]
+          },
+          {
+            "id": "pa-1",
+            "type": "pattern",
+            "name": "Dents de la cannelure",
+            "params": {
+              "sourceId": "po-4",
+              "kind": "circular",
+              "axis": {
+                "kind": "axis",
+                "axis": "Z"
+              },
+              "count": 25,
+              "spacing": 10,
+              "angle": 360,
+              "reversed": false
+            },
+            "dependsOn": [
+              "po-4"
+            ]
+          },
+          {
+            "id": "sk-20",
+            "type": "sketch",
+            "name": "Esquisse du taraudage",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 15.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": 0,
+                  "y": 0
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 1.25
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 2.5,
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "origin",
+                  "b": "p1",
+                  "id": "k2"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-5",
+            "type": "pocket",
+            "name": "Taraudage M3",
+            "params": {
+              "sketchId": "sk-20",
+              "extent": {
+                "kind": "distance",
+                "distance": 8
+              },
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-20"
+            ]
+          },
+          {
+            "id": "sk-21",
+            "type": "sketch",
+            "name": "Esquisse des lamages",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -28
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -28.35,
+                  "y": -8.25
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 2
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -28.35,
+                  "y": 8.25
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 2
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 8.35,
+                  "y": -8.25
+                },
+                {
+                  "id": "c3",
+                  "type": "circle",
+                  "center": "p3",
+                  "radius": 2
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 8.35,
+                  "y": 8.25
+                },
+                {
+                  "id": "c4",
+                  "type": "circle",
+                  "center": "p4",
+                  "radius": 2
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 4,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 28.35,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 8.25,
+                  "id": "k3"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c2",
+                  "value": 4,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 28.35,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 8.25,
+                  "id": "k6"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c3",
+                  "value": 4,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 8.35,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 8.25,
+                  "id": "k9"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c4",
+                  "value": 4,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 8.35,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 8.25,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-6",
+            "type": "pocket",
+            "name": "Lamages",
+            "params": {
+              "sketchId": "sk-21",
+              "extent": {
+                "kind": "distance",
+                "distance": 1
+              },
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-21"
+            ]
+          },
+          {
+            "id": "sk-22",
+            "type": "sketch",
+            "name": "Esquisse des têtes de vis",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -26.9
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -28.35,
+                  "y": -8.25
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 1.6
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -28.35,
+                  "y": 8.25
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 1.6
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 8.35,
+                  "y": -8.25
+                },
+                {
+                  "id": "c3",
+                  "type": "circle",
+                  "center": "p3",
+                  "radius": 1.6
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 8.35,
+                  "y": 8.25
+                },
+                {
+                  "id": "c4",
+                  "type": "circle",
+                  "center": "p4",
+                  "radius": 1.6
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 3.2,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 28.35,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 8.25,
+                  "id": "k3"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c2",
+                  "value": 3.2,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 28.35,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 8.25,
+                  "id": "k6"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c3",
+                  "value": 3.2,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 8.35,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 8.25,
+                  "id": "k9"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c4",
+                  "value": 3.2,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 8.35,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 8.25,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-14",
+            "type": "extrude",
+            "name": "Têtes de vis",
+            "params": {
+              "sketchId": "sk-22",
+              "distance": 1.36,
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-22"
+            ]
+          },
+          {
+            "id": "fi-3",
+            "type": "fillet",
+            "name": "Bombé des têtes",
+            "params": {
+              "edges": [
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-14",
+                      "role": "side",
+                      "entityId": "c1"
+                    },
+                    {
+                      "featureId": "ex-14",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-14",
+                      "role": "side",
+                      "entityId": "c2"
+                    },
+                    {
+                      "featureId": "ex-14",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-14",
+                      "role": "side",
+                      "entityId": "c3"
+                    },
+                    {
+                      "featureId": "ex-14",
+                      "role": "start"
+                    }
+                  ]
+                },
+                {
+                  "faces": [
+                    {
+                      "featureId": "ex-14",
+                      "role": "side",
+                      "entityId": "c4"
+                    },
+                    {
+                      "featureId": "ex-14",
+                      "role": "start"
+                    }
+                  ]
+                }
+              ],
+              "radius": 0.5
+            },
+            "dependsOn": [
+              "ex-14"
+            ]
+          },
+          {
+            "id": "sk-23",
+            "type": "sketch",
+            "name": "Esquisse des empreintes (branches longues)",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -28.26
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": -8.425
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": -8.425
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": -8.425
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": -8.075
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": -8.075
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": -8.075
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": -8.075
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": -8.425
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "p9",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": 8.075
+                },
+                {
+                  "id": "p10",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": 8.075
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p9",
+                  "b": "p10"
+                },
+                {
+                  "id": "p11",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": 8.075
+                },
+                {
+                  "id": "p12",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": 8.425
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p11",
+                  "b": "p12"
+                },
+                {
+                  "id": "p13",
+                  "type": "point",
+                  "x": -27.55,
+                  "y": 8.425
+                },
+                {
+                  "id": "p14",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": 8.425
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p13",
+                  "b": "p14"
+                },
+                {
+                  "id": "p15",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": 8.425
+                },
+                {
+                  "id": "p16",
+                  "type": "point",
+                  "x": -29.15,
+                  "y": 8.075
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p15",
+                  "b": "p16"
+                },
+                {
+                  "id": "p17",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": -8.425
+                },
+                {
+                  "id": "p18",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": -8.425
+                },
+                {
+                  "id": "l9",
+                  "type": "line",
+                  "a": "p17",
+                  "b": "p18"
+                },
+                {
+                  "id": "p19",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": -8.425
+                },
+                {
+                  "id": "p20",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": -8.075
+                },
+                {
+                  "id": "l10",
+                  "type": "line",
+                  "a": "p19",
+                  "b": "p20"
+                },
+                {
+                  "id": "p21",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": -8.075
+                },
+                {
+                  "id": "p22",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": -8.075
+                },
+                {
+                  "id": "l11",
+                  "type": "line",
+                  "a": "p21",
+                  "b": "p22"
+                },
+                {
+                  "id": "p23",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": -8.075
+                },
+                {
+                  "id": "p24",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": -8.425
+                },
+                {
+                  "id": "l12",
+                  "type": "line",
+                  "a": "p23",
+                  "b": "p24"
+                },
+                {
+                  "id": "p25",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": 8.075
+                },
+                {
+                  "id": "p26",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": 8.075
+                },
+                {
+                  "id": "l13",
+                  "type": "line",
+                  "a": "p25",
+                  "b": "p26"
+                },
+                {
+                  "id": "p27",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": 8.075
+                },
+                {
+                  "id": "p28",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": 8.425
+                },
+                {
+                  "id": "l14",
+                  "type": "line",
+                  "a": "p27",
+                  "b": "p28"
+                },
+                {
+                  "id": "p29",
+                  "type": "point",
+                  "x": 9.15,
+                  "y": 8.425
+                },
+                {
+                  "id": "p30",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": 8.425
+                },
+                {
+                  "id": "l15",
+                  "type": "line",
+                  "a": "p29",
+                  "b": "p30"
+                },
+                {
+                  "id": "p31",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": 8.425
+                },
+                {
+                  "id": "p32",
+                  "type": "point",
+                  "x": 7.55,
+                  "y": 8.075
+                },
+                {
+                  "id": "l16",
+                  "type": "line",
+                  "a": "p31",
+                  "b": "p32"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 1.6,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 0.35,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 29.150000000000002,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 8.425,
+                  "id": "k12"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p10",
+                  "b": "p11",
+                  "id": "k13"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p12",
+                  "b": "p13",
+                  "id": "k14"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p14",
+                  "b": "p15",
+                  "id": "k15"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p16",
+                  "b": "p9",
+                  "id": "k16"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l5",
+                  "id": "k17"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l7",
+                  "id": "k18"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l6",
+                  "id": "k19"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l8",
+                  "id": "k20"
+                },
+                {
+                  "type": "length",
+                  "line": "l5",
+                  "value": 1.6,
+                  "id": "k21"
+                },
+                {
+                  "type": "length",
+                  "line": "l8",
+                  "value": 0.35,
+                  "id": "k22"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p9",
+                  "b": "origin",
+                  "value": 29.150000000000002,
+                  "id": "k23"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p9",
+                  "value": 8.075,
+                  "id": "k24"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p18",
+                  "b": "p19",
+                  "id": "k25"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p20",
+                  "b": "p21",
+                  "id": "k26"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p22",
+                  "b": "p23",
+                  "id": "k27"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p24",
+                  "b": "p17",
+                  "id": "k28"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l9",
+                  "id": "k29"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l11",
+                  "id": "k30"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l10",
+                  "id": "k31"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l12",
+                  "id": "k32"
+                },
+                {
+                  "type": "length",
+                  "line": "l9",
+                  "value": 1.6,
+                  "id": "k33"
+                },
+                {
+                  "type": "length",
+                  "line": "l12",
+                  "value": 0.35,
+                  "id": "k34"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p17",
+                  "value": 7.55,
+                  "id": "k35"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p17",
+                  "b": "origin",
+                  "value": 8.425,
+                  "id": "k36"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p26",
+                  "b": "p27",
+                  "id": "k37"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p28",
+                  "b": "p29",
+                  "id": "k38"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p30",
+                  "b": "p31",
+                  "id": "k39"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p32",
+                  "b": "p25",
+                  "id": "k40"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l13",
+                  "id": "k41"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l15",
+                  "id": "k42"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l14",
+                  "id": "k43"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l16",
+                  "id": "k44"
+                },
+                {
+                  "type": "length",
+                  "line": "l13",
+                  "value": 1.6,
+                  "id": "k45"
+                },
+                {
+                  "type": "length",
+                  "line": "l16",
+                  "value": 0.35,
+                  "id": "k46"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 7.55,
+                  "id": "k47"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 8.075,
+                  "id": "k48"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-7",
+            "type": "pocket",
+            "name": "Empreintes (branches longues)",
+            "params": {
+              "sketchId": "sk-23",
+              "extent": {
+                "kind": "distance",
+                "distance": 0.6
+              },
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-23"
+            ]
+          },
+          {
+            "id": "sk-24",
+            "type": "sketch",
+            "name": "Esquisse des empreintes (branches courtes)",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": -28.26
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": -9.05
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": -9.05
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": -9.05
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": -7.45
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": -7.45
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": -7.45
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": -7.45
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": -9.05
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "p9",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": 7.45
+                },
+                {
+                  "id": "p10",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": 7.45
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p9",
+                  "b": "p10"
+                },
+                {
+                  "id": "p11",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": 7.45
+                },
+                {
+                  "id": "p12",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": 9.05
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p11",
+                  "b": "p12"
+                },
+                {
+                  "id": "p13",
+                  "type": "point",
+                  "x": -28.175,
+                  "y": 9.05
+                },
+                {
+                  "id": "p14",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": 9.05
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p13",
+                  "b": "p14"
+                },
+                {
+                  "id": "p15",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": 9.05
+                },
+                {
+                  "id": "p16",
+                  "type": "point",
+                  "x": -28.525,
+                  "y": 7.45
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p15",
+                  "b": "p16"
+                },
+                {
+                  "id": "p17",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": -9.05
+                },
+                {
+                  "id": "p18",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": -9.05
+                },
+                {
+                  "id": "l9",
+                  "type": "line",
+                  "a": "p17",
+                  "b": "p18"
+                },
+                {
+                  "id": "p19",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": -9.05
+                },
+                {
+                  "id": "p20",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": -7.45
+                },
+                {
+                  "id": "l10",
+                  "type": "line",
+                  "a": "p19",
+                  "b": "p20"
+                },
+                {
+                  "id": "p21",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": -7.45
+                },
+                {
+                  "id": "p22",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": -7.45
+                },
+                {
+                  "id": "l11",
+                  "type": "line",
+                  "a": "p21",
+                  "b": "p22"
+                },
+                {
+                  "id": "p23",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": -7.45
+                },
+                {
+                  "id": "p24",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": -9.05
+                },
+                {
+                  "id": "l12",
+                  "type": "line",
+                  "a": "p23",
+                  "b": "p24"
+                },
+                {
+                  "id": "p25",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": 7.45
+                },
+                {
+                  "id": "p26",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": 7.45
+                },
+                {
+                  "id": "l13",
+                  "type": "line",
+                  "a": "p25",
+                  "b": "p26"
+                },
+                {
+                  "id": "p27",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": 7.45
+                },
+                {
+                  "id": "p28",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": 9.05
+                },
+                {
+                  "id": "l14",
+                  "type": "line",
+                  "a": "p27",
+                  "b": "p28"
+                },
+                {
+                  "id": "p29",
+                  "type": "point",
+                  "x": 8.525,
+                  "y": 9.05
+                },
+                {
+                  "id": "p30",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": 9.05
+                },
+                {
+                  "id": "l15",
+                  "type": "line",
+                  "a": "p29",
+                  "b": "p30"
+                },
+                {
+                  "id": "p31",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": 9.05
+                },
+                {
+                  "id": "p32",
+                  "type": "point",
+                  "x": 8.175,
+                  "y": 7.45
+                },
+                {
+                  "id": "l16",
+                  "type": "line",
+                  "a": "p31",
+                  "b": "p32"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 0.35,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 1.6,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 28.525000000000002,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 9.05,
+                  "id": "k12"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p10",
+                  "b": "p11",
+                  "id": "k13"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p12",
+                  "b": "p13",
+                  "id": "k14"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p14",
+                  "b": "p15",
+                  "id": "k15"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p16",
+                  "b": "p9",
+                  "id": "k16"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l5",
+                  "id": "k17"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l7",
+                  "id": "k18"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l6",
+                  "id": "k19"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l8",
+                  "id": "k20"
+                },
+                {
+                  "type": "length",
+                  "line": "l5",
+                  "value": 0.35,
+                  "id": "k21"
+                },
+                {
+                  "type": "length",
+                  "line": "l8",
+                  "value": 1.6,
+                  "id": "k22"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p9",
+                  "b": "origin",
+                  "value": 28.525000000000002,
+                  "id": "k23"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p9",
+                  "value": 7.45,
+                  "id": "k24"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p18",
+                  "b": "p19",
+                  "id": "k25"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p20",
+                  "b": "p21",
+                  "id": "k26"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p22",
+                  "b": "p23",
+                  "id": "k27"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p24",
+                  "b": "p17",
+                  "id": "k28"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l9",
+                  "id": "k29"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l11",
+                  "id": "k30"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l10",
+                  "id": "k31"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l12",
+                  "id": "k32"
+                },
+                {
+                  "type": "length",
+                  "line": "l9",
+                  "value": 0.35,
+                  "id": "k33"
+                },
+                {
+                  "type": "length",
+                  "line": "l12",
+                  "value": 1.6,
+                  "id": "k34"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p17",
+                  "value": 8.174999999999999,
+                  "id": "k35"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p17",
+                  "b": "origin",
+                  "value": 9.05,
+                  "id": "k36"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p26",
+                  "b": "p27",
+                  "id": "k37"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p28",
+                  "b": "p29",
+                  "id": "k38"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p30",
+                  "b": "p31",
+                  "id": "k39"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p32",
+                  "b": "p25",
+                  "id": "k40"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l13",
+                  "id": "k41"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l15",
+                  "id": "k42"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l14",
+                  "id": "k43"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l16",
+                  "id": "k44"
+                },
+                {
+                  "type": "length",
+                  "line": "l13",
+                  "value": 0.35,
+                  "id": "k45"
+                },
+                {
+                  "type": "length",
+                  "line": "l16",
+                  "value": 1.6,
+                  "id": "k46"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 8.174999999999999,
+                  "id": "k47"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p25",
+                  "value": 7.45,
+                  "id": "k48"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "po-8",
+            "type": "pocket",
+            "name": "Empreintes (branches courtes)",
+            "params": {
+              "sketchId": "sk-24",
+              "extent": {
+                "kind": "distance",
+                "distance": 0.6
+              },
+              "direction": "reversed"
+            },
+            "dependsOn": [
+              "sk-24"
+            ]
+          },
+          {
+            "id": "sk-25",
+            "type": "sketch",
+            "name": "Esquisse de la collerette du passe-fil",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "YZ",
+                "offset": 10.2
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -3.7,
+                  "y": -24.3
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 3.7,
+                  "y": -24.3
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 3.7,
+                  "y": -24.3
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 3.7,
+                  "y": -19.7
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 3.7,
+                  "y": -19.7
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -3.7,
+                  "y": -19.7
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -3.7,
+                  "y": -19.7
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -3.7,
+                  "y": -24.3
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 7.4,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 4.6,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 3.7,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 24.3,
+                  "id": "k12"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-15",
+            "type": "extrude",
+            "name": "Collerette du passe-fil",
+            "params": {
+              "sketchId": "sk-25",
+              "distance": 0.8,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-25"
+            ]
+          },
+          {
+            "id": "sk-26",
+            "type": "sketch",
+            "name": "Esquisse du pied du passe-fil",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "YZ",
+                "offset": 11
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -1.42,
+                  "y": -23.9
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 1.42,
+                  "y": -23.9
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 3.61,
+                  "y": -22.8
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 3.61,
+                  "y": -21.2
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 1.42,
+                  "y": -20.1
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -1.42,
+                  "y": -20.1
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -3.61,
+                  "y": -21.2
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -3.61,
+                  "y": -22.8
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p2",
+                  "b": "p3"
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p4",
+                  "b": "p5"
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p6",
+                  "b": "p7"
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p8",
+                  "b": "p1"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 1.42,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 23.9,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 1.42,
+                  "id": "k3"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 23.9,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 3.61,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 22.799999999999997,
+                  "id": "k6"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 3.61,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p4",
+                  "b": "origin",
+                  "value": 21.200000000000003,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p5",
+                  "value": 1.42,
+                  "id": "k9"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p5",
+                  "b": "origin",
+                  "value": 20.1,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p6",
+                  "b": "origin",
+                  "value": 1.42,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p6",
+                  "b": "origin",
+                  "value": 20.1,
+                  "id": "k12"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p7",
+                  "b": "origin",
+                  "value": 3.61,
+                  "id": "k13"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p7",
+                  "b": "origin",
+                  "value": 21.200000000000003,
+                  "id": "k14"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p8",
+                  "b": "origin",
+                  "value": 3.61,
+                  "id": "k15"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p8",
+                  "b": "origin",
+                  "value": 22.799999999999997,
+                  "id": "k16"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "sk-27",
+            "type": "sketch",
+            "name": "Esquisse du bout du passe-fil",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "YZ",
+                "offset": 16
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -1.1,
+                  "y": -23.5
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 1.1,
+                  "y": -23.5
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 2.81,
+                  "y": -22.65
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": 2.81,
+                  "y": -21.35
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": 1.1,
+                  "y": -20.5
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -1.1,
+                  "y": -20.5
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -2.81,
+                  "y": -21.35
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -2.81,
+                  "y": -22.65
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p2",
+                  "b": "p3"
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p4",
+                  "b": "p5"
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p6",
+                  "b": "p7"
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p8",
+                  "b": "p1"
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 1.1,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 23.5,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 1.1,
+                  "id": "k3"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 23.5,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 2.81,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 22.65,
+                  "id": "k6"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p4",
+                  "value": 2.81,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p4",
+                  "b": "origin",
+                  "value": 21.35,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p5",
+                  "value": 1.1,
+                  "id": "k9"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p5",
+                  "b": "origin",
+                  "value": 20.5,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p6",
+                  "b": "origin",
+                  "value": 1.1,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p6",
+                  "b": "origin",
+                  "value": 20.5,
+                  "id": "k12"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p7",
+                  "b": "origin",
+                  "value": 2.81,
+                  "id": "k13"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p7",
+                  "b": "origin",
+                  "value": 21.35,
+                  "id": "k14"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p8",
+                  "b": "origin",
+                  "value": 2.81,
+                  "id": "k15"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p8",
+                  "b": "origin",
+                  "value": 22.65,
+                  "id": "k16"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "lo-2",
+            "type": "loft",
+            "name": "Passe-fil",
+            "params": {
+              "sketchIds": [
+                "sk-26",
+                "sk-27"
+              ],
+              "ruled": false,
+              "operation": "add"
+            },
+            "dependsOn": [
+              "sk-26",
+              "sk-27"
+            ]
+          },
+          {
+            "id": "sk-28",
+            "type": "sketch",
+            "name": "Esquisse des fils",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "YZ",
+                "offset": 15.5
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -1.42,
+                  "y": -22
+                },
+                {
+                  "id": "c1",
+                  "type": "circle",
+                  "center": "p1",
+                  "radius": 0.7
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": 0,
+                  "y": -22
+                },
+                {
+                  "id": "c2",
+                  "type": "circle",
+                  "center": "p2",
+                  "radius": 0.7
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": 1.42,
+                  "y": -22
+                },
+                {
+                  "id": "c3",
+                  "type": "circle",
+                  "center": "p3",
+                  "radius": 0.7
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "diameter",
+                  "circle": "c1",
+                  "value": 1.4,
+                  "id": "k1"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 1.42,
+                  "id": "k2"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 22,
+                  "id": "k3"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c2",
+                  "value": 1.4,
+                  "id": "k4"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p2",
+                  "value": 0,
+                  "id": "k5"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p2",
+                  "b": "origin",
+                  "value": 22,
+                  "id": "k6"
+                },
+                {
+                  "type": "diameter",
+                  "circle": "c3",
+                  "value": 1.4,
+                  "id": "k7"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "origin",
+                  "b": "p3",
+                  "value": 1.42,
+                  "id": "k8"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p3",
+                  "b": "origin",
+                  "value": 22,
+                  "id": "k9"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-16",
+            "type": "extrude",
+            "name": "Fils",
+            "params": {
+              "sketchId": "sk-28",
+              "distance": 7.1,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-28"
+            ]
+          },
+          {
+            "id": "sk-29",
+            "type": "sketch",
+            "name": "Esquisse de l’étiquette",
+            "visible": false,
+            "params": {
+              "support": {
+                "kind": "plane",
+                "plane": "XY",
+                "offset": 10.8
+              },
+              "entities": [
+                {
+                  "id": "p1",
+                  "type": "point",
+                  "x": -22.4,
+                  "y": -7.1
+                },
+                {
+                  "id": "p2",
+                  "type": "point",
+                  "x": -13.8,
+                  "y": -7.1
+                },
+                {
+                  "id": "l1",
+                  "type": "line",
+                  "a": "p1",
+                  "b": "p2"
+                },
+                {
+                  "id": "p3",
+                  "type": "point",
+                  "x": -13.8,
+                  "y": -7.1
+                },
+                {
+                  "id": "p4",
+                  "type": "point",
+                  "x": -13.8,
+                  "y": 7.1
+                },
+                {
+                  "id": "l2",
+                  "type": "line",
+                  "a": "p3",
+                  "b": "p4"
+                },
+                {
+                  "id": "p5",
+                  "type": "point",
+                  "x": -13.8,
+                  "y": 7.1
+                },
+                {
+                  "id": "p6",
+                  "type": "point",
+                  "x": -22.4,
+                  "y": 7.1
+                },
+                {
+                  "id": "l3",
+                  "type": "line",
+                  "a": "p5",
+                  "b": "p6"
+                },
+                {
+                  "id": "p7",
+                  "type": "point",
+                  "x": -22.4,
+                  "y": 7.1
+                },
+                {
+                  "id": "p8",
+                  "type": "point",
+                  "x": -22.4,
+                  "y": -7.1
+                },
+                {
+                  "id": "l4",
+                  "type": "line",
+                  "a": "p7",
+                  "b": "p8"
+                },
+                {
+                  "id": "p9",
+                  "type": "point",
+                  "x": -22.1,
+                  "y": -6.8
+                },
+                {
+                  "id": "p10",
+                  "type": "point",
+                  "x": -14.1,
+                  "y": -6.8
+                },
+                {
+                  "id": "l5",
+                  "type": "line",
+                  "a": "p9",
+                  "b": "p10"
+                },
+                {
+                  "id": "p11",
+                  "type": "point",
+                  "x": -14.1,
+                  "y": -6.8
+                },
+                {
+                  "id": "p12",
+                  "type": "point",
+                  "x": -14.1,
+                  "y": 6.8
+                },
+                {
+                  "id": "l6",
+                  "type": "line",
+                  "a": "p11",
+                  "b": "p12"
+                },
+                {
+                  "id": "p13",
+                  "type": "point",
+                  "x": -14.1,
+                  "y": 6.8
+                },
+                {
+                  "id": "p14",
+                  "type": "point",
+                  "x": -22.1,
+                  "y": 6.8
+                },
+                {
+                  "id": "l7",
+                  "type": "line",
+                  "a": "p13",
+                  "b": "p14"
+                },
+                {
+                  "id": "p15",
+                  "type": "point",
+                  "x": -22.1,
+                  "y": 6.8
+                },
+                {
+                  "id": "p16",
+                  "type": "point",
+                  "x": -22.1,
+                  "y": -6.8
+                },
+                {
+                  "id": "l8",
+                  "type": "line",
+                  "a": "p15",
+                  "b": "p16"
+                },
+                {
+                  "id": "p17",
+                  "type": "point",
+                  "x": -20.1,
+                  "y": 6.3
+                },
+                {
+                  "id": "txt1",
+                  "type": "text",
+                  "anchor": "p17",
+                  "text": "MG996R",
+                  "height": 2.226665054998187,
+                  "angle": -90
+                },
+                {
+                  "id": "p18",
+                  "type": "point",
+                  "x": -21.55,
+                  "y": 6.3
+                },
+                {
+                  "id": "txt2",
+                  "type": "text",
+                  "anchor": "p18",
+                  "text": "DIGI HI TORQUE",
+                  "height": 1.1401374017453734,
+                  "angle": -90
+                }
+              ],
+              "constraints": [
+                {
+                  "type": "coincident",
+                  "a": "p2",
+                  "b": "p3",
+                  "id": "k1"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p4",
+                  "b": "p5",
+                  "id": "k2"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p6",
+                  "b": "p7",
+                  "id": "k3"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p8",
+                  "b": "p1",
+                  "id": "k4"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l1",
+                  "id": "k5"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l3",
+                  "id": "k6"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l2",
+                  "id": "k7"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l4",
+                  "id": "k8"
+                },
+                {
+                  "type": "length",
+                  "line": "l1",
+                  "value": 8.599999999999998,
+                  "id": "k9"
+                },
+                {
+                  "type": "length",
+                  "line": "l4",
+                  "value": 14.2,
+                  "id": "k10"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 22.4,
+                  "id": "k11"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p1",
+                  "b": "origin",
+                  "value": 7.1,
+                  "id": "k12"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p10",
+                  "b": "p11",
+                  "id": "k13"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p12",
+                  "b": "p13",
+                  "id": "k14"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p14",
+                  "b": "p15",
+                  "id": "k15"
+                },
+                {
+                  "type": "coincident",
+                  "a": "p16",
+                  "b": "p9",
+                  "id": "k16"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l5",
+                  "id": "k17"
+                },
+                {
+                  "type": "horizontal",
+                  "line": "l7",
+                  "id": "k18"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l6",
+                  "id": "k19"
+                },
+                {
+                  "type": "vertical",
+                  "line": "l8",
+                  "id": "k20"
+                },
+                {
+                  "type": "length",
+                  "line": "l5",
+                  "value": 8.000000000000002,
+                  "id": "k21"
+                },
+                {
+                  "type": "length",
+                  "line": "l8",
+                  "value": 13.6,
+                  "id": "k22"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p9",
+                  "b": "origin",
+                  "value": 22.1,
+                  "id": "k23"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "p9",
+                  "b": "origin",
+                  "value": 6.8,
+                  "id": "k24"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p17",
+                  "b": "origin",
+                  "value": 20.1,
+                  "id": "k25"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p17",
+                  "value": 6.3,
+                  "id": "k26"
+                },
+                {
+                  "type": "distanceX",
+                  "a": "p18",
+                  "b": "origin",
+                  "value": 21.55,
+                  "id": "k27"
+                },
+                {
+                  "type": "distanceY",
+                  "a": "origin",
+                  "b": "p18",
+                  "value": 6.3,
+                  "id": "k28"
+                }
+              ]
+            },
+            "dependsOn": []
+          },
+          {
+            "id": "ex-17",
+            "type": "extrude",
+            "name": "Étiquette",
+            "params": {
+              "sketchId": "sk-29",
+              "distance": 0.15,
+              "direction": "default"
+            },
+            "dependsOn": [
+              "sk-29"
+            ]
+          }
+        ]
+      }
+    ],
+    "resources": {}
+  }
+}

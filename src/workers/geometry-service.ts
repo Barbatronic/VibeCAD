@@ -4,12 +4,12 @@
  */
 import { freecadFcstd, freecadPlan, freecadScript, type FreecadLeaf, type FreecadPartInput } from '../io/freecad';
 import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '../geometry/protocol';
-import type { CadDocument, EdgeRef, Id } from '../domain/model';
+import type { CadDocument, EdgeRef, Id, Part } from '../domain/model';
 import { add3, scale3, type Vec3 } from '../math/vec';
 import { foldLines } from '../features/sheet/fold';
 import { engraveSteps, faceMaterials } from '../domain/paint';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
-import { RecomputeEngine, type PartEvaluation } from '../features/engine';
+import { RecomputeEngine, type PartEvaluation, type PartSnapshot } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
 import type { BoundingBox, GeometryKernel, KernelShape, MeshData, MeshOptions } from '../geometry/kernel';
 import { stepProductNames } from '../io/resources';
@@ -54,12 +54,68 @@ export class GeometryService {
     return doc as unknown as CadDocument;
   }
 
-  evaluate(docIn: DocumentForWorker, knownMeshKeys: string[] = [], previewFeatureId?: Id): EvaluationResult {
+  /**
+   * Pièces calculées dont l'instantané vaut d'être mis en cache, par pièce (le dernier calcul de
+   * chacune) : elles s'accumulent d'un recalcul à l'autre jusqu'à l'enregistrement.
+   */
+  private readonly pendingSnapshots = new Map<Id, { part: Part; ev: PartEvaluation }>();
+
+  /** Clés d'instantané à chercher dans le cache des formes avant de calculer ce document. */
+  snapshotKeys(docIn: DocumentForWorker): string[] {
+    const doc = this.asDocument(docIn);
+    return doc.parts.flatMap((p) => {
+      const key = this.engine.snapshotKey(p);
+      return key && !this.engine.hasSnapshot(key) ? [key] : [];
+    });
+  }
+
+  preloadSnapshots(entries: Iterable<[string, PartSnapshot]>): void {
+    this.engine.preloadSnapshots(entries);
+  }
+
+  /**
+   * Instantanés des pièces calculées au dernier recalcul (à enregistrer dans le cache des formes).
+   * Seules les pièces qui ont coûté du calcul ou qui ont un long historique sont gardées.
+   */
+  takeSnapshots(): { key: string; snap: PartSnapshot }[] {
+    const out: { key: string; snap: PartSnapshot }[] = [];
+    for (const { part, ev } of this.pendingSnapshots.values()) {
+      try {
+        const options = meshOptionsFor(ev.analysis?.bbox ?? null, DISPLAY_MESH);
+        const data = ev.shape ? this.engine.meshOf(ev, options) : null;
+        const key = this.engine.meshCacheKey(ev, options);
+        const s = this.engine.snapshotOf(part, ev, data && key ? { key, data } : undefined);
+        if (s) out.push(s);
+      } catch {
+        // Une pièce qui ne se sérialise pas reste simplement hors du cache.
+      }
+    }
+    this.pendingSnapshots.clear();
+    return out;
+  }
+
+  /** `onProgress` : avancement de 0 à 1 (étapes de construction, puis maillages des pièces). */
+  evaluate(docIn: DocumentForWorker, knownMeshKeys: string[] = [], previewFeatureId?: Id, onProgress?: (fraction: number) => void): EvaluationResult {
     const t0 = performance.now();
     const doc = this.asDocument(docIn);
     const known = new Set(knownMeshKeys);
-    const evaluations = this.engine.evaluateDocument(doc);
-    const parts = evaluations.map((ev) => this.partResult(ev, known, previewFeatureId));
+    // Un maillage compte comme une étape de construction.
+    const meshes = doc.parts.length;
+    const evaluations = this.engine.evaluateDocument(doc, onProgress && ((done, total) => onProgress(done / (total + meshes))));
+    const steps = doc.parts.reduce((n, p) => n + p.features.length, 0);
+    const parts = evaluations.map((ev, i) => {
+      const r = this.partResult(ev, known, previewFeatureId);
+      onProgress?.((steps + i + 1) / (steps + meshes));
+      return r;
+    });
+    if (!previewFeatureId) {
+      doc.parts.forEach((part, i) => {
+        const ev = evaluations[i]!;
+        if (ev.fromCache || ev.stepMs.size === 0) return;
+        const ms = [...ev.stepMs.values()].reduce((a, b) => a + b, 0);
+        if (ms >= 200 || part.features.length >= 10) this.pendingSnapshots.set(part.id, { part, ev });
+      });
+    }
     return { parts, durationMs: performance.now() - t0, memoryBytes: this.kernel.memoryBytes() };
   }
 
@@ -94,6 +150,7 @@ export class GeometryService {
       analysis: ev.analysis,
       failedFeatureId: ev.failedFeatureId,
       ...(ev.images.length ? { images: ev.images } : {}),
+      ...(ev.stepMs.size ? { stepMs: Object.fromEntries(ev.stepMs) } : {}),
     };
     const sheet = ev.sheet;
     if (sheet && sheet.folds.length > 0 && ev.shapeKey) {
@@ -224,7 +281,14 @@ export class GeometryService {
    */
   async exportFreecad(docIn: DocumentForWorker, partIds: Id[], leaves: FreecadLeaf[]): Promise<{ script: string; fcstd: Uint8Array; warnings: string[] }> {
     const doc = this.asDocument(docIn);
-    const evaluations = this.engine.evaluateDocument(doc);
+    // L'export rejoue tout l'historique : il lui faut les formes intermédiaires, pas l'instantané.
+    this.engine.useSnapshots = false;
+    let evaluations: PartEvaluation[];
+    try {
+      evaluations = this.engine.evaluateDocument(doc);
+    } finally {
+      this.engine.useSnapshots = true;
+    }
     const wanted = new Set([...partIds, ...leaves.map((l) => l.partId)]);
     const warnings: string[] = [];
     const parts: FreecadPartInput[] = [];

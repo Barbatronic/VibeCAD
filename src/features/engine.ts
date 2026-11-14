@@ -16,7 +16,7 @@ import { externalParts } from './sketch/definition';
 import { hashString, stableStringify } from '../domain/hash';
 import type { CadDocument, Feature, Id, Part } from '../domain/model';
 import { issue, okStatus, type FeatureStatus } from '../domain/status';
-import { KernelError, type GeometryKernel, type KernelShape, type MeshData, type MeshOptions, type ShapeAnalysis } from '../geometry/kernel';
+import { KernelError, type GeometryKernel, type KernelShape, type MeshData, type MeshOptions, type SerializedShape, type ShapeAnalysis } from '../geometry/kernel';
 import type { Frame3D } from '../math/frame';
 import type { Vec3 } from '../math/vec';
 import type { EvaluatedSketch, EvaluationContext, FeatureOutcome, ResourceProvider, SketchEvaluation } from './evaluation';
@@ -59,6 +59,34 @@ export interface PartEvaluation {
   sheet: SheetState | null;
   /** Images de référence : repère de leur support. */
   images: { featureId: Id; frame: Frame3D }[];
+  /** Durée de calcul (ms) des étapes calculées à ce passage (une étape reprise du cache n'y est pas). */
+  stepMs: Map<Id, number>;
+  /** Pièce reprise du cache des formes (sans rejouer son historique). */
+  fromCache?: boolean;
+}
+
+/**
+ * Révision du calcul : à augmenter dès qu'un évaluateur change la forme produite, pour que le
+ * cache des formes (enregistré dans le navigateur) ne resserve pas d'anciens résultats.
+ */
+export const ENGINE_REVISION = 1;
+
+/**
+ * Instantané d'une pièce pour le cache des formes : le résultat de tout son historique (forme
+ * finale avec ses étiquettes de faces, statuts, esquisses résolues, plans et axes) et, si connu,
+ * son maillage d'affichage. Ne vaut que pour une pièce sans référence à une autre pièce ni tôle.
+ */
+export interface PartSnapshot {
+  shapeKey: string | null;
+  statuses: FeatureStatus[];
+  sketches: SketchEvaluation[];
+  datums: { featureId: Id; frame: Frame3D }[];
+  axes: { featureId: Id; point: Vec3; dir: Vec3 }[];
+  analysis: ShapeAnalysis | null;
+  failedFeatureId: Id | null;
+  images: { featureId: Id; frame: Frame3D }[];
+  shape: SerializedShape | null;
+  mesh?: { key: string; data: MeshData };
 }
 
 /** Nombre de recalculs pendant lesquels une étape inutilisée reste en cache (annuler/rétablir rapides). */
@@ -82,15 +110,28 @@ export class RecomputeEngine {
   private readonly stepFiles = new Map<string, StepFileEntry>();
   private readonly meshes = new Map<string, { mesh: MeshData; lastUsed: number }>();
   private generation = 0;
+  private onStep: (() => void) | null = null;
+  /** Instantanés lus dans le cache des formes, en attente d'être repris (clé d'instantané). */
+  private readonly snapshots = new Map<string, PartSnapshot>();
+  /** Pièces reprises d'un instantané : forme relue (détenue par le moteur) et données. */
+  private readonly restored = new Map<string, { snap: PartSnapshot; shape: KernelShape | null; lastUsed: number }>();
+  /** Faux : toujours rejouer l'historique (export FreeCAD, qui a besoin des formes intermédiaires). */
+  useSnapshots = true;
 
   constructor(
     readonly kernel: GeometryKernel,
     private readonly resources: ResourceProvider,
   ) {}
 
-  /** Recalcule toutes les pièces du document. Les résultats restent valides jusqu'au prochain appel. */
-  evaluateDocument(doc: CadDocument): PartEvaluation[] {
+  /**
+   * Recalcule toutes les pièces du document. Les résultats restent valides jusqu'au prochain appel.
+   * `onStep` est appelé après chaque étape (avancement : étapes faites, étapes au total).
+   */
+  evaluateDocument(doc: CadDocument, onStep?: (done: number, total: number) => void): PartEvaluation[] {
     const gen = ++this.generation;
+    const total = doc.parts.reduce((n, p) => n + p.features.length, 0);
+    let done = 0;
+    this.onStep = onStep ? () => onStep(++done, total) : null;
     // Une pièce qui reprend une face ou des arêtes d'une autre est calculée après elle.
     const { order, cyclic } = partOrder(doc);
     const finals = new Map<Id, { shape: KernelShape; key: string }>();
@@ -100,6 +141,7 @@ export class RecomputeEngine {
       byId.set(part.id, ev);
       if (ev.shape && ev.shapeKey) finals.set(part.id, { shape: ev.shape, key: ev.shapeKey });
     }
+    this.onStep = null;
     this.evict(gen);
     return doc.parts.map((p) => byId.get(p.id)!);
   }
@@ -141,10 +183,114 @@ export class RecomputeEngine {
     return this.records.size;
   }
 
+  /**
+   * Clé d'instantané d'une pièce (empreinte de tout son historique), ou null si la pièce ne peut
+   * pas venir du cache : référence à une autre pièce (sa clé dépend d'elle) ou tôlerie.
+   */
+  snapshotKey(part: Part): string | null {
+    return this.historyKeys(part)?.snapshot ?? null;
+  }
+
+  private historyKeys(part: Part): { keys: Map<Id, string>; last: string; snapshot: string } | null {
+    if (part.features.length === 0) return null;
+    let prev = hashString(`part:${part.id}`);
+    const keys = new Map<Id, string>();
+    for (const f of part.features) {
+      if (externalParts(f).length || f.type === 'sheet' || f.type === 'flange' || f.type === 'fold') return null;
+      prev = this.stepKey(prev, f);
+      keys.set(f.id, prev);
+    }
+    return { keys, last: prev, snapshot: hashString(`${prev}|snapshot|${ENGINE_REVISION}`) };
+  }
+
+  /** Instantanés lus dans le cache des formes : repris au prochain calcul de leur pièce. */
+  preloadSnapshots(entries: Iterable<[string, PartSnapshot]>): void {
+    for (const [key, snap] of entries) if (!this.restored.has(key)) this.snapshots.set(key, snap);
+  }
+
+  /** Vrai si l'instantané est déjà en mémoire (inutile de le relire du cache). */
+  hasSnapshot(key: string): boolean {
+    return this.restored.has(key) || this.snapshots.has(key);
+  }
+
+  /**
+   * Instantané d'une pièce calculée (pas reprise du cache), à enregistrer ; null si la pièce ne
+   * s'y prête pas. `mesh` : son maillage d'affichage, s'il est déjà calculé.
+   */
+  snapshotOf(part: Part, ev: PartEvaluation, mesh?: { key: string; data: MeshData }): { key: string; snap: PartSnapshot } | null {
+    const h = this.historyKeys(part);
+    if (!h || ev.fromCache || ev.sheet) return null;
+    return {
+      key: h.snapshot,
+      snap: {
+        shapeKey: ev.shapeKey,
+        statuses: ev.statuses,
+        sketches: ev.sketches,
+        datums: ev.datums,
+        axes: ev.axes,
+        analysis: ev.analysis,
+        failedFeatureId: ev.failedFeatureId,
+        images: ev.images,
+        shape: ev.shape ? this.kernel.serializeShape(ev.shape) : null,
+        ...(mesh ? { mesh } : {}),
+      },
+    };
+  }
+
+  /** Clé du maillage d'affichage dans le cache du moteur (voir `meshOf`). */
+  meshCacheKey(evaluation: PartEvaluation, options: MeshOptions): string | null {
+    return evaluation.shapeKey ? `${evaluation.shapeKey}|${options.linearDeflection}|${options.angularDeflection}` : null;
+  }
+
+  /** Pièce reprise d'un instantané, si son historique n'est pas déjà calculé en mémoire. */
+  private restore(part: Part, gen: number): PartEvaluation | null {
+    if (!this.useSnapshots) return null;
+    const h = this.historyKeys(part);
+    if (!h || this.records.has(h.last)) return null;
+    let r = this.restored.get(h.snapshot);
+    if (!r) {
+      const snap = this.snapshots.get(h.snapshot);
+      if (!snap) return null;
+      this.snapshots.delete(h.snapshot);
+      let shape: KernelShape | null = null;
+      try {
+        shape = snap.shape ? this.kernel.deserializeShape(snap.shape) : null;
+      } catch {
+        return null; // instantané illisible : on rejoue l'historique
+      }
+      if (snap.mesh) this.meshes.set(snap.mesh.key, { mesh: snap.mesh.data, lastUsed: gen });
+      r = { snap, shape, lastUsed: gen };
+      this.restored.set(h.snapshot, r);
+    }
+    r.lastUsed = gen;
+    const s = r.snap;
+    for (let i = 0; i < part.features.length; i++) this.onStep?.();
+    return {
+      partId: part.id,
+      statuses: s.statuses,
+      sketches: s.sketches,
+      datums: s.datums,
+      axes: s.axes,
+      shape: r.shape,
+      shapeKey: s.shapeKey,
+      analysis: s.analysis,
+      failedFeatureId: s.failedFeatureId,
+      tools: new Map(),
+      stepKeys: h.keys,
+      sheet: null,
+      images: s.images,
+      stepMs: new Map(),
+      fromCache: true,
+    };
+  }
+
   /** Libère tous les objets du noyau détenus par le moteur. */
   clear(): void {
     for (const rec of this.records.values()) this.disposeOutcome(rec.outcome);
     this.records.clear();
+    for (const r of this.restored.values()) if (r.shape) this.kernel.dispose(r.shape);
+    this.restored.clear();
+    this.snapshots.clear();
     for (const entry of this.stepFiles.values()) if ('solids' in entry) entry.solids.forEach((s) => this.kernel.dispose(s));
     this.stepFiles.clear();
     this.meshes.clear();
@@ -156,6 +302,8 @@ export class RecomputeEngine {
   }
 
   private walkPart(part: Part, gen: number, finals: ReadonlyMap<Id, { shape: KernelShape; key: string }> = new Map(), cyclic: ReadonlySet<Id> = new Set()): PartEvaluation {
+    const cached = this.restore(part, gen);
+    if (cached) return cached;
     let prevKey = hashString(`part:${part.id}`);
     const state: { shape: KernelShape | null; analysis: ShapeAnalysis | null; failure: Id | null } = {
       shape: null,
@@ -174,6 +322,7 @@ export class RecomputeEngine {
     const tools = new Map<Id, KernelShape>();
     const toolModes = new Map<Id, { shape: KernelShape; mode: 'add' | 'cut' }>();
     const stepKeys = new Map<Id, string>();
+    const stepMs = new Map<Id, number>();
     let sheet: SheetState | null = null;
     const images: { featureId: Id; frame: Frame3D }[] = [];
     const marks: { featureId: Id; shape: KernelShape }[] = [];
@@ -190,7 +339,9 @@ export class RecomputeEngine {
         this.records.set(key, record);
       }
       if (!record) {
+        const t0 = performance.now();
         record = this.computeStep(feature, key, { ...state, sketches: sketchMap, datums: datumMap, axes: axisMap, tools: toolModes, sheet, finals });
+        stepMs.set(feature.id, performance.now() - t0);
         this.records.set(key, record);
       }
       record.lastUsed = gen;
@@ -227,6 +378,7 @@ export class RecomputeEngine {
       }
       if (!state.failure && record.failureAfter) failedFeatureId = feature.id;
       state.failure = record.failureAfter;
+      this.onStep?.();
     }
     // Marquages de surface : sur le solide final, une fois toute la pièce construite.
     if (marks.length && state.shape && state.analysis) {
@@ -244,7 +396,7 @@ export class RecomputeEngine {
         shapeKey = key;
       }
     }
-    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet, images };
+    return { partId: part.id, statuses, sketches, datums, axes, shape: state.shape, shapeKey, analysis: state.analysis, failedFeatureId, tools, stepKeys, sheet, images, stepMs };
   }
 
   private computeStep(feature: Feature, key: string, state: WalkState): StepRecord {
@@ -388,6 +540,12 @@ export class RecomputeEngine {
       }
     }
     for (const [key, m] of this.meshes) if (m.lastUsed <= limit) this.meshes.delete(key);
+    for (const [key, r] of this.restored) {
+      if (r.lastUsed <= limit) {
+        if (r.shape) this.kernel.dispose(r.shape);
+        this.restored.delete(key);
+      }
+    }
   }
 }
 

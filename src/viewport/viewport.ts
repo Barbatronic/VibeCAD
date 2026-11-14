@@ -350,7 +350,63 @@ export class Viewport {
     if (animating) this.events.onViewChange();
   };
 
+  // ----- Mesures pour le moniteur de charge (voir app/perf.ts)
+
+  /** Images récentes : instant et durée côté processeur (ms). */
+  private frames: { at: number; ms: number }[] = [];
+  private frameInfo = { triangles: 0, calls: 0 };
+  /** Temps de la carte graphique (extension WebGL facultative) : requête en attente et dernier résultat. */
+  private gpuQuery: { ext: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number }; pending: WebGLQuery | null; ms: number | null } | null | undefined;
+  /** Vrai tant que le moniteur est ouvert : la mesure GPU n'est faite qu'à ce moment. */
+  measureGpu = false;
+
+  private gpuTimer(): NonNullable<Viewport['gpuQuery']> | null {
+    if (this.gpuQuery === undefined) {
+      const gl = this.renderer.getContext();
+      const ext = 'createQuery' in gl ? (gl.getExtension('EXT_disjoint_timer_query_webgl2') as { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null) : null;
+      this.gpuQuery = ext ? { ext, pending: null, ms: null } : null;
+    }
+    return this.gpuQuery;
+  }
+
+  /** Résultat d'une mesure GPU terminée (lu au tour suivant, sans attendre la carte). */
+  private pollGpuTimer(): void {
+    const t = this.gpuQuery;
+    if (!t?.pending) return;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (!gl.getQueryParameter(t.pending, gl.QUERY_RESULT_AVAILABLE)) return;
+    if (!gl.getParameter(t.ext.GPU_DISJOINT_EXT)) t.ms = (gl.getQueryParameter(t.pending, gl.QUERY_RESULT) as number) / 1e6;
+    gl.deleteQuery(t.pending);
+    t.pending = null;
+  }
+
+  /** Mesures de la vue : images, triangles, appels de dessin, mémoire des maillages, temps GPU. */
+  stats(): { lastFrameMs: number; maxFrameMs: number; framesLastSecond: number; triangles: number; drawCalls: number; gpuBytes: number; gpuMs: number | null } {
+    const now = performance.now();
+    this.frames = this.frames.filter((f) => now - f.at < 5000);
+    // Géométries partagées comptées une fois.
+    const seen = new Set<string>();
+    let gpuBytes = 0;
+    this.scene.traverse((o) => {
+      const g = (o as { geometry?: { uuid: string; attributes: Record<string, { array: ArrayLike<number> & { byteLength: number } }>; index: { array: { byteLength: number } } | null } }).geometry;
+      if (!g || seen.has(g.uuid)) return;
+      seen.add(g.uuid);
+      for (const a of Object.values(g.attributes)) gpuBytes += a.array.byteLength;
+      if (g.index) gpuBytes += g.index.array.byteLength;
+    });
+    return {
+      lastFrameMs: this.frames.at(-1)?.ms ?? 0,
+      maxFrameMs: this.frames.reduce((m, f) => Math.max(m, f.ms), 0),
+      framesLastSecond: this.frames.filter((f) => now - f.at < 1000).length,
+      triangles: this.frameInfo.triangles,
+      drawCalls: this.frameInfo.calls,
+      gpuBytes,
+      gpuMs: this.gpuQuery?.ms ?? null,
+    };
+  }
+
   private render(): void {
+    const t0 = performance.now();
     const camera = this.rig.camera;
     if (this.input.gizmo) this.placeGizmo();
     this.headlight.position.copy(camera.position);
@@ -358,7 +414,17 @@ export class Viewport {
     this.updateGrid();
     this.renderer.setViewport(0, 0, this.width, this.height);
     this.renderer.setScissorTest(false);
+    this.pollGpuTimer();
+    const timer = this.measureGpu ? this.gpuTimer() : null;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const query = timer && !timer.pending ? gl.createQuery() : null;
+    if (timer && query) gl.beginQuery(timer.ext.TIME_ELAPSED_EXT, query);
     this.renderer.render(this.scene, camera);
+    if (timer && query) {
+      gl.endQuery(timer.ext.TIME_ELAPSED_EXT);
+      timer.pending = query;
+    }
+    this.frameInfo = { triangles: this.renderer.info.render.triangles, calls: this.renderer.info.render.calls };
     // Cube de navigation dans le coin inférieur gauche.
     const size = VIEW_CUBE_SIZE;
     this.viewCube.sync(camera.position.clone().sub(this.rig.target), camera.up);
@@ -374,6 +440,8 @@ export class Viewport {
     this.renderer.setScissorTest(false);
     this.renderer.setViewport(0, 0, this.width, this.height);
     this.labelRenderer.render(this.scene, camera);
+    this.frames.push({ at: performance.now(), ms: performance.now() - t0 });
+    if (this.frames.length > 600) this.frames.splice(0, this.frames.length - 600);
   }
 
   private onCameraChange(): void {

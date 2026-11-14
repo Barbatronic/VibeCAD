@@ -52,6 +52,7 @@ import {
   type ThickenRequest,
   type DraftResult,
   type ShellRequest,
+  type SerializedShape,
   type ShellResult,
   type StepExportItem,
   type StepReadResult,
@@ -1586,6 +1587,35 @@ export class OcctKernel implements GeometryKernel {
         return oc.BRepToolsWrapper.Write(moved);
       }),
     );
+  }
+
+  serializeShape(shapeIn: KernelShape): SerializedShape {
+    const s = asOcct(shapeIn);
+    return this.guard('cache des formes (écriture)', () => {
+      // Étiquettes dans l'ordre de parcours des faces : celui que la relecture retrouvera.
+      const tags = this.explore(s.shape, 'face').map((f) => {
+        const h = this.hash(f);
+        const found = s.faces.find((t) => t.hash === h && t.face.IsSame(f));
+        f.delete();
+        return found ? found.tags.map((t) => ({ ...t })) : [];
+      });
+      return { brep: this.oc.BRepToolsWrapper.Write(s.shape), tags };
+    });
+  }
+
+  deserializeShape(data: SerializedShape): KernelShape {
+    return this.guard('cache des formes (lecture)', () => {
+      const shape = this.oc.BRepToolsWrapper.Read(data.brep);
+      const faces = this.taggedFaces(shape);
+      // Texte illisible : la relecture rend une forme vide, sans erreur.
+      if (faces.length === 0 || faces.length !== data.tags.length) {
+        for (const f of faces) f.face.delete();
+        shape.delete();
+        throw new KernelError('Forme du cache incohérente (nombre de faces).');
+      }
+      faces.forEach((f, i) => (f.tags = data.tags[i]!.map((t) => ({ ...t }))));
+      return new OcctShape(shape, faces);
+    });
   }
 
   private labelNameColor(scope: Scope, colorTool: XCAFDoc_ColorTool | null, label: TDF_Label, name: string, color: string | null): void {

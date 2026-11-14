@@ -28,6 +28,7 @@ type RequestBody<T extends RequestType> = Omit<Extract<WorkerRequest, { type: T 
 interface QueuedEvaluation {
   doc: CadDocument;
   previewFeatureId: Id | undefined;
+  onProgress?: (fraction: number) => void;
   resolve: (result: EvaluationResult | null) => void;
   reject: (err: Error) => void;
 }
@@ -47,7 +48,7 @@ const MESH_CACHE_LIMIT = 40;
 export class GeometryClient {
   private readonly worker: Worker;
   private nextId = 1;
-  private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; progress?: (fraction: number) => void }>();
   private readonly sentResources = new Set<string>();
   private readonly meshes = new Map<string, MeshData>();
   private running = false;
@@ -75,16 +76,25 @@ export class GeometryClient {
   private onMessage(msg: WorkerResponse): void {
     const p = this.pending.get(msg.id);
     if (!p) return;
+    if ('progress' in msg) {
+      p.progress?.(msg.progress);
+      return;
+    }
     this.pending.delete(msg.id);
     if (msg.ok) p.resolve(msg.result);
     else p.reject(new GeometryWorkerError(msg.error.message, msg.error.detail));
   }
 
-  private request<T extends RequestType>(type: T, body: Omit<RequestBody<T>, 'type'>, transfer: Transferable[] = []): Promise<WorkerResultMap[T]> {
+  private request<T extends RequestType>(
+    type: T,
+    body: Omit<RequestBody<T>, 'type'>,
+    transfer: Transferable[] = [],
+    progress?: (fraction: number) => void,
+  ): Promise<WorkerResultMap[T]> {
     if (this.crashed) return Promise.reject(this.crashed);
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, ...(progress ? { progress } : {}) });
       this.worker.postMessage({ ...body, type, id }, transfer);
     });
   }
@@ -102,10 +112,11 @@ export class GeometryClient {
   /**
    * Recalcule le document. Avec `previewFeatureId`, il s'agit d'un aperçu : il ne remplace
    * jamais un recalcul validé en attente, et il est lui-même remplacé par l'aperçu suivant.
+   * `onProgress` : avancement du calcul, de 0 à 1.
    */
-  evaluate(doc: CadDocument, previewFeatureId?: Id): Promise<EvaluationResult | null> {
+  evaluate(doc: CadDocument, previewFeatureId?: Id, onProgress?: (fraction: number) => void): Promise<EvaluationResult | null> {
     return new Promise((resolve, reject) => {
-      const job = { doc, previewFeatureId, resolve, reject };
+      const job: QueuedEvaluation = { doc, previewFeatureId, resolve, reject, ...(onProgress ? { onProgress } : {}) };
       if (previewFeatureId) {
         this.queuedPreview?.resolve(null);
         this.queuedPreview = job;
@@ -131,11 +142,16 @@ export class GeometryClient {
     this.running = true;
     try {
       await this.syncResources(job.doc);
-      const result = await this.request('evaluate', {
-        doc: documentForWorker(job.doc),
-        knownMeshKeys: Array.from(this.meshes.keys()),
-        ...(job.previewFeatureId ? { previewFeatureId: job.previewFeatureId } : {}),
-      });
+      const result = await this.request(
+        'evaluate',
+        {
+          doc: documentForWorker(job.doc),
+          knownMeshKeys: Array.from(this.meshes.keys()),
+          ...(job.previewFeatureId ? { previewFeatureId: job.previewFeatureId } : {}),
+        },
+        [],
+        job.onProgress,
+      );
       for (const part of result.parts) {
         if (part.flat) {
           if (part.flat.mesh) this.rememberMesh(part.flat.meshKey, part.flat.mesh);
@@ -162,6 +178,11 @@ export class GeometryClient {
       if (oldest === undefined) break;
       this.meshes.delete(oldest);
     }
+  }
+
+  /** Cache des formes du navigateur : taille, après vidage si `clear`. */
+  shapeCache(clear = false): Promise<WorkerResultMap['shapeCache']> {
+    return this.request('shapeCache', clear ? { clear: true } : {});
   }
 
   async exportStep(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[], tree?: StepTree): Promise<WorkerResultMap['exportStep']> {

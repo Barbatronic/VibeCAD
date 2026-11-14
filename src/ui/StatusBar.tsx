@@ -7,6 +7,7 @@ import { describeFaceRef, pickFaceReference } from '../features/sketch/support';
 import { TOOL_HELP } from '../sketch/session';
 import { useEffect, useState } from 'preact/hooks';
 import { installOffer, onInstallOffer, promptInstall } from '../app/install';
+import { PerfIndicator } from './PerfMonitor';
 import { applyUpdate } from '../app/offline';
 import type { ModelPick } from '../viewport/viewport';
 import { useAppState, useController } from './context';
@@ -122,6 +123,7 @@ export function StatusBar() {
           </span>
         </button>
       ) : null}
+      <PerfIndicator />
       <label class="item level-pick" title={LEVELS.map((l) => `${l.label} : ${l.description}`).join('\n')}>
         Niveau
         <select class="level-select" aria-label="Niveau de l’interface" value={level} onChange={(e) => c.setLevel((e.target as HTMLSelectElement).value as Level)}>

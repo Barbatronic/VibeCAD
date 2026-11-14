@@ -3,6 +3,26 @@
 Les mesures sont produites par `npm run bench` (fichiers `tests/perf/*.test.ts`) ; les valeurs
 brutes sont écrites dans `tests/output/bench.json` et `tests/output/memory.json`.
 
+## Moniteur de charge (dans l'application)
+
+Pastille de la barre d'état (verte, orange, rouge) avec le dernier recalcul et la mémoire du
+noyau ; un clic ouvre le détail (`src/app/perf.ts`, `src/ui/PerfMonitor.tsx`). Un navigateur ne
+donne pas la charge du processeur ni de la carte graphique de la machine : on mesure le travail
+de VibeCAD lui-même.
+
+| Mesure | Source | Orange / rouge à partir de |
+| --- | --- | --- |
+| Dernier recalcul, occupation du moteur sur 10 s, courbe des recalculs | durée renvoyée par le worker | 1 s / 3 s |
+| Mémoire du noyau (WASM) | worker | 1 Go / 1,6 Go |
+| Triangles, appels de dessin, mémoire des maillages | `renderer.info`, attributs des géométries | 1,5 / 4 millions de triangles |
+| Durée d'une image (processeur), temps carte graphique | `performance.now`, `EXT_disjoint_timer_query_webgl2` si disponible | 16 ms / 33 ms |
+| Blocages de l'interface (> 50 ms, sur 30 s) | `PerformanceObserver('longtask')`, Chrome et Edge | 0,5 s / 2 s cumulés |
+| Mémoire JavaScript | `performance.memory`, Chrome et Edge | 70 % / 85 % du plafond |
+
+« Copier le relevé » donne un texte horodaté (mesures et recalculs des 2 dernières minutes). Un
+recalcul de plus d'une seconde est aussi signalé dans la console du navigateur
+(`[VibeCAD] recalcul lent : …`).
+
 ## Machine de référence
 
 | Élément | Valeur |
