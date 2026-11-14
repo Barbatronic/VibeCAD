@@ -131,7 +131,14 @@ function ProjectName() {
   const c = useController();
   const name = useAppState((s) => s.doc.name);
   const [text, setText] = useState(name);
-  useEffect(() => setText(name), [name]);
+  // Le nom changé ailleurs (annuler, autre projet) remplace la saisie ; pas à l'affichage du champ,
+  // où l'effet arriverait après une frappe rapide et l'effacerait.
+  const shown = useRef(name);
+  useEffect(() => {
+    if (shown.current === name) return;
+    shown.current = name;
+    setText(name);
+  }, [name]);
   // La valeur est lue dans le champ : Entrée peut arriver avant que l'état suive la frappe.
   const commit = (input: HTMLInputElement) => {
     const t = input.value.trim();

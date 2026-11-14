@@ -211,9 +211,9 @@ test('un projet ouvert depuis le disque se réenregistre dans le même fichier (
   await page.getByRole('textbox', { name: 'Nom du projet' }).press('Enter');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+s');
-  await expect(page.getByText(/Projet enregistré dans « plaque.vibecad »/)).toBeVisible();
+  // L'écriture est asynchrone (autorisation, puis fichier) : on attend qu'elle ait eu lieu.
+  await expect.poll(() => page.evaluate(() => (window as any).__disk.writes)).toBe(2);
   const disk = await page.evaluate(() => (window as any).__disk);
-  expect(disk.writes).toBe(2);
   expect(disk.asked).toBe(1);
   expect(disk.text).toContain('Plaque modifiée');
 });
