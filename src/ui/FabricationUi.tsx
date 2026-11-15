@@ -511,7 +511,7 @@ function DocsSection() {
       return {
         current,
         parts: s.doc.parts.filter((p) => (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0).map((p) => ({ id: p.id, name: p.name, color: p.color })),
-        bom: { source: bom.source, rows: bom.rows.map((r) => ({ mark: r.mark, name: r.name, quantity: r.quantity, size: bomSizeText(r.size) })) },
+        bom: { source: bom.source, rows: bom.rows.map((r) => ({ mark: r.mark, name: r.name, quantity: r.quantity, size: bomSizeText(r.size), bought: r.bought })) },
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -547,7 +547,10 @@ function DocsSection() {
               {data.bom.rows.map((r) => (
                 <tr key={r.mark}>
                   <td>{r.mark}</td>
-                  <td>{r.name}</td>
+                  <td>
+                    {r.name}
+                    {r.bought ? <span class="bom-bought"> achat</span> : null}
+                  </td>
                   <td>{r.quantity}</td>
                   <td>{r.size}</td>
                 </tr>

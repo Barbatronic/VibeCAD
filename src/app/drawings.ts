@@ -4,13 +4,17 @@
  * Les pages sont écrites en PDF ou en SVG par `io/drawing.ts`.
  */
 import { assemblyContents } from '../domain/subassemblies';
-import type { CadDocument, Id } from '../domain/model';
+import type { CadDocument, Id, Part } from '../domain/model';
 import { formatLength, formatNumber } from '../domain/units';
 import type { DrawingPage, LineStyle } from '../io/drawing';
 import type { MeshData } from '../geometry/kernel';
 import { dot3, type Vec2, type Vec3 } from '../math/vec';
 import { faceOutline, largestPlanarFace, type Loop } from './laser';
 import { fastenerGroups } from './fasteners';
+import { BEAM_SYSTEMS, beamLabel } from '../features/beam/profiles';
+import { beltSetup } from '../features/gear/definition';
+import { BELT_PROFILES } from '../features/gear/profiles';
+import { sheetOf } from '../domain/material-sheets';
 
 // ----- Projection des vues
 
@@ -441,6 +445,32 @@ export interface BomRow {
   size: Vec3 | null;
   /** Volume (mm³). */
   volume: number | null;
+  /** Pièce du commerce (profilé, courroie, composant de bibliothèque, visserie) : à acheter, pas à fabriquer. */
+  bought: boolean;
+}
+
+/** Étapes qui ne donnent pas de matière (esquisses, repères, images). */
+const REFERENCE_FEATURES = new Set(['sketch', 'image', 'plane', 'axis']);
+
+/**
+ * Désignation commerciale d'une pièce achetée, ou `null` si elle se fabrique. Un profilé ou une
+ * courroie se reconnaît à sa première étape de matière ; des reprises ensuite (perçages, coupes)
+ * n'en font pas une pièce à fabriquer de zéro. Deux pièces de même désignation font une seule ligne.
+ */
+export function boughtDesignation(doc: Pick<CadDocument, 'materials'>, part: Part): string | null {
+  const first = part.features.find((f) => !REFERENCE_FEATURES.has(f.type));
+  if (first?.type === 'beam' && first.params.operation !== 'cut') {
+    const p = first.params;
+    return `Profilé ${BEAM_SYSTEMS[p.system]} ${beamLabel(p.size)}, ${formatLength(p.length)}`;
+  }
+  if (first?.type === 'gear' && first.params.kind === 'belt') {
+    const p = first.params;
+    return `Courroie ${BELT_PROFILES[p.belt].label}, ${Math.round(beltSetup(p).teeth)} dents, largeur ${formatLength(p.thickness)}`;
+  }
+  // Composant de bibliothèque non modifié, ou pièce dont la fiche matière dit « achetée ».
+  if (part.component && !part.component.editable) return part.component.name;
+  if (sheetOf(doc, part)?.process === 'bought') return part.name;
+  return null;
 }
 
 export interface Bom {
@@ -481,11 +511,15 @@ export function billOfMaterials(
     const part = doc.parts.find((p) => p.id === partId);
     if (!part) continue;
     const mesh = meshOf(partId);
-    rows.push({ mark: rows.length + 1, partId, name: part.name, quantity, size: mesh ? meshSize(mesh) : null, volume: volumeOf(partId) ?? null });
+    const designation = boughtDesignation(doc, part);
+    // Pièces achetées identiques (deux profilés de même section et longueur) : une ligne, quantités ajoutées.
+    const same = designation ? rows.find((r) => r.bought && r.name === designation) : undefined;
+    if (same) same.quantity += quantity;
+    else rows.push({ mark: rows.length + 1, partId, name: designation ?? part.name, quantity, size: mesh ? meshSize(mesh) : null, volume: volumeOf(partId) ?? null, bought: designation !== null });
   }
   // Visserie normalisée : une ligne par désignation (« Vis CHC ISO 4762 M3 × 12 »).
   if (source === 'assembly') {
-    for (const g of fastenerGroups({ instances: [], joints: [], fasteners: contents.fasteners })) rows.push({ mark: rows.length + 1, partId: null, name: g.name, quantity: g.ids.length, size: null, volume: null });
+    for (const g of fastenerGroups({ instances: [], joints: [], fasteners: contents.fasteners })) rows.push({ mark: rows.length + 1, partId: null, name: g.name, quantity: g.ids.length, size: null, volume: null, bought: true });
   }
   return { rows, source };
 }
@@ -495,9 +529,9 @@ export const bomSizeText = (s: Vec3 | null) => (s ? `${formatNumber(s.x, 1)} × 
 /** Nomenclature au format CSV (séparateur « ; », UTF-8 avec BOM : s'ouvre bien dans un tableur français). */
 export function bomCsv(bom: Bom): string {
   const cell = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const lines = [['Repère', 'Désignation', 'Quantité', 'Encombrement L × l × h (mm)', 'Volume (cm³)'].join(';')];
+  const lines = [['Repère', 'Désignation', 'Quantité', 'Encombrement L × l × h (mm)', 'Volume (cm³)', 'Origine'].join(';')];
   for (const r of bom.rows) {
-    lines.push([String(r.mark), cell(r.name), String(r.quantity), bomSizeText(r.size), r.volume === null ? '' : formatNumber(r.volume / 1000, 2)].join(';'));
+    lines.push([String(r.mark), cell(r.name), String(r.quantity), bomSizeText(r.size), r.volume === null ? '' : formatNumber(r.volume / 1000, 2), r.bought ? 'Achetée' : 'Fabriquée'].join(';'));
   }
   return `﻿${lines.join('\r\n')}\r\n`;
 }

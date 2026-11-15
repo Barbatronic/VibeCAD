@@ -291,9 +291,15 @@ export function beltCenterDistance(profile: BeltProfile, teethA: number, teethB:
   return (lo + hi) / 2;
 }
 
+/** Au-delà, la courroie est dessinée lisse : des milliers d'arêtes alourdiraient le calcul et la vue. */
+export const BELT_MAX_DRAWN_TEETH = 600;
+
 /**
- * Courroie fermée vue de côté (bande lisse, dents non dessinées) : de la ligne primitive moins le
- * PLD (fond des dents) jusqu'au dos. Poulie A centrée sur l'origine, poulie B en (c, 0).
+ * Courroie fermée vue de côté : le dos lisse, et les dents vers l'intérieur, de la ligne primitive
+ * moins le PLD (corps) jusqu'au fond des creux des poulies. Poulie A centrée sur l'origine,
+ * poulie B en (c, 0). Les dents sont calées sur les creux de la poulie A ; le pas est ajusté d'un
+ * rien quand la longueur ne tombe pas sur un nombre entier de dents. Une très longue courroie
+ * (plus de `BELT_MAX_DRAWN_TEETH` dents) reste lisse.
  */
 export function beltProfile(profile: BeltProfile, teethA: number, teethB: number, c: number): ProfileRegion {
   const b = BELT_PROFILES[profile];
@@ -323,11 +329,71 @@ export function beltProfile(profile: BeltProfile, teethA: number, teethB: number
     return (RA + RB) * c * Math.cos(phi) + (RA * RA * (Math.PI + 2 * phi)) / 2 + (RB * RB * (Math.PI - 2 * phi)) / 2;
   };
   const outerSegs = stadium(outer, 'o');
+  const outerArea = area(outer);
+  const toothed = beltTeeth(b, ra, rb, c, phi, inner);
+  if (toothed) {
+    const innerArea = toothed.area;
+    return { outer: { segments: outerSegs, signedArea: outerArea }, holes: [{ segments: toothed.segments, signedArea: -innerArea }], area: outerArea - innerArea };
+  }
   // Trou : même tracé, parcouru à l'envers (sens horaire).
   const innerSegs: ProfileSegment[] = stadium(inner, 'i')
     .reverse()
     .map((s) => (s.kind === 'arc' ? { ...s, start: s.end, end: s.start, clockwise: true } : s.kind === 'line' ? { ...s, start: s.end, end: s.start } : s));
-  const outerArea = area(outer);
   const innerArea = area(inner);
   return { outer: { segments: outerSegs, signedArea: outerArea }, holes: [{ segments: innerSegs, signedArea: -innerArea }], area: outerArea - innerArea };
+}
+
+/**
+ * Bord intérieur denté d'une courroie (sens horaire : c'est un trou du profil) et aire de ce trou.
+ * Le bord suit la ligne primitive (brin du bas, poulie B, brin du haut, poulie A) à la distance
+ * `inner` ; chaque dent est un trapèze qui descend de `depth` vers l'intérieur.
+ */
+function beltTeeth(b: (typeof BELT_PROFILES)[BeltProfile], ra: number, rb: number, c: number, phi: number, inner: number): { segments: ProfileSegment[]; area: number } | null {
+  const strand = c * Math.cos(phi);
+  const arcB = rb * (Math.PI - 2 * phi);
+  const arcA = ra * (Math.PI + 2 * phi);
+  const length = 2 * strand + arcB + arcA;
+  const count = Math.round(length / b.pitch);
+  if (count < 3 || count > BELT_MAX_DRAWN_TEETH) return null;
+  const pitch = length / count;
+  const low = -Math.PI / 2 + phi;
+  const up = Math.PI / 2 - phi;
+  /** Point à l'abscisse `s` de la ligne primitive, décalé de `off` vers l'extérieur de la boucle. */
+  const at = (sIn: number, off: number): Vec2 => {
+    let s = ((sIn % length) + length) % length;
+    const strandPoint = (from: number, to: number, cxFrom: number, rFrom: number, cxTo: number, rTo: number, t: number): Vec2 => {
+      const p0 = { x: cxFrom + rFrom * Math.cos(from), y: rFrom * Math.sin(from) };
+      const p1 = { x: cxTo + rTo * Math.cos(to), y: rTo * Math.sin(to) };
+      const d = { x: (p1.x - p0.x) / strand, y: (p1.y - p0.y) / strand };
+      // Boucle parcourue dans le sens trigonométrique : l'extérieur est à droite du sens de marche.
+      return { x: p0.x + d.x * t + d.y * off, y: p0.y + d.y * t - d.x * off };
+    };
+    if (s < strand) return strandPoint(low, low, 0, ra, c, rb, s);
+    s -= strand;
+    if (s < arcB) {
+      const a = low + s / rb;
+      return { x: c + (rb + off) * Math.cos(a), y: (rb + off) * Math.sin(a) };
+    }
+    s -= arcB;
+    if (s < strand) return strandPoint(up, up, c, rb, 0, ra, s);
+    s -= strand;
+    const a = up + s / ra;
+    return { x: (ra + off) * Math.cos(a), y: (ra + off) * Math.sin(a) };
+  };
+  // Calage : une dent au milieu du premier creux de la poulie A rencontré sur son arc (creux tous les 2π/z, depuis l'angle 0).
+  const stepA = b.pitch / ra;
+  const first = 2 * strand + arcB + (Math.ceil(up / stepA) * stepA - up) * ra;
+  const base = b.width / 2;
+  const tip = b.shape === 'trapezoid' ? Math.max(0.1, base - b.depth * Math.tan((20 * Math.PI) / 180)) : base * 0.55;
+  const points: Vec2[] = [];
+  for (let k = 0; k < count; k++) {
+    const s = first + k * pitch;
+    points.push(at(s - base, inner), at(s - tip, inner - b.depth), at(s + tip, inner - b.depth), at(s + base, inner));
+  }
+  // Trou du profil : parcouru dans le sens horaire.
+  points.reverse();
+  const segments: ProfileSegment[] = points.map((p, i) => ({ kind: 'line', entityId: `t${i}`, start: p, end: points[(i + 1) % points.length]! }));
+  // Aire du trou : celle du polygone tracé (formule du lacet).
+  const area = Math.abs(points.reduce((sum, p, i) => sum + p.x * points[(i + 1) % points.length]!.y - points[(i + 1) % points.length]!.x * p.y, 0)) / 2;
+  return { segments, area };
 }

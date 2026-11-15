@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { billOfMaterials, bomCsv, projectView, roundNotes, technicalDrawing, templatePages, VIEWS } from '../../src/app/drawings';
-import { addInstance } from '../../src/domain/document';
+import { addFeature, addInstance, addPart, createDocument, makeBeamFeature, makeGearFeature } from '../../src/domain/document';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { CadDocument } from '../../src/domain/model';
 import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
@@ -137,6 +137,24 @@ describe('nomenclature', () => {
     const csv = bomCsv(asm);
     expect(csv.startsWith('﻿Repère;Désignation;Quantité')).toBe(true);
     expect(csv).toContain(';3;60 × 30 × 5;');
-    expect(csv).toContain(';8,86\r\n');
+    expect(csv).toContain(';8,86;Fabriquée\r\n');
+  });
+
+  it('profilés et courroie : pièces achetées, regroupées par désignation', () => {
+    let d = createDocument('Châssis');
+    const first = d.parts[0]!.id;
+    d = addFeature(d, first, makeBeamFeature(d, d.parts[0]!));
+    const second = addPart(d, 'Traverse');
+    d = second.doc;
+    d = addFeature(d, second.partId, makeBeamFeature(d, d.parts[1]!));
+    const third = addPart(d, 'Courroie');
+    d = third.doc;
+    d = addFeature(d, third.partId, makeGearFeature(d, d.parts[2]!, 'belt'));
+    const bom = billOfMaterials(d, () => true, () => null, () => null);
+    expect(bom.rows).toHaveLength(2);
+    expect(bom.rows[0]).toMatchObject({ mark: 1, quantity: 2, bought: true });
+    expect(bom.rows[0]!.name).toMatch(/^Profilé V-slot 20 × 20, /);
+    expect(bom.rows[1]!.name).toMatch(/^Courroie GT2, pas 2 mm, \d+ dents, largeur /);
+    expect(bomCsv(bom)).toContain(';Achetée\r\n');
   });
 });
