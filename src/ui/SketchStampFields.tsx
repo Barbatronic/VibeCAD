@@ -66,7 +66,7 @@ export function SketchStampFields({ session }: { session: SketchSession }) {
       <Button small icon="open" onClick={() => void c.importStamp()}>
         Importer un dessin…
       </Button>
-      <p class="field-help">SVG, PNG, JPEG ou WebP</p>
+      <p class="field-help">SVG, DXF (à l’échelle), PNG, JPEG ou WebP</p>
       <LengthField
         id="sketch-stamp-size"
         label="Taille (plus grand côté)"

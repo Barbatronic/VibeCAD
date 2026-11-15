@@ -15,7 +15,7 @@ import { contourPolyline } from '../sketch/text';
 /** Morceaux au-delà desquels un dessin ralentirait l'esquisse. */
 export const MAX_STAMP_PIECES = 1000;
 
-export type SvgImportResult = { ok: true; shape: StampShape; warnings: string[] } | { ok: false; error: string };
+export type SvgImportResult = { ok: true; shape: StampShape; warnings: string[]; /** Plus grand côté du dessin, en unités du fichier. */ span?: number } | { ok: false; error: string };
 
 type Matrix = [number, number, number, number, number, number];
 type Cmd = { kind: 'L'; to: Vec2 } | { kind: 'C'; c1: Vec2; c2: Vec2; to: Vec2 };
@@ -425,7 +425,7 @@ const spread = (pts: Vec2[]) => pts.reduce((s, p, i) => {
 }, 0) / 2;
 
 /** Contours du fichier en texte normalisé (voir sketch/stamp.ts), ou null s'il n'y a rien à dessiner. */
-function normalize(subpaths: Subpath[]): { outline: string; pieces: number } | null {
+function normalize(subpaths: Subpath[]): { outline: string; pieces: number; span: number } | null {
   const fine = subpaths.map(polyline);
   const all = fine.flat();
   if (all.length === 0) return null;
@@ -473,7 +473,7 @@ function normalize(subpaths: Subpath[]): { outline: string; pieces: number } | n
     pieces += count;
     parts.push(`${out.join(' ')} Z`);
   });
-  return parts.length > 0 ? { outline: parts.join(' '), pieces } : null;
+  return parts.length > 0 ? { outline: parts.join(' '), pieces, span } : null;
 }
 
 /**
@@ -530,12 +530,12 @@ export function importSvgShape(svg: string, fallbackName: string, options: { pre
   }
   const title = /<title[^>]*>([^<]+)<\/title>/.exec(svg)?.[1];
   const named: StampShape = { name: (title && decodeTitle(title)) || fallbackName, outline: shape.outline };
-  if (options.preview) return { ok: true, shape: named, warnings: found.warnings };
+  if (options.preview) return { ok: true, shape: named, warnings: found.warnings, span: shape.span };
   const check = extractProfiles(addStamp(emptySketch({ kind: 'plane', plane: 'XY', offset: 0 }), { x: 0, y: 0 }, { ...named, outline: flattened(shape.outline, shape.pieces) }, 100).sketch);
   if (!check.ok) {
     if (check.code === 'PROFILE_OVERLAPPING') return { ok: false, error: 'Des formes de ce dessin se chevauchent : fusionnez-les d’abord (Inkscape : tout sélectionner, puis Chemin > Union).' };
     if (check.code === 'PROFILE_SELF_INTERSECTING') return { ok: false, error: 'Un tracé de ce dessin se croise lui-même : retouchez-le, ou fusionnez ses parties (Inkscape : Chemin > Union).' };
     return { ok: false, error: 'Ce dessin ne forme pas de contour fermé utilisable.' };
   }
-  return { ok: true, shape: named, warnings: found.warnings };
+  return { ok: true, shape: named, warnings: found.warnings, span: shape.span };
 }
