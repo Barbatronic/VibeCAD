@@ -44,6 +44,7 @@ import { isValidOutline } from '../sketch/stamp';
 import { featureDependencies } from '../features/registry';
 import { closedDocument, subassemblyContains } from '../domain/subassemblies';
 import { APP_NAME, APP_VERSION } from '../meta';
+import { readHistoryFile, type VersionHistory, type VersionHistoryFile } from './version-store';
 
 export const FORMAT_ID = 'vibecad';
 export const SCHEMA_VERSION = 1;
@@ -56,16 +57,24 @@ export interface NativeFile {
   generator: { name: string; version: string };
   savedAt: string;
   document: SerializedDocument;
+  /** Historique des versions (facultatif) : voir `version-store`. */
+  history?: VersionHistoryFile;
 }
 
 type SerializedFeature = Feature & { dependsOn: string[] };
 type SerializedPart = Omit<Part, 'features'> & { features: SerializedFeature[] };
 type SerializedDocument = Omit<CadDocument, 'parts'> & { parts: SerializedPart[] };
 
-export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISOString()): string {
+export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISOString(), history?: VersionHistoryFile): string {
+  const file = toNativeFile(docIn, savedAt);
+  return JSON.stringify(history ? { ...file, history } : file, null, 2);
+}
+
+/** Contenu du fichier, avant sa mise en texte. */
+export function toNativeFile(docIn: CadDocument, savedAt: string): NativeFile {
   // Toujours enregistré « refermé » : l'assemblage principal à sa place.
   const doc = closedDocument(docIn);
-  const file: NativeFile = {
+  return {
     format: FORMAT_ID,
     schemaVersion: SCHEMA_VERSION,
     generator: { name: APP_NAME, version: APP_VERSION },
@@ -98,11 +107,10 @@ export function serializeDocument(docIn: CadDocument, savedAt = new Date().toISO
       ...(doc.simulation ? { simulation: doc.simulation } : {}),
     },
   };
-  return JSON.stringify(file, null, 2);
 }
 
 export type ParseOutcome =
-  | { ok: true; doc: CadDocument; warnings: string[]; migratedFrom: number | null; savedAt: string | null }
+  | { ok: true; doc: CadDocument; warnings: string[]; migratedFrom: number | null; savedAt: string | null; history: VersionHistory | null }
   | { ok: false; error: string; details: string[] };
 
 /** Migration explicite d'un document brut de la version `n` vers `n + 1`. */
@@ -151,13 +159,28 @@ export function parseNativeFile(text: string, migrations: Record<number, Migrati
   if (v.errors.length > 0) {
     return { ok: false, error: 'Le projet contient des références incohérentes entre ses étapes.', details: v.errors.slice(0, 20) };
   }
+  const history = readHistory(file.history);
+  if (history.warning) v.warnings.push(history.warning);
   return {
     ok: true,
     doc,
     warnings: v.warnings,
     migratedFrom: version < currentVersion ? version : null,
     savedAt: typeof file.savedAt === 'string' ? file.savedAt : null,
+    history: history.history,
   };
+}
+
+/** Historique des versions du fichier ; une ressource abîmée n'écarte qu'elle-même. */
+function readHistory(raw: unknown): ReturnType<typeof readHistoryFile> {
+  const resources: Record<string, Resource> = {};
+  const rawResources = isObject(raw) && isObject(raw.resources) ? raw.resources : {};
+  for (const [id, r] of Object.entries(rawResources)) {
+    const v = new Validator();
+    const res = readResource(v, r, `history.resources.${id}`);
+    if (res && v.errors.length === 0 && res.id === id) resources[id] = res;
+  }
+  return readHistoryFile(raw, resources);
 }
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,8 @@ export class AutosaveScheduler {
     private readonly store: ProjectStore,
     private readonly onStatus: (status: AutosaveStatus) => void,
     private readonly delayMs = 1200,
+    /** Mise en texte du projet (le contrôleur y joint l'historique des versions). */
+    private readonly serialize: (doc: CadDocument, savedAt: string) => string = serializeDocument,
   ) {}
 
   schedule(doc: CadDocument, basedOnSavedAt: string | null): void {
@@ -48,7 +50,7 @@ export class AutosaveScheduler {
         projectId: job.doc.id,
         name: job.doc.name,
         savedAt,
-        text: serializeDocument(job.doc, savedAt),
+        text: this.serialize(job.doc, savedAt),
         basedOnSavedAt: job.basedOnSavedAt,
       });
       this.onStatus({ kind: 'saved', at: savedAt });
