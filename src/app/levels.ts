@@ -26,6 +26,7 @@ export type Capability =
   | 'workspace:assembly'
   | 'workspace:simulation'
   | 'simulation:assembly'
+  | 'simulation:topology'
   | 'fabrication:laser'
   | 'fabrication:docs'
   | 'import-step'
@@ -101,8 +102,16 @@ export function levelOf(cap: Capability): Level {
   return CAPABILITY_LEVEL[cap] ?? 'debutant';
 }
 
+/**
+ * Fonctions archivées : leur code et leurs tests restent, mais aucun niveau ne les montre. Pour en
+ * ressortir une, retirer sa ligne.
+ * - `simulation:topology` : « Alléger la pièce » (optimisation topologique), archivée le
+ *   15 novembre 2026 : peu utile en l'état.
+ */
+export const ARCHIVED: ReadonlySet<Capability> = new Set<Capability>(['simulation:topology']);
+
 export function allows(level: Level, cap: Capability): boolean {
-  return RANK[level] >= RANK[levelOf(cap)];
+  return !ARCHIVED.has(cap) && RANK[level] >= RANK[levelOf(cap)];
 }
 
 export function levelLabel(level: Level): string {

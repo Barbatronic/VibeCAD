@@ -108,7 +108,9 @@ test('simulation : une poutre en console fléchit sous une masse, avec un verdic
   await page.locator('#sim-material').selectOption({ label: 'TPU imprimé (souple)' });
   await expect.poll(async () => (await study(page)).materialId).toBe('tpu');
 
-  // Le sens du poids se choisit aussi, jusqu'à une direction au choix.
+  // Une masse pèse selon un axe ; une force se donne dans le sens voulu, jusqu'à une direction au choix.
+  await expect(page.locator('#sim-load-direction option')).toHaveCount(6);
+  await page.locator('#sim-load-kind').selectOption('force');
   await page.locator('#sim-load-direction').selectOption('custom');
   await page.locator('#sim-load-vector-y').fill('1');
   await expect.poll(async () => (await study(page)).load).toMatchObject({ direction: 'custom', vector: { x: 0, y: 1, z: -1 } });
@@ -151,7 +153,7 @@ test('simulation : assemblage collé, deux moitiés de poutre ; une pièce isol�
   await place(50);
 
   await page.getByRole('tab', { name: 'Simulation' }).click();
-  await page.getByRole('radio', { name: 'Assemblage (pièces collées)' }).click();
+  await page.getByRole('radio', { name: 'Résistance de l’assemblage' }).click();
   await expect(page.locator('.right-panel')).toContainText('Simulation de l’assemblage');
   // Encastrée au bout de la seconde moitié (+X), chargée sur le dessus de la première.
   await page.click('#sim-pick-fixed');

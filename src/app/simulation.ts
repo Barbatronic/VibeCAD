@@ -10,10 +10,16 @@ import { GRAVITY, simMaterial } from '../sim/materials';
 import { partMaterialId } from '../domain/part-material';
 import { heatColor, type StudyInput, type StudyOutput } from '../sim/study';
 
-/** Précision : nombre de cubes visé. */
-export const QUALITY_CELLS: Record<SimulationStudy['quality'], number> = { coarse: 3000, normal: 8000, fine: 20000 };
+/**
+ * Finesse du calcul, réglée d'office (le champ `quality` des études enregistrées n'est plus lu) :
+ * nombre de cubes visé, et plafond jusqu'où la grille se resserre quand la pièce a des parois
+ * plus fines qu'un cube.
+ */
+export const STUDY_CELLS = 10000;
+export const STUDY_MAX_CELLS = 40000;
 
-export const QUALITY_LABELS: Record<SimulationStudy['quality'], string> = { coarse: 'Rapide', normal: 'Normale', fine: 'Fine' };
+/** Au-delà de cet écart de volume entre les cubes et la pièce, le résultat est annoncé approximatif. */
+export const COARSE_VOLUME_ERROR = 0.08;
 
 export const DIRECTION_LABELS: Record<LoadDirection, string> = {
   push: 'Appuie sur la face',
@@ -26,6 +32,9 @@ export const DIRECTION_LABELS: Record<LoadDirection, string> = {
   '+y': 'Vers +Y',
   custom: 'Direction au choix (X, Y, Z)',
 };
+
+/** Sens possibles du poids d'une masse posée : le bas de la pièce telle qu'elle sera utilisée. */
+export const WEIGHT_DIRECTIONS: LoadDirection[] = ['-z', '+z', '-x', '+x', '-y', '+y'];
 
 /** Étude par défaut : matériau de la pièce (sa matière, voir Propriétés), sinon le PLA. */
 export function defaultStudy(partId: Id, materialId = 'pla'): SimulationStudy {
@@ -201,7 +210,8 @@ export function studyInput(study: SimulationStudy, source: StudySource): StudyPr
       ...(keep.length ? { keep } : {}),
       force: { x: sign * F * dir.x, y: sign * F * dir.y, z: sign * F * dir.z },
       material: { E: material.E, nu: material.nu },
-      targetCells: QUALITY_CELLS[study.quality],
+      targetCells: STUDY_CELLS,
+      maxCells: STUDY_MAX_CELLS,
     },
   };
 }
@@ -220,7 +230,7 @@ export function meshSize(positions: ArrayLike<number>): number {
 /** Signature d'un calcul : le résultat affiché est périmé dès qu'elle change. */
 export function studyKey(study: SimulationStudy, sourceKey: string): string {
   // Les faces à garder ne servent qu'à l'allègement : elles ne périment pas le calcul de déformation.
-  const { keep: _keep, ...rest } = study;
+  const { keep: _keep, quality: _quality, ...rest } = study;
   return `${sourceKey}|${JSON.stringify(rest)}`;
 }
 

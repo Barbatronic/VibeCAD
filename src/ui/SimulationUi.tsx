@@ -3,18 +3,26 @@
  * matériau, les faces où elle est tenue et celles où elle est chargée, puis on lance le calcul :
  * la pièce apparaît déformée (exagérée) et colorée selon l'effort. Voir docs/simulation.md.
  */
-import { DIRECTION_LABELS, QUALITY_LABELS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
+import { COARSE_VOLUME_ERROR, DIRECTION_LABELS, WEIGHT_DIRECTIONS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
 import { drivableJoints, MECHANISM_STUDY } from '../app/mechanism';
 import { MechanismPanel } from './MechanismUi';
 import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS } from '../sim/materials';
 import { exaggerationFor } from '../sim/study';
+import { allows } from '../app/levels';
 import { useAppState, useController } from './context';
 import { ToolGroup } from './ToolSectors';
 import { Button, Callout, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
+
+/** Petite grandeur (déplacement, contrainte) : au moins deux chiffres significatifs, jamais « 0 ». */
+function small(v: number, digits: number): string {
+  if (!(v > 0)) return '0';
+  const needed = Math.max(digits, 1 - Math.floor(Math.log10(v)));
+  return formatNumber(v, Math.min(needed, 9));
+}
 
 /** Valeur saisie : nombre ou équation (paramètres du projet compris). */
 const num = (t: string) => readNumber(t);
@@ -38,6 +46,7 @@ function StudyTools() {
   const picking = useAppState((s) => (s.mode.kind === 'pick-sim-face' ? s.mode.role : null));
   const running = useAppState((s) => s.simulationRun?.status === 'running');
   const lightening = useAppState((s) => s.topologyRun?.status === 'running');
+  const canLighten = useAppState((s) => allows(s.level, 'simulation:topology'));
   return (
     <>
       <ToolGroup name="Préparer">
@@ -46,6 +55,7 @@ function StudyTools() {
       </ToolGroup>
       <ToolGroup name="Résultat">
         <ToolButton id="sim-run" icon="simulate" label="Calculer" hint="Calculer la déformation de la pièce" pressed={running} onClick={() => void c.runSimulation()} />
+        {canLighten ? (
         <ToolButton
           id="sim-lighten"
           icon="shell"
@@ -57,12 +67,13 @@ function StudyTools() {
             void c.runTopology();
           }}
         />
+        ) : null}
       </ToolGroup>
     </>
   );
 }
 
-/** Panneau de gauche : la pièce étudiée. */
+/** Panneau de gauche : le type d'étude (s'il y a le choix), puis la pièce étudiée. */
 export function SimulationSection() {
   const c = useController();
   const data = useAppState(
@@ -72,81 +83,60 @@ export function SimulationSection() {
       // Assemblage collé (niveau Expert), dès qu'il a deux pièces.
       assembly: (s.doc.assembly?.instances.length ?? 0) >= 2 && !!c.simulationSource(ASSEMBLY_STUDY),
       mechanism: drivableJoints(s.doc.assembly).length > 0,
+      active: s.activePartId,
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
+  const kind = data.current === MECHANISM_STUDY ? 'mechanism' : data.current === ASSEMBLY_STUDY ? 'assembly' : 'part';
+  const choice = (id: string | undefined, value: string, selected: boolean, icon: string, label: string, title: string, onClick: () => void) => (
+    <li key={value}>
+      <button type="button" role="radio" id={id} aria-checked={selected} class={`sim-part${selected ? ' is-current' : ''}`} title={title} onClick={onClick}>
+        <Icon name={icon} />
+        <span>{label}</span>
+      </button>
+    </li>
+  );
   return (
-    <section class="panel-section grow" aria-labelledby="sim-title">
-      <div class="panel-header">
-        <span id="sim-title">Pièce étudiée</span>
-      </div>
-      <div class="panel-body">
-        {data.parts.length === 0 ? <p class="empty-hint">Aucune pièce avec un volume.</p> : null}
-        <ul class="feature-list sim-parts" role="radiogroup" aria-label="Pièce étudiée">
-          {data.parts.map((p) => (
-            <li key={p.id}>
-              <button type="button" role="radio" aria-checked={p.id === data.current} class={`sim-part${p.id === data.current ? ' is-current' : ''}`} onClick={() => c.setSimulationPart(p.id)}>
-                <span class="color-swatch" style={{ background: p.color, width: '16px', height: '16px' }} />
-                <span>{p.name}</span>
-              </button>
-            </li>
-          ))}
-          {data.assembly ? (
-            <li>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={data.current === ASSEMBLY_STUDY}
-                class={`sim-part${data.current === ASSEMBLY_STUDY ? ' is-current' : ''}`}
-                title="Toutes les pièces de l’assemblage, à leur place : celles qui se touchent sont considérées comme collées."
-                onClick={() => c.setSimulationPart(ASSEMBLY_STUDY)}
-              >
-                <Icon name="part" />
-                <span>Assemblage (pièces collées)</span>
-              </button>
-            </li>
-          ) : null}
-          {data.mechanism ? (
-            <li>
-              <button
-                type="button"
-                role="radio"
-                id="sim-mechanism"
-                aria-checked={data.current === MECHANISM_STUDY}
-                class={`sim-part${data.current === MECHANISM_STUDY ? ' is-current' : ''}`}
-                title="Couple (pivot) ou force (glissière) nécessaire sur une liaison pour faire bouger l’assemblage"
-                onClick={() => c.setSimulationPart(MECHANISM_STUDY)}
-              >
-                <Icon name="pivot" />
-                <span>Mécanisme : couple sur une liaison</span>
-              </button>
-            </li>
-          ) : null}
-        </ul>
-        {data.current === MECHANISM_STUDY ? (
-          <ol class="sim-steps field-help">
-            <li>Choisissez la <strong>liaison motrice</strong>, celle que le moteur entraîne, et sa plage.</li>
-            <li>Réglez le frottement, l’accélération voulue et la marge de sécurité.</li>
-            <li>
-              <strong>Calculer</strong> : la courbe du couple sur toute la plage ; survolez-la pour voir la position.
-            </li>
-          </ol>
-        ) : (
-        <ol class="sim-steps field-help">
-          <li>Choisissez le matériau.</li>
-          <li>
-            <strong>Faces fixées</strong> : cliquez où la pièce est tenue (vissée, collée, posée).
-          </li>
-          <li>
-            <strong>Charge</strong> : cliquez où l’on appuie, puis indiquez combien.
-          </li>
-          <li>
-            <strong>Calculer</strong> : la pièce se déforme (en exagéré) et se colore, du bleu (tranquille) au rouge (très sollicité).
-          </li>
-        </ol>
-        )}
-      </div>
-    </section>
+    <>
+      {data.assembly || data.mechanism ? (
+        <section class="panel-section" aria-labelledby="sim-kind-title">
+          <div class="panel-header">
+            <span id="sim-kind-title">Étude</span>
+          </div>
+          <div class="panel-body">
+            <ul class="feature-list sim-parts" role="radiogroup" aria-label="Type d’étude">
+              {choice(undefined, 'part', kind === 'part', 'part', 'Résistance d’une pièce', 'Déformation et contrainte d’une pièce sous une charge', () => data.parts[0] && c.setSimulationPart(data.parts.find((p) => p.id === data.active)?.id ?? data.parts[0].id))}
+              {data.assembly
+                ? choice(undefined, 'assembly', kind === 'assembly', 'group', 'Résistance de l’assemblage', 'Toutes les pièces de l’assemblage, à leur place : celles qui se touchent sont considérées comme collées.', () => c.setSimulationPart(ASSEMBLY_STUDY))
+                : null}
+              {data.mechanism
+                ? choice('sim-mechanism', 'mechanism', kind === 'mechanism', 'pivot', 'Couple d’un mécanisme', 'Couple (pivot) ou force (glissière) nécessaire sur une liaison pour faire bouger l’assemblage', () => c.setSimulationPart(MECHANISM_STUDY))
+                : null}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+      {kind === 'part' ? (
+        <section class="panel-section grow" aria-labelledby="sim-title">
+          <div class="panel-header">
+            <span id="sim-title">Pièce</span>
+          </div>
+          <div class="panel-body">
+            {data.parts.length === 0 ? <p class="empty-hint">Aucune pièce avec un volume.</p> : null}
+            <ul class="feature-list sim-parts" role="radiogroup" aria-label="Pièce étudiée">
+              {data.parts.map((p) => (
+                <li key={p.id}>
+                  <button type="button" role="radio" aria-checked={p.id === data.current} class={`sim-part${p.id === data.current ? ' is-current' : ''}`} onClick={() => c.setSimulationPart(p.id)}>
+                    <span class="color-swatch" style={{ background: p.color, width: '16px', height: '16px' }} />
+                    <span>{p.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }
 
@@ -179,10 +169,11 @@ function StudyRightPanel() {
         partId,
         name: partId === ASSEMBLY_STUDY ? 'l’assemblage' : `« ${s.doc.parts.find((p) => p.id === partId)?.name ?? ''} »`,
         assembly: partId === ASSEMBLY_STUDY,
+        canLighten: allows(s.level, 'simulation:topology'),
         study,
         missing: problem.ok ? null : problem.message,
         picking: s.mode.kind === 'pick-sim-face' ? s.mode.role : null,
-        run: run ? { status: run.status, progress: run.progress, error: run.error ?? null, current, result: run.result ? { maxStress: run.result.maxStress, maxDisplacement: run.result.maxDisplacement, cells: run.result.cells, ignoredCells: run.result.ignoredCells, cellSize: run.result.cellSize, converged: run.result.converged, durationMs: run.result.durationMs } : null } : null,
+        run: run ? { status: run.status, progress: run.progress, error: run.error ?? null, current, result: run.result ? { maxStress: run.result.maxStress, maxDisplacement: run.result.maxDisplacement, cells: run.result.cells, ignoredCells: run.result.ignoredCells, cellSize: run.result.cellSize, coarse: run.result.volumeError > COARSE_VOLUME_ERROR, converged: run.result.converged, durationMs: run.result.durationMs } : null } : null,
         exaggeration: run?.result ? exaggerationFor(run.result.maxDisplacement, run.size) : 1,
         // Au-delà de 5 % de la taille de la pièce, l'hypothèse des petites déformations ne tient plus.
         large: !!run?.result && run.result.maxDisplacement > 0.05 * run.size,
@@ -302,7 +293,7 @@ function StudyRightPanel() {
             </label>
           </div>
           <label class="mini-field">
-            <span>{study.load.kind === 'mass' ? 'Sens du poids' : 'Sens'}</span>
+            <span>{study.load.kind === 'mass' ? 'Le poids tire' : 'Sens'}</span>
             <select
               id="sim-load-direction"
               class="select"
@@ -312,7 +303,8 @@ function StudyRightPanel() {
                 update((s) => ({ ...s, load: { ...s.load, direction, ...(direction === 'custom' && !s.load.vector ? { vector: { x: 0, y: 0, z: -1 } } : {}) } }), 'Sens de la charge');
               }}
             >
-              {(Object.keys(DIRECTION_LABELS) as LoadDirection[]).map((d) => (
+              {/* Une masse pèse selon un axe ; un sens enregistré autrement (ancienne étude) reste proposé. */}
+              {(Object.keys(DIRECTION_LABELS) as LoadDirection[]).filter((d) => study.load.kind === 'force' || WEIGHT_DIRECTIONS.includes(d) || d === study.load.direction).map((d) => (
                 <option key={d} value={d}>
                   {DIRECTION_LABELS[d]}
                 </option>
@@ -339,21 +331,8 @@ function StudyRightPanel() {
               ))}
             </div>
           ) : null}
-          <p class="field-help">
-            {study.load.kind === 'mass' ? `${formatNumber(study.load.value * 9.81, 1)} N` : null}
-          </p>
+          {study.load.kind === 'mass' ? <p class="field-help">Poids : {formatNumber(study.load.value * 9.81, 1)} N</p> : null}
         </div>
-
-        <label class="field">
-          <span class="field-label">Précision</span>
-          <select id="sim-quality" class="select" value={study.quality} onChange={(e) => update((s) => ({ ...s, quality: (e.target as HTMLSelectElement).value as SimulationStudy['quality'] }), 'Précision de la simulation')}>
-            {(Object.keys(QUALITY_LABELS) as SimulationStudy['quality'][]).map((q) => (
-              <option key={q} value={q}>
-                {QUALITY_LABELS[q]}
-              </option>
-            ))}
-          </select>
-        </label>
 
         {info.missing ? <p class="field-help">{info.missing}</p> : null}
         {running ? (
@@ -379,9 +358,9 @@ function StudyRightPanel() {
             </div>
             <dl class="sim-figures">
               <dt>Déplacement maximal</dt>
-              <dd id="sim-max-displacement">{formatNumber(result.maxDisplacement, 3)} mm</dd>
+              <dd id="sim-max-displacement">{small(result.maxDisplacement, 3)} mm</dd>
               <dt>Contrainte maximale</dt>
-              <dd id="sim-max-stress">{formatNumber(result.maxStress, 2)} MPa</dd>
+              <dd id="sim-max-stress">{small(result.maxStress, 2)} MPa</dd>
             </dl>
             <div class="segmented" role="group" aria-label="Couleurs">
               <button type="button" aria-pressed={info.display === 'stress'} onClick={() => c.setSimulationDisplay('stress')}>
@@ -396,7 +375,7 @@ function StudyRightPanel() {
               <span class="sim-legend-labels">
                 <span>0</span>
                 <span>
-                  {formatNumber(top, info.display === 'stress' ? 2 : 3)} {info.display === 'stress' ? 'MPa' : 'mm'}
+                  {small(top, info.display === 'stress' ? 2 : 3)} {info.display === 'stress' ? 'MPa' : 'mm'}
                 </span>
               </span>
             </div>
@@ -418,6 +397,7 @@ function StudyRightPanel() {
                 De la matière ne touche aucune face fixée : ignorée (en bleu).
               </Callout>
             ) : null}
+            {result.coarse ? <Callout kind="warning">Parois fines devant la taille des cubes : résultat approximatif.</Callout> : null}
             {info.large ? (
               <Callout kind="warning">
                 Grandes déformations : hors du domaine du calcul, résultat faussé.
@@ -426,7 +406,7 @@ function StudyRightPanel() {
             {!result.converged ? <Callout kind="warning">Le calcul n’a pas tout à fait abouti : le résultat est approximatif.</Callout> : null}
           </div>
         ) : null}
-        {!info.assembly ? <TopologySection partId={partId} missing={info.missing} /> : null}
+        {!info.assembly && info.canLighten ? <TopologySection partId={partId} missing={info.missing} /> : null}
       </div>
     </aside>
   );

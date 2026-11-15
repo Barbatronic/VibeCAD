@@ -13,7 +13,8 @@ import type { ModelPick } from '../viewport/viewport';
 import { useAppState, useController } from './context';
 import { Icon } from './icons';
 
-const NAVIGATION_HINT = 'Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoomer · Double-clic sur une face : esquisse dessus';
+const VIEW_HINT = 'Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoomer';
+const NAVIGATION_HINT = `${VIEW_HINT} · Double-clic sur une face : esquisse dessus`;
 
 function describePick(s: AppState, pick: { partId: string; kind: 'face' | 'edge'; index: number }): string {
   const part = s.doc.parts.find((p) => p.id === pick.partId);
@@ -64,7 +65,8 @@ function helpText(s: AppState): string {
       if (hover && hover.kind !== 'vertex') return describePick(s, { ...hover, kind: hover.kind });
       const sel = s.selection;
       if (sel && (sel.kind === 'face' || sel.kind === 'edge')) return `Sélection : ${describePick(s, sel)}`;
-      return NAVIGATION_HINT;
+      // L'esquisse sur une face ne vaut qu'en conception.
+      return s.workspace === 'parts' || s.workspace === 'assembly' ? NAVIGATION_HINT : VIEW_HINT;
     }
   }
 }

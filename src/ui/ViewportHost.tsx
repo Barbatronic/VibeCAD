@@ -404,13 +404,13 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
           const inst = s.doc.assembly?.instances.find((i) => i.id === it.instanceId);
           return { partId: it.instanceId, ...lookOf(s, s.doc.parts.find((p) => p.id === inst?.partId)), visible: true, meshKey: s.display[inst?.partId ?? '']?.meshKey ?? null, mesh: it.mesh, appearance, matrix: it.matrix };
         });
-  const markedFaces: NonNullable<ViewportInput['markedFaces']> = resultMesh
-    ? []
-    : studyFaces(study, source).flatMap((f) => [
-        ...f.fixed.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'fixed' as const })),
-        ...f.load.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'load' as const })),
-        ...f.keep.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'keep' as const })),
-      ]);
+  // Résultat affiché : les faces fixées restent marquées (elles ne bougent pas), pour que l'on voie
+  // où la pièce est tenue ; la charge garde sa flèche.
+  const markedFaces: NonNullable<ViewportInput['markedFaces']> = studyFaces(study, source).flatMap((f) => [
+    ...f.fixed.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'fixed' as const })),
+    ...(resultMesh ? [] : f.load.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'load' as const }))),
+    ...(resultMesh ? [] : f.keep.map((index) => ({ partId: f.instanceId ?? partId, index, role: 'keep' as const }))),
+  ]);
   // Flèche de la charge : elle arrive sur le centre des faces chargées.
   const markers: ViewMarker[] = [];
   const problem = studyInput(study, source);

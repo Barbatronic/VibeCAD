@@ -3286,6 +3286,7 @@ export class AppController {
    * le worker de simulation ; une étude de déformation en cours est abandonnée).
    */
   async runTopology(): Promise<void> {
+    if (!this.can('simulation:topology')) return;
     const partId = this.simulationPartId();
     const source = partId ? this.simulationSource(partId) : null;
     if (!partId || !source) return this.explain('Choisissez une pièce qui a un volume.');

@@ -28,7 +28,8 @@ async function clickFace(page: Page, normal: [number, number, number]) {
 
 const percent = async (page: Page, id: string) => Number((await page.locator(id).textContent())!.replace(/[^\d]/g, ''));
 
-test('simulation : alléger une console (optimisation topologique), régler le seuil, exporter, garder la forme en esquisse extrudée', async ({ page }) => {
+// « Alléger la pièce » est archivée (voir ARCHIVED dans src/app/levels.ts) : parcours gardé pour sa remise en service.
+test.skip('simulation : alléger une console (optimisation topologique), régler le seuil, exporter, garder la forme en esquisse extrudée', async ({ page }) => {
   test.setTimeout(240_000);
   await openApp(page);
   // Plaque 80 × 10 × 40 mm, tenue par le bout +X, chargée sur le dessus (console).
