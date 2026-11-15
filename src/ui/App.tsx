@@ -3,14 +3,12 @@ import { formatNumber } from '../domain/units';
 import { resolveParameters } from '../features/parameters';
 import { InputSuggestions, type InputSuggestion } from './components/number-input';
 import { Dialogs, Toasts } from './Dialogs';
-import { LaserBoard } from './LaserBoard';
-import { HelpDrawer } from './HelpDrawer';
+import { HelpDrawer, LaserBoard, Tutorial } from './lazy';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { StatusBar } from './StatusBar';
 import { TopBar } from './TopBar';
 import { TipLayer } from './TipLayer';
-import { Tutorial } from './Tutorial';
 import { ViewportHost } from './ViewportHost';
 import { useAppState, useController } from './context';
 import { Icon } from './icons';
@@ -21,6 +19,9 @@ export function App() {
   const leftHidden = useAppState((s) => s.leftPanelHidden);
   const rightHidden = useAppState((s) => s.rightPanelHidden);
   const modeKind = useAppState((s) => s.mode.kind);
+  const laserOn = useAppState((s) => s.workspace === 'fabrication');
+  const tutorialOn = useAppState((s) => s.tutorial !== null);
+  const helpOpen = useAppState((s) => s.helpOpen);
   const parameters = useAppState((s) => s.doc.parameters);
   // Paramètres du projet proposés sous chaque champ numérique (cotes, distances…).
   const suggestions = useMemo((): InputSuggestion[] => {
@@ -43,8 +44,9 @@ export function App() {
           <LeftPanel />
           <div class="viewport-area">
             <ViewportHost />
-            <LaserBoard />
-            <Tutorial />
+            {/* Chargés à leur première utilisation (voir lazy.tsx). */}
+            {laserOn ? <LaserBoard /> : null}
+            {tutorialOn ? <Tutorial /> : null}
           </div>
           <RightPanel />
           {/* Languettes des panneaux flottants (écran large) : replier contre le bord, ou rouvrir. */}
@@ -70,7 +72,7 @@ export function App() {
           </button>
         </main>
         <StatusBar />
-        <HelpDrawer />
+        {helpOpen ? <HelpDrawer /> : null}
         <Dialogs />
         <Toasts />
         <TipLayer />

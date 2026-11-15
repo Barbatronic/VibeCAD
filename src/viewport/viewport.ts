@@ -48,6 +48,7 @@ import { CameraRig, type Projection, type StandardView } from './camera-rig';
 import { readPalette, type ViewportPalette } from './colors';
 import { AxesView, frameMatrix, PlaneGrid } from './grid';
 import { markingsKey, type PartMarkings, fatLineMaterial, hatchMaterial, PartObject, type DisplayStyle, type PartAppearance } from './part-meshes';
+import { buildBvh, raycastBvh, type TriangleBvh } from './bvh';
 import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
@@ -114,6 +115,8 @@ export interface ViewportInput {
   session: SketchRenderInput | null;
   selection: ViewSelection[];
   measure: { a: Vec3; b: Vec3; label: string } | null;
+  /** Trajectoire d'un point (étude de mouvement) : ligne brisée, et position à l'instant montré. */
+  trace?: { points: Vec3[]; at: Vec3 | null } | null;
   /** Pendant l'édition d'une opération : la vue accepte les clics sur arêtes et faces (congé…). */
   featurePicking?: boolean;
   /** Compteur de demandes de cadrage : la vue cadre le contenu quand il change. */
@@ -226,6 +229,33 @@ function emptyInput(): ViewportInput {
   return { mode: 'model', parts: [], tool: null, sketches: [], session: null, selection: [], measure: null };
 }
 
+/** Arbres de sélection, un par maillage (les exemplaires d'une même pièce le partagent). */
+const bvhCache = new WeakMap<MeshData, TriangleBvh>();
+const edgeSphereCache = new WeakMap<MeshData, Float32Array>();
+
+/** Sphère englobante de chaque arête d'un maillage (centre x, y, z puis rayon), dans son repère. */
+function edgeSpheres(data: MeshData): Float32Array {
+  let out = edgeSphereCache.get(data);
+  if (out) return out;
+  out = new Float32Array(4 * data.edges.length);
+  const p = data.edgePositions;
+  data.edges.forEach((edge, i) => {
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (let k = 3 * edge.start; k < 3 * (edge.start + edge.count); k++) {
+      const v = p[k]!;
+      if (v < lo[k % 3]!) lo[k % 3] = v;
+      if (v > hi[k % 3]!) hi[k % 3] = v;
+    }
+    out![4 * i] = (lo[0]! + hi[0]!) / 2;
+    out![4 * i + 1] = (lo[1]! + hi[1]!) / 2;
+    out![4 * i + 2] = (lo[2]! + hi[2]!) / 2;
+    out![4 * i + 3] = Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / 2;
+  });
+  edgeSphereCache.set(data, out);
+  return out;
+}
+
 export class Viewport {
   private readonly renderer: WebGLRenderer;
   private readonly labelRenderer: CSS2DRenderer;
@@ -253,6 +283,8 @@ export class Viewport {
   private hoverOverlayKey: string | null = null;
   private selectionOverlays: Object3D[] = [];
   private measureObjects: Object3D[] = [];
+  private traceObjects: Object3D[] = [];
+  private traceKey = '';
   private markerObjects: Object3D[] = [];
   private bedObjects: Object3D[] = [];
   private bedKey = '';
@@ -568,6 +600,7 @@ export class Viewport {
     this.syncChosenEdges(input.chosenEdges ?? []);
     this.syncHighlightMeshes(input.highlightMeshes ?? []);
     this.syncMeasure(input.measure);
+    this.syncTrace(input.trace ?? null);
     this.syncMarkers(input.markers ?? []);
     this.syncBed(input.bed ?? null);
     if (input.mode !== prevMode) this.onModeChange(prevMode, input.mode);
@@ -1267,6 +1300,36 @@ export class Viewport {
     this.measureObjects.push(line, label);
   }
 
+  private syncTrace(trace: ViewportInput['trace']): void {
+    const key = trace ? `${trace.points.length}|${trace.points[0]?.x},${trace.points[0]?.y},${trace.points[trace.points.length - 1]?.x},${trace.points[trace.points.length - 1]?.z}|${trace.at?.x},${trace.at?.y},${trace.at?.z}` : '';
+    if (key === this.traceKey) return;
+    this.traceKey = key;
+    for (const o of this.traceObjects) this.disposeOverlay(o);
+    this.traceObjects = [];
+    if (!trace || trace.points.length < 2) return;
+    const positions: number[] = [];
+    for (let i = 0; i + 1 < trace.points.length; i++) {
+      const a = trace.points[i]!;
+      const b = trace.points[i + 1]!;
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    }
+    const geometry = new LineSegmentsGeometry();
+    geometry.setPositions(positions);
+    const line = new LineSegments2(geometry, this.resolved(fatLineMaterial(this.palette.selection, 2.5, { depthTest: false })));
+    line.renderOrder = 39;
+    this.overlayGroup.add(line);
+    this.traceObjects.push(line);
+    if (trace.at) {
+      const el = document.createElement('span');
+      el.className = 'vp-trace-dot';
+      const dot = new CSS2DObject(el);
+      dot.position.set(trace.at.x, trace.at.y, trace.at.z);
+      this.overlayGroup.add(dot);
+      this.traceObjects.push(dot);
+    }
+    this.requestRender();
+  }
+
   private resolved<T extends { resolution: Vector2 }>(m: T): T {
     m.resolution.set(this.width, this.height);
     return m;
@@ -1851,19 +1914,46 @@ export class Viewport {
     return hit ? { plane: hit.object.userData.plane as PlaneName, distance: hit.distance } : null;
   }
 
+  /**
+   * Premier triangle des pièces touché par le rayon de la souris. Chaque pièce a son arbre de
+   * boîtes (construit à la première sélection qui atteint sa sphère) : le coût ne dépend plus du
+   * nombre de triangles de la pièce survolée.
+   */
+  private raycastParts(objects: PartObject[]): { part: PartObject; triangle: number; point: Vector3; distance: number } | null {
+    const ray = this.raycaster.ray;
+    const inverse = new Matrix4();
+    const o = new Vector3();
+    const d = new Vector3();
+    let best: { part: PartObject; triangle: number; distance: number } | null = null;
+    for (const part of objects) {
+      const bs = part.faces.geometry.boundingSphere;
+      inverse.copy(part.faces.matrixWorld).invert();
+      // Rayon dans le repère de la pièce (placements rigides : les distances sont conservées).
+      o.copy(ray.origin).applyMatrix4(inverse);
+      d.copy(ray.direction).transformDirection(inverse);
+      if (bs) {
+        const toCenter = bs.center.clone().sub(o);
+        const along = toCenter.dot(d);
+        if (toCenter.lengthSq() - along * along > bs.radius * bs.radius) continue;
+      }
+      let bvh = bvhCache.get(part.data);
+      if (!bvh) bvhCache.set(part.data, (bvh = buildBvh(part.data.positions, part.data.indices)));
+      const hit = raycastBvh(bvh, part.data.positions, part.data.indices, [o.x, o.y, o.z], [d.x, d.y, d.z], best?.distance ?? Infinity);
+      if (hit) best = { part, triangle: hit.triangle, distance: hit.t };
+    }
+    return best ? { ...best, point: ray.origin.clone().addScaledVector(ray.direction, best.distance) } : null;
+  }
+
   /** Face ou arête sous le curseur (une arête proche à l'écran est prioritaire). */
   private pickModel(e: PointerEvent): (ModelPick & { distance: number }) | null {
     const ndc = this.ndc(e);
     this.raycaster.setFromCamera(ndc, this.rig.camera);
     // Les pièces « fantômes » (autres pièces pendant une opération) laissent passer les clics.
     const objects = Array.from(this.parts.values()).filter((p) => p.group.visible && p.appearance !== 'ghost');
-    const hits = this.raycaster.intersectObjects(objects.map((p) => p.faces), false);
-    const hit = hits[0];
-    let facePick: (ModelPick & { distance: number }) | null = null;
-    if (hit && hit.faceIndex !== undefined && hit.faceIndex !== null) {
-      const part = objects.find((p) => p.faces === hit.object)!;
-      facePick = { partId: part.partId, kind: 'face', index: part.faceOfTriangle(hit.faceIndex), point: { x: hit.point.x, y: hit.point.y, z: hit.point.z }, distance: hit.distance };
-    }
+    const hit = this.raycastParts(objects);
+    const facePick: (ModelPick & { distance: number }) | null = hit
+      ? { partId: hit.part.partId, kind: 'face', index: hit.part.faceOfTriangle(hit.triangle), point: { x: hit.point.x, y: hit.point.y, z: hit.point.z }, distance: hit.distance }
+      : null;
     // Arêtes : distance à l'écran, en ignorant celles cachées derrière la face touchée.
     const rect = this.renderer.domElement.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -1877,6 +1967,7 @@ export class Viewport {
     const wb = new Vector3();
     const onRay = new Vector3();
     const onSegment = new Vector3();
+    const edgeCenter = new Vector3();
     const ray = this.raycaster.ray;
     // Tri rapide : une pièce dont la sphère englobante passe loin du rayon de la souris (au-delà
     // de la tolérance de sélection) n'a aucune arête à portée ; ses arêtes ne sont pas projetées.
@@ -1892,7 +1983,14 @@ export class Viewport {
         if (ray.distanceToPoint(sphere.center) > sphere.radius + margin) continue;
       }
       const pos = part.data.edgePositions;
+      // Tri par arête : celle dont la sphère englobante passe loin du rayon n'est pas projetée.
+      const spheres = edgeSpheres(part.data);
+      const placed = !part.group.matrixAutoUpdate;
+      const reach = EDGE_PICK_PX * 2 * pxAtTarget * Math.max(1, (bs ? camera.position.distanceTo(sphere.center) + sphere.radius : targetDistance) / targetDistance);
       part.data.edges.forEach((edge, edgeIndex) => {
+        edgeCenter.set(spheres[4 * edgeIndex]!, spheres[4 * edgeIndex + 1]!, spheres[4 * edgeIndex + 2]!);
+        if (placed) edgeCenter.applyMatrix4(part.group.matrix);
+        if (ray.distanceToPoint(edgeCenter) > spheres[4 * edgeIndex + 3]! + reach) return;
         for (let k = edge.start; k < edge.start + edge.count; k += 2) {
           wa.set(pos[k * 3]!, pos[k * 3 + 1]!, pos[k * 3 + 2]!);
           wb.set(pos[k * 3 + 3]!, pos[k * 3 + 4]!, pos[k * 3 + 5]!);

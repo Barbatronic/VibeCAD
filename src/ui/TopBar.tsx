@@ -20,9 +20,7 @@ import { useAppState, useController } from './context';
 import { IconButton, ToolButton } from './components/controls';
 import { Icon } from './icons';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
-import { FabricationTools } from './FabricationUi';
-import { SimulationTools } from './SimulationUi';
-import { VersionsTools } from './VersionsUi';
+import { FabricationTools, SimulationTools, VersionsTools } from './lazy';
 import { Sector, type SectorTool } from './ToolSectors';
 import { MaterialsToggle } from './MaterialsUi';
 

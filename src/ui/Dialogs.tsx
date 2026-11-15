@@ -1,4 +1,4 @@
-import { TraceStampDialog } from './TraceStampDialog';
+import { ComponentsDialog, TraceStampDialog } from './lazy';
 import { useState } from 'preact/hooks';
 import { formatLength, formatVolume } from '../domain/units';
 import { NATIVE_EXTENSION } from '../io/native-format';
@@ -9,7 +9,6 @@ import { LEVELS } from '../app/levels';
 import type { ExportFormat, ThemeChoice } from '../app/state';
 import { Icon } from './icons';
 import { Modal } from './components/modal';
-import { ComponentsDialog } from './ComponentsDialog';
 
 function when(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
