@@ -430,6 +430,15 @@ const PATHS: Record<string, JSX.Element> = {
   /** Copie liée : deux exemplaires l'un derrière l'autre. */
   copy: <path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4" />,
   folder: <path d="M3.5 18.5v-12h6l2 2.5h9v9.5z" />,
+  /** Versions du projet : une branche qui part d'un tronc. */
+  branch: (
+    <>
+      <circle cx="7" cy="5.5" r="2.2" />
+      <circle cx="7" cy="18.5" r="2.2" />
+      <circle cx="17" cy="8.5" r="2.2" />
+      <path d="M7 7.7v8.6M17 10.7c0 3.5-4 3.3-8 4.6" />
+    </>
+  ),
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />

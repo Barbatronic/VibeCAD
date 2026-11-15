@@ -54,6 +54,8 @@ import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { ExportPlacement, PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
+import { historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
+import { addBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, headOf, sameTree, switchBranch, treeOf } from '../io/versions';
 import { bytesToBase64, createStepResource, verifyResources } from '../io/resources';
 import { meshesToBinaryStl, STL_UNIT_NOTE } from '../io/stl';
 import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
@@ -109,7 +111,7 @@ import { createId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
 import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
-import { isDirty, type AppState, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
+import { EMPTY_VERSION_VIEW, isDirty, type AppState, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -154,7 +156,7 @@ export class AppController {
     readonly store: Store<AppState>,
     private readonly deps: ControllerDeps,
   ) {
-    this.autosave = deps.projects ? new AutosaveScheduler(deps.projects, (autosave) => this.patchProject({ autosave })) : null;
+    this.autosave = deps.projects ? new AutosaveScheduler(deps.projects, (autosave) => this.patchProject({ autosave }), undefined, (doc, savedAt) => this.projectText(doc, savedAt)) : null;
   }
 
   get state(): AppState {
@@ -797,6 +799,8 @@ export class AppController {
   }
 
   private afterChange(): void {
+    // Atelier Versions : le projet a changé (annuler, restaurer), la comparaison aussi.
+    if (this.state.workspace === 'versions') void this.selectVersion(null);
     void this.evaluate();
     this.autosave?.schedule(this.state.doc, this.state.project.savedAt);
   }
@@ -854,7 +858,7 @@ export class AppController {
       this.set({ dialog: { kind: 'problem', title: 'Impossible d’ouvrir ce projet', message: parsed.error, details: parsed.details } });
       return false;
     }
-    this.loadDocument(parsed.doc, meta);
+    this.loadDocument(parsed.doc, { ...meta, versions: parsed.history });
     if (parsed.migratedFrom !== null) this.toast('info', `Projet converti depuis le format ${parsed.migratedFrom}. Enregistrez-le pour garder la nouvelle version.`);
     if (parsed.warnings.length > 0) this.toast('info', `Le projet a été ouvert avec ${parsed.warnings.length} avertissement(s).`, { detail: parsed.warnings.join('\n') });
     void verifyResources(parsed.doc.resources).then((altered) => {
@@ -863,7 +867,7 @@ export class AppController {
     return true;
   }
 
-  private loadDocument(docIn: CadDocument, meta: { savedAt: string | null; dirty: boolean; file?: SaveTarget }): void {
+  private loadDocument(docIn: CadDocument, meta: { savedAt: string | null; dirty: boolean; file?: SaveTarget; versions?: VersionHistory | null }): void {
     const doc = docIn.parts.length > 0 ? docIn : addPart(docIn).doc;
     this.autosave?.cancel();
     this.newSketch = null;
@@ -871,6 +875,9 @@ export class AppController {
     const revision = meta.dirty ? 1 : 0;
     this.set({
       doc,
+      versions: meta.versions ?? null,
+      versionView: EMPTY_VERSION_VIEW,
+      ...(this.state.workspace === 'versions' ? { workspace: 'parts' as const } : {}),
       history: emptyHistory(),
       revision,
       activePartId: doc.parts[0]!.id,
@@ -1004,6 +1011,7 @@ export class AppController {
     if (this.state.workspace === 'assembly') return this.assemblyPick(pick, info.double);
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     if (this.state.workspace === 'simulation') return this.simulationPick(pick);
+    if (this.state.workspace === 'versions') return this.versionsPick(pick);
     const mode = this.state.mode;
     // Pièce voisine (conception en contexte d'assemblage) : seulement pour poser une esquisse.
     if (pick?.partId.startsWith(CONTEXT_PREFIX)) {
@@ -2239,7 +2247,7 @@ export class AppController {
     const { silent = false, browserOnly = false } = options;
     const s = this.state;
     const savedAt = new Date().toISOString();
-    const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
+    const text = this.projectText({ ...s.doc, modifiedAt: savedAt }, savedAt);
     if (!this.deps.projects) {
       if (!silent) return this.saveAs();
       return false;
@@ -2299,7 +2307,7 @@ export class AppController {
   async saveAs(): Promise<boolean> {
     const s = this.state;
     const savedAt = new Date().toISOString();
-    const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
+    const text = this.projectText({ ...s.doc, modifiedAt: savedAt }, savedAt);
     try {
       const target = await saveFile(new Blob([text], { type: NATIVE_MIME }), safeFileName(s.doc.name, NATIVE_EXTENSION), {
         description: 'Projet VibeCAD',
@@ -2315,6 +2323,218 @@ export class AppController {
     } catch (err) {
       this.toast('error', 'Le fichier n’a pas pu être enregistré.', { detail: (err as Error).message });
       return false;
+    }
+  }
+
+  // =========================================================================
+  // Versions du projet
+
+  /** Texte du projet à enregistrer, historique des versions compris. */
+  private projectText(doc: CadDocument, savedAt: string): string {
+    const h = this.state.versions;
+    return serializeDocument(doc, savedAt, h ? historyToFile(h, doc.resources) : undefined);
+  }
+
+  /**
+   * Historique avec ses contenus décodés (le bloc compressé du fichier n'est lu qu'ici, à la
+   * première demande). `null` : pas d'historique, ou bloc illisible.
+   */
+  private async versionObjects(): Promise<VersionHistory | null> {
+    const h = this.state.versions;
+    if (!h || h.objects) return h;
+    try {
+      const objects = await unpackObjects(h.packed ?? '');
+      if (!objectsComplete(h.commits, objects)) throw new Error('contenus manquants');
+      // Autre projet ouvert entre-temps : son historique à lui.
+      if (this.state.versions !== h) return this.versionObjects();
+      const next = { ...h, objects };
+      this.set({ versions: next });
+      return next;
+    } catch (err) {
+      if (this.state.versions === h) this.toast('error', 'L’historique des versions de ce projet est illisible.', { detail: (err as Error).message });
+      return null;
+    }
+  }
+
+  /** Remplace l'historique : le projet est à enregistrer, et le bloc compressé se refait en arrière-plan. */
+  private setVersions(next: VersionHistory | null): void {
+    const s = this.state;
+    this.set({ versions: next, revision: s.revision + 1 });
+    this.autosave?.schedule(s.doc, s.project.savedAt);
+    // Atelier Versions : la version regardée reste, si elle existe encore.
+    if (s.workspace === 'versions') void this.selectVersion(next && commitOf(next, s.versionView.commitId ?? '') ? s.versionView.commitId : null);
+    if (!next?.objects || next.packed) return;
+    const objects = next.objects;
+    void packObjects(objects)
+      .then((packed) => {
+        const now = this.state.versions;
+        if (packed && now?.objects === objects && !now.packed) this.set({ versions: { ...now, packed } });
+      })
+      .catch(() => undefined);
+  }
+
+  private versionsReady(): boolean {
+    if (this.state.mode.kind === 'model') return true;
+    this.explain('Terminez d’abord l’opération en cours.');
+    return false;
+  }
+
+  /** Enregistre l'état du projet comme une nouvelle version de la branche de travail. */
+  async createVersion(message: string): Promise<void> {
+    if (!this.versionsReady()) return;
+    const before = this.state.versions;
+    const h = await this.versionObjects();
+    if (before && !h) return;
+    const label = message.trim() || `Version ${(h?.commits.length ?? 0) + 1}`;
+    const next = createVersion(h, this.state.doc, label, new Date().toISOString());
+    if (!next) return this.toast('info', 'Aucune modification depuis la dernière version.');
+    this.setVersions(next);
+    void this.selectVersion(null);
+  }
+
+  // --- Atelier Versions : la vue montre le projet tel qu'il était à la version choisie.
+
+  private versionSeq = 0;
+
+  /**
+   * Regarde une version (`null` : l'état actuel). La comparaison est faite avec la version dont
+   * elle dérive ; pour l'état actuel, avec la dernière version de la branche de travail.
+   */
+  async selectVersion(commitId: string | null): Promise<void> {
+    const seq = ++this.versionSeq;
+    const h = await this.versionObjects();
+    if (seq !== this.versionSeq) return;
+    const partId = this.state.versionView.partId;
+    const commit = h && commitId ? commitOf(h, commitId) : undefined;
+    const tree = treeOf(this.state.doc);
+    if (!h || !commit) {
+      const head = h ? headOf(h) : undefined;
+      const diff = diffTrees(head ?? null, tree, (hash) => h?.objects?.[hash] ?? tree.texts[hash]);
+      return this.set({ versionView: { commitId: null, partId, diff, scene: null, loading: false } });
+    }
+    const diff = commitDiff(h, commit);
+    // Même contenu que le projet ouvert : sa géométrie est déjà là.
+    if (sameTree(commit, tree)) return this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: false } });
+    const parsed = documentAt(h, commit, this.state.doc);
+    if (!parsed.ok) {
+      this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: false } });
+      return this.toast('error', 'Cette version ne peut pas être affichée.', { detail: parsed.error });
+    }
+    this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: true } });
+    try {
+      // Le recalcul du projet ouvert passe d'abord : une demande en attente remplacerait l'autre.
+      let result: Awaited<ReturnType<typeof this.deps.client.evaluate>> = null;
+      for (let attempt = 0; attempt < 20 && !result && seq === this.versionSeq; attempt++) {
+        while (this.deps.client.busy && seq === this.versionSeq) await new Promise((r) => setTimeout(r, 40));
+        if (seq !== this.versionSeq) return;
+        result = await this.deps.client.evaluate(parsed.doc);
+      }
+      if (seq !== this.versionSeq) return;
+      const display = Object.fromEntries((result?.parts ?? []).map((p) => [p.partId, displayFor(undefined, p)]));
+      this.set({ versionView: { ...this.state.versionView, scene: result ? { doc: parsed.doc, display } : null, loading: false } });
+    } catch (err) {
+      if (seq !== this.versionSeq) return;
+      this.set({ versionView: { ...this.state.versionView, loading: false } });
+      this.toast('error', 'Cette version n’a pas pu être recalculée.', { detail: (err as Error).message });
+    }
+  }
+
+  /** Pièce suivie dans l'atelier Versions (mise en avant dans la vue, versions qui l'ont touchée). */
+  selectVersionPart(partId: Id | null): void {
+    const v = this.state.versionView;
+    this.set({ versionView: { ...v, partId: partId === v.partId ? null : partId } });
+  }
+
+  private versionsPick(pick: ModelPick | null): void {
+    const v = this.state.versionView;
+    if (!pick || pick.partId.startsWith('fs:')) return this.set({ versionView: { ...v, partId: null } });
+    const doc = v.scene?.doc ?? this.state.doc;
+    // Pièce hors assemblage (« ver:pièce »), ou exemplaire (dernier maillon de sa clé).
+    const instanceId = pick.partId.split('/').pop()!;
+    const instances = [...(doc.assembly?.instances ?? []), ...(doc.subassemblies ?? []).flatMap((x) => x.instances)];
+    const partId = pick.partId.startsWith('ver:') ? pick.partId.slice(4) : (instances.find((i) => i.id === instanceId)?.partId ?? null);
+    this.set({ versionView: { ...v, partId } });
+  }
+
+  /** Remplace le projet par son état à une version (annulable). */
+  private loadVersion(h: VersionHistory, commitId: string, label: string): boolean {
+    const commit = commitOf(h, commitId);
+    if (!commit) return false;
+    if (sameTree(commit, treeOf(this.state.doc))) return true;
+    const parsed = documentAt(h, commit, this.state.doc);
+    if (!parsed.ok) {
+      this.set({ dialog: { kind: 'problem', title: 'Impossible de revenir à cette version', message: parsed.error, details: parsed.details } });
+      return false;
+    }
+    const doc = parsed.doc.parts.length > 0 ? parsed.doc : addPart(parsed.doc).doc;
+    this.newSketch = null;
+    this.commit(doc, label, { rollback: {}, selection: null, assemblySelection: null });
+    return true;
+  }
+
+  /** Reprend le contenu d'une version dans le projet, sans changer de branche. */
+  async restoreVersion(commitId: string): Promise<void> {
+    if (!this.versionsReady()) return;
+    const h = await this.versionObjects();
+    const commit = h ? commitOf(h, commitId) : undefined;
+    if (!h || !commit) return;
+    if (!this.loadVersion(h, commitId, `Restaurer « ${commit.message} »`)) return;
+    this.toast('success', `Version « ${commit.message} » restaurée.`, { actionLabel: 'Annuler', action: () => this.undo() });
+  }
+
+  /** Change de branche de travail : le projet prend l'état de sa dernière version. */
+  async switchVersionBranch(name: string): Promise<void> {
+    if (!this.versionsReady()) return;
+    const h = await this.versionObjects();
+    const head = h ? headOf(h, name) : undefined;
+    if (!h || !head || h.current === name) return;
+    if (!this.loadVersion(h, head.id, `Passer sur la branche « ${name} »`)) return;
+    this.setVersions(switchBranch(h, name));
+  }
+
+  /**
+   * Nouvelle branche partant d'une version. Depuis la dernière version de la branche de travail,
+   * les modifications en cours sont gardées ; depuis une autre, le projet prend son état.
+   */
+  async createVersionBranch(nameIn: string, from: string): Promise<boolean> {
+    if (!this.versionsReady()) return false;
+    const name = nameIn.trim();
+    const h = await this.versionObjects();
+    if (!h || !name || !commitOf(h, from)) return false;
+    if (h.branches.some((b) => b.name === name)) {
+      this.toast('error', `La branche « ${name} » existe déjà.`);
+      return false;
+    }
+    if (headOf(h)?.id !== from && !this.loadVersion(h, from, `Nouvelle branche « ${name} »`)) return false;
+    this.setVersions(addBranch(h, name, from));
+    return true;
+  }
+
+  async deleteVersionBranch(name: string): Promise<void> {
+    const h = await this.versionObjects();
+    if (!h || h.current === name || !h.branches.some((b) => b.name === name)) return;
+    this.setVersions(deleteBranch(h, name));
+  }
+
+  clearVersions(): void {
+    if (this.state.versions) this.setVersions(null);
+  }
+
+  /** Télécharge le projet sans son historique (le projet ouvert garde le sien). */
+  async exportWithoutVersions(): Promise<void> {
+    const s = this.state;
+    const savedAt = new Date().toISOString();
+    const text = serializeDocument({ ...s.doc, modifiedAt: savedAt }, savedAt);
+    try {
+      const target = await saveFile(new Blob([text], { type: NATIVE_MIME }), safeFileName(`${s.doc.name} (sans historique)`, NATIVE_EXTENSION), {
+        description: 'Projet VibeCAD',
+        mime: NATIVE_MIME,
+        extension: NATIVE_EXTENSION,
+        forcePicker: true,
+      });
+      if (target) this.toast('success', target.handle ? `Copie enregistrée dans « ${target.name} ».` : `Fichier « ${target.name} » téléchargé.`);
+    } catch (err) {
+      this.toast('error', 'Le fichier n’a pas pu être enregistré.', { detail: (err as Error).message });
     }
   }
 
@@ -2720,6 +2940,7 @@ export class AppController {
     if (this.animation) this.stopJointAnimation();
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
+    if (workspace === 'versions' && !this.can('versions')) return this.explain('Les versions sont disponibles à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     const design = (w: Workspace) => w === 'parts' || w === 'assembly';
     // Modéliser ↔ Assembler : même scène, la caméra reste où elle est et la sélection suit.
@@ -2743,6 +2964,11 @@ export class AppController {
     });
     // Les bibliothèques peuvent proposer des matières : on les charge (une fois par session).
     if (workspace === 'fabrication') void this.loadLibraries();
+    // Versions : on arrive sur l'état actuel (comparé à la dernière version).
+    if (workspace === 'versions') {
+      this.set({ versionView: EMPTY_VERSION_VIEW });
+      void this.selectVersion(null);
+    }
     // Hors parcours guidé : les parcours font insérer les pièces une à une.
     if (workspace === 'assembly' && !this.state.tutorial) this.placeMissingParts();
     // Pièce active posée à l'instant : son exemplaire devient la sélection.

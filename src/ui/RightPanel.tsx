@@ -11,6 +11,7 @@ import { useAppState, useController } from './context';
 import { AssemblyRightPanel } from './AssemblyUi';
 import { FabricationRightPanel } from './FabricationUi';
 import { SimulationRightPanel } from './SimulationUi';
+import { VersionsRightPanel } from './VersionsUi';
 import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
@@ -311,6 +312,7 @@ export function RightPanel() {
   if (workspace === 'assembly') return <AssemblyRightPanel />;
   if (workspace === 'fabrication') return <FabricationRightPanel />;
   if (workspace === 'simulation') return <SimulationRightPanel />;
+  if (workspace === 'versions') return <VersionsRightPanel />;
   if (mode === 'model') return propertiesOpen ? <PropertiesPanel /> : null;
   return (
     <aside class="panel right-panel" aria-label="Paramètres de l’opération en cours">

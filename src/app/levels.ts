@@ -34,7 +34,8 @@ export type Capability =
   | 'parameters'
   | 'tutorial:assembly'
   | 'tutorial:fabrication'
-  | 'assembly:subassemblies';
+  | 'assembly:subassemblies'
+  | 'versions';
 
 /**
  * Niveau minimal de chaque outil (absent : Débutant). Pour déplacer un outil d'un niveau à
@@ -42,6 +43,7 @@ export type Capability =
  */
 export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:revolve': 'intermediaire',
+  versions: 'intermediaire',
   'feature:fillet': 'intermediaire',
   'feature:chamfer': 'intermediaire',
   'feature:pattern': 'intermediaire',

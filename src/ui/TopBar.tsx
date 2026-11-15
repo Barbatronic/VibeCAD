@@ -22,6 +22,7 @@ import { Icon } from './icons';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
 import { FabricationTools } from './FabricationUi';
 import { SimulationTools } from './SimulationUi';
+import { VersionsTools } from './VersionsUi';
 import { Sector, type SectorTool } from './ToolSectors';
 import { MaterialsToggle } from './MaterialsUi';
 
@@ -31,6 +32,7 @@ function FileMenu() {
   const root = useRef<HTMLDivElement>(null);
   const exportOk = useAppState((s) => exportAvailability(s).ok);
   const canImport = useAppState((s) => allows(s.level, 'import-step'));
+  const canVersions = useAppState((s) => allows(s.level, 'versions'));
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const projectName = useAppState((s) => s.doc.name);
   // Avant l'affichage (layout) : une touche Échap juste après l'ouverture referme bien le menu.
@@ -112,6 +114,7 @@ function FileMenu() {
           {item('open', 'Ouvrir…', () => void c.showOpenDialog(), 'Ctrl+O')}
           {item('save', 'Enregistrer', () => void c.save(), 'Ctrl+S')}
           {item('export', 'Enregistrer sous… (fichier)', () => void c.saveAs(), 'Ctrl+Maj+S')}
+          {canVersions ? item('branch', 'Versions', () => c.setWorkspace('versions')) : null}
           <div class="menu-sep" role="separator" />
           {item('import', 'Composants (bibliothèques)…', () => c.openComponents())}
           {canImport ? item('import', 'Importer un fichier (STEP, STL)…', () => void c.importStep()) : null}
@@ -559,7 +562,7 @@ export function TopBar() {
           }}
         >
           <UndoRedo />
-          {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : <ModelTools />}
+          {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : workspace === 'versions' ? <VersionsTools /> : <ModelTools />}
         </nav>
         <button
           type="button"

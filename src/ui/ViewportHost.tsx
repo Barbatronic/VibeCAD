@@ -258,6 +258,12 @@ const PRINT_LAYER = 0.2;
  */
 function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish' | 'layers'> {
   if (!part) return { color: '#888888' };
+  // Atelier Versions : la couleur dit ce que la version a fait à la pièce ; la pièce suivie ressort.
+  if (s.workspace === 'versions') {
+    const status = s.versionView.diff?.parts.find((p) => p.id === part.id)?.status;
+    const focus = s.versionView.partId;
+    return { color: status ? VERSION_COLORS[status] : VERSION_COLORS.same, ...(focus && focus !== part.id ? { opacity: 0.22 } : {}) };
+  }
   const mode = s.workspace === 'fabrication' ? 'materials' : s.colorMode;
   const look = displayLook(s.doc, part, mode);
   const marks = markingsOf(s, part, mode);
@@ -426,10 +432,31 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
   return { ...base, parts, markedFaces, resultMesh, markers };
 }
 
+/** Couleurs de l'atelier Versions (les mêmes que les marques des listes). */
+export const VERSION_COLORS = { added: '#3fae6a', modified: '#e8962c', removed: '#d1495b', same: '#b9c0ca' } as const;
+
+/**
+ * Atelier Versions : le projet tel qu'il était à la version regardée (recalculé à part), assemblé ;
+ * les pièces qui ne sont pas dans l'assemblage restent à leur place de dessin.
+ */
+function buildVersionsInput(s: AppState): ViewportInput {
+  const scene = s.versionView.scene;
+  const view: AppState = { ...s, doc: scene?.doc ?? s.doc, display: scene?.display ?? s.display, assemblySelection: null, explode: 0, collisionCheck: false };
+  const input = buildAssemblyInput(view);
+  const placed = new Set([...(view.doc.assembly?.instances ?? []), ...(view.doc.subassemblies ?? []).flatMap((x) => x.instances)].map((i) => i.partId));
+  for (const p of view.doc.parts) {
+    const d = view.display[p.id];
+    if (placed.has(p.id) || !d?.mesh) continue;
+    input.parts.push({ partId: `ver:${p.id}`, ...lookOf(view, p, d.mesh), visible: p.visible, meshKey: d.meshKey, mesh: d.mesh, appearance: 'normal' });
+  }
+  return { ...input, markers: [], selection: [] };
+}
+
 /** Construit la représentation d'affichage à partir de l'état de l'application. */
 export function buildViewportInput(s: AppState, simulation: { partId: string | null; source: StudySource | null } = { partId: null, source: null }): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
+  if (s.workspace === 'versions') return buildVersionsInput(s);
   // Étude « Mécanisme » : l'assemblage, à la position survolée sur la courbe.
   if (s.workspace === 'simulation' && simulation.partId === MECHANISM_STUDY) {
     const m = mechanismStudyOf(s.doc);
@@ -1006,7 +1033,7 @@ export function ViewportHost() {
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

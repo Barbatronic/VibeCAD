@@ -20,6 +20,8 @@ import type { Vec3 } from '../math/vec';
 import type { AutosaveStatus } from '../persistence/autosave';
 import type { AutosaveRecord, ProjectSummary } from '../persistence/db';
 import type { SaveTarget } from '../persistence/files';
+import type { VersionHistory } from '../io/version-store';
+import type { VersionDiff } from '../io/versions';
 import type { SketchSession } from '../sketch/session';
 import type { Projection } from '../viewport/camera-rig';
 import type { DisplayStyle } from '../viewport/part-meshes';
@@ -56,8 +58,23 @@ export type Mode =
   /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */
   | { kind: 'pick-sim-face'; role: 'fixed' | 'load' | 'keep'; partId: Id };
 
+/**
+ * Atelier Versions : la version regardée (`null` : l'état actuel du projet), la pièce suivie, ce
+ * que la version change (couleurs de la vue), et le projet tel qu'il était, recalculé (`scene` ;
+ * `null` : c'est l'état actuel, ou le calcul est en cours).
+ */
+export interface VersionView {
+  commitId: string | null;
+  partId: Id | null;
+  diff: VersionDiff | null;
+  scene: { doc: CadDocument; display: Record<Id, PartDisplay> } | null;
+  loading: boolean;
+}
+
+export const EMPTY_VERSION_VIEW: VersionView = { commitId: null, partId: null, diff: null, scene: null, loading: false };
+
 /** Onglet de travail : modélisation des pièces, ou assemblage. */
-export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation';
+export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation' | 'versions';
 
 /** Calcul de simulation : en cours, terminé ou en échec, pour une signature (`studyKey`). */
 export interface SimulationRun {
@@ -270,6 +287,10 @@ export interface AppState {
   preview: { parts: Record<Id, PartResult>; tool: { partId: Id; key: string; mesh: MeshData; kind: 'add' | 'cut' } | null } | null;
   kernel: { status: 'loading' | 'ready' | 'error'; message?: string; initMs?: number };
   project: ProjectMeta;
+  /** Historique des versions du projet (hors annuler / rétablir) ; `null` : aucune version. */
+  versions: VersionHistory | null;
+  /** Atelier Versions : ce qui est regardé. */
+  versionView: VersionView;
   offline: OfflineState;
   projection: Projection;
   /** Mode d'affichage des pièces (préférence de l'appareil). */
@@ -375,6 +396,8 @@ export function initialState(): AppState {
     preview: null,
     kernel: { status: 'loading' },
     project: { savedAt: null, savedRevision: null, file: null, autosave: { kind: 'idle' }, storageAvailable: true },
+    versions: null,
+    versionView: EMPTY_VERSION_VIEW,
     offline: { status: 'dev' },
     projection: 'perspective',
     displayStyle: 'shaded-edges',
