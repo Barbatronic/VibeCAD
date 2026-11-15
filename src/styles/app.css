@@ -5980,3 +5980,107 @@ option.is-unfit {
 .versions-mark.is-modified {
   color: #e8962c;
 }
+
+/* Nomenclature : pièce du commerce. */
+.bom-bought {
+  color: var(--text-faint);
+  font-size: 0.85em;
+}
+
+/* Étude de mouvement : position du point suivi sur sa trajectoire. */
+.vp-trace-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.mech-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mech-timeline input[type='range'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.mech-timeline .time {
+  flex: none;
+  min-width: 52px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mech-collisions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.mech-collisions li {
+  padding: 2px 0;
+}
+
+/* Scénarios de mouvement. */
+.scenario-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.scenario-row .sim-part {
+  flex: 1;
+  min-width: 0;
+}
+
+.scenario-counts {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-joints {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scenario-joints li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.scenario-joints li > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+.scenario-joints .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-joints .segmented {
+  flex: none;
+}
+
+.scenario-joints .segmented button {
+  padding: 2px 8px;
+  font-size: 12.5px;
+}

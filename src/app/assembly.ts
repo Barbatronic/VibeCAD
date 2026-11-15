@@ -259,6 +259,8 @@ const CLOSURE_TOL = 1e-3;
 /** Ce dont le solveur a besoin pour les pièces et les sous-assemblages insérés. */
 export interface SolveOptions {
   driver?: Id;
+  /** Liaisons tenues à leur réglage, toutes à la fois (scénario de mouvement : les pilotantes). */
+  drivers?: Id[];
   sketchesOf?: (partId: Id) => PartSketches | undefined;
   /** Contenu d'un sous-assemblage (bloc rigide inséré avec `subassemblyId`). */
   subassemblyOf?: (id: Id) => Assembly | undefined;
@@ -442,14 +444,17 @@ export function solveAssembly(
   // si l'on manipule la menée, c'est la menante qui suit.
   const treeIds = new Set(tree.map((j) => j.id));
   const couplings = (assembly.couplings ?? []).filter((c) => treeIds.has(c.driver) && treeIds.has(c.driven) && !couplingProblem(assembly, c));
-  const dependent = new Set(couplings.map((c) => (options.driver === c.driven ? c.driver : c.driven)));
+  const pinned = new Set<Id>([...(options.driver ? [options.driver] : []), ...(options.drivers ?? [])]);
+  /** Couplage parcouru à rebours : on tient la menée, c'est la menante qui suit. */
+  const backwards = (c: JointCoupling) => pinned.has(c.driven) && !pinned.has(c.driver);
+  const dependent = new Set(couplings.map((c) => (backwards(c) ? c.driver : c.driven)));
   const couple = (v: Map<Id, JointValues>): Map<Id, JointValues> => {
     for (const c of couplings) {
       const a = v.get(c.driver)!;
       const b = v.get(c.driven)!;
       const r = couplingRatio(c);
       const key = c.kind === 'rack' ? 'offset' : 'angle';
-      if (options.driver === c.driven) a.angle = (b[key] - c.phase) / r;
+      if (backwards(c)) a.angle = (b[key] - c.phase) / r;
       else b[key] = c.phase + r * a.angle;
     }
     return v;
@@ -458,7 +463,7 @@ export function solveAssembly(
   if (closing.length > 0) {
     // Inconnues : réglages libres des liaisons de l'arbre (sauf celle que l'on manipule et celles
     // qui suivent un couplage).
-    const slots = tree.filter((j) => j.id !== options.driver && !dependent.has(j.id)).flatMap((j) => freeKeys(j.kind).map((key) => ({ id: j.id, key })));
+    const slots = tree.filter((j) => !pinned.has(j.id) && !dependent.has(j.id)).flatMap((j) => freeKeys(j.kind).map((key) => ({ id: j.id, key })));
     const p0 = slots.map((s) => stored.get(s.id)![s.key]);
     const toValues = (p: number[]) => {
       const v = copy(stored);

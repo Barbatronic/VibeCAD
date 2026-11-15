@@ -80,7 +80,12 @@ export interface PickRef {
   partId: Id;
   kind: 'face' | 'edge';
   index: number;
+  /** Placement de la pièce (4 × 4, colonnes) : mesure dans l'assemblage. Absent : à sa place de dessin. */
+  matrix?: number[];
 }
+
+/** Élément d'une mesure : face ou arête d'une pièce, point (centre d'un cercle) ou segment (axe d'un cylindre). */
+export type MeasureTarget = PickRef | { point: Vec3 } | { segment: { a: Vec3; b: Vec3 } };
 
 export interface MeasureResult {
   distance: number;
@@ -128,7 +133,7 @@ export type WorkerRequest =
   | { id: number; type: 'export3mf'; doc: DocumentForWorker; partIds: Id[]; placements?: ExportPlacement[] }
   | { id: number; type: 'exportFreecad'; doc: DocumentForWorker; partIds: Id[]; leaves: FreecadLeaf[] }
   | { id: number; type: 'inspectStep'; bytes: Uint8Array; format?: 'step' | 'stl' }
-  | { id: number; type: 'measure'; doc: DocumentForWorker; a: PickRef; b: PickRef }
+  | { id: number; type: 'measure'; doc: DocumentForWorker; a: MeasureTarget; b: MeasureTarget }
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
   | { id: number; type: 'hiddenLines'; doc: DocumentForWorker; partId: Id; views: { u: Vec3; toViewer: Vec3 }[] }
   | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] }

@@ -2,7 +2,7 @@
 import type { SvgImportResult } from '../io/svg-import';
 import type { GrayImage } from '../io/trace-bitmap';
 import { DEFAULT_LIBRARIES, type LibraryCatalog } from './library';
-import type { MechanismResult } from './mechanism';
+import type { MechanismResult, MotionResult } from './mechanism';
 import type { StepResource } from '../domain/model';
 import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
@@ -262,6 +262,9 @@ export interface AppState {
   printPlate: number;
   /** Pièce étudiée dans l'onglet Simulation. */
   simulationPart: Id | null;
+  /** Scénario de mouvement ouvert, et réglages des pilotantes pendant le glissement d'un curseur. */
+  scenarioId: Id | null;
+  scenarioLive: Record<string, number>;
   simulationRun: SimulationRun | null;
   /** Couleurs du résultat : contrainte ou déplacement ; pièce montrée déformée (exagérée). */
   simulationDisplay: ResultDisplay;
@@ -329,7 +332,12 @@ export interface AppState {
    * Étude « Mécanisme » : dernier calcul (`key` : étude et formes utilisées) et position survolée
    * sur la courbe (l'assemblage y est montré).
    */
-  mechanismRun: { key: string; result: MechanismResult | null; busy: boolean; error?: string } | null;
+  mechanismRun: { key: string; result: MechanismResult | null; motion?: MotionResult | null; busy: boolean; error?: string } | null;
+  /** Lecture du mouvement : instant montré (s), et lecture en cours. */
+  mechanismTime: number | null;
+  mechanismPlaying: boolean;
+  /** Collisions cherchées le long de la course : paires de pièces et positions de la liaison où elles se touchent. */
+  mechanismCollisions: { key: string; busy: boolean; progress: number; items: { a: string; b: string; from: number; to: number }[] } | null;
   mechanismHover: number | null;
   /** Valeur affichée pendant un glisser du manipulateur (« X +12 mm », « 45° autour de Z »). */
   gizmoReadout: string | null;
@@ -382,6 +390,8 @@ export function initialState(): AppState {
     fabricationPart: null,
     printPlate: 0,
     simulationPart: null,
+    scenarioId: null,
+    scenarioLive: {},
     simulationRun: null,
     simulationDisplay: 'stress',
     simulationDeformed: true,
@@ -416,6 +426,9 @@ export function initialState(): AppState {
     propertiesOpen: false,
     assemblyContext: null,
     mechanismRun: null,
+    mechanismTime: null,
+    mechanismPlaying: false,
+    mechanismCollisions: null,
     mechanismHover: null,
     gizmoReadout: null,
     libraries: [...DEFAULT_LIBRARIES],

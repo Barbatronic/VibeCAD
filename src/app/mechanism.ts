@@ -11,11 +11,11 @@
  * - masses portées (`loads`) : ajoutées au centre de gravité de la pièce qui les porte ;
  * - frottement : couple (ou force) constant, toujours contre le mouvement.
  */
-import type { Assembly, AssemblyJoint, CadDocument, Id, MechanismStudy } from '../domain/model';
+import type { Assembly, AssemblyJoint, CadDocument, Id, MechanismStudy, MotionDof, MotionScenario } from '../domain/model';
 import type { MeshData } from '../geometry/kernel';
 import { transformPoint4 } from '../math/mat4';
 import type { Vec3 } from '../math/vec';
-import { flattenAssembly, jointFreedoms, solveAssembly, type SolveOptions } from './assembly';
+import { flattenAssembly, jointFreedoms, solveAssembly, type AssemblyPlacement, type SolveOptions } from './assembly';
 
 /** Clé de l'étude « Mécanisme » dans le choix de l'objet étudié (atelier Simulation). */
 export const MECHANISM_STUDY = '@mechanism';
@@ -209,4 +209,170 @@ function rotationRate(Ra: number[], Rb: number[], dq: number): number[] {
   const axis = [D[7]! - D[5]!, D[2]! - D[6]!, D[3]! - D[1]!];
   const n = Math.hypot(axis[0]!, axis[1]!, axis[2]!) || 1;
   return axis.map((v) => (v / n) * (angle / dq));
+}
+
+// ---------------------------------------------------------------------------
+// Mouvement (cinématique) : la liaison motrice parcourt sa course en un temps donné.
+
+/** Durée d'une course sans élan demandé (accélération nulle) : vitesse constante. */
+export const DEFAULT_COURSE_SECONDS = 2;
+
+/** Course en unités SI (rad ou m). */
+const travelSi = (study: MechanismStudy, kind: 'angle' | 'offset') => Math.abs(study.to - study.from) * (kind === 'angle' ? Math.PI / 180 : 1 / 1000);
+
+/**
+ * Durée de la course (s). Avec une accélération : départ et arrivée arrêtés, on accélère sur la
+ * première moitié et on freine sur la seconde (durée = √(4 · course / accélération)). Sans : la
+ * durée par défaut, à vitesse constante.
+ */
+export function courseDuration(study: MechanismStudy, kind: 'angle' | 'offset'): number {
+  const d = travelSi(study, kind);
+  return study.acceleration > 0 && d > 0 ? Math.sqrt((4 * d) / study.acceleration) : DEFAULT_COURSE_SECONDS;
+}
+
+/** Position de la liaison motrice (degrés ou mm) à l'instant `t` de la course. */
+export function coursePosition(study: MechanismStudy, kind: 'angle' | 'offset', t: number): number {
+  const u = Math.min(1, Math.max(0, t / courseDuration(study, kind)));
+  const f = study.acceleration > 0 ? (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u)) : u;
+  return study.from + (study.to - study.from) * f;
+}
+
+export interface MotionSample {
+  /** Instant (s) et position de la liaison motrice (degrés ou mm). */
+  t: number;
+  at: number;
+  /** Centre de gravité de la pièce suivie (mm, repère de l'assemblage) ; null si rien n'est suivi ou si l'assemblage ne se place pas. */
+  point: Vec3 | null;
+  /** Vitesse de ce point (mm/s). */
+  speed: number | null;
+}
+
+export interface MotionResult {
+  duration: number;
+  samples: MotionSample[];
+  /** Vitesse maximale du point suivi (mm/s) et longueur de sa trajectoire (mm). */
+  maxSpeed: number;
+  distance: number;
+  /** Instants où l'assemblage ne se place pas. */
+  failed: number;
+}
+
+/**
+ * Mouvement de l'assemblage quand la liaison motrice parcourt sa course : position de la liaison
+ * et trajectoire du centre de gravité de la pièce suivie, à `samples` instants réguliers.
+ */
+export function computeMotion(
+  assembly: Assembly,
+  study: MechanismStudy,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  centroidOf: (partId: Id) => Vec3 | null,
+  options: SolveOptions = {},
+  samples = 97,
+): MotionResult | null {
+  const driven = drivableJoints(assembly).find((d) => d.joint.id === study.jointId);
+  if (!driven) return null;
+  const { joint, kind } = driven;
+  const duration = courseDuration(study, kind);
+  const out: MotionSample[] = [];
+  let failed = 0;
+  for (let i = 0; i < samples; i++) {
+    const t = (duration * i) / (samples - 1);
+    const at = coursePosition(study, kind, t);
+    let point: Vec3 | null = null;
+    const a = withValue(assembly, joint.id, kind, at);
+    const placement = solveAssembly(a, meshOf, { ...options, driver: joint.id });
+    if (placement.issues.has(joint.id)) failed++;
+    else if (study.tracked) {
+      const leaf = flattenAssembly(a, placement, meshOf, options).find((l) => l.key === study.tracked);
+      if (leaf) point = transformPoint4(leaf.matrix, centroidOf(leaf.partId) ?? { x: 0, y: 0, z: 0 });
+    }
+    out.push({ t, at, point, speed: null });
+  }
+  // Vitesse : différence centrée entre les instants voisins.
+  let maxSpeed = 0;
+  let distance = 0;
+  out.forEach((s, i) => {
+    const before = out[Math.max(0, i - 1)]!;
+    const after = out[Math.min(out.length - 1, i + 1)]!;
+    if (s.point && before.point && after.point && after.t > before.t) {
+      s.speed = Math.hypot(after.point.x - before.point.x, after.point.y - before.point.y, after.point.z - before.point.z) / (after.t - before.t);
+      maxSpeed = Math.max(maxSpeed, s.speed);
+    }
+    if (i > 0 && s.point && before.point) distance += Math.hypot(s.point.x - before.point.x, s.point.y - before.point.y, s.point.z - before.point.z);
+  });
+  return { duration, samples: out, maxSpeed, distance, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Scénarios de mouvement : liaisons pilotantes (curseurs) et pilotées (capteurs).
+
+/** Clé de l'étude « Scénarios » dans le choix de l'objet étudié (atelier Simulation). */
+export const SCENARIO_STUDY = '@scenarios';
+
+/** Mouvements d'une liaison qu'un scénario peut piloter ou relever. */
+export function jointDofs(joint: AssemblyJoint): MotionDof[] {
+  if (joint.kind === 'spherical') return [];
+  const f = jointFreedoms(joint.kind);
+  return [...(f.angle ? (['angle'] as const) : []), ...(f.offset ? (['offset'] as const) : [])];
+}
+
+/** Plage du curseur d'une pilotante : les butées de la liaison, sinon un tour (±180°) ou ±100 mm. */
+export function dofRange(joint: AssemblyJoint, dof: MotionDof): [number, number] {
+  const limits = dof === 'angle' ? joint.angleLimits : joint.offsetLimits;
+  return limits ? [Math.min(...limits), Math.max(...limits)] : dof === 'angle' ? [-180, 180] : [-100, 100];
+}
+
+/** Assemblage aux réglages des pilotantes du scénario (`live` : valeurs en cours de glissement). */
+export function scenarioAssembly(assembly: Assembly, scenario: MotionScenario, live: Record<string, number> = {}): Assembly {
+  const values = new Map(scenario.drivers.map((d) => [`${d.jointId}:${d.dof}`, live[`${d.jointId}:${d.dof}`] ?? d.value]));
+  return {
+    ...assembly,
+    joints: assembly.joints.map((j) => {
+      const angle = values.get(`${j.id}:angle`);
+      const offset = values.get(`${j.id}:offset`);
+      return angle === undefined && offset === undefined ? j : { ...j, ...(angle !== undefined ? { angle } : {}), ...(offset !== undefined ? { offset } : {}) };
+    }),
+  };
+}
+
+export interface ScenarioReading {
+  jointId: Id;
+  dof: MotionDof;
+  /** Position relevée (degrés ou mm) ; null si l'assemblage ne se place pas. */
+  value: number | null;
+}
+
+/**
+ * Place l'assemblage avec les pilotantes tenues à leur réglage ; les autres liaisons suivent. Le
+ * relevé d'une pilotée est son réglage recalculé ; pour une liaison qui referme une boucle (son
+ * réglage n'est pas une inconnue du calcul), il est mesuré entre ses deux repères.
+ */
+export function solveScenario(
+  assembly: Assembly,
+  scenario: MotionScenario,
+  meshOf: (partId: Id) => MeshData | null | undefined,
+  options: SolveOptions = {},
+  live: Record<string, number> = {},
+): { assembly: Assembly; placement: AssemblyPlacement; readings: ScenarioReading[]; blocked: boolean } {
+  const a = scenarioAssembly(assembly, scenario, live);
+  const drivers = [...new Set(scenario.drivers.map((d) => d.jointId))];
+  const placement = solveAssembly(a, meshOf, { ...options, drivers });
+  const blocked = [...placement.issues.values()].some((i) => i === 'LOOP_UNSOLVED');
+  const readings = scenario.sensors.map((s): ScenarioReading => {
+    const joint = a.joints.find((j) => j.id === s.jointId);
+    if (!joint || blocked) return { ...s, value: null };
+    if (placement.closingJoints.has(joint.id)) {
+      const f = placement.jointFrames.get(joint.id);
+      if (!f) return { ...s, value: null };
+      const { base: b, moving: m } = f;
+      if (s.dof === 'offset') return { ...s, value: (m.origin.x - b.origin.x) * b.normal.x + (m.origin.y - b.origin.y) * b.normal.y + (m.origin.z - b.origin.z) * b.normal.z };
+      const cross = { x: b.xAxis.y * m.xAxis.z - b.xAxis.z * m.xAxis.y, y: b.xAxis.z * m.xAxis.x - b.xAxis.x * m.xAxis.z, z: b.xAxis.x * m.xAxis.y - b.xAxis.y * m.xAxis.x };
+      const sin = cross.x * b.normal.x + cross.y * b.normal.y + cross.z * b.normal.z;
+      const cos = b.xAxis.x * m.xAxis.x + b.xAxis.y * m.xAxis.y + b.xAxis.z * m.xAxis.z;
+      return { ...s, value: (Math.atan2(sin, cos) * 180) / Math.PI };
+    }
+    const solved = placement.solvedValues.get(joint.id);
+    return { ...s, value: solved ? solved[s.dof] : joint[s.dof] };
+  });
+  return { assembly: a, placement, readings, blocked };
 }

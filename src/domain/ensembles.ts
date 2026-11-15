@@ -4,6 +4,7 @@
  * le sous-assemblage, qui est inséré comme un bloc dans l'assemblage : l'ensemble se déplace alors
  * d'un seul tenant. Toutes les fonctions travaillent sur le document refermé.
  */
+import { copyPartsInto } from './part-copy';
 import { removeInstance } from './document';
 import { createId } from './ids';
 import { eulerXYZ, identity4, invertRigid4, multiply4, rotationXYZ4, translation4, type Mat4 } from '../math/mat4';
@@ -147,6 +148,37 @@ export function addLinkedCopy(docIn: CadDocument, partId: Id, dx: number): CadDo
   const last = mine[mine.length - 1]!;
   const { id: _id, jointValues: _v, flexible: _f, ...rest } = last;
   return addTo(doc, container, { ...rest, name: `${part.name} (${mine.length + 1})`, position: { x: last.position.x + dx, y: last.position.y, z: last.position.z } });
+}
+
+/**
+ * Copie indépendante d'une pièce : une nouvelle pièce avec son propre historique (identifiants
+ * renouvelés), que l'on modifie sans toucher à l'original. Elle est posée à côté du dernier
+ * exemplaire de l'original, dans le même ensemble. Un composant de bibliothèque copié devient
+ * modifiable : c'est le but de la copie.
+ */
+export function addIndependentCopy(docIn: CadDocument, partId: Id, dx: number): { doc: CadDocument; partId: Id } | null {
+  const closed = closedDocument(docIn);
+  const part = closed.parts.find((p) => p.id === partId);
+  if (!part) return null;
+  const copied = copyPartsInto(closed, closed, [partId], { shareResources: true });
+  const newId = copied.partIds[0]!;
+  const taken = new Set(closed.parts.map((p) => p.name));
+  let name = `${part.name} (copie)`;
+  for (let n = 2; taken.has(name); n++) name = `${part.name} (copie ${n})`;
+  let doc: CadDocument = {
+    ...copied.doc,
+    parts: copied.doc.parts.map((p) => (p.id === newId ? { ...p, name, ...(p.component ? { component: { ...p.component, editable: true } } : {}) } : p)),
+  };
+  const container = ensembleOf(doc, partId);
+  const mine = content(doc, container).instances.filter((i) => i.partId === partId && !i.subassemblyId);
+  const last = mine[mine.length - 1];
+  if (last) {
+    const { id: _id, jointValues: _v, flexible: _f, ...rest } = last;
+    doc = addTo(doc, container, { ...rest, partId: newId, name, position: { x: last.position.x + dx, y: last.position.y, z: last.position.z } });
+  } else {
+    doc = addTo(doc, container, { partId: newId, name, position: { x: dx, y: 0, z: 0 } });
+  }
+  return { doc, partId: newId };
 }
 
 /** Renomme un ensemble, et ses blocs insérés qui portaient encore son nom (« Nom », « Nom (2) »). */

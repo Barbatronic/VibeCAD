@@ -9,9 +9,7 @@ import { deleteSelection, editDimension, setTool, type SketchSession } from '../
 import { ISSUE_MESSAGES } from '../domain/status';
 import { useAppState, useController } from './context';
 import { AssemblyRightPanel } from './AssemblyUi';
-import { FabricationRightPanel } from './FabricationUi';
-import { SimulationRightPanel } from './SimulationUi';
-import { VersionsRightPanel } from './VersionsUi';
+import { FabricationRightPanel, SimulationRightPanel, VersionsRightPanel } from './lazy';
 import { Button, Callout } from './components/controls';
 import { FEATURE_PANELS } from './feature-panels';
 import { Icon } from './icons';
@@ -309,6 +307,13 @@ export function RightPanel() {
   const workspace = useAppState((s) => s.workspace);
   const session = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session : null));
   const propertiesOpen = useAppState((s) => s.propertiesOpen);
+  if (workspace === 'assembly' && mode === 'measure') {
+    return (
+      <aside class="panel right-panel" aria-label="Mesure">
+        <MeasurePanel />
+      </aside>
+    );
+  }
   if (workspace === 'assembly') return <AssemblyRightPanel />;
   if (workspace === 'fabrication') return <FabricationRightPanel />;
   if (workspace === 'simulation') return <SimulationRightPanel />;

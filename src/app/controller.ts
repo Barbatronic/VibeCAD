@@ -40,9 +40,9 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
-import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
+import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -52,7 +52,7 @@ import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
 import { moveDefinition } from '../features/move/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
-import type { ExportPlacement, PartResult } from '../geometry/protocol';
+import type { ExportPlacement, MeasureTarget, PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
 import { historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
 import { addBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, headOf, sameTree, switchBranch, treeOf } from '../io/versions';
@@ -65,7 +65,7 @@ import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../pe
 import { ensureWritable, pickFile, pickFileWithHandle, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile, type SaveTarget } from '../persistence/files';
 import { importSvgShape } from '../io/svg-import';
 import type { StampShape } from '../sketch/stamp';
-import { chooseStamp, createSession, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
+import { chooseStamp, createSession, selectedStamp, setStampOptions, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
 import type { MeshData } from '../geometry/kernel';
@@ -97,7 +97,7 @@ import { fastenerColor, fastenerForHole, fastenerMesh, holeFromPick, holeOf, pla
 import { toGlb, type GltfMesh, type GltfNode } from '../io/gltf';
 import { APP_NAME, APP_VERSION } from '../meta';
 import { designation, lengthsOf, type FastenerKind } from '../domain/fasteners';
-import { meshSize, sameFaceRef, studyInput, studyKey, studyOf, topologyKey, withStudy, type ResultDisplay, type StudySource } from './simulation';
+import { studyMaterialId, meshSize, sameFaceRef, studyInput, studyKey, studyOf, topologyKey, withStudy, type ResultDisplay, type StudySource } from './simulation';
 import { AbortedStudy, inlineSimRunner, type SimRunner } from '../sim/runner';
 import { StudyError, type StudyErrorCode } from '../sim/study';
 import { topologySurface } from '../sim/topology';
@@ -105,7 +105,7 @@ import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
 import { libraryMaterials, fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
-import { computeMechanism, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf } from './mechanism';
+import { computeMechanism, computeMotion, coursePosition, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, solveScenario, withValue } from './mechanism';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { createId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
@@ -939,6 +939,7 @@ export class AppController {
     const rollback = normalizeRollback(doc, this.state.rollback);
     if (rollback !== this.state.rollback) this.set({ rollback });
     const seq = ++this.evalSeq;
+    const opened = !!this.state.opening;
     this.set({ evaluating: true });
     // Ouverture d'un projet : la barre d'avancement suit le calcul.
     const onProgress = this.state.opening
@@ -972,6 +973,10 @@ export class AppController {
         this.afterChange();
         return;
       }
+      // Une seule scène : toute pièce qui a un volume est posée dans l'assemblage, là où elle a été
+      // dessinée (hors parcours guidé, qui fait insérer les pièces une à une).
+      // Pas à l'ouverture d'un projet : l'ouvrir ne le modifie pas (ses pièces se posent en passant en Assembler).
+      if (!opened && !this.state.tutorial && this.state.mode.kind === 'model' && this.placeMissingParts(true)) return;
       if (this.state.section) void this.refreshSection();
       if (this.state.collisionCheck) void this.refreshCollisions();
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
@@ -1007,6 +1012,11 @@ export class AppController {
   handlePick(pick: ModelPick | null, info: { shift: boolean; double: boolean }): void {
     if (this.state.section && this.state.workspace === 'parts' && pick && this.state.mode.kind !== 'sketch') {
       return this.explain('Vue en coupe : quittez-la (bouton « Coupe ») pour choisir une face ou une arête.');
+    }
+    // Mesure dans l'assemblage : les éléments cliqués sont ceux des pièces posées.
+    if (this.state.workspace === 'assembly' && this.state.mode.kind === 'measure') {
+      if (pick) void this.measurePick(pick);
+      return;
     }
     if (this.state.workspace === 'assembly') return this.assemblyPick(pick, info.double);
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
@@ -1302,6 +1312,17 @@ export class AppController {
     this.toast('info', `Copie liée de « ${part.name} » ajoutée à l’assemblage.`, { actionLabel: 'Voir', action: () => this.setWorkspace('assembly') });
   }
 
+  /** Copie indépendante : une nouvelle pièce, avec son propre historique, qui devient la pièce active. */
+  copyPart(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const bbox = this.state.display[partId]?.result.analysis?.bbox;
+    const r = addIndependentCopy(this.state.doc, partId, bbox ? bbox.max.x - bbox.min.x + 10 : 20);
+    if (!r) return;
+    this.commit(this.keepOpenLevel(r.doc), `Copier « ${part.name} »`, { activePartId: r.partId, selection: null });
+  }
+
   /** Copie liée d'un ensemble : un bloc de plus dans l'assemblage. */
   duplicateEnsemble(subId: Id): void {
     if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
@@ -1581,9 +1602,23 @@ export class AppController {
 
   /** Tampon : ouvre la fenêtre d'import, avec le tracé exact d'un SVG et le dessin à vectoriser. */
   async importStamp(): Promise<void> {
-    const file = await pickFile('.svg,image/svg+xml,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp');
+    const file = await pickFile('.svg,image/svg+xml,.dxf,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp');
     if (!file) return;
     const name = file.name.replace(/\.[^.]+$/, '');
+    // DXF : un dessin technique, posé à l'échelle du fichier, sans passer par la fenêtre de vectorisation.
+    if (/\.dxf$/i.test(file.name)) {
+      if (file.size > 5_000_000) return this.toast('error', 'Ce fichier DXF est trop lourd (5 Mo au plus) : exportez seulement le contour utile.');
+      const { importDxfShape } = await import('../io/dxf-import');
+      const r = importDxfShape(await file.text(), name);
+      if (!r.ok) return this.toast('error', r.error);
+      const size = r.size ? Math.round(r.size * 1000) / 1000 : null;
+      this.updateSession((s) => {
+        const next = chooseStamp(s, r.shape, size ? `À l’échelle du fichier : ${formatLength(size)} de plus grand côté.` : '');
+        return size && !selectedStamp(s) ? setStampOptions(next, { size }) : next;
+      });
+      if (r.warnings.length) this.toast('info', `DXF importé avec ${r.warnings.length} remarque(s).`, { detail: r.warnings.join('\n') });
+      return;
+    }
     if (!/\.svg$/i.test(file.name) && file.type !== 'image/svg+xml') {
       const image = await readGrayImage(file);
       if (!image) return this.toast('error', `« ${file.name} » n’est pas une image lisible (SVG, PNG, JPEG ou WebP).`);
@@ -2092,16 +2127,45 @@ export class AppController {
   startMeasure(): void {
     const avail = measureAvailability(this.state);
     if (!avail.ok) return this.explain(avail.reason);
-    this.set({ mode: { kind: 'measure', picks: [], info: null, busy: false }, selection: null });
+    this.set({ mode: { kind: 'measure', picks: [], info: null, busy: false }, selection: null, assemblySelection: null });
   }
 
   exitMeasure(): void {
     if (this.state.mode.kind === 'measure') this.set({ mode: model });
   }
 
+  /**
+   * Pièce et placement d'un élément cliqué : en mode Assembler, l'élément appartient à un exemplaire
+   * posé dans l'assemblage (sa clé) ; ailleurs, à une pièce à sa place de dessin.
+   */
+  private measuredPart(pick: ModelPick): { partId: Id; matrix: Mat4 | null } | null {
+    if (this.state.workspace !== 'assembly') return { partId: pick.partId, matrix: null };
+    const leaf = this.assemblyLeaves().find((l) => l.key === pick.partId);
+    return leaf ? { partId: leaf.partId, matrix: leaf.matrix } : null;
+  }
+
+  /** Centre d'une arête circulaire, ou axe d'une face cylindrique, à sa place (null : l'élément n'en a pas). */
+  private measureAxis(pick: ModelPick): MeasureTarget | null {
+    const at = this.measuredPart(pick);
+    const mesh = at ? this.state.display[at.partId]?.mesh : undefined;
+    if (!at || !mesh) return null;
+    const place = (p: Vec3) => (at.matrix ? transformPoint4(at.matrix, p) : p);
+    if (pick.kind === 'edge') {
+      const circle = mesh.edges[pick.index]?.circle;
+      return circle ? { point: place(circle.center) } : null;
+    }
+    const cyl = pick.kind === 'face' ? mesh.faces[pick.index]?.cylinder : undefined;
+    if (!cyl) return null;
+    // Axe : une droite, rendue par un très long segment.
+    const reach = 1e5;
+    const end = (k: number) => place({ x: cyl.origin.x + k * reach * cyl.axis.x, y: cyl.origin.y + k * reach * cyl.axis.y, z: cyl.origin.z + k * reach * cyl.axis.z });
+    return { segment: { a: end(-1), b: end(1) } };
+  }
+
   private async measurePick(pick: ModelPick): Promise<void> {
     const mode = this.state.mode;
     if (mode.kind !== 'measure' || pick.kind === 'vertex') return;
+    if (!this.measuredPart(pick)) return this.explain('La visserie ne se mesure pas : cliquez une face ou une arête d’une pièce.');
     const picks = (mode.picks.length >= 2 ? [pick] : [...mode.picks, pick]) as (ModelPick & { kind: 'face' | 'edge' })[];
     const single = this.describePick(pick);
     if (picks.length === 1) {
@@ -2111,14 +2175,27 @@ export class AppController {
     this.set({ mode: { kind: 'measure', picks, info: null, busy: true } });
     try {
       const [a, b] = picks as [ModelPick & { kind: 'face' | 'edge' }, ModelPick & { kind: 'face' | 'edge' }];
-      const r = await this.deps.client.measure(this.state.doc, { partId: a.partId, kind: a.kind, index: a.index }, { partId: b.partId, kind: b.kind, index: b.index });
+      const ref = (p: ModelPick & { kind: 'face' | 'edge' }): MeasureTarget => {
+        const at = this.measuredPart(p)!;
+        return { partId: at.partId, kind: p.kind, index: p.index, ...(at.matrix ? { matrix: [...at.matrix] } : {}) };
+      };
+      const doc = this.state.doc;
+      const r = await this.deps.client.measure(doc, ref(a), ref(b));
+      const gaps = (m: { pointA: Vec3; pointB: Vec3 }) => `X ${formatLength(Math.abs(m.pointB.x - m.pointA.x))} · Y ${formatLength(Math.abs(m.pointB.y - m.pointA.y))} · Z ${formatLength(Math.abs(m.pointB.z - m.pointA.z))}`;
+      const lines = [`Distance minimale : ${formatLength(r.distance)}`, `Écarts : ${gaps(r)}`];
+      // Cercle ou cylindre : aussi la distance prise depuis son centre (ou son axe).
+      const ca = this.measureAxis(a);
+      const cb = this.measureAxis(b);
+      if (ca || cb) {
+        const c = await this.deps.client.measure(doc, ca ?? ref(a), cb ?? ref(b));
+        const axis = [ca, cb].some((t) => t && 'segment' in t);
+        const label = ca && cb ? (axis ? 'Entre axes' : 'Entre centres') : axis ? 'De l’axe à l’autre élément' : 'Du centre à l’autre élément';
+        lines.push(`${label} : ${formatLength(c.distance)}`);
+        // Deux axes parallèles : les points rendus sont quelconques le long des axes, les écarts ne diraient rien.
+        if (!(ca && cb && axis)) lines.push(`Écarts : ${gaps(c)}`);
+      }
       const now = this.state.mode;
       if (now.kind !== 'measure') return;
-      const lines = [`Distance minimale : ${formatLength(r.distance)}`];
-      const dx = Math.abs(r.pointB.x - r.pointA.x);
-      const dy = Math.abs(r.pointB.y - r.pointA.y);
-      const dz = Math.abs(r.pointB.z - r.pointA.z);
-      lines.push(`Écarts : X ${formatLength(dx)} · Y ${formatLength(dy)} · Z ${formatLength(dz)}`);
       this.set({
         mode: {
           kind: 'measure',
@@ -2133,14 +2210,15 @@ export class AppController {
   }
 
   describePick(pick: ModelPick): { title: string; lines: string[] } {
-    const mesh = this.state.display[pick.partId]?.mesh;
+    const partId = this.measuredPart(pick)?.partId ?? pick.partId;
+    const mesh = this.state.display[partId]?.mesh;
     if (pick.kind === 'face') {
       const f = mesh?.faces[pick.index];
       if (!f) return { title: 'Face', lines: [] };
       const lines = [`Aire : ${formatArea(f.area)}`];
       if (f.surface === 'cylinder' && f.cylinder) lines.unshift(`Face cylindrique — diamètre ${formatLength(f.cylinder.radius * 2)}`);
       if (f.surface === 'plane' && f.plane) lines.unshift('Face plane');
-      const volume = this.state.display[pick.partId]?.result.analysis?.volume;
+      const volume = this.state.display[partId]?.result.analysis?.volume;
       if (volume !== undefined) lines.push(`Volume de la pièce : ${formatVolume(volume)}`);
       return { title: 'Face sélectionnée', lines };
     }
@@ -3002,22 +3080,35 @@ export class AppController {
    * nulle part (assemblage ou sous-assemblage) est posée dans l'assemblage, là où elle a été
    * dessinée (repère commun de l'onglet Pièces).
    */
-  private placeMissingParts(): void {
+  private placeMissingParts(silent = false): boolean {
     const s = this.state;
-    if (s.doc.editingSubassembly) return;
+    if (s.doc.editingSubassembly) return false;
     const placed = new Set<Id>();
     for (const a of [s.doc.assembly, ...(s.doc.subassemblies ?? [])]) for (const i of a?.instances ?? []) if (i.partId) placed.add(i.partId);
     const missing = s.doc.parts.filter((p) => !placed.has(p.id) && (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0);
-    if (missing.length === 0) return;
+    if (missing.length === 0) return false;
     const existing = s.doc.assembly?.instances.length ?? 0;
     let doc = s.doc;
     for (const p of missing) doc = addInstance(doc, p.id, { x: 0, y: 0, z: 0 }).doc;
+    // Pièce qui vient de prendre du volume : posée d'office là où elle a été dessinée, sans étape
+    // d'annulation à part (annuler l'extrusion ne demande pas un second Ctrl+Z).
+    if (silent) {
+      const clean = !isDirty(s);
+      this.set({ doc, revision: s.revision + 1 });
+      // Projet tout juste ouvert (ancien fichier aux pièces non posées) : il ne devient pas « modifié ».
+      if (clean) {
+        this.patchProject({ savedRevision: this.state.revision });
+        void this.evaluate();
+      } else this.afterChange();
+      return true;
+    }
     // Posées là où elles ont été dessinées : la vue ne bouge pas.
     this.commit(doc, 'Placer les pièces dans l’assemblage');
     // Assemblage déjà commencé : on signale l'ajout, qui peut ne pas être voulu.
     if (existing > 0) {
       this.toast('info', missing.length === 1 ? `« ${missing[0]!.name} » ajoutée à l’assemblage.` : `${missing.length} pièces ajoutées à l’assemblage.`, { actionLabel: 'Annuler', action: () => this.undo() });
     }
+    return true;
   }
 
   // ----- Paramètres du projet
@@ -3072,6 +3163,7 @@ export class AppController {
     const s = this.state;
     if (s.simulationPart === ASSEMBLY_STUDY && this.simulationSource(ASSEMBLY_STUDY)) return ASSEMBLY_STUDY;
     if (s.simulationPart === MECHANISM_STUDY && drivableJoints(s.doc.assembly).length > 0) return MECHANISM_STUDY;
+    if (s.simulationPart === SCENARIO_STUDY && drivableJoints(s.doc.assembly).length > 0) return SCENARIO_STUDY;
     const ok = (id: Id | null): id is Id => !!id && !!s.display[id]?.mesh && s.doc.parts.some((p) => p.id === id);
     if (ok(s.simulationPart)) return s.simulationPart;
     if (ok(s.activePartId)) return s.activePartId;
@@ -3096,7 +3188,8 @@ export class AppController {
       next = { ...defaultMechanismStudy(d.joint, d.kind), friction: current.friction, acceleration: current.acceleration, safety: current.safety };
     }
     const simulation = { studies: [], ...this.state.doc.simulation, mechanism: next };
-    this.commit({ ...this.state.doc, simulation }, 'Étude du mécanisme', { mechanismHover: null });
+    this.stopMechanismPlay();
+    this.commit({ ...this.state.doc, simulation }, 'Étude du mécanisme', { mechanismHover: null, mechanismTime: null });
   }
 
   /** Masse (kg) et centre de gravité d'une pièce, d'après son volume et sa matière. */
@@ -3129,8 +3222,11 @@ export class AppController {
     // Laisse l'affichage indiquer « calcul… » avant le calcul (sur le fil principal, quelques centaines de placements).
     await new Promise((r) => setTimeout(r, 30));
     try {
-      const result = computeMechanism(assembly, study, (id) => this.state.display[id]?.mesh, this.massOf, this.solveOptions());
-      this.set({ mechanismRun: { key, result, busy: false, ...(result ? {} : { error: 'Liaison motrice introuvable.' }) } });
+      const meshOf = (id: Id) => this.state.display[id]?.mesh;
+      const result = computeMechanism(assembly, study, meshOf, this.massOf, this.solveOptions());
+      const motion = result ? computeMotion(assembly, study, meshOf, (id) => this.state.display[id]?.result.analysis?.centroid ?? null, this.solveOptions()) : null;
+      this.stopMechanismPlay();
+      this.set({ mechanismRun: { key, result, motion, busy: false, ...(result ? {} : { error: 'Liaison motrice introuvable.' }) }, mechanismTime: null, mechanismCollisions: null });
     } catch (err) {
       this.set({ mechanismRun: { key, result: null, busy: false, error: (err as Error).message } });
     }
@@ -3138,7 +3234,90 @@ export class AppController {
 
   /** Position survolée sur la courbe : l'assemblage y est montré (null : position du projet). */
   setMechanismHover(at: number | null): void {
+    // Pendant la lecture du mouvement, c'est l'instant lu qui place l'assemblage.
+    if (this.state.mechanismTime !== null && at === null) return;
     if (this.state.mechanismHover !== at) this.set({ mechanismHover: at });
+  }
+
+  // ----- Mouvement : lecture de la course dans le temps, collisions le long de la course
+
+  private mechanismFrame = 0;
+
+  /** Montre l'assemblage à l'instant `t` (s) de la course ; null : retour à la position du projet. */
+  setMechanismTime(t: number | null): void {
+    const motion = this.state.mechanismRun?.motion;
+    const found = mechanismStudyOf(this.state.doc);
+    if (t === null || !motion || !found) return this.set({ mechanismTime: null, mechanismHover: null });
+    const time = Math.min(motion.duration, Math.max(0, t));
+    this.set({ mechanismTime: time, mechanismHover: coursePosition(found.study, found.kind, time) });
+  }
+
+  private stopMechanismPlay(): void {
+    if (this.mechanismFrame) cancelAnimationFrame(this.mechanismFrame);
+    this.mechanismFrame = 0;
+    if (this.state.mechanismPlaying) this.set({ mechanismPlaying: false });
+  }
+
+  /** Lit le mouvement en temps réel, de l'instant montré (ou du début) jusqu'à la fin de la course. */
+  toggleMechanismPlay(): void {
+    if (this.state.mechanismPlaying) return this.stopMechanismPlay();
+    const motion = this.state.mechanismRun?.motion;
+    if (!motion) return;
+    const from = this.state.mechanismTime !== null && this.state.mechanismTime < motion.duration - 1e-6 ? this.state.mechanismTime : 0;
+    const started = performance.now() - from * 1000;
+    this.set({ mechanismPlaying: true });
+    const step = () => {
+      const now = this.state.mechanismRun?.motion;
+      if (!this.state.mechanismPlaying || now !== motion || this.state.workspace !== 'simulation') return this.stopMechanismPlay();
+      const t = (performance.now() - started) / 1000;
+      this.setMechanismTime(t);
+      if (t >= motion.duration) return this.stopMechanismPlay();
+      this.mechanismFrame = requestAnimationFrame(step);
+    };
+    this.mechanismFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Cherche les collisions le long de la course : l'assemblage est placé à des positions
+   * régulières de la liaison motrice, et chaque paire de pièces qui se rentrent dedans est notée
+   * avec les positions où cela arrive.
+   */
+  async checkMechanismCollisions(positions = 25): Promise<void> {
+    const found = mechanismStudyOf(this.state.doc);
+    const assembly = this.state.doc.assembly;
+    const key = this.mechanismKey();
+    if (!found || !assembly || !key || this.state.mechanismCollisions?.busy) return;
+    const { study, kind } = found;
+    const doc = this.state.doc;
+    const meshOf = (id: Id) => this.state.display[id]?.mesh;
+    const pairs = new Map<string, { a: string; b: string; at: number[] }>();
+    this.set({ mechanismCollisions: { key, busy: true, progress: 0, items: [] } });
+    try {
+      for (let i = 0; i < positions; i++) {
+        const at = study.from + ((study.to - study.from) * i) / (positions - 1);
+        const a = withValue(assembly, study.jointId, kind, at);
+        const placement = solveAssembly(a, meshOf, { ...this.solveOptions(), driver: study.jointId });
+        if (!placement.issues.has(study.jointId)) {
+          const leaves = flattenAssembly(a, placement, meshOf, this.solveOptions());
+          const names = new Map(leaves.map((l) => [l.key, l.name]));
+          const { collisions } = await this.deps.client.collisions(doc, leaves.map((l) => ({ instanceId: l.key, partId: l.partId, matrix: [...l.matrix] })));
+          for (const c of collisions) {
+            const id = `${c.a}|${c.b}`;
+            const pair = pairs.get(id) ?? { a: names.get(c.a) ?? c.a, b: names.get(c.b) ?? c.b, at: [] };
+            pair.at.push(at);
+            pairs.set(id, pair);
+          }
+        }
+        // Projet ou étude changés entre-temps : la recherche est abandonnée.
+        if (this.state.mechanismCollisions?.key !== key || this.mechanismKey() !== key) return this.set({ mechanismCollisions: null });
+        this.set({ mechanismCollisions: { key, busy: true, progress: (i + 1) / positions, items: [] } });
+      }
+      const items = [...pairs.values()].map((p) => ({ a: p.a, b: p.b, from: Math.min(...p.at), to: Math.max(...p.at) }));
+      this.set({ mechanismCollisions: { key, busy: false, progress: 1, items } });
+    } catch (err) {
+      this.set({ mechanismCollisions: null });
+      this.toast('error', 'La recherche de collisions a échoué.', { detail: (err as Error).message });
+    }
   }
 
   /** Ce qu'on étudie : le maillage de la pièce, ou les pièces de l'assemblage à leur place. */
@@ -3164,6 +3343,84 @@ export class AppController {
     this.cancelSimulation();
     this.closeTopology();
     this.set({ simulationPart: partId, mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  // ----- Scénarios de mouvement (liaisons pilotantes et pilotées)
+
+  scenarios(): MotionScenario[] {
+    return this.state.doc.simulation?.scenarios ?? [];
+  }
+
+  /** Scénario ouvert : celui choisi s'il existe encore, sinon le premier. */
+  currentScenario(): MotionScenario | null {
+    const list = this.scenarios();
+    return list.find((x) => x.id === this.state.scenarioId) ?? list[0] ?? null;
+  }
+
+  private setScenarios(next: MotionScenario[], label: string, extra: Partial<AppState> = {}): void {
+    const simulation = { studies: [], ...this.state.doc.simulation, scenarios: next };
+    this.commit({ ...this.state.doc, simulation }, label, { scenarioLive: {}, ...extra });
+  }
+
+  private updateScenario(change: (s: MotionScenario) => MotionScenario, label: string): void {
+    const current = this.currentScenario();
+    if (!current) return;
+    this.setScenarios(this.scenarios().map((x) => (x.id === current.id ? change(x) : x)), label);
+  }
+
+  /** Nouveau scénario, vide, qui devient le scénario ouvert. */
+  addScenario(): void {
+    const list = this.scenarios();
+    const taken = new Set(list.map((x) => x.id));
+    let n = list.length + 1;
+    while (list.some((x) => x.name === `Scénario ${n}`)) n++;
+    const id = createId('sc', taken);
+    this.setScenarios([...list, { id, name: `Scénario ${n}`, drivers: [], sensors: [] }], 'Nouveau scénario', { scenarioId: id });
+  }
+
+  openScenario(id: Id): void {
+    if (this.state.scenarioId !== id) this.set({ scenarioId: id, scenarioLive: {} });
+  }
+
+  renameScenario(id: Id, name: string): void {
+    const clean = name.trim();
+    if (!clean) return;
+    this.setScenarios(this.scenarios().map((x) => (x.id === id ? { ...x, name: clean } : x)), `Renommer le scénario « ${clean} »`);
+  }
+
+  removeScenario(id: Id): void {
+    const s = this.scenarios().find((x) => x.id === id);
+    if (s) this.setScenarios(this.scenarios().filter((x) => x.id !== id), `Supprimer le scénario « ${s.name} »`);
+  }
+
+  /** Rôle d'un mouvement de liaison dans le scénario ouvert : pilotant, piloté, ou libre (null). */
+  setScenarioRole(jointId: Id, dof: MotionDof, role: 'driver' | 'sensor' | null): void {
+    const joint = this.state.doc.assembly?.joints.find((j) => j.id === jointId);
+    if (!joint) return;
+    const same = (x: { jointId: Id; dof: MotionDof }) => x.jointId === jointId && x.dof === dof;
+    this.updateScenario(
+      (s) => ({
+        ...s,
+        drivers: role === 'driver' ? [...s.drivers.filter((x) => !same(x)), { jointId, dof, value: joint[dof] }] : s.drivers.filter((x) => !same(x)),
+        sensors: role === 'sensor' ? [...s.sensors.filter((x) => !same(x)), { jointId, dof }] : s.sensors.filter((x) => !same(x)),
+      }),
+      role === 'driver' ? `« ${joint.name} » pilotante` : role === 'sensor' ? `« ${joint.name} » pilotée` : `« ${joint.name} » libre`,
+    );
+  }
+
+  /** Curseur d'une pilotante : `live` pendant le glissement (sans étape d'annulation), puis enregistré. */
+  setScenarioDriver(jointId: Id, dof: MotionDof, value: number, live = false): void {
+    const key = `${jointId}:${dof}`;
+    if (live) return this.set({ scenarioLive: { ...this.state.scenarioLive, [key]: value } });
+    this.updateScenario((s) => ({ ...s, drivers: s.drivers.map((d) => (d.jointId === jointId && d.dof === dof ? { ...d, value } : d)) }), 'Réglage d’une liaison pilotante');
+  }
+
+  /** État du scénario ouvert : assemblage placé, relevés des pilotées, blocage. */
+  scenarioState(): ReturnType<typeof solveScenario> | null {
+    const scenario = this.currentScenario();
+    const assembly = this.state.doc.assembly;
+    if (!scenario || !assembly) return null;
+    return solveScenario(assembly, scenario, (id) => this.state.display[id]?.mesh, this.solveOptions(), this.state.scenarioLive);
   }
 
   updateStudy(partId: Id, change: (s: SimulationStudy) => SimulationStudy, label: string): void {
@@ -3239,9 +3496,9 @@ export class AppController {
     const stale = partId === ASSEMBLY_STUDY ? (this.state.doc.assembly?.instances ?? []).some((i) => this.state.display[i.partId]?.stale) : this.state.display[partId]?.stale;
     if (stale) return this.explain('Une pièce a une erreur : corrigez-la en mode Modéliser avant de lancer le calcul.');
     const study = studyOf(this.state.doc, partId);
-    const problem = studyInput(study, source);
+    const problem = studyInput(study, source, studyMaterialId(this.state.doc, study));
     if (!problem.ok) return this.explain(problem.message);
-    const key = studyKey(study, source.key);
+    const key = studyKey(study, source.key, studyMaterialId(this.state.doc, study));
     // Un seul calcul à la fois dans le worker : une optimisation en cours est abandonnée.
     if (this.state.topologyRun?.status === 'running') this.set({ topologyRun: null });
     this.set({ mode: this.state.mode.kind === 'pick-sim-face' ? model : this.state.mode, simulationRun: { partId, key, status: 'running', progress: 0, size: meshSize(problem.input.positions) }, topologyRun: null });
@@ -3293,7 +3550,7 @@ export class AppController {
     if (partId === ASSEMBLY_STUDY) return this.explain('L’allègement se fait sur une pièce à la fois : choisissez une pièce dans la liste.');
     if (this.state.display[partId]?.stale) return this.explain('La pièce a une erreur : corrigez-la en mode Modéliser avant de lancer le calcul.');
     const study = studyOf(this.state.doc, partId);
-    const problem = studyInput(study, source);
+    const problem = studyInput(study, source, studyMaterialId(this.state.doc, study));
     if (!problem.ok) return this.explain(problem.message);
     const volumeFraction = this.state.topologyFraction;
     const symmetry = this.state.topologySymmetry;
@@ -3871,6 +4128,15 @@ export class AppController {
   removeInstance(instanceId: Id): void {
     const inst = this.state.doc.assembly?.instances.find((i) => i.id === instanceId);
     if (!inst) return;
+    // Une pièce est toujours posée : son dernier exemplaire ne se retire pas, c'est la pièce qu'on supprime.
+    const part = inst.subassemblyId ? undefined : findPart(this.state.doc, inst.partId);
+    if (part && !this.state.tutorial) {
+      const closed = closedDocument(this.state.doc);
+      const copies = [closed.assembly, ...(closed.subassemblies ?? [])].flatMap((a) => a?.instances ?? []).filter((i) => i.partId === part.id && !i.subassemblyId).length;
+      if (copies <= 1) {
+        return this.toast('info', `« ${part.name} » n’a que cet exemplaire : pour l’enlever, supprimez la pièce.`, { actionLabel: 'Supprimer la pièce', action: () => this.deletePart(part.id) });
+      }
+    }
     this.commit(removeInstance(this.state.doc, instanceId), `Retirer « ${inst.name} » de l’assemblage`, { assemblySelection: null });
   }
 

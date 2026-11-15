@@ -9,9 +9,7 @@ import { partLocked } from '../app/availability';
 import { closedDocument } from '../domain/subassemblies';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
-import { FabricationSection } from './FabricationUi';
-import { SimulationSection } from './SimulationUi';
-import { VersionsSection } from './VersionsUi';
+import { FabricationSection, SimulationSection, VersionsSection } from './lazy';
 import { ParametersSection } from './ParametersUi';
 import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
@@ -688,6 +686,7 @@ function PartsSection() {
               ? [{ icon: 'isolate', label: menuPart.id === isolatedId ? 'Tout réafficher' : 'Isoler', action: () => c.toggleIsolate(menuPart.id) }]
               : []),
             ...(canEnsemble ? [{ icon: 'copy', label: 'Dupliquer (copie liée)', action: () => c.duplicatePart(menuPart.id) }] : []),
+            { icon: 'part', label: 'Copier (pièce indépendante)', action: () => c.copyPart(menuPart.id) },
             ...folders
               .filter((f) => f.id !== groupOf(menuPart))
               .map((f, i) => ({ sep: i === 0, icon: 'folder', label: `Ranger dans « ${f.name} »`, action: () => dropPart(menuPart.id, f.id) })),

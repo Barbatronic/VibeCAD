@@ -119,3 +119,28 @@ test('quadrilatère articulé : animer le mécanisme, puis revenir à la positio
   await expect.poll(angles).toEqual(start);
   expect(await appState(page, (s) => s.history.past.length)).toBe(undo);
 });
+
+test('scénario de mouvement : la manivelle pilote, le balancier est relevé comme par un capteur', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.click('#sim-scenarios');
+  await page.getByRole('button', { name: 'Nouveau scénario' }).first().click();
+  const roles = page.getByRole('list', { name: 'Rôle des liaisons dans le scénario' });
+  await roles.getByRole('group', { name: 'Rôle de Liaison 1' }).getByRole('button', { name: 'Pilote' }).click();
+  await roles.getByRole('group', { name: 'Rôle de Liaison 3' }).getByRole('button', { name: 'Relevé' }).click();
+  const sensor = (id: string) => page.locator(`#sensor-${id}-angle`);
+  const j3 = await appState(page, (s) => s.doc.assembly.joints[2].id);
+  const before = await sensor(j3).textContent();
+  // La manivelle tourne : le balancier suit, son relevé change ; la boucle reste fermée.
+  await page.getByLabel('Liaison 1 : réglage exact').fill('100');
+  await expect(sensor(j3)).not.toHaveText(before!);
+  const reading = Number((await sensor(j3).textContent())!.replace(/[^\d,.-]/g, '').replace(',', '.'));
+  expect(Number.isFinite(reading)).toBe(true);
+  const scenario = await appState(page, (s) => s.doc.simulation.scenarios[0]);
+  expect(scenario.drivers).toMatchObject([{ dof: 'angle', value: 100 }]);
+  expect(scenario.sensors).toHaveLength(1);
+  await page.screenshot({ path: 'tests/output/e2e-scenario.png' });
+});
+

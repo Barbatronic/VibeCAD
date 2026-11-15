@@ -11,7 +11,7 @@ import { engraveSteps, faceMaterials } from '../domain/paint';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation, type PartSnapshot } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
-import type { BoundingBox, GeometryKernel, KernelShape, MeshData, MeshOptions } from '../geometry/kernel';
+import type { BoundingBox, DistanceTarget, GeometryKernel, KernelShape, MeshData, MeshOptions } from '../geometry/kernel';
 import { stepProductNames } from '../io/resources';
 import { meshesToBinaryStl, STL_MAX_TRIANGLES, stlTriangleCount } from '../io/stl';
 import { meshesTo3mf } from '../io/threemf';
@@ -23,7 +23,7 @@ import type {
   EvaluationResult,
   MeasureResult,
   PartResult,
-  PickRef,
+  MeasureTarget,
   SketchResult,
   StepInspection,
   WorkerResourcePayload,
@@ -403,14 +403,24 @@ export class GeometryService {
     }
   }
 
-  measure(docIn: DocumentForWorker, a: PickRef, b: PickRef): MeasureResult {
+  measure(docIn: DocumentForWorker, a: MeasureTarget, b: MeasureTarget): MeasureResult {
     const evaluations = this.engine.evaluateDocument(this.asDocument(docIn));
-    const shapeOf = (ref: PickRef) => {
+    // Pièces placées (mesure dans l'assemblage) : formes déplacées le temps de la mesure.
+    const placed: KernelShape[] = [];
+    const target = (ref: MeasureTarget): DistanceTarget => {
+      if (!('partId' in ref)) return ref;
       const s = evaluations.find((e) => e.partId === ref.partId)?.shape;
       if (!s) throw new Error('La pièce sélectionnée n’a pas de volume.');
-      return s;
+      if (!ref.matrix) return { shape: s, kind: ref.kind, index: ref.index };
+      const moved = this.kernel.transformed(s, ref.matrix);
+      placed.push(moved);
+      return { shape: moved, kind: ref.kind, index: ref.index };
     };
-    return this.kernel.distance({ shape: shapeOf(a), kind: a.kind, index: a.index }, { shape: shapeOf(b), kind: b.kind, index: b.index });
+    try {
+      return this.kernel.distance(target(a), target(b));
+    } finally {
+      placed.forEach((s) => this.kernel.dispose(s));
+    }
   }
 
   /**

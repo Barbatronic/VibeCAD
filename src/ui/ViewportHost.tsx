@@ -35,7 +35,7 @@ import { Viewport, type ViewMarker, type ViewportInput, type ViewPartInput, type
 import { blockContent, explodeOffsets, flattenAssembly, jointFreedoms, lcsFrame, lcsFromPick, solveAssembly, type AssemblyPlacement, type SolveOptions } from '../app/assembly';
 import { subassemblyContent } from '../domain/subassemblies';
 import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
-import { MECHANISM_STUDY, mechanismStudyOf, withValue } from '../app/mechanism';
+import { MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, scenarioAssembly, withValue } from '../app/mechanism';
 import { fastenerColor, fastenerMesh, placeFasteners } from '../app/fasteners';
 import { fabricationSettings, printLayout } from '../app/fabrication';
 import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
@@ -57,7 +57,7 @@ import { imageSize } from '../app/images';
 import { edgeRefSegments } from '../app/edges';
 import { imageSource, onImageReady } from './image-cache';
 import { formatLength } from '../domain/units';
-import { resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
+import { studyMaterialId, resultGeometry, studyFaces, studyInput, studyKey, studyOf, type StudySource } from '../app/simulation';
 import { exaggerationFor } from '../sim/study';
 
 function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderInput {
@@ -246,7 +246,10 @@ function buildAssemblyInput(s: AppState): ViewportInput {
       gizmo = { origin: { x: mid('x'), y: mid('y'), z: mid('z') }, rings: true };
     }
   }
-  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure: null, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors, gizmo };
+  // Mesure : les éléments choisis restent surlignés, et le segment de la distance est tracé.
+  if (s.mode.kind === 'measure') for (const p of s.mode.picks) if (p.kind !== 'vertex') selection.push({ partId: p.partId, kind: p.kind, index: p.index });
+  const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
+  return { mode: 'model', parts, tool: null, sketches: [], session: null, selection, measure, featurePicking: true, fitRequest: s.fitRequest, markers, dragTargets, lockedFace, highlightMeshes, anchors, gizmo };
 }
 
 /** Hauteur de couche affichée des pièces imprimées (mm). */
@@ -364,7 +367,7 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
   if (!partId || !source) return base;
   const study = studyOf(s.doc, partId);
   const run = s.simulationRun;
-  const done = run?.status === 'done' && run.result && run.partId === partId && run.key === studyKey(study, source.key) && s.mode.kind !== 'pick-sim-face' ? run : null;
+  const done = run?.status === 'done' && run.result && run.partId === partId && run.key === studyKey(study, source.key, studyMaterialId(s.doc, study)) && s.mode.kind !== 'pick-sim-face' ? run : null;
   let resultMesh: ViewportInput['resultMesh'] = null;
   // Pièce allégée (optimisation topologique) : elle passe devant le résultat de déformation.
   const topo = s.topologyRun;
@@ -413,7 +416,7 @@ function buildSimulationInput(s: AppState, partId: string | null, source: StudyS
   ]);
   // Flèche de la charge : elle arrive sur le centre des faces chargées.
   const markers: ViewMarker[] = [];
-  const problem = studyInput(study, source);
+  const problem = studyInput(study, source, studyMaterialId(s.doc, study));
   if (problem.ok) {
     const t = problem.input.loaded;
     let cx = 0, cy = 0, cz = 0;
@@ -457,11 +460,30 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
   if (s.workspace === 'versions') return buildVersionsInput(s);
+  // Scénario de mouvement : l'assemblage aux réglages des pilotantes ; les pilotes sont surlignés.
+  if (s.workspace === 'simulation' && simulation.partId === SCENARIO_STUDY && s.doc.assembly) {
+    const scenario = s.doc.simulation?.scenarios?.find((x) => x.id === s.scenarioId) ?? s.doc.simulation?.scenarios?.[0];
+    const assembly = scenario ? scenarioAssembly(s.doc.assembly, scenario, s.scenarioLive) : s.doc.assembly;
+    return buildAssemblyInput({ ...s, doc: { ...s.doc, assembly }, assemblySelection: scenario?.drivers[0] ? { kind: 'joint', id: scenario.drivers[0].jointId } : null, explode: 0 });
+  }
   // Étude « Mécanisme » : l'assemblage, à la position survolée sur la courbe.
   if (s.workspace === 'simulation' && simulation.partId === MECHANISM_STUDY) {
     const m = mechanismStudyOf(s.doc);
     const assembly = s.doc.assembly && m && s.mechanismHover !== null ? withValue(s.doc.assembly, m.study.jointId, m.kind, s.mechanismHover) : s.doc.assembly;
-    return buildAssemblyInput({ ...s, doc: { ...s.doc, ...(assembly ? { assembly } : {}) }, assemblySelection: m ? { kind: 'joint', id: m.study.jointId } : null, explode: 0 });
+    const input = buildAssemblyInput({ ...s, doc: { ...s.doc, ...(assembly ? { assembly } : {}) }, assemblySelection: m ? { kind: 'joint', id: m.study.jointId } : null, explode: 0 });
+    // Trajectoire du point suivi, et sa position à l'instant montré (entre les deux instants calculés voisins).
+    const motion = s.mechanismRun?.motion;
+    const points = (motion?.samples ?? []).flatMap((x) => (x.point ? [x.point] : []));
+    let at: Vec3 | null = null;
+    if (motion && s.mechanismTime !== null) {
+      const k = Math.min(motion.samples.length - 2, Math.max(0, Math.floor((s.mechanismTime / motion.duration) * (motion.samples.length - 1))));
+      const [a, b] = [motion.samples[k], motion.samples[k + 1]];
+      if (a?.point && b?.point) {
+        const f = b.t > a.t ? (s.mechanismTime - a.t) / (b.t - a.t) : 0;
+        at = { x: a.point.x + f * (b.point.x - a.point.x), y: a.point.y + f * (b.point.y - a.point.y), z: a.point.z + f * (b.point.z - a.point.z) };
+      }
+    }
+    return { ...input, trace: points.length > 1 ? { points, at } : null };
   }
   if (s.workspace === 'simulation') return buildSimulationInput(s, simulation.partId, simulation.source);
   const mode = s.mode.kind;
@@ -1033,7 +1055,7 @@ export function ViewportHost() {
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.hoverPart, state.versionView],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

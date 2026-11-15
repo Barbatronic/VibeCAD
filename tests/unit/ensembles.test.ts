@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addInstance, addPart, createDocument, renamePart } from '../../src/domain/document';
-import { addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../../src/domain/ensembles';
+import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../../src/domain/ensembles';
 import { assemblyContents } from '../../src/domain/subassemblies';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 
@@ -99,5 +99,25 @@ describe('ensembles de la liste des pièces', () => {
     const made = createEnsemble(doc, b);
     const inBlock = renamePart(made.doc, b, 'Moteur');
     expect(inBlock.subassemblies![0]!.instances.find((i) => i.partId === b)!.name).toBe('Moteur');
+  });
+
+  it('copie indépendante : une nouvelle pièce, identifiants renouvelés, posée à côté dans le même ensemble', () => {
+    const { doc, a } = sample();
+    const made = createEnsemble(doc, a);
+    const r = addIndependentCopy(made.doc, a, 25)!;
+    const original = r.doc.parts.find((p) => p.id === a)!;
+    const copy = r.doc.parts.find((p) => p.id === r.partId)!;
+    expect(r.doc.parts).toHaveLength(doc.parts.length + 1);
+    expect(copy.name).toBe('A (copie)');
+    expect(copy.id).not.toBe(a);
+    // Aucun identifiant d'étape en commun : modifier la copie ne touche pas l'original.
+    expect(copy.features.filter((f) => original.features.some((o) => o.id === f.id))).toEqual([]);
+    expect(ensembleOf(r.doc, r.partId)).toBe(made.id);
+    const sub = r.doc.subassemblies!.find((s) => s.id === made.id)!;
+    expect(sub.instances.map((i) => [i.partId, i.position.x])).toEqual([[a, 0], [r.partId, 25]]);
+    // Une seconde copie prend un autre nom ; le projet reste lisible.
+    const again = addIndependentCopy(r.doc, a, 25)!;
+    expect(again.doc.parts.find((p) => p.id === again.partId)!.name).toBe('A (copie 2)');
+    expect(parseNativeFile(serializeDocument(again.doc)).ok).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import type {
   SubAssembly,
   MirrorPlane,
   JointCoupling,
+  MotionScenario,
   Assembly,
   AssemblyFastener,
   FabricationSettings,
@@ -438,6 +439,7 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
               friction: num(v, mo, 'friction', mp, { min: 0 }),
               acceleration: num(v, mo, 'acceleration', mp, { min: 0 }),
               safety: num(v, mo, 'safety', mp, { min: 1 }),
+              ...(typeof mo.tracked === 'string' ? { tracked: mo.tracked } : {}),
               ...(mo.loads !== undefined
                 ? {
                     loads: arr(v, mo, 'loads', mp).map((l, i) => {
@@ -451,7 +453,35 @@ function readSimulation(v: Validator, x: unknown, path: string, partIds: Readonl
           };
         })()
       : {}),
+    ...(o.scenarios !== undefined ? { scenarios: readScenarios(v, o.scenarios, `${path}.scenarios`) } : {}),
   };
+}
+
+/** Scénarios de mouvement : un scénario qui vise une liaison disparue la garde (elle sera ignorée). */
+function readScenarios(v: Validator, raw: unknown, path: string): MotionScenario[] {
+  if (!Array.isArray(raw)) {
+    v.error(path, 'liste attendue');
+    return [];
+  }
+  const dof = (o: Record<string, unknown>, p: string) => oneOf(v, o, 'dof', p, ['angle', 'offset'] as const);
+  return raw.map((r, i) => {
+    const sp = `${path}[${i}]`;
+    const so = obj(v, r, sp) ?? {};
+    return {
+      id: str(v, so, 'id', sp),
+      name: str(v, so, 'name', sp),
+      drivers: arr(v, so, 'drivers', sp).map((d, k) => {
+        const dp = `${sp}.drivers[${k}]`;
+        const o = obj(v, d, dp) ?? {};
+        return { jointId: str(v, o, 'jointId', dp), dof: dof(o, dp), value: num(v, o, 'value', dp) };
+      }),
+      sensors: arr(v, so, 'sensors', sp).map((d, k) => {
+        const dp = `${sp}.sensors[${k}]`;
+        const o = obj(v, d, dp) ?? {};
+        return { jointId: str(v, o, 'jointId', dp), dof: dof(o, dp) };
+      }),
+    };
+  });
 }
 
 /** Réglages laser : matériaux (« pages ») ; un fichier antérieur à une seule plaque devient un matériau. */

@@ -3,7 +3,7 @@
  * triangles du maillage, force appliquée, signature d'un calcul, verdict et affichage du résultat
  * (pièce déformée, couleurs). Le calcul lui-même est dans `src/sim`. Voir docs/simulation.md.
  */
-import type { CadDocument, FaceRef, Id, LoadDirection, SimulationStudy, StudyFace } from '../domain/model';
+import { ASSEMBLY_STUDY, type CadDocument, type FaceRef, type Id, type LoadDirection, type SimulationStudy, type StudyFace } from '../domain/model';
 import { transformPoint4, type Mat4 } from '../math/mat4';
 import type { FaceTag, MeshData } from '../geometry/kernel';
 import { GRAVITY, simMaterial } from '../sim/materials';
@@ -36,15 +36,28 @@ export const DIRECTION_LABELS: Record<LoadDirection, string> = {
 /** Sens possibles du poids d'une masse posée : le bas de la pièce telle qu'elle sera utilisée. */
 export const WEIGHT_DIRECTIONS: LoadDirection[] = ['-z', '+z', '-x', '+x', '-y', '+y'];
 
-/** Étude par défaut : matériau de la pièce (sa matière, voir Propriétés), sinon le PLA. */
-export function defaultStudy(partId: Id, materialId = 'pla'): SimulationStudy {
+/**
+ * Matériau « celui de la pièce » : l'étude suit la matière choisie pour la pièce (sa fiche, en
+ * Fabrication) au lieu d'en porter une à part. Une étude peut aussi nommer une matière de base,
+ * pour essayer autre chose sans toucher à la pièce.
+ */
+export const PART_MATERIAL = '@part';
+
+/** Étude par défaut : le matériau de la pièce ; pour l'assemblage (une seule matière), le PLA. */
+export function defaultStudy(partId: Id, materialId = partId === ASSEMBLY_STUDY ? 'pla' : PART_MATERIAL): SimulationStudy {
   return { partId, materialId, quality: 'normal', fixed: [], load: { faces: [], kind: 'mass', value: 1, direction: '-z' } };
 }
 
 /** Étude enregistrée d'une pièce, ou l'étude par défaut. */
 export function studyOf(doc: CadDocument, partId: Id): SimulationStudy {
-  const part = doc.parts.find((p) => p.id === partId);
-  return doc.simulation?.studies.find((s) => s.partId === partId) ?? defaultStudy(partId, part ? partMaterialId(part) : undefined);
+  return doc.simulation?.studies.find((s) => s.partId === partId) ?? defaultStudy(partId);
+}
+
+/** Matière de base (identifiant de `SIM_MATERIALS`) avec laquelle l'étude se calcule. */
+export function studyMaterialId(doc: CadDocument, study: SimulationStudy): string {
+  if (study.materialId !== PART_MATERIAL) return study.materialId;
+  const part = doc.parts.find((p) => p.id === study.partId);
+  return part ? partMaterialId(part) : 'pla';
 }
 
 /** Document dont l'étude de la pièce est remplacée. */
@@ -174,7 +187,7 @@ export function studyFaces(study: SimulationStudy, source: StudySource): { insta
 }
 
 /** Données du calcul, ou ce qui manque pour le lancer. */
-export function studyInput(study: SimulationStudy, source: StudySource): StudyProblem {
+export function studyInput(study: SimulationStudy, source: StudySource, materialId = study.materialId): StudyProblem {
   const items = sourceItems(source, []);
   const faces = studyFaces(study, source);
   if (faces.every((f) => f.fixed.length === 0)) return { ok: false, message: 'Choisissez au moins une face fixée (là où la pièce est tenue).' };
@@ -198,7 +211,7 @@ export function studyInput(study: SimulationStudy, source: StudySource): StudyPr
   const F = loadNewtons(study);
   const dir = loadDirection(study.load, loaded);
   const sign = study.load.direction === 'push' ? -1 : 1;
-  const material = simMaterial(study.materialId);
+  const material = simMaterial(materialId);
   return {
     ok: true,
     input: {
@@ -228,10 +241,10 @@ export function meshSize(positions: ArrayLike<number>): number {
 }
 
 /** Signature d'un calcul : le résultat affiché est périmé dès qu'elle change. */
-export function studyKey(study: SimulationStudy, sourceKey: string): string {
+export function studyKey(study: SimulationStudy, sourceKey: string, materialId = study.materialId): string {
   // Les faces à garder ne servent qu'à l'allègement : elles ne périment pas le calcul de déformation.
   const { keep: _keep, quality: _quality, ...rest } = study;
-  return `${sourceKey}|${JSON.stringify(rest)}`;
+  return `${sourceKey}|${JSON.stringify(rest)}|${materialId}`;
 }
 
 /** Signature d'un allègement : celle de l'étude, les faces à garder, la part gardée et la symétrie. */
@@ -242,8 +255,8 @@ export function topologyKey(study: SimulationStudy, sourceKey: string, fraction:
 export type Verdict = { level: 'ok' | 'tight' | 'fail'; margin: number; label: string };
 
 /** Marge de sécurité : résistance du matériau / contrainte maximale. */
-export function verdict(study: SimulationStudy, maxStress: number): Verdict {
-  const margin = maxStress > 0 ? simMaterial(study.materialId).strength / maxStress : Infinity;
+export function verdict(materialId: string, maxStress: number): Verdict {
+  const margin = maxStress > 0 ? simMaterial(materialId).strength / maxStress : Infinity;
   if (margin >= 2) return { level: 'ok', margin, label: 'La pièce tient' };
   if (margin >= 1) return { level: 'tight', margin, label: 'C’est juste' };
   return { level: 'fail', margin, label: 'Risque de casser' };

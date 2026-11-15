@@ -225,6 +225,7 @@ export function AssemblyTools() {
       hand: st.assemblyHand,
       collisions: st.collisionCheck,
       exploded: st.explode > 0,
+      measure: st.mode.kind === 'measure',
       count: st.doc.assembly?.instances.length ?? 0,
       sel: st.assemblySelection,
     }),
@@ -260,6 +261,15 @@ export function AssemblyTools() {
         />
       </ToolGroup>
       <ToolGroup name="Vérifier">
+        <ToolButton
+          id="as-measure"
+          icon="measure"
+          label="Mesurer"
+          hint="Mesurer une arête, une face, ou la distance entre deux éléments de l’assemblage"
+          pressed={s.measure}
+          availability={s.count >= 1 ? { ok: true } : { ok: false, reason: 'L’assemblage est vide.' }}
+          onClick={() => (s.measure ? c.exitMeasure() : c.startMeasure())}
+        />
         <ToolButton
           id="as-collisions"
           icon="collision"

@@ -3,12 +3,15 @@
  * matériau, les faces où elle est tenue et celles où elle est chargée, puis on lance le calcul :
  * la pièce apparaît déformée (exagérée) et colorée selon l'effort. Voir docs/simulation.md.
  */
-import { COARSE_VOLUME_ERROR, DIRECTION_LABELS, WEIGHT_DIRECTIONS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
+import { COARSE_VOLUME_ERROR, DIRECTION_LABELS, PART_MATERIAL, studyMaterialId, WEIGHT_DIRECTIONS, studyInput, studyKey, studyOf, topologyKey, verdict } from '../app/simulation';
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
-import { drivableJoints, MECHANISM_STUDY } from '../app/mechanism';
+import { drivableJoints, MECHANISM_STUDY, SCENARIO_STUDY } from '../app/mechanism';
+import { ScenarioList, ScenarioPanel } from './ScenarioUi';
 import { MechanismPanel } from './MechanismUi';
 import { formatNumber, readNumber } from '../domain/units';
-import { SIM_MATERIALS } from '../sim/materials';
+import { SIM_MATERIALS, simMaterial } from '../sim/materials';
+import { sheetOf } from '../domain/material-sheets';
+import { partMaterialId } from '../domain/part-material';
 import { exaggerationFor } from '../sim/study';
 import { allows } from '../app/levels';
 import { useAppState, useController } from './context';
@@ -30,7 +33,15 @@ const num = (t: string) => readNumber(t);
 export function SimulationTools() {
   const c = useController();
   const mechanism = useAppState(() => c.simulationPartId() === MECHANISM_STUDY);
+  const scenario = useAppState(() => c.simulationPartId() === SCENARIO_STUDY);
   const busy = useAppState((s) => !!s.mechanismRun?.busy);
+  if (scenario) {
+    return (
+      <ToolGroup name="Scénario">
+        <ToolButton id="scenario-new" icon="plus" label="Nouveau" hint="Nouveau scénario de mouvement" onClick={() => c.addScenario()} />
+      </ToolGroup>
+    );
+  }
   if (mechanism) {
     return (
       <ToolGroup name="Mécanisme">
@@ -87,7 +98,7 @@ export function SimulationSection() {
     }),
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  const kind = data.current === MECHANISM_STUDY ? 'mechanism' : data.current === ASSEMBLY_STUDY ? 'assembly' : 'part';
+  const kind = data.current === MECHANISM_STUDY ? 'mechanism' : data.current === SCENARIO_STUDY ? 'scenario' : data.current === ASSEMBLY_STUDY ? 'assembly' : 'part';
   const choice = (id: string | undefined, value: string, selected: boolean, icon: string, label: string, title: string, onClick: () => void) => (
     <li key={value}>
       <button type="button" role="radio" id={id} aria-checked={selected} class={`sim-part${selected ? ' is-current' : ''}`} title={title} onClick={onClick}>
@@ -110,12 +121,16 @@ export function SimulationSection() {
                 ? choice(undefined, 'assembly', kind === 'assembly', 'group', 'Résistance de l’assemblage', 'Toutes les pièces de l’assemblage, à leur place : celles qui se touchent sont considérées comme collées.', () => c.setSimulationPart(ASSEMBLY_STUDY))
                 : null}
               {data.mechanism
-                ? choice('sim-mechanism', 'mechanism', kind === 'mechanism', 'pivot', 'Couple d’un mécanisme', 'Couple (pivot) ou force (glissière) nécessaire sur une liaison pour faire bouger l’assemblage', () => c.setSimulationPart(MECHANISM_STUDY))
+                ? choice('sim-mechanism', 'mechanism', kind === 'mechanism', 'pivot', 'Mécanisme : couple et mouvement', 'Couple (pivot) ou force (glissière) à fournir sur une liaison, mouvement de l’assemblage, trajectoire et collisions sur la course', () => c.setSimulationPart(MECHANISM_STUDY))
+                : null}
+              {data.mechanism
+                ? choice('sim-scenarios', 'scenario', kind === 'scenario', 'play', 'Scénarios de mouvement', 'Choisir les liaisons qui pilotent (curseurs) et celles qui sont pilotées (positions relevées)', () => c.setSimulationPart(SCENARIO_STUDY))
                 : null}
             </ul>
           </div>
         </section>
       ) : null}
+      {kind === 'scenario' ? <ScenarioList /> : null}
       {kind === 'part' ? (
         <section class="panel-section grow" aria-labelledby="sim-title">
           <div class="panel-header">
@@ -144,6 +159,8 @@ export function SimulationSection() {
 export function SimulationRightPanel() {
   const c = useController();
   const mechanism = useAppState(() => c.simulationPartId() === MECHANISM_STUDY);
+  const scenario = useAppState(() => c.simulationPartId() === SCENARIO_STUDY);
+  if (scenario) return <ScenarioPanel />;
   if (mechanism) {
     return (
       <aside class="panel right-panel" aria-label="Étude du mécanisme">
@@ -162,13 +179,18 @@ function StudyRightPanel() {
       const source = partId ? c.simulationSource(partId) : null;
       if (!partId || !source) return null;
       const study = studyOf(s.doc, partId);
-      const problem = studyInput(study, source);
+      const materialId = studyMaterialId(s.doc, study);
+      const part = s.doc.parts.find((p) => p.id === partId);
+      const problem = studyInput(study, source, materialId);
       const run = s.simulationRun?.partId === partId ? s.simulationRun : null;
-      const current = !!run && run.key === studyKey(study, source.key);
+      const current = !!run && run.key === studyKey(study, source.key, materialId);
       return {
         partId,
         name: partId === ASSEMBLY_STUDY ? 'l’assemblage' : `« ${s.doc.parts.find((p) => p.id === partId)?.name ?? ''} »`,
         assembly: partId === ASSEMBLY_STUDY,
+        materialId,
+        // Matière de la pièce : le nom de sa fiche (« PLA rouge »), sinon sa matière de base.
+        partMaterial: part ? (sheetOf(s.doc, part)?.name ?? simMaterial(partMaterialId(part)).name) : null,
         canLighten: allows(s.level, 'simulation:topology'),
         study,
         missing: problem.ok ? null : problem.message,
@@ -202,7 +224,8 @@ function StudyRightPanel() {
   const unit = study.load.kind === 'mass' ? 'kg' : 'N';
   const running = info.run?.status === 'running';
   const result = info.run?.status === 'done' ? info.run.result : null;
-  const v = result ? verdict(study, result.maxStress) : null;
+  const v = result ? verdict(info.materialId, result.maxStress) : null;
+  const material = simMaterial(info.materialId);
   const top = result ? (info.display === 'stress' ? result.maxStress : result.maxDisplacement) : 0;
   return (
     <aside class="panel right-panel" aria-label="Simulation">
@@ -219,12 +242,16 @@ function StudyRightPanel() {
         <label class="field">
           <span class="field-label">Matériau</span>
           <select id="sim-material" class="select" value={study.materialId} onChange={(e) => update((s) => ({ ...s, materialId: (e.target as HTMLSelectElement).value }), 'Matériau de la simulation')}>
+            {info.partMaterial ? <option value={PART_MATERIAL}>Celle de la pièce : {info.partMaterial}</option> : null}
             {SIM_MATERIALS.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
             ))}
           </select>
+          <span class="field-help">
+            Raideur {formatNumber(material.E, 0)} MPa · résistance {formatNumber(material.strength, 0)} MPa
+          </span>
         </label>
 
         <div class="field sim-faces">

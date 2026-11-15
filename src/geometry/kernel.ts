@@ -223,6 +223,12 @@ export type EdgeCurve =
   | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3 }
   | { kind: 'other'; mid?: Vec3 };
 
+/**
+ * Élément d'une mesure : une face ou une arête d'une forme, un point (centre d'un cercle) ou un
+ * segment (axe d'un cylindre).
+ */
+export type DistanceTarget = { shape: KernelShape; kind: 'face' | 'edge'; index: number } | { point: Vec3 } | { segment: { a: Vec3; b: Vec3 } };
+
 export interface DistanceResult {
   distance: number;
   pointA: Vec3;
@@ -363,7 +369,7 @@ export interface GeometryKernel {
   deserializeShape(data: SerializedShape): KernelShape;
   exportStepAssembly(name: string, parts: (StepExportItem & { key: string })[], instances: StepComponent[], blocks?: StepBlock[]): string;
   /** Distance minimale entre deux sous-éléments désignés par leur rang dans le maillage. */
-  distance(a: { shape: KernelShape; kind: 'face' | 'edge'; index: number }, b: { shape: KernelShape; kind: 'face' | 'edge'; index: number }): DistanceResult;
+  distance(a: DistanceTarget, b: DistanceTarget): DistanceResult;
   dispose(shape: KernelShape): void;
   /** Mémoire WASM réservée (octets), pour les mesures de performance. */
   memoryBytes(): number;

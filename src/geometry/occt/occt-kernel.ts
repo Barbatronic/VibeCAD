@@ -30,7 +30,7 @@ import {
   type BlendRequest,
   type BlendResult,
   type CurveKind,
-  type DistanceResult,
+  type DistanceResult, type DistanceTarget,
   type EdgeMeshInfo,
   type CopyTag,
   type FaceMeshInfo,
@@ -1662,14 +1662,13 @@ export class OcctKernel implements GeometryKernel {
     );
   }
 
-  distance(
-    a: { shape: KernelShape; kind: 'face' | 'edge'; index: number },
-    b: { shape: KernelShape; kind: 'face' | 'edge'; index: number },
-  ): DistanceResult {
+  distance(a: DistanceTarget, b: DistanceTarget): DistanceResult {
     const oc = this.oc;
     return this.guard('mesure', () =>
       withScope((scope) => {
-        const pick = (p: typeof a): TopoDS_Shape => {
+        const pick = (p: DistanceTarget): TopoDS_Shape => {
+          if ('point' in p) return scope.track(scope.track(new oc.BRepBuilderAPI_MakeVertex(this.pnt(scope, p.point))).Vertex());
+          if ('segment' in p) return scope.track(scope.track(new oc.BRepBuilderAPI_MakeEdge(this.pnt(scope, p.segment.a), this.pnt(scope, p.segment.b))).Edge());
           const src = asOcct(p.shape);
           if (p.kind === 'face') {
             const f = src.faces[p.index];

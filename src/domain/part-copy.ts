@@ -25,7 +25,13 @@ const prefixOf = (id: string) => id.slice(0, Math.max(1, id.indexOf('-'))) || 'i
  * ressources embarquées ; `hideSketches` masque leurs esquisses. Renvoie le projet et les
  * identifiants des nouvelles pièces, dans l'ordre.
  */
-export function copyPartsInto(target: CadDocument, source: CadDocument, partIds?: Id[], options: { hideSketches?: boolean } = {}): { doc: CadDocument; partIds: Id[] } {
+export function copyPartsInto(
+  target: CadDocument,
+  source: CadDocument,
+  partIds?: Id[],
+  /** `shareResources` : copie dans le même projet, les ressources embarquées (fichiers importés) ne sont pas dédoublées. */
+  options: { hideSketches?: boolean; shareResources?: boolean } = {},
+): { doc: CadDocument; partIds: Id[] } {
   const parts = source.parts.filter((p) => !partIds || partIds.includes(p.id));
   const taken = takenIds(target);
   const map = new Map<string, string>();
@@ -44,7 +50,7 @@ export function copyPartsInto(target: CadDocument, source: CadDocument, partIds?
   }
   // Ressources utilisées par ces pièces (fichiers importés, images) : copiées sous un nouvel id.
   const json = JSON.stringify(parts);
-  const resources = Object.entries(source.resources).filter(([id]) => json.includes(`"${id}"`));
+  const resources = options.shareResources ? [] : Object.entries(source.resources).filter(([id]) => json.includes(`"${id}"`));
   for (const [id] of resources) fresh(id);
   // Remplacement de chaque identifiant là où il apparaît comme valeur exacte (références entre
   // étapes, arêtes, faces…) ; les identifiants internes aux esquisses ne sont pas touchés.

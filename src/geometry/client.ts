@@ -11,7 +11,7 @@ import type { Vec3 } from '../math/vec';
 import {
   documentForWorker,
   type EvaluationResult,
-  type PickRef,
+  type MeasureTarget,
   type WorkerRequest,
   type WorkerResponse,
   type ExportPlacement,
@@ -209,7 +209,7 @@ export class GeometryClient {
     return this.request('inspectStep', { bytes, format });
   }
 
-  async measure(doc: CadDocument, a: PickRef, b: PickRef): Promise<WorkerResultMap['measure']> {
+  async measure(doc: CadDocument, a: MeasureTarget, b: MeasureTarget): Promise<WorkerResultMap['measure']> {
     await this.syncResources(doc);
     return this.request('measure', { doc: documentForWorker(doc), a, b });
   }

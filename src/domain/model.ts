@@ -182,12 +182,31 @@ export interface MechanismStudy {
   safety: number;
   /** Masses portées (kg), posées au centre de gravité de la pièce `instanceKey` (clé dépliée). */
   loads?: { instanceKey: string; mass: number }[];
+  /** Étude du mouvement : pièce (clé dépliée) dont le centre de gravité est suivi (trajectoire, vitesse). */
+  tracked?: string;
+}
+
+/** Mouvement d'une liaison suivi par un scénario : rotation (pivot) ou translation (glissière). */
+export type MotionDof = 'angle' | 'offset';
+
+/**
+ * Scénario de mouvement : des liaisons pilotantes, réglées au curseur (`value`, degrés ou mm), et
+ * des liaisons pilotées, dont la position est relevée comme par un capteur. Les autres liaisons
+ * suivent librement. Plusieurs scénarios permettent d'essayer différents choix de pilotage.
+ */
+export interface MotionScenario {
+  id: Id;
+  name: string;
+  drivers: { jointId: Id; dof: MotionDof; value: number }[];
+  sensors: { jointId: Id; dof: MotionDof }[];
 }
 
 export interface SimulationSettings {
   studies: SimulationStudy[];
   /** Étude « Mécanisme » de l'assemblage (facultative). */
   mechanism?: MechanismStudy;
+  /** Scénarios de mouvement (facultatifs). */
+  scenarios?: MotionScenario[];
 }
 
 // ---------------------------------------------------------------------------
