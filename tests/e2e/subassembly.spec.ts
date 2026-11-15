@@ -51,8 +51,8 @@ test('bloc souple : le pivot du bloc se règle à cette insertion, sans changer 
   doc.assembly = { instances: [{ id: 'in-b', partId: '', subassemblyId: 'sa-1', name: 'Charnière', position: { x: 0, y: 0, z: 0 } }], joints: [] };
   await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), JSON.stringify(file));
   await page.click('#tab-assembly');
-  // L'insertion du bloc, sous la ligne de son ensemble dans l'arbre.
-  await page.locator('.part-list .copy-row', { hasText: 'Charnière' }).locator('.part-select').click();
+  // L'insertion du bloc, sous la ligne de son ensemble dans l'arbre (elle dit où il est posé).
+  await page.locator('.part-list .copy-row', { hasText: 'dans l’assemblage' }).locator('.part-select').click();
   await page.locator('#as-block-flexible').check();
   const angle = page.getByLabel('Angle exact');
   await expect(angle).toHaveValue('30');
