@@ -203,14 +203,27 @@ function PartsSection() {
   const insertionsOf = (subId: Id): Copy[] =>
     [null, ...ensembles.map((e) => e.id)].flatMap((level) => levelContent(level).instances.filter((i) => i.subassemblyId === subId).map((inst) => ({ inst, level })));
   /** Repère d'un exemplaire dans l'onglet Assemblage : fixe, nombre de liaisons, ou libre. */
-  const tagOf = ({ inst, level }: Copy, showLevel = false): { text: string; free: boolean } => {
+  type Tag = { text: string; where: string; fixed: boolean; joints: number; free: boolean };
+  const tagOf = ({ inst, level }: Copy, showLevel = false): Tag => {
     const a = levelContent(level);
     const fixed = a.instances[0]?.id === inst.id;
     const joints = a.joints.filter((j) => j.moving.instanceId === inst.id || j.base.instanceId === inst.id).length;
-    // Insertion d'un ensemble dans un autre : on dit où (une copie de pièce est déjà sous son ensemble).
-    const where = showLevel ? (level ? `dans « ${levelName(level)} » · ` : 'principal · ') : '';
-    return { text: `${where}${fixed ? '📌 fixe' : joints > 0 ? `${joints} liaison${joints > 1 ? 's' : ''}` : 'libre'}`, free: !fixed && joints === 0 };
+    // Copie posée ailleurs que sous sa ligne : on dit où.
+    const where = showLevel ? (level ? levelName(level) : 'principal') : '';
+    return { text: `${where ? `${where} · ` : ''}${fixed ? 'fixe' : joints > 0 ? `${joints} liaison${joints > 1 ? 's' : ''}` : 'libre'}`, where, fixed, joints, free: !fixed && joints === 0 };
   };
+  /** Repère compact à droite du nom : « fixe », nombre de liaisons, ou « libre ». */
+  const tagView = (t: Tag) => (
+    <span class={`asm-tag${t.free ? ' is-free' : ''}`} title={t.text}>
+      {t.where ? <span class="where">{t.where}</span> : null}
+      {t.fixed ? 'fixe' : t.joints > 0 ? [<Icon key="i" name="pivot" />, t.joints, <span key="t" class="visually-hidden"> liaison{t.joints > 1 ? 's' : ''}</span>] : 'libre'}
+    </span>
+  );
+  /** Filtre de la liste (nom de pièce, de dossier ou d'ensemble), sans casse ni accents. */
+  const [query, setQuery] = useState('');
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = fold ? '' : norm(query.trim());
+  const matches = (name: string) => !q || norm(name).includes(q);
   const ensembleOfPart = (p: Part): Id | null => ensembles.find((e) => e.instances.some((i) => i.partId === p.id && !i.subassemblyId))?.id ?? null;
   /** Ligne sous laquelle la pièce est rangée : son ensemble, sinon son dossier, sinon aucune (''). */
   const groupOf = (p: Part): Id | '' => ensembleOfPart(p) ?? (p.folder && folders.some((f) => f.id === p.folder) ? p.folder : '');
@@ -263,7 +276,8 @@ function PartsSection() {
     const { inst, level } = copy;
     const selected = asm && asmSel === inst.id && openLevel === level;
     // Le niveau est dit pour une insertion d'ensemble, ou une copie posée ailleurs que sous sa ligne.
-    const tag = asm ? tagOf(copy, !partId || level !== (parts.find((x) => x.id === partId) ? ensembleOfPart(parts.find((x) => x.id === partId)!) : null)) : null;
+    const owner = partId ? parts.find((x) => x.id === partId) : undefined;
+    const tag = asm ? tagOf(copy, !!owner && level !== ensembleOfPart(owner)) : null;
     const here = level === openLevel;
     return (
       <li key={`copy:${inst.id}`} class={`part-row copy-row${deep ? ' deep' : ''}${selected ? ' is-selected' : ''}${inst.hidden ? ' is-hidden' : ''}`}>
@@ -275,7 +289,7 @@ function PartsSection() {
           onClick={() => (asm ? c.selectAssemblyInstance(level, inst.id) : partId && c.setActivePart(partId))}
         >
           <span class="name">{label}</span>
-          {tag ? <span class={`asm-tag${tag.free ? ' is-free' : ''}`}>{tag.text}</span> : null}
+          {tag ? tagView(tag) : null}
           {inst.hidden ? <span class="visually-hidden"> (masqué)</span> : null}
         </button>
         <span class="row-actions">
@@ -387,7 +401,7 @@ function PartsSection() {
                         ×{copies.length}
                       </span>
                     ) : null}
-                    {tag ? <span class={`asm-tag${tag.free ? ' is-free' : ''}`}>{tag.text}</span> : null}
+                    {tag ? tagView(tag) : null}
                     {p.visible ? null : <span class="visually-hidden"> (masquée)</span>}
                     {p.id === activePartId && !asm ? <span class="visually-hidden"> (pièce active)</span> : null}
                   </button>
@@ -433,8 +447,13 @@ function PartsSection() {
               ...(unfolded ? copies.map((cp) => copyRow(cp, cp.inst.name, p.id, !!groupOf(p) && !fold)) : []),
             ];
   };
+  /** Insertion d'un ensemble : la ligne au-dessus le nomme déjà, celle-ci dit où il est posé. */
+  const insertionLabel = (cp: Copy, all: Copy[]) => {
+    const same = all.filter((o) => o.level === cp.level);
+    return `dans ${cp.level ? levelName(cp.level) : 'l’assemblage'}${same.length > 1 ? ` · ${same.indexOf(cp) + 1}` : ''}`;
+  };
   const groupRow = (g: { kind: 'ensemble' | 'folder'; id: Id; name: string }, inside: Part[]) => {
-    const closed = closedFolders.has(g.id);
+    const closed = !q && closedFolders.has(g.id);
     const allHidden = inside.length > 0 && inside.every((p) => !p.visible);
     return [
       <li
@@ -477,8 +496,9 @@ function PartsSection() {
             <span class="name">{g.name}</span>
             <span class="folder-count">{inside.length}</span>
             {asm && g.kind === 'ensemble' && levelContent(g.id).joints.length > 0 ? (
-              <span class="asm-tag" title="Liaisons entre les pièces de l’ensemble (ouvrez-le pour les voir)">
-                {levelContent(g.id).joints.length} liaison{levelContent(g.id).joints.length > 1 ? 's' : ''}
+              <span class="asm-tag" title={`${levelContent(g.id).joints.length} liaison${levelContent(g.id).joints.length > 1 ? 's' : ''} dans l’ensemble`}>
+                <Icon name="pivot" />
+                {levelContent(g.id).joints.length}
               </span>
             ) : null}
           </button>
@@ -508,7 +528,7 @@ function PartsSection() {
         </span>
       </li>,
       // Onglet Assemblage : les insertions de l'ensemble (ses blocs), puis ses pièces.
-      ...(closed ? [] : [...(asm && g.kind === 'ensemble' ? insertionsOf(g.id).map((cp) => copyRow(cp, cp.inst.name, null)) : []), ...inside.map(partRow)]),
+      ...(closed ? [] : [...(asm && g.kind === 'ensemble' && !q ? insertionsOf(g.id).map((cp, _i, all) => copyRow(cp, insertionLabel(cp, all), null)) : []), ...inside.map(partRow)]),
     ];
   };
   const menuPart = menu ? parts.find((p) => p.id === menu.id) : undefined;
@@ -582,6 +602,22 @@ function PartsSection() {
             <strong class="level-name">{levelName(openLevel)}</strong>
           </div>
         ) : null}
+        {!fold && (parts.length > 7 || query) ? (
+          <label class="part-filter">
+            <Icon name="search" />
+            <input
+              type="search"
+              placeholder="Filtrer"
+              aria-label="Filtrer les pièces"
+              value={query}
+              onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Escape') setQuery('');
+              }}
+            />
+          </label>
+        ) : null}
         <ul
           class={`part-list${dropOn === '' ? ' is-drop' : ''}`}
           ref={listRef}
@@ -604,11 +640,16 @@ function PartsSection() {
           {fold
             ? shown.map(partRow)
             : [
-                ...ensembles.flatMap((e) => groupRow({ kind: 'ensemble', id: e.id, name: e.name }, parts.filter((p) => groupOf(p) === e.id))),
-                ...folders.flatMap((f) => groupRow({ kind: 'folder', id: f.id, name: f.name }, parts.filter((p) => groupOf(p) === f.id))),
-                ...parts.filter((p) => groupOf(p) === '').map(partRow),
+                ...[...ensembles.map((e) => ({ kind: 'ensemble' as const, id: e.id, name: e.name })), ...folders.map((f) => ({ kind: 'folder' as const, id: f.id, name: f.name }))].flatMap((g) => {
+                  // Filtre : un groupe dont le nom correspond montre tout son contenu.
+                  const whole = matches(g.name);
+                  const inside = parts.filter((p) => groupOf(p) === g.id && (whole || matches(p.name)));
+                  return q && inside.length === 0 && !whole ? [] : groupRow(g, inside);
+                }),
+                ...parts.filter((p) => groupOf(p) === '' && matches(p.name)).map(partRow),
               ]}
         </ul>
+        {q && !parts.some((p) => matches(p.name)) && ![...ensembles, ...folders].some((g) => matches(g.name)) ? <p class="empty-hint">Aucun résultat.</p> : null}
         {isolated ? (
           <div class="isolate-banner" role="status">
             <span>
@@ -901,7 +942,10 @@ function HistorySection() {
           onClick={toggleFoldHistory}
         >
           <Icon name={foldHistory ? 'chevron-right' : 'chevron-down'} />
-          <span id="history-title" title={`Historique — ${part.name}`}>Historique — {part.name}</span>
+          <span id="history-title" class="section-name" title={`Historique — ${part.name}`}>
+            Historique<span class="visually-hidden"> — </span>
+          </span>
+          <span class="section-sub" title={part.name}>{part.name}</span>
           {part.features.length > 1 && !partLocked(part) ? <span class="count">{part.features.length}</span> : null}
         </button>
       </div>
@@ -937,7 +981,7 @@ function HistorySection() {
             Pièce vide.
           </p>
         ) : null}
-        <ol class="feature-list" ref={list} aria-label={`Étapes de construction de ${part.name}`}>
+        <ol class="feature-list history-list" ref={list} aria-label={`Étapes de construction de ${part.name}`}>
           {active === 0 && part.features.length > 0 && !foldHistory ? [draftRow, rollbackMarker] : null}
           {part.features.flatMap((f, index) => {
             if (foldHistory && f.id !== shownId) return [];
@@ -1025,11 +1069,81 @@ function HistorySection() {
   );
 }
 
+/** Largeur du volet choisie à la poignée (écran large), gardée d'une session à l'autre. */
+const WIDTH_KEY = 'vibecad.leftWidth';
+const WIDTH_MIN = 240;
+const WIDTH_MAX = 560;
+function readWidth(): number | null {
+  try {
+    const v = Number(localStorage.getItem(WIDTH_KEY));
+    return v >= WIDTH_MIN && v <= WIDTH_MAX ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function WidthHandle() {
+  const ref = useRef<HTMLDivElement>(null);
+  const apply = (w: number | null) => {
+    const main = ref.current?.closest<HTMLElement>('.main');
+    if (!main) return;
+    if (w === null) main.style.removeProperty('--left-width');
+    else main.style.setProperty('--left-width', `${w}px`);
+    // La vue recentre son cadrage sur la zone libre.
+    window.dispatchEvent(new Event('resize'));
+  };
+  const store = (w: number | null) => {
+    try {
+      if (w === null) localStorage.removeItem(WIDTH_KEY);
+      else localStorage.setItem(WIDTH_KEY, String(w));
+    } catch {
+      /* stockage indisponible : la largeur vaut pour la session */
+    }
+  };
+  useLayoutEffect(() => apply(readWidth()), []);
+  return (
+    <div
+      ref={ref}
+      class="panel-width-resize"
+      role="separator"
+      aria-orientation="vertical"
+      title="Glisser pour ajuster la largeur du volet (double-clic : largeur par défaut)"
+      onPointerDown={(e) => {
+        const handle = e.currentTarget as HTMLElement;
+        const panel = handle.parentElement;
+        if (!panel) return;
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
+        const left = panel.getBoundingClientRect().left;
+        let width: number | null = null;
+        const onMove = (ev: PointerEvent) => {
+          width = Math.round(Math.max(WIDTH_MIN, Math.min(ev.clientX - left, WIDTH_MAX, window.innerWidth * 0.45)));
+          apply(width);
+        };
+        const onUp = () => {
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', onUp);
+          handle.removeEventListener('pointercancel', onUp);
+          if (width !== null) store(width);
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+      }}
+      onDblClick={() => {
+        store(null);
+        apply(null);
+      }}
+    />
+  );
+}
+
 export function LeftPanel() {
   const workspace = useAppState((s) => s.workspace);
   const canParameters = useAppState((s) => allows(s.level, 'parameters'));
   return (
     <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : 'Pièces et historique'}>
+      <WidthHandle />
       {workspace === 'assembly' ? (
         <>
           <PartsSection />

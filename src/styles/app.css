@@ -904,13 +904,13 @@ textarea {
 }
 
 /*
- * Liste des pièces : elle prend la place qu'il lui faut jusqu'à 35 % du panneau, puis défile.
+ * Liste des pièces : elle prend la place qu'il lui faut jusqu'à 45 % du panneau, puis défile.
  * Elle ne rétrécit pas sous cette hauteur : un long historique l'écrasait sinon jusqu'à une seule
  * ligne coupée. L'historique défile dans la place restante.
  */
 .parts-section {
   flex: 0 0 auto;
-  max-height: 35%;
+  max-height: 45%;
   position: relative;
 }
 
@@ -5426,4 +5426,220 @@ option.is-unfit {
   background: none;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ Volet gauche : lisibilité */
+
+/* Sections séparées par un filet. */
+.left-panel .panel-section + .panel-section {
+  border-top: 1px solid var(--border);
+}
+
+/* Largeur du volet réglable à la poignée (écran large). */
+.panel-width-resize {
+  display: none;
+}
+
+@media (min-width: 981px) {
+  .panel-width-resize {
+    display: block;
+    position: absolute;
+    z-index: 2;
+    top: 14px;
+    bottom: 14px;
+    right: 0;
+    width: 6px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .panel-width-resize:hover,
+  .panel-width-resize:active {
+    background: linear-gradient(to right, transparent 4px, var(--accent) 4px);
+  }
+}
+
+/* Filtre de la liste des pièces (projets chargés). */
+.part-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 28px;
+  margin: 0 0 6px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-faint);
+}
+
+.part-filter:focus-within {
+  border-color: var(--accent);
+}
+
+.part-filter svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.part-filter input {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* Repère compact : « fixe », icône de liaison + nombre, ou « libre ». */
+.asm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asm-tag svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.asm-tag .where {
+  min-width: 0;
+  margin-right: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Guides d'indentation : le contenu d'un dossier, d'un ensemble, les exemplaires d'une pièce. */
+.part-row.in-folder,
+.copy-row {
+  position: relative;
+}
+
+.part-row.in-folder::before,
+.copy-row::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -11px;
+  width: 1px;
+  background: var(--border-strong);
+  pointer-events: none;
+}
+
+.copy-row.deep::before {
+  left: -33px;
+  width: 23px;
+  background: linear-gradient(to right, var(--border-strong) 1px, transparent 1px, transparent 22px, var(--border-strong) 22px);
+}
+
+/* Titre de section : nom de la pièce à la suite, en casse normale. */
+.section-toggle > .section-name {
+  flex: none;
+}
+
+.section-sub {
+  color: var(--text-faint);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Historique et liaisons : une ligne par élément (nom, puis détail estompé). */
+.history-list .feature-main,
+.joint-list .feature-main {
+  min-height: 30px;
+  padding: 2px 6px;
+}
+
+.history-list .feature-texts,
+.joint-list .feature-texts {
+  flex: 1;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.history-list .feature-texts .name,
+.joint-list .feature-texts .name {
+  flex: 0 1 auto;
+}
+
+.history-list .feature-texts .status-line,
+.joint-list .feature-texts .status-line {
+  flex: 1 1 0;
+}
+
+.history-list .feature-texts .summary,
+.joint-list .feature-texts .summary {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Actions par-dessus la fin de la ligne (survol, sélection) : elles ne prennent pas de place au nom. */
+.history-list .feature-row .row-actions,
+.joint-list .feature-row .row-actions {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2-solid, var(--surface-2));
+}
+
+.history-list .row-actions .icon-btn.small,
+.joint-list .row-actions .icon-btn.small {
+  width: 26px;
+  height: 26px;
+}
+
+@media (pointer: coarse) {
+  .history-list .feature-main,
+  .joint-list .feature-main {
+    min-height: 40px;
+  }
+  .history-list .row-actions .icon-btn.small,
+  .joint-list .row-actions .icon-btn.small {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Onglet Assembler : pas de titre vide, « Liaisons » est l'en-tête de la section. */
+.asm-section .panel-body {
+  padding-top: 8px;
+}
+
+.asm-section .asm-joints-toggle {
+  margin: 2px 0 6px;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+}
+
+.asm-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.asm-filter-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }

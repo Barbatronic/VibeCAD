@@ -348,21 +348,39 @@ export function AssemblySection() {
           kind: j.kind,
           moving: a.instances.find((i) => i.id === j.moving.instanceId)?.name ?? '?',
           base: a.instances.find((i) => i.id === j.base.instanceId)?.name ?? '?',
+          ends: [j.moving.instanceId, j.base.instanceId],
           issue: placement?.issues.get(j.id) ?? null,
         })),
         sel: s.assemblySelection,
+        names: Object.fromEntries(a.instances.map((i) => [i.id, i.name])) as Record<string, string>,
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
   const [, refresh] = useState(0);
   const issues = data.joints.filter((j) => j.issue).length;
+  /**
+   * Pièce choisie : la liste se limite à ses liaisons. Elle le reste quand on choisit l'une d'elles
+   * (la liste ne saute pas sous le pointeur), jusqu'à une autre sélection.
+   */
+  const [focus, setFocus] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const sel = data.sel;
+  const selKey = sel ? `${sel.kind}:${'id' in sel ? sel.id : ''}` : '';
+  useEffect(() => {
+    if (sel?.kind === 'instance') {
+      if (sel.id !== focus) setShowAll(false);
+      setFocus(sel.id);
+    } else if (sel?.kind === 'joint' && focus && data.joints.find((j) => j.id === sel.id)?.ends.includes(focus)) {
+      /* liaison de la pièce suivie : le filtre reste */
+    } else setFocus(null);
+  }, [selKey]);
+  const focusName = focus ? data.names[focus] : undefined;
+  const filtered = focusName !== undefined && !showAll;
+  const joints = filtered ? data.joints.filter((j) => j.ends.includes(focus!)) : data.joints;
   // Les pièces et ensembles sont dans l'arbre « Pièces » au-dessus : ici, l'outillage du niveau ouvert.
   return (
-    <section class="panel-section grow" aria-labelledby="assembly-title">
-      <div class="panel-header">
-        <span id="assembly-title">Assemblage</span>
-      </div>
+    <section class="panel-section grow asm-section" aria-label="Liaisons et visserie">
       <div class="panel-body">
         {data.count === 0 ? <p class="empty-hint">Assemblage vide. La première pièce insérée est fixe.</p> : null}
         <ExplodeSlider />
@@ -380,16 +398,27 @@ export function AssemblySection() {
             >
               <Icon name={jointsFolded ? 'chevron-right' : 'chevron-down'} class="asm-chevron" />
               Liaisons
-              <span class="count">{data.joints.length}</span>
+              <span class="count">{filtered ? `${joints.length} / ${data.joints.length}` : data.joints.length}</span>
               {issues > 0 ? <span class="status-badge status-error">{issues} souci{issues > 1 ? 's' : ''}</span> : null}
             </button>
             <IconButton id="joints-set-zero" icon="target" small label="Prendre la pose actuelle comme zéro (position de référence du mode Modéliser)" onClick={() => c.setAllJointsZero()} />
             <IconButton id="joints-reset" icon="joints-zero" small label="Remettre toutes les liaisons à zéro" onClick={() => c.resetJoints()} />
           </div>
         ) : null}
+        {data.joints.length > 0 && !jointsFolded && focusName !== undefined ? (
+          <div class="asm-filter">
+            <span class="asm-filter-name" title={focusName}>
+              {filtered ? focusName : 'Toutes les liaisons'}
+            </span>
+            <button type="button" class="tl-link" onClick={() => setShowAll(!showAll)}>
+              {filtered ? 'Tout afficher' : `Seulement « ${focusName} »`}
+            </button>
+          </div>
+        ) : null}
+        {filtered && joints.length === 0 && !jointsFolded ? <p class="empty-hint">Aucune liaison.</p> : null}
         {jointsFolded ? null : (
-          <ul class="feature-list asm-list" aria-label="Liaisons de l’assemblage">
-            {data.joints.map((j) => (
+          <ul class="feature-list asm-list joint-list" aria-label="Liaisons de l’assemblage">
+            {joints.map((j) => (
               <li key={j.id}>
                 <div class={`feature-row asm-row${data.sel?.kind === 'joint' && data.sel.id === j.id ? ' is-selected' : ''}`}>
                   <button
@@ -401,8 +430,10 @@ export function AssemblySection() {
                   >
                     <Icon name={`joint-${j.kind}`} class="feature-icon" />
                     <span class="feature-texts">
+                      {/* Le nom reste : les couplages désignent les liaisons par lui. Le type est dit par l'icône. */}
                       <span class="name">
-                        {j.name} · {JOINT_LABELS[j.kind]}
+                        {j.name}
+                        <span class="visually-hidden"> · {JOINT_LABELS[j.kind]} : </span>
                       </span>
                       <span class="status-line">
                         {j.issue ? <span class="status-badge status-error">Souci</span> : null}
