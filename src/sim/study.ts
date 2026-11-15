@@ -20,6 +20,11 @@ export interface StudyInput {
   material: Material;
   /** Nombre de cubes visé (précision). */
   targetCells: number;
+  /**
+   * Plafond de cubes : la grille est resserrée jusque-là tant qu'elle rend mal le volume de la
+   * pièce (parois plus fines qu'un cube). Absent : pas de resserrage.
+   */
+  maxCells?: number;
   /** Assemblage : un solide fermé par plage d'indices (voir `voxelize`). */
   parts?: { start: number; count: number }[];
 }
@@ -35,6 +40,8 @@ export interface StudyOutput {
   maxDisplacement: number;
   maxStress: number;
   cells: number;
+  /** Écart relatif entre le volume des cubes et celui de la pièce : grand, la grille la rend mal. */
+  volumeError: number;
   /** Cubes écartés : morceaux qui ne touchent aucune face fixée (ils flotteraient). */
   ignoredCells: number;
   cellSize: number;
@@ -74,7 +81,7 @@ const solidCount = (g: VoxelGrid) => g.solid.reduce((s, v) => s + v, 0);
  * plus petite dimension de la pièce (son épaisseur, souvent) compte un nombre entier de cubes :
  * sinon la grille l'épaissirait d'un demi-cube et la pièce paraîtrait trop raide.
  */
-export function gridFor(positions: Float32Array, indices: Uint32Array, target: number, parts?: { start: number; count: number }[]): VoxelGrid {
+export function gridFor(positions: Float32Array, indices: Uint32Array, target: number, parts?: { start: number; count: number }[], maxCells?: number): VoxelGrid {
   const volume = meshVolume(positions, indices);
   let h = Math.cbrt(Math.max(volume, 1e-6) / target);
   const lo = [Infinity, Infinity, Infinity];
@@ -91,7 +98,24 @@ export function gridFor(positions: Float32Array, indices: Uint32Array, target: n
     h = snap(h / 1.5);
     grid = voxelize({ positions, indices }, h, parts);
   }
+  // Parois plus fines qu'un cube : elles sont épaissies ou perdues, et le volume des cubes s'écarte
+  // de celui de la pièce. La grille est resserrée tant que le plafond le permet.
+  if (maxCells) {
+    for (let i = 0; i < 4 && volumeError(grid, volume) > VOLUME_TOLERANCE && solidCount(grid) * 1.9 <= maxCells; i++) {
+      const finer = snap(h / 1.25);
+      if (!(finer < h)) break;
+      h = finer;
+      grid = voxelize({ positions, indices }, h, parts);
+    }
+  }
   return grid;
+}
+
+/** Écart de volume toléré entre les cubes et la pièce avant de resserrer la grille. */
+export const VOLUME_TOLERANCE = 0.03;
+
+export function volumeError(g: VoxelGrid, volume: number): number {
+  return volume > 0 ? Math.abs(solidCount(g) * g.h ** 3 - volume) / volume : 0;
 }
 
 /** Nœuds de la surface des cubes : touchant au moins un cube vide (ou le bord de la grille). */
@@ -256,11 +280,51 @@ function nearestSolidCell(g: VoxelGrid, x: number, y: number, z: number): [numbe
 }
 
 /**
+ * Part de la charge reçue par chaque nœud chargé (somme : 1), selon l'aire qu'il porte : chaque
+ * face de cube à la surface dont les 4 nœuds sont chargés donne un quart de son aire à chacun.
+ * Sur une face plane, un nœud du bord porte ainsi moitié moins qu'un nœud du milieu, et un coin
+ * le quart : la pression est uniforme. Sans cela, bords et coins seraient surchargés. Aucune face
+ * entière chargée (une arête, un point) : parts égales.
+ */
+export function loadWeights(g: VoxelGrid, loaded: readonly number[]): number[] {
+  const index = new Map(loaded.map((n, i) => [n, i]));
+  const w = new Array<number>(loaded.length).fill(0);
+  const solid = (i: number, j: number, k: number) => i >= 0 && j >= 0 && k >= 0 && i < g.nx && j < g.ny && k < g.nz && g.solid[i + g.nx * (j + g.ny * k)] === 1;
+  const node = (i: number, j: number, k: number) => i + (g.nx + 1) * (j + (g.ny + 1) * k);
+  // Faces de cube perpendiculaires à chaque axe, entre un cube plein et le vide.
+  const axes: [number, number, number][] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let k = 0; k < g.nz; k++)
+    for (let j = 0; j < g.ny; j++)
+      for (let i = 0; i < g.nx; i++) {
+        if (!solid(i, j, k)) continue;
+        for (const [ax, ay, az] of axes)
+          for (const side of [0, 1]) {
+            const d = side ? 1 : -1;
+            if (solid(i + d * ax, j + d * ay, k + d * az)) continue;
+            // Les 4 nœuds de la face (plan à l'indice i + side selon l'axe).
+            const quad: number[] = [];
+            for (const u of [0, 1])
+              for (const v of [0, 1]) {
+                const di = ax ? side : u;
+                const dj = ay ? side : ax ? u : v;
+                const dk = az ? side : v;
+                quad.push(node(i + di, j + dj, k + dk));
+              }
+            const idx = quad.map((n) => index.get(n));
+            if (idx.some((x) => x === undefined)) continue;
+            for (const x of idx) w[x!] = w[x!]! + 1;
+          }
+      }
+  const total = w.reduce((a, b) => a + b, 0);
+  return total > 0 ? w.map((x) => x / total) : w.map(() => 1 / loaded.length);
+}
+
+/**
  * Grille de cubes, nœuds bloqués et forces nodales d'une étude (commun au calcul de déformation et
  * à l'optimisation topologique). Les morceaux qui ne touchent aucune face fixée sont retirés.
  */
 export function prepareStudy(input: StudyInput): { g: VoxelGrid; fixed: number[]; loaded: number[]; forces: Map<number, { x: number; y: number; z: number }>; ignoredCells: number } {
-  const g = gridFor(input.positions, input.indices, input.targetCells, input.parts);
+  const g = gridFor(input.positions, input.indices, input.targetCells, input.parts, input.maxCells);
   if (solidCount(g) === 0) throw new StudyError('EMPTY');
   const tol = 0.75 * g.h;
   const fixed = nodesNearTriangles(g, input.fixed, tol, surfaceNodes(g));
@@ -272,40 +336,71 @@ export function prepareStudy(input: StudyInput): { g: VoxelGrid; fixed: number[]
   const loaded = ignoredCells ? nodesNearTriangles(g, input.loaded, tol, surfaceNodes(g)).filter((n) => !fixedSet.has(n)) : loadedBefore;
   // La charge appuie sur un morceau qui ne touche rien de tenu : il flotterait.
   if (loaded.length === 0) throw new StudyError('LOAD_FLOATING');
-  const share = { x: input.force.x / loaded.length, y: input.force.y / loaded.length, z: input.force.z / loaded.length };
-  const forces = new Map(loaded.map((n) => [n, share]));
+  const weights = loadWeights(g, loaded);
+  const forces = new Map(loaded.map((n, i) => [n, { x: input.force.x * weights[i]!, y: input.force.y * weights[i]!, z: input.force.z * weights[i]! }]));
   return { g, fixed, loaded, forces, ignoredCells };
+}
+
+/** Masque des nœuds à `rings` rangs au plus (voisins par face, arête ou coin) des nœuds donnés. */
+function grownMask(g: VoxelGrid, nodes: readonly number[], rings: number): Uint8Array {
+  const sx = g.nx + 1;
+  const sy = g.ny + 1;
+  const sz = g.nz + 1;
+  const mask = new Uint8Array(sx * sy * sz);
+  let front = [...nodes];
+  for (const n of front) mask[n] = 1;
+  for (let r = 0; r < rings; r++) {
+    const next: number[] = [];
+    for (const n of front) {
+      const i = n % sx;
+      const j = Math.floor(n / sx) % sy;
+      const k = Math.floor(n / (sx * sy));
+      for (let dk = -1; dk <= 1; dk++)
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const a = i + di, b = j + dj, c = k + dk;
+            if (a < 0 || b < 0 || c < 0 || a >= sx || b >= sy || c >= sz) continue;
+            const m = a + sx * (b + sy * c);
+            if (!mask[m]) {
+              mask[m] = 1;
+              next.push(m);
+            }
+          }
+    }
+    front = next;
+  }
+  return mask;
 }
 
 /** Lance l'étude ; `onProgress` reçoit l'avancement du calcul (0 → 1). */
 export function runStudy(input: StudyInput, onProgress?: (f: number) => void): StudyOutput {
   const t0 = performance.now();
-  const { g, fixed, forces, ignoredCells } = prepareStudy(input);
+  const { g, fixed, loaded, forces, ignoredCells } = prepareStudy(input);
   const cells = solidCount(g);
   const result = solveFea({ grid: g, material: input.material, fixedNodes: fixed, forces }, { tolerance: 1e-6, maxIterations: 8000, ...(onProgress ? { onProgress } : {}) });
-  // Contrainte aux nœuds : moyenne des cubes pleins voisins (affichage plus doux que cube par cube).
-  const N = (g.nx + 1) * (g.ny + 1) * (g.nz + 1);
-  const nodeStress = new Float32Array(N);
-  const nodeCount = new Uint8Array(N);
-  for (let k = 0; k < g.nz; k++)
-    for (let j = 0; j < g.ny; j++)
-      for (let i = 0; i < g.nx; i++) {
-        const e = i + g.nx * (j + g.ny * k);
-        if (!g.solid[e]) continue;
-        for (let c = 0; c < 8; c++) {
-          const n = i + (c & 1) + (g.nx + 1) * (j + ((c >> 1) & 1) + (g.ny + 1) * (k + ((c >> 2) & 1)));
-          nodeStress[n] = nodeStress[n]! + result.vonMises[e]!;
-          nodeCount[n] = nodeCount[n]! + 1;
-        }
-      }
-  for (let n = 0; n < N; n++) if (nodeCount[n]) nodeStress[n] = nodeStress[n]! / nodeCount[n]!;
+  const nodeStress = result.nodeVonMises;
+  // Contrainte maximale retenue (verdict, haut de l'échelle) : hors des nœuds bloqués et des nœuds
+  // chargés. Un blocage parfait et une force posée sur des nœuds y créent des pics qui n'existent
+  // pas dans la pièce réelle et qui grandissent avec la finesse du maillage.
+  // Le pic s'étale sur les nœuds voisins : on écarte aussi deux rangs autour des nœuds bloqués et
+  // un rang autour des nœuds chargés.
+  const excluded = grownMask(g, fixed, 1);
+  const nearLoad = grownMask(g, loaded, 1);
+  let maxStress = 0;
+  let maxAll = 0;
+  for (let n = 0; n < nodeStress.length; n++) {
+    const v = nodeStress[n]!;
+    if (v > maxAll) maxAll = v;
+    if (!excluded[n] && !nearLoad[n] && v > maxStress) maxStress = v;
+  }
+  // Pièce toute petite devant ses appuis : il ne reste rien, on garde le maximum brut.
+  if (!(maxStress > 0)) maxStress = maxAll;
   // Report sur les sommets d'un maillage subdivisé : interpolation dans le cube plein le plus proche.
   const mesh = refineMesh(input.positions, input.indices, 1.5 * g.h);
   const nv = mesh.positions.length / 3;
   const displacement = new Float32Array(3 * nv);
   const stress = new Float32Array(nv);
   let maxDisplacement = 0;
-  let maxStress = 0;
   const u = result.displacement;
   for (let v = 0; v < nv; v++) {
     const x = mesh.positions[3 * v]!;
@@ -334,9 +429,9 @@ export function runStudy(input: StudyInput, onProgress?: (f: number) => void): S
     displacement[3 * v] = dx;
     displacement[3 * v + 1] = dy;
     displacement[3 * v + 2] = dz;
-    stress[v] = s;
+    // Les pics écartés du maximum sont ramenés au haut de l'échelle.
+    stress[v] = Math.min(s, maxStress);
     maxDisplacement = Math.max(maxDisplacement, Math.hypot(dx, dy, dz));
-    maxStress = Math.max(maxStress, s);
   }
   return {
     positions: mesh.positions,
@@ -346,6 +441,8 @@ export function runStudy(input: StudyInput, onProgress?: (f: number) => void): S
     maxDisplacement,
     maxStress,
     cells,
+    // Avant le retrait des morceaux flottants : c'est la grille que l'on juge.
+    volumeError: volumeError({ ...g, solid: Uint8Array.from({ length: cells + ignoredCells }, () => 1) }, meshVolume(input.positions, input.indices)),
     ignoredCells,
     cellSize: g.h,
     iterations: result.iterations,

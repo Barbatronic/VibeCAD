@@ -43,6 +43,12 @@ export interface FeaResult {
   displacement: Float64Array;
   /** Contrainte de von Mises au centre de chaque cube (MPa) ; 0 pour un cube vide. */
   vonMises: Float32Array;
+  /**
+   * Contrainte de von Mises à chaque nœud (MPa) : tenseur lu aux coins des cubes, modes
+   * incompatibles compris, puis moyenné entre cubes voisins. À la surface d'une pièce en flexion,
+   * là où la contrainte est la plus forte, la valeur au centre des cubes la sous-estime.
+   */
+  nodeVonMises: Float32Array;
   maxDisplacement: number;
   maxVonMises: number;
   iterations: number;
@@ -198,6 +204,38 @@ export function boxStiffness(nu: number, ax: number, ay: number, az: number): Fl
   return K;
 }
 
+/**
+ * Matrices de contrainte aux 8 coins d'un cube d'arête 1 et de module 1 (6 × 24 chacune, à
+ * multiplier par E / h) : σ = D · (B + Bₐ · A) · u, où A = −Kₐₐ⁻¹ · Kᵤₐᵀ rend les modes
+ * incompatibles de l'élément à partir des déplacements de ses nœuds. Sans eux, les coins portent
+ * un cisaillement parasite en flexion.
+ */
+export function cornerStressMatrices(nu: number): Float64Array[] {
+  const D = elasticity(1, nu);
+  const g = 1 / Math.sqrt(3);
+  const Kua = Array.from({ length: 24 }, () => new Array<number>(9).fill(0));
+  const Kaa = Array.from({ length: 9 }, () => new Array<number>(9).fill(0));
+  for (const xi of [-g, g])
+    for (const eta of [-g, g])
+      for (const zeta of [-g, g]) {
+        const { B, Ba } = bMatrices(xi, eta, zeta);
+        btdb(B, D, Ba, 1 / 8, Kua);
+        btdb(Ba, D, Ba, 1 / 8, Kaa);
+      }
+  const inv = invert(Kaa);
+  // A (9 × 24).
+  const A = Array.from({ length: 9 }, (_, a) => Array.from({ length: 24 }, (_, q) => -inv[a]!.reduce((sum, v, b) => sum + v * Kua[q]![b]!, 0)));
+  return CORNERS.map(([cx, cy, cz]) => {
+    const { B, Ba } = bMatrices(cx, cy, cz);
+    const S = new Float64Array(6 * 24);
+    for (let q = 0; q < 24; q++) {
+      const eps = B.map((row, r) => row[q]! + Ba[r]!.reduce((sum, v, a) => sum + v * A[a]![q]!, 0));
+      for (let r = 0; r < 6; r++) S[r * 24 + q] = D[r]!.reduce((sum, d, j) => sum + d * eps[j]!, 0);
+    }
+    return S;
+  });
+}
+
 /** Résout le problème ; `onProgress` reçoit l'avancement (0 → 1) toutes les quelques itérations. */
 export function solveFea(
   problem: FeaProblem,
@@ -341,9 +379,33 @@ export function solveFea(
         vonMises[e] = vm;
         if (vm > maxVonMises) maxVonMises = vm;
       }
+  // Contraintes aux nœuds : tenseur à chaque coin de chaque cube, moyenné entre les cubes du nœud.
+  const S = cornerStressMatrices(material.nu);
+  const factor = material.E / g.h;
+  const tensor = new Float64Array(6 * N);
+  const count = new Uint8Array(N);
+  for (const base of elements) {
+    for (let a = 0; a < 8; a++) for (let c = 0; c < 3; c++) ue[3 * a + c] = x[3 * (base + offsets[a]!) + c]!;
+    for (let a = 0; a < 8; a++) {
+      const n = base + offsets[a]!;
+      const Sa = S[a]!;
+      for (let r = 0; r < 6; r++) {
+        let sum = 0;
+        for (let qq = 0; qq < 24; qq++) sum += Sa[r * 24 + qq]! * ue[qq]!;
+        tensor[6 * n + r] = tensor[6 * n + r]! + factor * sum;
+      }
+      count[n] = count[n]! + 1;
+    }
+  }
+  const nodeVonMises = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    if (!count[n]) continue;
+    const [a, b, c, tyz, txz, txy] = [0, 1, 2, 3, 4, 5].map((r) => tensor[6 * n + r]! / count[n]!) as [number, number, number, number, number, number];
+    nodeVonMises[n] = Math.sqrt(0.5 * ((a - b) ** 2 + (b - c) ** 2 + (c - a) ** 2) + 3 * (tyz ** 2 + txz ** 2 + txy ** 2));
+  }
   let maxDisplacement = 0;
   for (let n = 0; n < N; n++) maxDisplacement = Math.max(maxDisplacement, Math.hypot(x[3 * n]!, x[3 * n + 1]!, x[3 * n + 2]!));
   options.onProgress?.(1);
-  return { displacement: x, vonMises, maxDisplacement, maxVonMises, iterations: it, converged };
+  return { displacement: x, vonMises, nodeVonMises, maxDisplacement, maxVonMises, iterations: it, converged };
   }
 }

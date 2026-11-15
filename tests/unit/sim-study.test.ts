@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exaggerationFor, gridFor, heatColor, meshVolume, refineMesh, runStudy, StudyError, surfaceNodes } from '../../src/sim/study';
+import { exaggerationFor, gridFor, heatColor, loadWeights, meshVolume, refineMesh, runStudy, StudyError, surfaceNodes } from '../../src/sim/study';
 
 /** Maillage fermé d'une boîte alignée sur les axes. */
 function boxMesh(sx: number, sy: number, sz: number) {
@@ -150,5 +150,74 @@ describe('simulation : étude d’une pièce', () => {
     expect(exaggerationFor(50, 100)).toBe(1);
     expect(heatColor(0)[2]).toBeGreaterThan(0.5);
     expect(heatColor(1)[0]).toBeGreaterThan(0.8);
+  });
+});
+
+describe('contrainte maximale : comparée à la théorie des poutres', () => {
+  /** Pavé : faces x−, x+, y−, y+, z−, z+ (deux triangles chacune, normales sortantes). */
+  function beam(L: number, b: number, h: number) {
+    const quads: number[][][] = [
+      [[0, 0, 0], [0, 0, h], [0, b, h], [0, b, 0]],
+      [[L, 0, 0], [L, b, 0], [L, b, h], [L, 0, h]],
+      [[0, 0, 0], [L, 0, 0], [L, 0, h], [0, 0, h]],
+      [[0, b, 0], [0, b, h], [L, b, h], [L, b, 0]],
+      [[0, 0, 0], [0, b, 0], [L, b, 0], [L, 0, 0]],
+      [[0, 0, h], [L, 0, h], [L, b, h], [0, b, h]],
+    ];
+    const positions: number[] = [];
+    const indices: number[] = [];
+    const faces = quads.map((q) => {
+      const base = positions.length / 3;
+      q.forEach((p) => positions.push(...p));
+      indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      return Float32Array.from([...q[0]!, ...q[1]!, ...q[2]!, ...q[0]!, ...q[2]!, ...q[3]!]);
+    });
+    return { positions: Float32Array.from(positions), indices: Uint32Array.from(indices), faces };
+  }
+  const material = { E: 3000, nu: 0.36 };
+
+  it('poutre encastrée chargée en bout : flèche et contrainte justes, quelle que soit la finesse', () => {
+    const [L, b, h, F] = [100, 20, 10, 9.81];
+    const m = beam(L, b, h);
+    const stress = (6 * F * L) / (b * h * h);
+    const deflection = (F * L ** 3) / (3 * material.E * ((b * h ** 3) / 12));
+    const results = [3000, 12000].map((targetCells) => runStudy({ positions: m.positions, indices: m.indices, fixed: m.faces[0]!, loaded: m.faces[1]!, force: { x: 0, y: 0, z: -F }, material, targetCells }));
+    for (const r of results) {
+      expect(Math.abs(r.maxDisplacement / deflection - 1)).toBeLessThan(0.03);
+      // La contrainte de von Mises près de l'encastrement est un peu sous celle de la théorie des
+      // poutres (la paroi empêche la section de se contracter) : écart attendu de quelques pour cent.
+      expect(Math.abs(r.maxStress / stress - 1)).toBeLessThan(0.12);
+    }
+    // Le résultat ne dépend pas de la finesse : pas de pic qui grandit quand la grille se resserre.
+    expect(Math.abs(results[0]!.maxStress / results[1]!.maxStress - 1)).toBeLessThan(0.05);
+  });
+
+  it('lame mince (deux cubes dans l’épaisseur) : la contrainte de surface n’est pas sous-estimée', () => {
+    const [L, b, h, F] = [100, 20, 2, 0.981];
+    const m = beam(L, b, h);
+    const r = runStudy({ positions: m.positions, indices: m.indices, fixed: m.faces[0]!, loaded: m.faces[1]!, force: { x: 0, y: 0, z: -F }, material, targetCells: 3000 });
+    expect(Math.abs(r.maxStress / ((6 * F * L) / (b * h * h)) - 1)).toBeLessThan(0.1);
+  });
+
+  it('barre en traction : contrainte uniforme, sans pic aux appuis ni sous la charge', () => {
+    const [L, a, F] = [100, 10, 100];
+    const m = beam(L, a, a);
+    const r = runStudy({ positions: m.positions, indices: m.indices, fixed: m.faces[0]!, loaded: m.faces[1]!, force: { x: F, y: 0, z: 0 }, material, targetCells: 6000 });
+    expect(Math.abs(r.maxStress / (F / (a * a)) - 1)).toBeLessThan(0.1);
+    expect(Math.abs(r.maxDisplacement / ((F * L) / (material.E * a * a)) - 1)).toBeLessThan(0.02);
+    expect(r.volumeError).toBeLessThan(0.01);
+  });
+
+  it('répartit la charge selon l’aire : un coin porte le quart d’un nœud du milieu', () => {
+    // Grille 2 × 2 × 1 pleine, face du dessus chargée : 9 nœuds.
+    const g = { nx: 2, ny: 2, nz: 1, h: 1, origin: { x: 0, y: 0, z: 0 }, solid: new Uint8Array(4).fill(1) };
+    const top = Array.from({ length: 9 }, (_, n) => n + 9);
+    const w = loadWeights(g, top);
+    expect(w.reduce((s, x) => s + x, 0)).toBeCloseTo(1, 12);
+    expect(w[4]).toBeCloseTo(4 / 16, 12);
+    expect(w[1]).toBeCloseTo(2 / 16, 12);
+    expect(w[0]).toBeCloseTo(1 / 16, 12);
+    // Une arête seule (aucune face entière) : parts égales.
+    expect(loadWeights(g, [9, 10, 11])).toEqual([1 / 3, 1 / 3, 1 / 3]);
   });
 });
