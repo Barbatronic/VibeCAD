@@ -30,6 +30,7 @@ function FileMenu() {
   const root = useRef<HTMLDivElement>(null);
   const exportOk = useAppState((s) => exportAvailability(s).ok);
   const canImport = useAppState((s) => allows(s.level, 'import-step'));
+  const canBoard = useAppState((s) => allows(s.level, 'workspace:assembly'));
   const canVersions = useAppState((s) => allows(s.level, 'versions'));
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const projectName = useAppState((s) => s.doc.name);
@@ -116,6 +117,7 @@ function FileMenu() {
           <div class="menu-sep" role="separator" />
           {item('import', 'Composants (bibliothèques)…', () => c.openComponents())}
           {canImport ? item('import', 'Importer un fichier (STEP, STL)…', () => void c.importStep()) : null}
+          {canBoard ? item('import', 'Importer une carte KiCad (dossier du projet)…', () => void c.importKicadBoard()) : null}
           {item('export', 'Exporter… (STEP, 3MF, STL, GLB)', () => c.showExportDialog(), undefined, !exportOk)}
           <div class="menu-sep" role="separator" />
           {item('graduation', tutorialOn ? 'Fermer le parcours guidé' : 'Parcours guidés…', () => (tutorialOn ? c.closeTutorial() : c.startTutorial()))}

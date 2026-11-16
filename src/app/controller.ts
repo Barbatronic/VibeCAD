@@ -62,7 +62,7 @@ import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
 import { distance3 } from '../math/vec';
 import { AutosaveScheduler } from '../persistence/autosave';
 import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../persistence/db';
-import { ensureWritable, pickFile, pickFileWithHandle, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile, type SaveTarget } from '../persistence/files';
+import { ensureWritable, pickFile, pickFolder, pickFileWithHandle, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile, type SaveTarget } from '../persistence/files';
 import { importSvgShape } from '../io/svg-import';
 import type { StampShape } from '../sketch/stamp';
 import { chooseStamp, createSession, selectedStamp, setStampOptions, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
@@ -2618,6 +2618,74 @@ export class AppController {
 
   // =========================================================================
   // Import et export
+
+  /**
+   * Carte électronique KiCad : on choisit le dossier du projet ; la carte (`.kicad_pcb`) y est
+   * trouvée, et les modèles 3D de ses composants (`.step`, `.stp`, souvent dans `packages3D`)
+   * donnent leur hauteur réelle. La carte arrive comme un ensemble à son nom.
+   */
+  async importKicadBoard(): Promise<void> {
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const files = await pickFolder();
+    if (!files || files.length === 0) return;
+    const path = (f: File) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+    // La carte : hors des sauvegardes de KiCad ; celle du projet (.kicad_pro) en priorité, sinon la moins profonde.
+    const boards = files.filter((f) => /\.kicad_pcb$/i.test(f.name) && !/-backups\//i.test(path(f)));
+    const projects = new Set(files.filter((f) => /\.kicad_pro$/i.test(f.name)).map((f) => f.name.replace(/\.kicad_pro$/i, '').toLowerCase()));
+    const depth = (f: File) => path(f).split('/').length;
+    const file = [...boards].sort((a, b) => Number(projects.has(b.name.replace(/\.kicad_pcb$/i, '').toLowerCase())) - Number(projects.has(a.name.replace(/\.kicad_pcb$/i, '').toLowerCase())) || depth(a) - depth(b))[0];
+    if (!file) return this.toast('error', 'Aucune carte KiCad (.kicad_pcb) dans ce dossier : choisissez le dossier du projet KiCad.');
+    const { parseKicadBoard, modelCandidates } = await import('../io/kicad-pcb');
+    const { addKicadBoard } = await import('./kicad-board');
+    let board: ReturnType<typeof parseKicadBoard>;
+    try {
+      board = parseKicadBoard(await file.text(), file.name.replace(/\.kicad_pcb$/i, ''));
+    } catch (err) {
+      return this.toast('error', `« ${file.name} » n’a pas pu être lue.`, { detail: (err as Error).message });
+    }
+    // Modèles 3D du dossier, par nom de fichier (les sauvegardes de KiCad sont ignorées).
+    const steps = new Map(files.filter((f) => /\.(step|stp)$/i.test(f.name) && !/-backups\//i.test(path(f))).map((f) => [f.name.toLowerCase(), f]));
+    const wanted = [...new Map(board.components.flatMap((c) => c.models).map((m) => [m.file.toLowerCase(), m])).values()];
+    const boxes = new Map<string, { min: Vec3; max: Vec3 } | null>();
+    // Barre d'avancement : lecture des modèles, puis calcul des pièces (le recalcul la reprend et la retire).
+    this.set({ opening: { name: board.name, progress: 0 } });
+    {
+      for (const [i, m] of wanted.entries()) {
+        const found = modelCandidates(m).map((n) => steps.get(n)).find(Boolean);
+        let box: { min: Vec3; max: Vec3 } | null = null;
+        if (found) {
+          try {
+            const inspection = await this.deps.client.inspectStep(new Uint8Array(await found.arrayBuffer()), 'step');
+            for (const s of inspection.solids) {
+              const b = s.bbox;
+              if (b) box = box ? { min: { x: Math.min(box.min.x, b.min.x), y: Math.min(box.min.y, b.min.y), z: Math.min(box.min.z, b.min.z) }, max: { x: Math.max(box.max.x, b.max.x), y: Math.max(box.max.y, b.max.y), z: Math.max(box.max.z, b.max.z) } } : b;
+            }
+          } catch {
+            box = null;
+          }
+        }
+        boxes.set(m.file.toLowerCase(), box);
+        this.set({ opening: { name: board.name, progress: (i + 1) / Math.max(1, wanted.length) } });
+      }
+    }
+    // Projet tout neuf : sa pièce vide de départ laisse la place à la carte.
+    let doc = this.state.doc;
+    const lone = doc.parts.length === 1 ? doc.parts[0]! : null;
+    if (lone && lone.features.length === 0 && !doc.assembly?.instances.length && !doc.subassemblies?.length) doc = { ...doc, parts: [] };
+    const r = addKicadBoard(doc, board, boxes);
+    const boardPartId = r.doc.parts.find((p) => p.name === board.name)?.id ?? r.doc.parts[0]!.id;
+    this.commit(r.doc, `Importer la carte « ${board.name} »`, { activePartId: boardPartId, selection: null, fitRequest: this.state.fitRequest + 1 });
+    const missing = wanted.filter((m) => !boxes.get(m.file.toLowerCase())).map((m) => m.file);
+    const lines = [
+      ...(r.estimated.length ? [`Hauteur estimée (pas de modèle 3D) : ${r.estimated.join(', ')}`] : []),
+      ...(missing.length ? [`Modèles introuvables dans le dossier : ${missing.join(', ')}`] : []),
+    ];
+    this.toast(
+      'success',
+      `Carte « ${board.name} » importée : ${r.components} composants (${r.parts} formes), ${r.fromModel} hauteurs lues dans les modèles 3D${r.estimated.length ? `, ${r.estimated.length} estimées` : ''}.`,
+      lines.length ? { detail: lines.join('\n') } : {},
+    );
+  }
 
   async importStep(): Promise<void> {
     if (!this.can('import-step')) return this.explain('L’import de fichiers STEP et STL est disponible au niveau Expert (en bas à droite : « Niveau »).');

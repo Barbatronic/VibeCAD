@@ -128,6 +128,32 @@ export async function pickFileWithHandle(types: FileType[]): Promise<{ file: Fil
 }
 
 /** Ouvre un sélecteur de fichier ; renvoie le fichier choisi (ou null si l'utilisateur annule). */
+/**
+ * Choix d'un dossier entier (avec ses sous-dossiers) : tous ses fichiers, avec leur chemin relatif
+ * (`webkitRelativePath`). Le contenu n'est lu qu'à la demande. Chrome, Edge, Firefox et Safari.
+ */
+export function pickFolder(): Promise<File[] | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.setAttribute('webkitdirectory', '');
+    input.style.display = 'none';
+    let settled = false;
+    input.addEventListener('change', () => {
+      settled = true;
+      resolve(input.files ? Array.from(input.files) : null);
+      input.remove();
+    });
+    input.addEventListener('cancel', () => {
+      if (!settled) resolve(null);
+      input.remove();
+    });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 export function pickFile(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
