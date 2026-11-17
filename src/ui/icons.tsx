@@ -439,6 +439,15 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M7 7.7v8.6M17 10.7c0 3.5-4 3.3-8 4.6" />
     </>
   ),
+  /** Fusion : une branche qui rejoint le tronc. */
+  merge: (
+    <>
+      <circle cx="7" cy="5.5" r="2.2" />
+      <circle cx="7" cy="18.5" r="2.2" />
+      <circle cx="17" cy="15.5" r="2.2" />
+      <path d="M7 7.7v8.6M17 13.3c0-3.5-4-3.3-8-4.6" />
+    </>
+  ),
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />

@@ -5,7 +5,7 @@
 import type { CadDocument, Id } from '../domain/model';
 import { APP_NAME, APP_VERSION } from '../meta';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, toNativeFile, type ParseOutcome } from './native-format';
-import { DEFAULT_BRANCH, hashText, type VersionCommit, type VersionHistory } from './version-store';
+import { canonicalText, DEFAULT_BRANCH, hashText, type VersionCommit, type VersionHistory } from './version-store';
 
 /** Contenu d'un projet découpé comme dans une version, avec les textes désignés par les empreintes. */
 export interface VersionTree {
@@ -23,7 +23,7 @@ export function treeOf(doc: CadDocument): VersionTree {
   const { parts, resources, id: _id, name: _name, createdAt: _createdAt, modifiedAt: _modifiedAt, ...shell } = toNativeFile(doc, '').document;
   const texts: Record<string, string> = {};
   const put = (value: unknown): string => {
-    const text = JSON.stringify(value);
+    const text = canonicalText(value);
     const hash = hashText(text);
     texts[hash] = text;
     return hash;
@@ -40,13 +40,14 @@ export const headOf = (h: VersionHistory, branch = h.current): VersionCommit | u
 
 /**
  * Nouvelle version sur la branche de travail. `null` : rien n'a changé depuis la dernière.
+ * `merged` : versions fusionnées dans celle-ci (elle est alors créée même sans changement).
  * `h.objects` doit être décodé.
  */
-export function createVersion(h: VersionHistory | null, doc: CadDocument, message: string, date: string): VersionHistory | null {
+export function createVersion(h: VersionHistory | null, doc: CadDocument, message: string, date: string, merged: string[] = []): VersionHistory | null {
   const tree = treeOf(doc);
   const head = h ? headOf(h) : undefined;
-  if (head && sameTree(head, tree)) return null;
-  const body = { parents: head ? [head.id] : [], message, date, schemaVersion: SCHEMA_VERSION, shell: tree.shell, parts: tree.parts, resources: tree.resources };
+  if (head && sameTree(head, tree) && merged.length === 0) return null;
+  const body = { parents: [...(head ? [head.id] : []), ...merged], message, date, schemaVersion: SCHEMA_VERSION, shell: tree.shell, parts: tree.parts, resources: tree.resources };
   const commit: VersionCommit = { id: hashText(JSON.stringify(body)), ...body };
   const current = h?.current ?? DEFAULT_BRANCH;
   const branches = h ? h.branches.map((b) => (b.name === current ? { ...b, head: commit.id } : b)) : [{ name: current, head: commit.id }];
@@ -92,31 +93,197 @@ export function deleteBranch(h: VersionHistory, name: string): VersionHistory {
   };
 }
 
+/** Projet décrit par des empreintes, relu par le lecteur du format (validation, migrations). */
+function documentOf(
+  tree: { schemaVersion: number; shell: string; parts: string[]; resources: Id[] },
+  texts: Record<string, string>,
+  pool: Record<Id, CadDocument['resources'][Id]>,
+  current: CadDocument,
+  date: string,
+): ParseOutcome {
+  const missing = [tree.shell, ...tree.parts].some((hash) => !(hash in texts));
+  if (missing) return { ok: false, error: 'Le contenu de cette version est incomplet.', details: [] };
+  const file = {
+    format: FORMAT_ID,
+    schemaVersion: tree.schemaVersion,
+    generator: { name: APP_NAME, version: APP_VERSION },
+    savedAt: date,
+    document: {
+      ...(JSON.parse(texts[tree.shell]!) as Record<string, unknown>),
+      id: current.id,
+      name: current.name,
+      createdAt: current.createdAt,
+      modifiedAt: date,
+      parts: tree.parts.map((hash) => JSON.parse(texts[hash]!) as unknown),
+      resources: Object.fromEntries(tree.resources.filter((id) => id in pool).map((id) => [id, pool[id]])),
+    },
+  };
+  return parseNativeFile(JSON.stringify(file));
+}
+
 /**
  * Projet tel qu'il était à une version, relu par le lecteur du format (validation, migrations).
  * L'identité vient du projet courant.
  */
 export function documentAt(h: VersionHistory, commit: VersionCommit, current: CadDocument): ParseOutcome {
-  const objects = h.objects ?? {};
-  const missing = [commit.shell, ...commit.parts].some((hash) => !(hash in objects));
-  if (missing) return { ok: false, error: 'Le contenu de cette version est incomplet.', details: [] };
-  const pool = { ...h.resources, ...current.resources };
-  const file = {
-    format: FORMAT_ID,
-    schemaVersion: commit.schemaVersion,
-    generator: { name: APP_NAME, version: APP_VERSION },
-    savedAt: commit.date,
-    document: {
-      ...(JSON.parse(objects[commit.shell]!) as Record<string, unknown>),
-      id: current.id,
-      name: current.name,
-      createdAt: current.createdAt,
-      modifiedAt: commit.date,
-      parts: commit.parts.map((hash) => JSON.parse(objects[hash]!) as unknown),
-      resources: Object.fromEntries(commit.resources.filter((id) => id in pool).map((id) => [id, pool[id]])),
-    },
+  return documentOf(commit, h.objects ?? {}, { ...h.resources, ...current.resources }, current, commit.date);
+}
+
+// ---------------------------------------------------------------------------
+// Fusion
+
+/** Versions dont une version dérive, elle comprise. */
+export function ancestorsOf(h: VersionHistory, id: string): Set<string> {
+  const seen = new Set<string>();
+  const visit = (x: string) => {
+    if (seen.has(x)) return;
+    seen.add(x);
+    commitOf(h, x)?.parents.forEach(visit);
   };
-  return parseNativeFile(JSON.stringify(file));
+  visit(id);
+  return seen;
+}
+
+/**
+ * Où en est `theirs` par rapport à `ours` : déjà contenue (`merged`), en avance sur la même lignée
+ * (`forward` : il suffit d'avancer), ou sur une autre lignée (`diverged` : fusion).
+ */
+export function mergeState(h: VersionHistory, ours: string, theirs: string): 'merged' | 'forward' | 'diverged' {
+  if (ancestorsOf(h, ours).has(theirs)) return 'merged';
+  return ancestorsOf(h, theirs).has(ours) ? 'forward' : 'diverged';
+}
+
+/** Dernière version commune à deux versions (celle qui a le plus long passé). */
+export function mergeBase(h: VersionHistory, a: string, b: string): VersionCommit | undefined {
+  const mine = ancestorsOf(h, a);
+  const common = [...ancestorsOf(h, b)].filter((id) => mine.has(id));
+  let best: string | undefined;
+  let depth = -1;
+  for (const id of common) {
+    const d = ancestorsOf(h, id).size;
+    if (d > depth) [best, depth] = [id, d];
+  }
+  return best ? commitOf(h, best) : undefined;
+}
+
+/** Avance la branche de travail sur une version qui en dérive. */
+export function advanceBranch(h: VersionHistory, to: string): VersionHistory {
+  return { ...h, branches: h.branches.map((b) => (b.name === h.current ? { ...b, head: to } : b)) };
+}
+
+/** Contenu d'une version au format courant (une version ancienne est d'abord convertie). */
+export function treeAt(h: VersionHistory, commit: VersionCommit, current: CadDocument): VersionTree | null {
+  if (commit.schemaVersion === SCHEMA_VERSION) return { shell: commit.shell, parts: commit.parts, resources: commit.resources, texts: h.objects ?? {} };
+  const parsed = documentAt(h, commit, current);
+  return parsed.ok ? treeOf(parsed.doc) : null;
+}
+
+export type MergeSide = 'ours' | 'theirs';
+
+/** Pièce ou partie du projet modifiée des deux côtés, différemment : il faut choisir un côté. */
+export interface MergeConflict {
+  /** « part:identifiant » ou « section:clé ». */
+  key: string;
+  name: string;
+  /** Ce que chaque côté en a fait depuis la version commune. */
+  ours: ChangeStatus;
+  theirs: ChangeStatus;
+}
+
+export interface MergeResult {
+  tree: VersionTree;
+  conflicts: MergeConflict[];
+}
+
+const statusOf = (base: string | undefined, now: string | undefined): ChangeStatus => (now === undefined ? 'removed' : base === undefined ? 'added' : 'modified');
+
+const text = (x: unknown): string | undefined => (x === undefined ? undefined : JSON.stringify(x));
+const isObject = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
+/** Liste d'éléments identifiés (exemplaires, liaisons, matières…) : elle se fusionne élément par élément. */
+const isIdList = (x: unknown): x is ({ id: string } & Record<string, unknown>)[] => Array.isArray(x) && x.every((e) => isObject(e) && typeof e.id === 'string');
+
+/**
+ * Fusion d'une valeur du projet : ce qu'un seul côté a changé est repris, en descendant dans les
+ * objets et les listes d'éléments identifiés. Là où les deux côtés diffèrent vraiment, `theirs`
+ * dit quel côté l'emporte, et `conflict` le signale.
+ */
+function mergeValues(b: unknown, o: unknown, t: unknown, theirs: boolean): { value: unknown; conflict: boolean } {
+  const [tb, to, tt] = [text(b), text(o), text(t)];
+  if (to === tt || tt === tb) return { value: o, conflict: false };
+  if (to === tb) return { value: t, conflict: false };
+  let conflict = false;
+  const sub = (x: unknown, y: unknown, z: unknown): unknown => {
+    const r = mergeValues(x, y, z, theirs);
+    conflict ||= r.conflict;
+    return r.value;
+  };
+  if (isIdList(o) && isIdList(t) && (b === undefined || isIdList(b))) {
+    const map = (list: { id: string }[] | undefined) => new Map((list ?? []).map((e) => [e.id, e]));
+    const [mb, mo, mt] = [map(b as { id: string }[] | undefined), map(o), map(t)];
+    const value = [...new Set([...mo.keys(), ...mt.keys()])].map((id) => sub(mb.get(id), mo.get(id), mt.get(id))).filter((e) => e !== undefined);
+    return { value, conflict };
+  }
+  if (isObject(o) && isObject(t) && (b === undefined || isObject(b))) {
+    const value: Record<string, unknown> = {};
+    for (const key of new Set([...Object.keys(o), ...Object.keys(t)])) {
+      const v = sub((b as Record<string, unknown> | undefined)?.[key], o[key], t[key]);
+      if (v !== undefined) value[key] = v;
+    }
+    return { value, conflict };
+  }
+  return { value: theirs ? t : o, conflict: true };
+}
+
+/**
+ * Fusion de `theirs` dans `ours`, pièce par pièce puis partie par partie du reste du projet :
+ * ce qu'un seul côté a changé depuis `base` est repris ; ce que les deux ont changé différemment
+ * est un conflit, tranché par `choices` (à défaut, notre côté).
+ */
+export function mergeTrees(base: VersionTree | null, ours: VersionTree, theirs: VersionTree, choices: Record<string, MergeSide> = {}): MergeResult {
+  const conflicts: MergeConflict[] = [];
+  const pick = (key: string, name: () => string, b: string | undefined, o: string | undefined, t: string | undefined): string | undefined => {
+    if (o === t || t === b) return o;
+    if (o === b) return t;
+    conflicts.push({ key, name: name(), ours: statusOf(b, o), theirs: statusOf(b, t) });
+    return choices[key] === 'theirs' ? t : o;
+  };
+  const texts = { ...(base?.texts ?? {}), ...theirs.texts, ...ours.texts };
+  // Pièces : par identifiant ; l'ordre est le nôtre, les pièces venues de l'autre côté à la suite.
+  const byId = (tree: VersionTree | null) => new Map((tree?.parts ?? []).flatMap((hash) => {
+    const p = parsePart(tree!.texts[hash]);
+    return p ? [[p.id!, hash] as const] : [];
+  }));
+  const [bp, op, tp] = [byId(base), byId(ours), byId(theirs)];
+  const nameOf = (id: string) => parsePart(texts[op.get(id) ?? tp.get(id) ?? bp.get(id) ?? ''])?.name ?? '?';
+  const parts: string[] = [];
+  for (const id of new Set([...op.keys(), ...tp.keys()])) {
+    const hash = pick(`part:${id}`, () => nameOf(id), bp.get(id), op.get(id), tp.get(id));
+    if (hash !== undefined) parts.push(hash);
+  }
+  // Reste du projet : par partie (assemblage, paramètres, matières…), fusionnée en profondeur.
+  const sections = (tree: VersionTree | null): Record<string, unknown> => {
+    try {
+      return JSON.parse(tree?.texts[tree.shell] ?? '{}') as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  };
+  const [bs, os, ts] = [sections(base), sections(ours), sections(theirs)];
+  const shell: Record<string, unknown> = {};
+  for (const key of new Set([...Object.keys(os), ...Object.keys(ts)])) {
+    const merged = mergeValues(bs[key], os[key], ts[key], choices[`section:${key}`] === 'theirs');
+    if (merged.conflict) conflicts.push({ key: `section:${key}`, name: SECTION_LABELS[key] ?? key, ours: statusOf(text(bs[key]), text(os[key])), theirs: statusOf(text(bs[key]), text(ts[key])) });
+    if (merged.value !== undefined) shell[key] = merged.value;
+  }
+  const shellText = canonicalText(shell);
+  const shellHash = hashText(shellText);
+  texts[shellHash] = shellText;
+  return { tree: { shell: shellHash, parts, resources: [...new Set([...ours.resources, ...theirs.resources])], texts }, conflicts };
+}
+
+/** Projet d'un contenu fusionné (au format courant), relu par le lecteur du format. */
+export function documentOfTree(h: VersionHistory, tree: VersionTree, current: CadDocument, date: string): ParseOutcome {
+  return documentOf({ ...tree, schemaVersion: SCHEMA_VERSION }, tree.texts, { ...h.resources, ...current.resources }, current, date);
 }
 
 export type ChangeStatus = 'added' | 'removed' | 'modified';

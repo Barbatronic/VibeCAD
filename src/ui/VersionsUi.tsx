@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'preact/hooks';
 import { historyBytes } from '../io/version-store';
-import { commitOf, diffIsEmpty, headOf, layoutGraph, partHistory, sameTree, treeOf, type ChangeStatus, type VersionDiff, type VersionGraph } from '../io/versions';
+import { commitOf, diffIsEmpty, headOf, layoutGraph, mergeState, partHistory, sameTree, treeOf, type ChangeStatus, type MergeConflict, type MergeSide, type VersionDiff, type VersionGraph } from '../io/versions';
 import { useAppState, useController } from './context';
 import { Button, IconButton, ToolButton } from './components/controls';
 import { ToolGroup } from './ToolSectors';
@@ -85,7 +85,9 @@ export function VersionsTools() {
   const s = useAppState(
     (st) => {
       const commit = st.versions && st.versionView.commitId ? commitOf(st.versions, st.versionView.commitId) : undefined;
-      return { has: !!st.versions, selected: commit?.id ?? null, busy: st.mode.kind !== 'model' };
+      const head = st.versions ? headOf(st.versions) : undefined;
+      const mergeable = !!st.versions && !!commit && !!head && mergeState(st.versions, head.id, commit.id) !== 'merged';
+      return { has: !!st.versions, selected: commit?.id ?? null, mergeable, branch: st.versions?.current ?? '', busy: st.mode.kind !== 'model' };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
@@ -99,6 +101,14 @@ export function VersionsTools() {
           hint="Remettre le projet dans l’état de la version choisie, sans changer de branche (annulable)"
           availability={s.selected ? { ok: true } : { ok: false, reason: 'Choisissez une version dans la liste.' }}
           onClick={() => s.selected && void c.restoreVersion(s.selected)}
+        />
+        <ToolButton
+          id="ver-merge"
+          icon="merge"
+          label="Fusionner"
+          hint={`Reprendre dans « ${s.branch} » ce que la version choisie a changé de son côté`}
+          availability={s.mergeable ? { ok: true } : { ok: false, reason: s.selected ? `Cette version est déjà dans « ${s.branch} ».` : 'Choisissez une version d’une autre branche.' }}
+          onClick={() => s.selected && void c.mergeVersion(s.selected)}
         />
       </ToolGroup>
       <ToolGroup name="Fichier">
@@ -232,6 +242,54 @@ export function VersionsSection() {
   );
 }
 
+const SIDE_TEXT: Record<ChangeStatus, string> = { added: 'ajoutée', modified: 'modifiée', removed: 'supprimée' };
+
+/** Fusion en attente : chaque pièce (ou partie du projet) changée des deux côtés, et le côté à garder. */
+function MergeConflicts({ ours, theirs, conflicts, commitId }: { ours: string; theirs: string; conflicts: MergeConflict[]; commitId: string }) {
+  const c = useController();
+  const [choices, setChoices] = useState<Record<string, MergeSide>>({});
+  const left = conflicts.filter((k) => !choices[k.key]).length;
+  const side = (k: MergeConflict, which: MergeSide, name: string) => (
+    <button type="button" class={`versions-side${choices[k.key] === which ? ' is-selected' : ''}`} aria-pressed={choices[k.key] === which} title={`Garder « ${k.name} » de « ${name} » (${SIDE_TEXT[k[which]]})`} onClick={() => setChoices({ ...choices, [k.key]: which })}>
+      <Mark status={k[which]} />
+      <span class="name">{name}</span>
+    </button>
+  );
+  return (
+    <div class="versions-merge" role="group" aria-label="Conflits de la fusion">
+      <h3 class="list-title">Conflits</h3>
+      <p class="versions-none">Changé des deux côtés : côté à garder.</p>
+      <ul class="versions-conflicts">
+        {conflicts.map((k) => (
+          <li key={k.key}>
+            {k.key.startsWith('part:') ? (
+              <button type="button" class="versions-conflict-name" title={k.name} onClick={() => c.selectVersionPart(k.key.slice(5))}>
+                {k.name}
+              </button>
+            ) : (
+              <span class="versions-conflict-name" title={k.name}>
+                {k.name}
+              </span>
+            )}
+            <div class="versions-sides">
+              {side(k, 'ours', ours)}
+              {side(k, 'theirs', theirs)}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div class="versions-actions">
+        <Button small variant="primary" icon="merge" onClick={() => void c.mergeVersion(commitId, choices)} disabledReason={left > 0 ? (left > 1 ? `${left} conflits à trancher.` : 'Un conflit à trancher.') : null}>
+          Fusionner
+        </Button>
+        <Button small onClick={() => c.cancelVersionMerge()}>
+          Annuler
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Panneau de droite : ce que la version regardée a changé, pièce par pièce, et ses actions. */
 export function VersionsRightPanel() {
   const c = useController();
@@ -262,6 +320,7 @@ export function VersionsRightPanel() {
         <div class="versions-legend" aria-hidden="true">
           <span class="is-added">ajoutée</span>
           <span class="is-modified">modifiée</span>
+          <span class="is-removed">supprimée</span>
           <span class="is-same">inchangée</span>
         </div>
         {commit && h ? (
@@ -270,6 +329,11 @@ export function VersionsRightPanel() {
               <Button small icon="undo" onClick={() => void c.restoreVersion(commit.id)} hint="Remettre le projet dans l’état de cette version, sans changer de branche (annulable)">
                 Restaurer
               </Button>
+              {head && mergeState(h, head.id, commit.id) !== 'merged' ? (
+                <Button small icon="merge" onClick={() => void c.mergeVersion(commit.id)} hint="Reprendre ce que cette version a changé de son côté ; une pièce changée des deux côtés demande un choix">
+                  Fusionner dans « {h.current} »
+                </Button>
+              ) : null}
               {branches
                 .filter((b) => b.name !== h.current)
                 .flatMap((b) => [
@@ -308,6 +372,7 @@ export function VersionsRightPanel() {
             </div>
           </>
         ) : null}
+        {view.merge && h && view.merge.theirs === commit?.id ? <MergeConflicts key={view.merge.theirs} ours={h.current} theirs={view.merge.label} conflicts={view.merge.conflicts} commitId={view.merge.theirs} /> : null}
         <h3 class="list-title">Modifications</h3>
         {!diff ? (
           <p class="versions-none">Chargement…</p>

@@ -81,6 +81,39 @@ export function hashText(text: string): string {
   return [h1, h2, h3, h4].map((h) => (h >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
+/** Texte d'un contenu, clés triées : le même contenu a la même empreinte, qu'il vienne de l'application ou d'un fichier relu. */
+export function canonicalText(value: unknown): string {
+  const sorted = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(sorted);
+    if (typeof x !== 'object' || x === null) return x;
+    return Object.fromEntries(Object.keys(x).sort().map((k) => [k, sorted((x as Record<string, unknown>)[k])]));
+  };
+  return JSON.stringify(sorted(value));
+}
+
+/**
+ * Remet un historique aux empreintes des textes à clés triées (les premiers historiques rangeaient
+ * les contenus tels quels). Sans effet sur un historique déjà à jour.
+ */
+export function canonicalHistory<T extends { commits: VersionCommit[]; objects: Record<string, string> }>(h: T): T {
+  const renamed = new Map<string, string>();
+  const objects: Record<string, string> = {};
+  for (const [hash, text] of Object.entries(h.objects)) {
+    let canonical = text;
+    try {
+      canonical = canonicalText(JSON.parse(text));
+    } catch {
+      // Contenu illisible : gardé tel quel, la lecture de la version le signalera.
+    }
+    const next = canonical === text ? hash : hashText(canonical);
+    if (next !== hash) renamed.set(hash, next);
+    objects[next] = canonical;
+  }
+  if (renamed.size === 0) return h;
+  const to = (hash: string) => renamed.get(hash) ?? hash;
+  return { ...h, objects, commits: h.commits.map((c) => ({ ...c, shell: to(c.shell), parts: c.parts.map(to) })) };
+}
+
 function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -158,6 +191,10 @@ export function readHistoryFile(raw: unknown, resources: Record<Id, Resource>): 
   else return dropped;
   // En clair, les contenus se vérifient tout de suite ; compressés, à leur décodage.
   if (objects && !objectsComplete(commits, objects)) return dropped;
+  if (objects) {
+    const canonical = canonicalHistory({ commits, objects });
+    return { history: { commits: canonical.commits, branches, current: raw.current, objects: canonical.objects, packed, resources }, warning: null };
+  }
   return { history: { commits, branches, current: raw.current, objects, packed, resources }, warning: null };
 }
 

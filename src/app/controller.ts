@@ -54,8 +54,8 @@ import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { ExportPlacement, MeasureTarget, PartResult } from '../geometry/protocol';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
-import { historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
-import { addBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, headOf, sameTree, switchBranch, treeOf } from '../io/versions';
+import { canonicalHistory, historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
+import { addBranch, advanceBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, documentOfTree, headOf, mergeBase, mergeState, mergeTrees, sameTree, switchBranch, treeAt, treeOf, type MergeSide } from '../io/versions';
 import { bytesToBase64, createStepResource, verifyResources } from '../io/resources';
 import { meshesToBinaryStl, STL_UNIT_NOTE } from '../io/stl';
 import { canonicalFrame, originPlaneFrame, type Frame3D } from '../math/frame';
@@ -2425,7 +2425,9 @@ export class AppController {
       if (!objectsComplete(h.commits, objects)) throw new Error('contenus manquants');
       // Autre projet ouvert entre-temps : son historique à lui.
       if (this.state.versions !== h) return this.versionObjects();
-      const next = { ...h, objects };
+      // Historique d'avant les empreintes à clés triées : remis à jour, bloc compressé à refaire.
+      const canonical = canonicalHistory({ commits: h.commits, objects });
+      const next = canonical.objects === objects ? { ...h, objects } : { ...h, commits: canonical.commits, objects: canonical.objects, packed: null };
       this.set({ versions: next });
       return next;
     } catch (err) {
@@ -2485,36 +2487,41 @@ export class AppController {
     const partId = this.state.versionView.partId;
     const commit = h && commitId ? commitOf(h, commitId) : undefined;
     const tree = treeOf(this.state.doc);
-    if (!h || !commit) {
-      const head = h ? headOf(h) : undefined;
-      const diff = diffTrees(head ?? null, tree, (hash) => h?.objects?.[hash] ?? tree.texts[hash]);
-      return this.set({ versionView: { commitId: null, partId, diff, scene: null, loading: false } });
-    }
-    const diff = commitDiff(h, commit);
+    // Version d'avant : celle dont la version regardée dérive ; pour l'état actuel, la dernière de la branche.
+    const before = h ? (commit ? commitOf(h, commit.parents[0] ?? '') : headOf(h)) : undefined;
+    const diff = commit && h ? commitDiff(h, commit) : diffTrees(before ?? null, tree, (hash) => h?.objects?.[hash] ?? tree.texts[hash]);
+    const view = { commitId: commit?.id ?? null, partId, diff, scene: null, loading: false };
     // Même contenu que le projet ouvert : sa géométrie est déjà là.
-    if (sameTree(commit, tree)) return this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: false } });
-    const parsed = documentAt(h, commit, this.state.doc);
-    if (!parsed.ok) {
-      this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: false } });
-      return this.toast('error', 'Cette version ne peut pas être affichée.', { detail: parsed.error });
-    }
-    this.set({ versionView: { commitId: commit.id, partId, diff, scene: null, loading: true } });
+    const parsed = h && commit && !sameTree(commit, tree) ? documentAt(h, commit, this.state.doc) : null;
+    if (parsed && !parsed.ok) this.toast('error', 'Cette version ne peut pas être affichée.', { detail: parsed.error });
+    // Pièces supprimées par la version : reprises du projet d'avant, pour les montrer à leur place.
+    const gone = h && before && diff.parts.some((p) => p.status === 'removed') ? documentAt(h, before, this.state.doc) : null;
+    const scene = parsed?.ok ? parsed.doc : null;
+    const removed = gone?.ok ? gone.doc : null;
+    this.set({ versionView: { ...view, loading: !!scene || !!removed } });
+    if (!scene && !removed) return;
     try {
-      // Le recalcul du projet ouvert passe d'abord : une demande en attente remplacerait l'autre.
-      let result: Awaited<ReturnType<typeof this.deps.client.evaluate>> = null;
-      for (let attempt = 0; attempt < 20 && !result && seq === this.versionSeq; attempt++) {
-        while (this.deps.client.busy && seq === this.versionSeq) await new Promise((r) => setTimeout(r, 40));
-        if (seq !== this.versionSeq) return;
-        result = await this.deps.client.evaluate(parsed.doc);
-      }
+      const shown = scene ? await this.evaluateAside(scene, seq) : null;
+      const old = removed ? await this.evaluateAside(removed, seq) : null;
       if (seq !== this.versionSeq) return;
-      const display = Object.fromEntries((result?.parts ?? []).map((p) => [p.partId, displayFor(undefined, p)]));
-      this.set({ versionView: { ...this.state.versionView, scene: result ? { doc: parsed.doc, display } : null, loading: false } });
+      this.set({ versionView: { ...this.state.versionView, scene: scene && shown ? { doc: scene, display: shown } : null, removed: removed && old ? { doc: removed, display: old } : null, loading: false } });
     } catch (err) {
       if (seq !== this.versionSeq) return;
       this.set({ versionView: { ...this.state.versionView, loading: false } });
       this.toast('error', 'Cette version n’a pas pu être recalculée.', { detail: (err as Error).message });
     }
+  }
+
+  /** Recalcule un autre projet que le projet ouvert (une version), sans toucher à l'affichage courant. */
+  private async evaluateAside(doc: CadDocument, seq: number): Promise<Record<Id, PartDisplay> | null> {
+    // Le recalcul du projet ouvert passe d'abord : une demande en attente remplacerait l'autre.
+    let result: Awaited<ReturnType<typeof this.deps.client.evaluate>> = null;
+    for (let attempt = 0; attempt < 20 && !result && seq === this.versionSeq; attempt++) {
+      while (this.deps.client.busy && seq === this.versionSeq) await new Promise((r) => setTimeout(r, 40));
+      if (seq !== this.versionSeq) return null;
+      result = await this.deps.client.evaluate(doc);
+    }
+    return result ? Object.fromEntries(result.parts.map((p) => [p.partId, displayFor(undefined, p)])) : null;
   }
 
   /** Pièce suivie dans l'atelier Versions (mise en avant dans la vue, versions qui l'ont touchée). */
@@ -2526,11 +2533,14 @@ export class AppController {
   private versionsPick(pick: ModelPick | null): void {
     const v = this.state.versionView;
     if (!pick || pick.partId.startsWith('fs:')) return this.set({ versionView: { ...v, partId: null } });
-    const doc = v.scene?.doc ?? this.state.doc;
+    // Pièce supprimée par la version (« gone:… ») : elle est dans le projet d'avant.
+    const gone = pick.partId.startsWith('gone:');
+    const key = gone ? pick.partId.slice(5) : pick.partId;
+    const doc = (gone ? v.removed?.doc : v.scene?.doc) ?? this.state.doc;
     // Pièce hors assemblage (« ver:pièce »), ou exemplaire (dernier maillon de sa clé).
-    const instanceId = pick.partId.split('/').pop()!;
+    const instanceId = key.split('/').pop()!;
     const instances = [...(doc.assembly?.instances ?? []), ...(doc.subassemblies ?? []).flatMap((x) => x.instances)];
-    const partId = pick.partId.startsWith('ver:') ? pick.partId.slice(4) : (instances.find((i) => i.id === instanceId)?.partId ?? null);
+    const partId = key.startsWith('ver:') ? key.slice(4) : (instances.find((i) => i.id === instanceId)?.partId ?? null);
     this.set({ versionView: { ...v, partId } });
   }
 
@@ -2568,6 +2578,60 @@ export class AppController {
     if (!h || !head || h.current === name) return;
     if (!this.loadVersion(h, head.id, `Passer sur la branche « ${name} »`)) return;
     this.setVersions(switchBranch(h, name));
+  }
+
+  /**
+   * Fusionne une version dans la branche de travail. Ce qu'un seul côté a changé est repris ; une
+   * pièce (ou une partie du projet) changée des deux côtés est un conflit : sans `choices`, la
+   * fusion attend dans le panneau que chaque conflit soit tranché.
+   */
+  async mergeVersion(commitId: string, choices?: Record<string, MergeSide>): Promise<void> {
+    if (!this.versionsReady()) return;
+    const h = await this.versionObjects();
+    const head = h ? headOf(h) : undefined;
+    const theirs = h ? commitOf(h, commitId) : undefined;
+    if (!h || !head || !theirs) return;
+    const doc = this.state.doc;
+    if (!sameTree(head, treeOf(doc))) return this.explain('Créez d’abord une version de l’état actuel.');
+    const state = mergeState(h, head.id, theirs.id);
+    if (state === 'merged') return this.toast('info', `Cette version est déjà dans « ${h.current} ».`);
+    const branch = h.branches.find((b) => b.head === theirs.id && b.name !== h.current)?.name;
+    const label = `Fusion de « ${branch ?? theirs.message} »`;
+    if (state === 'forward') {
+      // Même lignée : la branche avance simplement jusqu'à cette version.
+      if (!this.loadVersion(h, theirs.id, label)) return;
+      this.setVersions(advanceBranch(h, theirs.id));
+      void this.selectVersion(theirs.id);
+      return this.toast('success', `« ${h.current} » avancée jusqu’à « ${theirs.message} ».`);
+    }
+    const base = mergeBase(h, head.id, theirs.id);
+    const [bt, ot, tt] = [base ? treeAt(h, base, doc) : null, treeAt(h, head, doc), treeAt(h, theirs, doc)];
+    if (!ot || !tt) return this.toast('error', 'Cette version ne peut pas être fusionnée : son contenu est illisible.');
+    const merged = mergeTrees(bt, ot, tt, choices ?? {});
+    if (merged.conflicts.length > 0 && !choices) {
+      if (this.state.versionView.commitId !== theirs.id) await this.selectVersion(theirs.id);
+      return this.set({ versionView: { ...this.state.versionView, merge: { theirs: theirs.id, label: branch ?? theirs.message, conflicts: merged.conflicts } } });
+    }
+    const date = new Date().toISOString();
+    const parsed = documentOfTree(h, merged.tree, doc, date);
+    if (!parsed.ok) {
+      this.set({ dialog: { kind: 'problem', title: 'Fusion impossible', message: parsed.error, details: parsed.details } });
+      return;
+    }
+    const result = parsed.doc.parts.length > 0 ? parsed.doc : addPart(parsed.doc).doc;
+    this.newSketch = null;
+    this.commit(result, label, { rollback: {}, selection: null, assemblySelection: null });
+    const next = createVersion(h, result, label, date, [theirs.id]);
+    if (!next) return;
+    this.setVersions(next);
+    void this.selectVersion(headOf(next)?.id ?? null);
+    this.toast('success', `« ${branch ?? theirs.message} » fusionnée dans « ${h.current} ».`);
+  }
+
+  /** Abandonne une fusion en attente de choix. */
+  cancelVersionMerge(): void {
+    const v = this.state.versionView;
+    if (v.merge) this.set({ versionView: { ...v, merge: null } });
   }
 
   /**

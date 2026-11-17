@@ -452,6 +452,23 @@ function buildVersionsInput(s: AppState): ViewportInput {
     if (placed.has(p.id) || !d?.mesh) continue;
     input.parts.push({ partId: `ver:${p.id}`, ...lookOf(view, p, d.mesh), visible: p.visible, meshKey: d.meshKey, mesh: d.mesh, appearance: 'normal' });
   }
+  // Pièces supprimées par la version : à la place qu'elles avaient juste avant, en transparence.
+  const removed = s.versionView.removed;
+  const goneIds = new Set((s.versionView.diff?.parts ?? []).filter((p) => p.status === 'removed').map((p) => p.id));
+  if (removed && goneIds.size > 0) {
+    const old: AppState = { ...view, doc: removed.doc, display: removed.display };
+    const partOf = new Map([...(old.doc.assembly?.instances ?? []), ...(old.doc.subassemblies ?? []).flatMap((x) => x.instances)].map((i) => [i.id, i.partId]));
+    const faded = <T extends ViewPartInput>(part: T): T => ({ ...part, opacity: Math.min(part.opacity ?? 1, 0.55) });
+    for (const part of buildAssemblyInput(old).parts) {
+      if (goneIds.has(partOf.get(part.partId.split('/').pop()!) ?? '')) input.parts.push(faded({ ...part, partId: `gone:${part.partId}` }));
+    }
+    const oldPlaced = new Set(partOf.values());
+    for (const p of old.doc.parts) {
+      const d = old.display[p.id];
+      if (!goneIds.has(p.id) || oldPlaced.has(p.id) || !d?.mesh) continue;
+      input.parts.push(faded({ partId: `gone:ver:${p.id}`, ...lookOf(old, p, d.mesh), visible: p.visible, meshKey: d.meshKey, mesh: d.mesh, appearance: 'normal' }));
+    }
+  }
   return { ...input, markers: [], selection: [] };
 }
 

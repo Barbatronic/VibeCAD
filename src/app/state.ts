@@ -21,7 +21,7 @@ import type { AutosaveStatus } from '../persistence/autosave';
 import type { AutosaveRecord, ProjectSummary } from '../persistence/db';
 import type { SaveTarget } from '../persistence/files';
 import type { VersionHistory } from '../io/version-store';
-import type { VersionDiff } from '../io/versions';
+import type { MergeConflict, VersionDiff } from '../io/versions';
 import type { SketchSession } from '../sketch/session';
 import type { Projection } from '../viewport/camera-rig';
 import type { DisplayStyle } from '../viewport/part-meshes';
@@ -69,6 +69,13 @@ export interface VersionView {
   diff: VersionDiff | null;
   scene: { doc: CadDocument; display: Record<Id, PartDisplay> } | null;
   loading: boolean;
+  /**
+   * Pièces que la version a supprimées, telles qu'elles étaient juste avant (projet d'avant,
+   * recalculé) : la vue les montre à leur ancienne place.
+   */
+  removed?: { doc: CadDocument; display: Record<Id, PartDisplay> } | null;
+  /** Fusion en attente de la version regardée : les conflits à trancher. */
+  merge?: { theirs: string; label: string; conflicts: MergeConflict[] } | null;
 }
 
 export const EMPTY_VERSION_VIEW: VersionView = { commitId: null, partId: null, diff: null, scene: null, loading: false };

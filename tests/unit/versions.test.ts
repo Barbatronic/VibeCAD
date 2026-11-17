@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { addPart, addResource, newResourceId, removePart, renamePart, setPartColor } from '../../src/domain/document';
 import type { CadDocument } from '../../src/domain/model';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
-import { historyToFile, packObjects, unpackObjects, type VersionHistory } from '../../src/io/version-store';
-import { addBranch, commitDiff, createVersion, deleteBranch, diffTrees, documentAt, headOf, layoutGraph, partHistory, sameTree, switchBranch, treeOf } from '../../src/io/versions';
+import { canonicalHistory, hashText, historyToFile, packObjects, unpackObjects, type VersionHistory } from '../../src/io/version-store';
+import { addBranch, advanceBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, documentOfTree, headOf, layoutGraph, mergeBase, mergeState, mergeTrees, partHistory, sameTree, switchBranch, treeAt, treeOf } from '../../src/io/versions';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
 
 /** Trois versions : plaque seule, deuxième pièce ajoutée, plaque recolorée. */
@@ -147,5 +149,100 @@ describe('versions du projet', () => {
     const back = deleteBranch(switchBranch(b, 'principal'), 'essai');
     expect(back.commits.map((c) => c.message)).toEqual(['Plaque', 'Équerre ajoutée', 'Plaque recolorée']);
     expect(Object.keys(back.objects!).sort()).toEqual(Object.keys(h.objects!).sort());
+  });
+
+  /** Deux lignées depuis « Équerre ajoutée » : `principal` recolore la plaque, `essai` fait autre chose. */
+  function twoBranches(change: (doc: CadDocument) => CadDocument): { h: VersionHistory; docs: CadDocument[]; ours: string; theirs: string } {
+    const { h, docs } = threeVersions();
+    const ours = headOf(h)!.id;
+    let b = addBranch(h, 'essai', h.commits[1]!.id);
+    b = createVersion(b, change(docs[1]!), 'Essai', '2026-11-15T10:10:00.000Z')!;
+    const theirs = headOf(b)!.id;
+    return { h: switchBranch(b, 'principal'), docs, ours, theirs };
+  }
+
+  function merge(h: VersionHistory, ours: string, theirs: string, doc: CadDocument, choices = {}) {
+    const base = mergeBase(h, ours, theirs);
+    return mergeTrees(base ? treeAt(h, base, doc) : null, treeAt(h, commitOf(h, ours)!, doc)!, treeAt(h, commitOf(h, theirs)!, doc)!, choices);
+  }
+
+  it('fusion : situe une version par rapport à la branche de travail', () => {
+    const { h, ours, theirs } = twoBranches((d) => renamePart(d, d.parts[1]!.id, 'Équerre renforcée'));
+    expect(mergeState(h, ours, theirs)).toBe('diverged');
+    expect(mergeState(h, ours, h.commits[0]!.id)).toBe('merged');
+    expect(mergeState(h, h.commits[0]!.id, ours)).toBe('forward');
+    expect(mergeBase(h, ours, theirs)?.message).toBe('Équerre ajoutée');
+    expect(headOf(advanceBranch(addBranch(h, 'retard', h.commits[0]!.id), ours))?.id).toBe(ours);
+  });
+
+  it('fusion : reprend seule ce que chaque côté a changé de son côté', () => {
+    const { h, docs, ours, theirs } = twoBranches((d) => addPart(renamePart(d, d.parts[1]!.id, 'Équerre renforcée'), 'Cale').doc);
+    const { tree, conflicts } = merge(h, ours, theirs, docs[2]!);
+    expect(conflicts).toEqual([]);
+    const parsed = documentOfTree(h, tree, docs[2]!, '2026-11-15T10:20:00.000Z');
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(parsed.doc.parts.map((p) => [p.name, p.color === '#123456'])).toEqual([
+      ['Pièce 1', true],
+      ['Équerre renforcée', false],
+      ['Cale', false],
+    ]);
+    // La version de fusion dérive des deux côtés ; le graphe la relie aux deux.
+    const merged = createVersion(h, parsed.doc, 'Fusion de « essai »', '2026-11-15T10:20:00.000Z', [theirs])!;
+    expect(headOf(merged)?.parents).toEqual([ours, theirs]);
+    expect(mergeState(merged, headOf(merged)!.id, theirs)).toBe('merged');
+    expect(layoutGraph(merged).edges.filter((e) => e.from === 0)).toHaveLength(2);
+    expect(commitDiff(merged, headOf(merged)!).parts.map((p) => [p.name, p.status])).toEqual([
+      ['Équerre renforcée', 'modified'],
+      ['Cale', 'added'],
+    ]);
+  });
+
+  it('fusion : une pièce changée des deux côtés demande un choix', () => {
+    const { h, docs, ours, theirs } = twoBranches((d) => renamePart(d, d.parts[0]!.id, 'Plaque percée'));
+    const mine = merge(h, ours, theirs, docs[2]!);
+    expect(mine.conflicts).toEqual([{ key: `part:${docs[0]!.parts[0]!.id}`, name: 'Pièce 1', ours: 'modified', theirs: 'modified' }]);
+    const nameOf = (tree: typeof mine.tree) => {
+      const parsed = documentOfTree(h, tree, docs[2]!, '2026-11-15T10:20:00.000Z');
+      if (!parsed.ok) throw new Error(parsed.error);
+      return [parsed.doc.parts[0]!.name, parsed.doc.parts[0]!.color];
+    };
+    expect(nameOf(mine.tree)).toEqual(['Pièce 1', '#123456']);
+    expect(nameOf(merge(h, ours, theirs, docs[2]!, { [`part:${docs[0]!.parts[0]!.id}`]: 'theirs' }).tree)[0]).toBe('Plaque percée');
+  });
+
+  it('fusion : une pièce supprimée d’un côté et modifiée de l’autre est un conflit, supprimée seule elle part', () => {
+    const { h, docs, ours, theirs } = twoBranches((d) => removePart(d, d.parts[0]!.id));
+    expect(merge(h, ours, theirs, docs[2]!).conflicts).toEqual([{ key: `part:${docs[0]!.parts[0]!.id}`, name: 'Pièce 1', ours: 'modified', theirs: 'removed' }]);
+    const other = twoBranches((d) => removePart(d, d.parts[1]!.id));
+    const { tree, conflicts } = merge(other.h, other.ours, other.theirs, other.docs[2]!);
+    expect(conflicts).toEqual([]);
+    expect(tree.parts).toHaveLength(1);
+  });
+
+  it('donne la même empreinte au projet relu depuis son fichier, et remet à jour un ancien historique', () => {
+    const { h, docs } = threeVersions();
+    const parsed = parseNativeFile(serializeDocument(docs[2]!, '2026-11-15T10:03:00.000Z'));
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(sameTree(headOf(h)!, treeOf(parsed.doc))).toBe(true);
+    // Ancien historique : contenus rangés tels quels, clés dans un autre ordre.
+    const reversed = (x: unknown): unknown => (Array.isArray(x) ? x.map(reversed) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).reverse().map(([k, v]) => [k, reversed(v)])) : x);
+    const renamed = new Map(Object.entries(h.objects!).map(([hash, text]) => [hash, JSON.stringify(reversed(JSON.parse(text)))] as const));
+    const old = {
+      commits: h.commits.map((c) => ({ ...c, shell: hashText(renamed.get(c.shell)!), parts: c.parts.map((p) => hashText(renamed.get(p)!)) })),
+      objects: Object.fromEntries([...renamed.values()].map((text) => [hashText(text), text])),
+    };
+    const fixed = canonicalHistory(old);
+    expect(fixed.commits).toEqual(h.commits);
+    expect(fixed.objects).toEqual(h.objects);
+    expect(canonicalHistory(fixed)).toBe(fixed);
+  });
+
+  it('écrit un fichier conforme au schéma publié, historique compris', async () => {
+    const { h, docs } = threeVersions();
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    for (const history of [h, { ...h, packed: await packObjects(h.objects!) }]) {
+      validate(JSON.parse(serializeDocument(docs[2]!, '2026-11-15T10:03:00.000Z', historyToFile(history, docs[2]!.resources))));
+      expect(validate.errors ?? []).toEqual([]);
+    }
   });
 });
