@@ -88,16 +88,36 @@ Premier sous-onglet de l'atelier : **comment chaque pièce est fabriquée** (voi
 
 ## Documents (PDF, SVG, CSV)
 
-- **Mise en plan cotée** : pour la pièce choisie (dans la liste ou d'un clic dans la vue 3D), vue
-  de face, vue de dessus (en dessous) et vue de gauche (à droite), en projection européenne, sur
-  une page A4 paysage. Arêtes vues en traits continus, arêtes cachées en traits interrompus,
-  contours apparents des faces courbes (cylindres, révolutions). Les traits vus et cachés sont
-  calculés exactement sur la forme (algorithme HLR d'Open CASCADE, dans le worker) : un trou vu
-  de dessus est un vrai cercle. Pendant ce calcul, l'aperçu montre aussitôt des traits déduits du
-  maillage, puis se met à jour ; les fichiers exportés attendent toujours la version exacte. Cotes d'encombrement (largeur et
-  hauteur sur la vue de face, profondeur sur la vue de dessus), liste des diamètres (Ø) et rayons
-  (R), cartouche (nom de la pièce, du projet, échelle normalisée : 10:1 … 1:100). Aperçu dans le
-  panneau de droite ; export PDF (une page par pièce) ou SVG (la pièce affichée).
+- **Mise en plan cotée** : pour la pièce choisie dans la liste, vue de face, vue de dessus (en
+  dessous) et vue de gauche (à droite), en projection européenne, sur une feuille A4 ou A3
+  paysage. La feuille s'affiche en grand à la place de la vue 3D (molette : zoom ; glisser le
+  fond : déplacer). Arêtes vues en traits continus, arêtes cachées en traits interrompus, contours
+  apparents des faces courbes. Les traits vus et cachés sont calculés exactement sur la forme
+  (algorithme HLR d'Open CASCADE, dans le worker) ; pendant ce calcul, la feuille montre des
+  traits déduits du maillage, puis se met à jour ; les fichiers exportés attendent toujours la
+  version exacte.
+  - **Vues** : chaque vue se déplace en la faisant glisser. La vue de face entraîne les deux
+    autres ; la vue de dessus ne glisse que de haut en bas, la vue de gauche que de gauche à
+    droite (elles restent alignées).
+  - **Cotes** : au départ, les trois cotes d'encombrement. **Cote** : deux clics sur des points de
+    la pièce (sommets, centres de cercles) dans une même vue, puis un clic pour la poser :
+    au-dessus ou en dessous des points elle mesure à l'horizontale, à côté à la verticale,
+    ailleurs dans leur alignement. **Ø / R** : un clic sur un cercle (diamètre) ou un arc (rayon)
+    vu de face. Une cote se déplace en la faisant glisser et se supprime avec Suppr. Échap quitte
+    l'outil.
+  - **Cote détachée** : si la pièce change et qu'un point coté n'existe plus, la cote passe en
+    rouge pointillé ; elle n'est pas exportée tant qu'elle n'est pas refaite ou supprimée. Les
+    cotes d'encombrement suivent toujours la pièce.
+  - **Feuille et échelle** : A4 ou A3 ; échelle automatique (la plus grande échelle normalisée qui
+    tient, 10:1 … 1:100) ou imposée. **Automatique** revient aux vues, à l'échelle et aux cotes
+    d'origine.
+  - **Cartouche** (panneau de droite) : titre (par défaut le nom de la pièce), numéro de plan,
+    matière (par défaut celle de la fiche de la pièce), dessinateur, date, remarque ; s'y ajoutent
+    le projet, l'échelle et la feuille. Liste des diamètres (Ø) et rayons (R) au-dessus.
+  - **Export** : PDF (une page par pièce), SVG ou DXF de la pièce affichée. Le DXF (R12, en mm)
+    range les traits par calque : `CONTOUR`, `CACHE` (traits interrompus), `COTE`, `TEXTE`.
+  - Les retouches sont enregistrées dans le projet (`fabrication.drawings`, voir
+    [format-natif.md](format-natif.md)) et annulables.
 - **Gabarit 1:1** (PDF) : le contour d'une face plate de chaque pièce (celle choisie pour la
   découpe laser, sinon la plus grande, de préférence celle du dessus), à taille réelle, centré sur
   une page A4 (ou A3 si besoin), avec un trait de contrôle de 50 mm : imprimer en « taille

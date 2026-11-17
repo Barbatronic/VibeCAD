@@ -33,6 +33,113 @@
     },
     "document": {
       "$ref": "#/$defs/document"
+    },
+    "history": {
+      "type": "object",
+      "description": "Historique des versions du projet (facultatif). Un lecteur peut l'ignorer : le projet courant est entièrement dans « document ». Un historique illisible est écarté sans empêcher l'ouverture.",
+      "required": [
+        "commits",
+        "branches",
+        "current"
+      ],
+      "properties": {
+        "commits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "parents",
+              "message",
+              "date",
+              "schemaVersion",
+              "shell",
+              "parts",
+              "resources"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "parents": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Versions dont celle-ci dérive : aucune pour la première, deux pour une fusion."
+              },
+              "message": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string",
+                "description": "Date ISO 8601."
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Version du format des contenus de cette version."
+              },
+              "shell": {
+                "type": "string",
+                "description": "Empreinte du projet sans ses pièces ni ses ressources."
+              },
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Empreintes des pièces, dans l'ordre de la liste."
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Identifiants des ressources importées dont la version a besoin."
+              }
+            }
+          }
+        },
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "head"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "head": {
+                "type": "string",
+                "description": "Dernière version de la branche."
+              }
+            }
+          }
+        },
+        "current": {
+          "type": "string",
+          "description": "Branche de travail."
+        },
+        "packed": {
+          "type": "string",
+          "description": "Contenus des versions : objet JSON { empreinte: texte }, compressé en gzip puis codé en base64. Chaque texte est le JSON, clés triées, d'une pièce ou du projet sans ses pièces."
+        },
+        "objects": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Les mêmes contenus en clair, quand « packed » est absent."
+        },
+        "resources": {
+          "type": "object",
+          "description": "Ressources qu'une version utilise encore et que le projet courant n'a plus."
+        }
+      }
     }
   },
   "$defs": {
@@ -355,6 +462,193 @@
                 }
               },
               "description": "Découpe laser : une « page » par matériau. Les champs sheet, thickness et kerf (une seule plaque) viennent des premières versions et sont convertis en un matériau à la lecture."
+            },
+            "drawings": {
+              "type": "array",
+              "description": "Mises en plan retouchées (facultatif, ajouté le 16 novembre 2026) : une par pièce au plus. Sans entrée, la mise en plan d'une pièce est automatique.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "partId"
+                ],
+                "properties": {
+                  "partId": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "enum": [
+                      "A4",
+                      "A3"
+                    ],
+                    "description": "Feuille, en paysage (absente : A4)."
+                  },
+                  "scale": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Échelle imposée (2 pour 2:1, 0.5 pour 1:2) ; absente : la plus grande échelle normalisée qui tient."
+                  },
+                  "views": {
+                    "type": "object",
+                    "description": "Décalage des vues (mm papier) par rapport à leur place automatique. Seuls dessus.y et gauche.x comptent pour ces deux vues, qui restent alignées sur la vue de face.",
+                    "properties": {
+                      "face": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "dessus": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      },
+                      "gauche": {
+                        "type": "object",
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "dimensions": {
+                    "type": "array",
+                    "description": "Cotes ; absentes : les trois cotes d'encombrement.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "view",
+                        "kind",
+                        "offset"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "view": {
+                          "enum": [
+                            "face",
+                            "dessus",
+                            "gauche"
+                          ]
+                        },
+                        "kind": {
+                          "enum": [
+                            "overall",
+                            "linear",
+                            "diameter",
+                            "radius"
+                          ],
+                          "description": "overall : encombrement de la vue selon axis ; linear : entre les points a et b ; diameter, radius : cercle ou arc de centre a."
+                        },
+                        "axis": {
+                          "enum": [
+                            "x",
+                            "y",
+                            "aligned"
+                          ],
+                          "description": "Mesure horizontale (x), verticale (y) ou dans l'alignement des points (aligned, cotes linear seulement)."
+                        },
+                        "a": {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          },
+                          "description": "Point dans le plan de la vue, en mm de la pièce."
+                        },
+                        "b": {
+                          "type": "object",
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "radius": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "offset": {
+                          "type": "number",
+                          "description": "mm papier. Linéaire : distance de la ligne de cote au bord de ce qu'elle mesure (négative : en dessous ou à gauche). Diamètre, rayon : longueur du trait de repère au-delà du cercle."
+                        },
+                        "angle": {
+                          "type": "number",
+                          "description": "Diamètre, rayon : direction du trait de repère, en degrés."
+                        }
+                      }
+                    }
+                  },
+                  "title": {
+                    "type": "object",
+                    "description": "Textes du cartouche ; absents, le titre est le nom de la pièce et la matière celle de sa fiche.",
+                    "properties": {
+                      "title": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "string"
+                      },
+                      "date": {
+                        "type": "string"
+                      },
+                      "material": {
+                        "type": "string"
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -515,6 +809,77 @@
                       "mass": {
                         "type": "number",
                         "minimum": 0
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "scenarios": {
+              "type": "array",
+              "description": "Scénarios de mouvement de l'assemblage (facultatif) : des liaisons pilotantes à une valeur donnée, des liaisons pilotées dont on lit la position.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "name",
+                  "drivers",
+                  "sensors"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "drivers": {
+                    "type": "array",
+                    "description": "Liaisons pilotantes et leur valeur.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "jointId",
+                        "dof",
+                        "value"
+                      ],
+                      "properties": {
+                        "jointId": {
+                          "type": "string"
+                        },
+                        "dof": {
+                          "enum": [
+                            "angle",
+                            "offset"
+                          ],
+                          "description": "Degré de liberté de la liaison : angle (degrés) ou course (mm)."
+                        },
+                        "value": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  "sensors": {
+                    "type": "array",
+                    "description": "Liaisons pilotées, lues comme des capteurs.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "jointId",
+                        "dof"
+                      ],
+                      "properties": {
+                        "jointId": {
+                          "type": "string"
+                        },
+                        "dof": {
+                          "enum": [
+                            "angle",
+                            "offset"
+                          ],
+                          "description": "Degré de liberté de la liaison : angle (degrés) ou course (mm)."
+                        }
                       }
                     }
                   }
@@ -704,12 +1069,28 @@
         "component": {
           "type": "object",
           "description": "Composant inséré depuis une bibliothèque : historique verrouillé tant que « editable » n'est pas vrai.",
-          "required": ["library", "id", "name"],
+          "required": [
+            "library",
+            "id",
+            "name"
+          ],
           "properties": {
-            "library": { "type": "string", "description": "Adresse de la bibliothèque." },
-            "id": { "type": "string", "description": "Identifiant du composant dans la bibliothèque." },
-            "name": { "type": "string", "description": "Nom du composant dans la bibliothèque." },
-            "editable": { "type": "boolean", "description": "Historique rendu modifiable." }
+            "library": {
+              "type": "string",
+              "description": "Adresse de la bibliothèque."
+            },
+            "id": {
+              "type": "string",
+              "description": "Identifiant du composant dans la bibliothèque."
+            },
+            "name": {
+              "type": "string",
+              "description": "Nom du composant dans la bibliothèque."
+            },
+            "editable": {
+              "type": "boolean",
+              "description": "Historique rendu modifiable."
+            }
           }
         }
       }
@@ -3240,12 +3621,23 @@
               "zero": {
                 "type": "object",
                 "description": "Zéro de la liaison : position de référence ajoutée aux réglages libres (angle, décalage, glissements).",
-                "required": ["angle", "offset"],
+                "required": [
+                  "angle",
+                  "offset"
+                ],
                 "properties": {
-                  "angle": { "type": "number" },
-                  "offset": { "type": "number" },
-                  "slideX": { "type": "number" },
-                  "slideY": { "type": "number" }
+                  "angle": {
+                    "type": "number"
+                  },
+                  "offset": {
+                    "type": "number"
+                  },
+                  "slideX": {
+                    "type": "number"
+                  },
+                  "slideY": {
+                    "type": "number"
+                  }
                 }
               }
             }

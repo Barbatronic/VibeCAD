@@ -33,6 +33,7 @@ particulier. Le schéma formel est dans [`vibecad.schema.json`](vibecad.schema.j
 | `generator` | logiciel et version qui ont écrit le fichier (informatif) |
 | `savedAt` | date d'enregistrement (ISO 8601) |
 | `document` | le projet |
+| `history` | historique des versions (facultatif, ajouté le 15 novembre 2026) : voir « Historique des versions » |
 
 ## Document
 
@@ -557,6 +558,20 @@ normalisée au calcul ; `pull`, `custom` et `vector` ajoutés le 14 octobre 2026
 (facultatif, ajouté le 18 octobre 2026) : faces gardées pleines par « Alléger la pièce »
 (optimisation topologique). Les résultats ne sont pas enregistrés : ils se recalculent. Détails : [simulation.md](simulation.md).
 
+`scenarios` (facultatif, ajouté le 15 novembre 2026) : scénarios de mouvement de l'assemblage.
+
+```json
+"scenarios": [
+  { "id": "sc-…", "name": "Ouverture",
+    "drivers": [{ "jointId": "joint-…", "dof": "angle", "value": 45 }],
+    "sensors": [{ "jointId": "joint-…", "dof": "offset" }] }
+]
+```
+
+`drivers` : liaisons pilotantes et leur valeur (`dof` : `angle` en degrés, `offset` en mm) ;
+`sensors` : liaisons pilotées, dont la position est lue. Un scénario qui vise une liaison disparue
+la garde : elle est ignorée.
+
 ## Fabrication (champ facultatif `fabrication`)
 
 ```json
@@ -577,6 +592,75 @@ coupe), et par pièce la face qui donne le contour et le matériau (`materialId`
 automatique par l'épaisseur). Les premiers fichiers avaient une seule plaque (`sheet`,
 `thickness`, `kerf` directement sous `laser`) : ils sont lus comme un matériau unique. Voir
 [fabrication.md](fabrication.md).
+
+### Mises en plan retouchées (champ facultatif `fabrication.drawings`)
+
+Ajouté le 16 novembre 2026. Une entrée par pièce dont la mise en plan a été retouchée ; sans
+entrée, la mise en plan est automatique (A4 paysage, plus grande échelle normalisée qui tient,
+trois cotes d'encombrement). Tous les champs sauf `partId` sont facultatifs.
+
+```json
+"drawings": [
+  { "partId": "part-…", "format": "A3", "scale": 0.5,
+    "views": { "face": { "x": 4, "y": -2 }, "gauche": { "x": 6, "y": 0 } },
+    "dimensions": [
+      { "id": "auto-largeur", "view": "face", "kind": "overall", "axis": "x", "offset": -8 },
+      { "id": "cote-1", "view": "dessus", "kind": "linear", "axis": "aligned",
+        "a": { "x": 0, "y": 0 }, "b": { "x": 60, "y": 30 }, "offset": 6 },
+      { "id": "cote-2", "view": "dessus", "kind": "diameter",
+        "a": { "x": 15, "y": 15 }, "radius": 3, "angle": 45, "offset": 6 }
+    ],
+    "title": { "title": "Platine", "number": "P-012", "author": "…", "date": "…",
+               "material": "…", "note": "…" } }
+]
+```
+
+- `format` : `A4` ou `A3`, en paysage ; `scale` : échelle imposée (2 pour 2:1, 0.5 pour 1:2).
+- `views` : décalage des vues `face`, `dessus`, `gauche` en mm papier, depuis leur place
+  automatique. La vue de dessus reste sous la vue de face et la vue de gauche à sa droite : seuls
+  `dessus.y` et `gauche.x` comptent pour elles.
+- `dimensions` : les cotes (absentes : les trois cotes d'encombrement ; liste vide : aucune).
+  Les points `a`, `b` sont dans le plan de la vue, en mm de la pièce. `overall` : encombrement de
+  la vue selon `axis` (`x` ou `y`) ; `linear` : entre `a` et `b`, mesurée à l'horizontale (`x`),
+  à la verticale (`y`) ou dans leur alignement (`aligned`) ; `diameter`, `radius` : cercle ou arc
+  de centre `a`, de rayon `radius`, trait de repère dans la direction `angle` (degrés). `offset`
+  (mm papier) : distance de la ligne de cote au bord de ce qu'elle mesure (négative : en dessous
+  ou à gauche), ou longueur du repère au-delà du cercle.
+- Une cote dont les points ne sont plus sur la pièce (la pièce a changé) est gardée dans le
+  fichier ; l'application la signale et ne l'exporte pas.
+- `title` : textes du cartouche. La mise en plan d'une pièce disparue est retirée à l'ouverture.
+
+## Historique des versions (champ facultatif `history`)
+
+À côté de `document`, dans l'enveloppe. Le projet courant est entièrement dans `document` : un
+lecteur peut ignorer `history`, et un historique illisible est écarté à l'ouverture sans empêcher
+de lire le projet.
+
+```json
+"history": {
+  "commits": [
+    { "id": "…", "parents": [], "message": "Plaque", "date": "2026-11-15T10:00:00.000Z",
+      "schemaVersion": 1, "shell": "empreinte", "parts": ["empreinte"], "resources": [] }
+  ],
+  "branches": [{ "name": "principal", "head": "…" }],
+  "current": "principal",
+  "packed": "H4sI…"
+}
+```
+
+- `commits` : les versions. `parents` : les versions dont elle dérive (aucune pour la première,
+  deux pour une fusion) ; `shell` : empreinte du projet sans ses pièces ni ses ressources ;
+  `parts` : empreinte de chaque pièce, dans l'ordre de la liste ; `resources` : identifiants des
+  ressources importées dont la version a besoin ; `schemaVersion` : format de ses contenus.
+- `branches` : nom et dernière version (`head`) de chaque branche ; `current` : branche de travail.
+- `packed` : les contenus, un objet `{ empreinte: texte }` en JSON, compressé (gzip) puis codé en
+  base64. Chaque texte est le JSON à clés triées d'une pièce, ou du projet sans ses pièces. Une
+  pièce inchangée d'une version à l'autre n'est rangée qu'une fois. `objects` : les mêmes contenus
+  en clair, quand `packed` est absent.
+- `resources` (facultatif) : ressources qu'une version utilise encore et que le projet courant
+  n'a plus.
+
+L'identité du projet (identifiant, nom, dates) ne fait pas partie des versions.
 
 ## Ressources embarquées
 
