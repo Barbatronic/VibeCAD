@@ -42,6 +42,7 @@ export const VersionsTools = lazyComponent(() => versions().then((m) => m.Versio
 export const VersionsSection = lazyComponent(() => versions().then((m) => m.VersionsSection));
 export const VersionsRightPanel = lazyComponent(() => versions().then((m) => m.VersionsRightPanel));
 export const LaserBoard = lazyComponent(() => import('./LaserBoard').then((m) => m.LaserBoard));
+export const DrawingBoard = lazyComponent(() => import('./DrawingBoard').then((m) => m.DrawingBoard));
 export const HelpDrawer = lazyComponent(() => import('./HelpDrawer').then((m) => m.HelpDrawer));
 export const Tutorial = lazyComponent(() => import('./Tutorial').then((m) => m.Tutorial));
 export const ComponentsDialog = lazyComponent(() => import('./ComponentsDialog').then((m) => m.ComponentsDialog));

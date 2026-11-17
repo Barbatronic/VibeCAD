@@ -102,6 +102,61 @@ export interface LaserPlacement {
   angle: number;
 }
 
+/** Vues d'une mise en plan (projection européenne). */
+export type DrawingViewName = 'face' | 'dessus' | 'gauche';
+
+/**
+ * Cote d'une mise en plan, dans une vue. Les points sont dans le plan de la vue, en mm de la pièce.
+ * - `overall` : encombrement de la vue selon `axis` (`x` : largeur, `y` : hauteur) ; elle suit la pièce ;
+ * - `linear` : entre les points `a` et `b`, mesurée à l'horizontale (`x`), à la verticale (`y`) ou
+ *   dans leur alignement (`aligned`) ;
+ * - `diameter`, `radius` : cercle ou arc de centre `a` et de rayon `radius`.
+ */
+export interface DrawingDimension {
+  id: Id;
+  view: DrawingViewName;
+  kind: 'overall' | 'linear' | 'diameter' | 'radius';
+  axis?: 'x' | 'y' | 'aligned';
+  a?: { x: number; y: number };
+  b?: { x: number; y: number };
+  radius?: number;
+  /**
+   * Place de la cote sur la feuille (mm papier). Linéaire : distance de la ligne de cote au bord
+   * de ce qu'elle mesure (négative : en dessous ou à gauche). Diamètre, rayon : longueur du trait
+   * de repère au-delà du cercle.
+   */
+  offset: number;
+  /** Diamètre, rayon : direction du trait de repère (degrés). */
+  angle?: number;
+}
+
+/** Cartouche : textes saisis ; absents, le titre est le nom de la pièce et la matière celle de sa fiche. */
+export interface DrawingTitle {
+  title?: string;
+  number?: string;
+  author?: string;
+  date?: string;
+  material?: string;
+  note?: string;
+}
+
+/** Réglages de la mise en plan d'une pièce ; tout est facultatif (absent : mise en page automatique). */
+export interface PartDrawing {
+  partId: Id;
+  /** Feuille, en paysage (absente : A4). */
+  format?: 'A4' | 'A3';
+  /** Échelle imposée (2 pour 2:1, 0.5 pour 1:2) ; absente : la plus grande qui tient. */
+  scale?: number;
+  /**
+   * Décalage des vues (mm papier) par rapport à leur place automatique. La vue de dessus reste
+   * sous la vue de face et la vue de gauche à sa droite : seuls `dessus.y` et `gauche.x` comptent.
+   */
+  views?: Partial<Record<DrawingViewName, { x: number; y: number }>>;
+  /** Cotes ; absentes : les trois cotes d'encombrement. */
+  dimensions?: DrawingDimension[];
+  title?: DrawingTitle;
+}
+
 export interface FabricationSettings {
   /** Les pièces qui ne tiennent pas sur un plateau passent sur le suivant. */
   print: {
@@ -112,6 +167,8 @@ export interface FabricationSettings {
     ams?: Id[];
   };
   laser: { materials: LaserMaterial[]; spacing: number; engraveNames?: boolean; items: LaserItem[] };
+  /** Mises en plan retouchées (facultatif) : une par pièce au plus. */
+  drawings?: PartDrawing[];
 }
 
 // ---------------------------------------------------------------------------

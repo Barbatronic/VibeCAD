@@ -4,7 +4,7 @@
  * Les pages sont écrites en PDF ou en SVG par `io/drawing.ts`.
  */
 import { assemblyContents } from '../domain/subassemblies';
-import type { CadDocument, Id, Part } from '../domain/model';
+import type { CadDocument, DrawingDimension, DrawingViewName, Id, Part, PartDrawing } from '../domain/model';
 import { formatLength, formatNumber } from '../domain/units';
 import type { DrawingPage, LineStyle } from '../io/drawing';
 import type { MeshData } from '../geometry/kernel';
@@ -18,9 +18,9 @@ import { sheetOf } from '../domain/material-sheets';
 
 // ----- Projection des vues
 
-export type ViewName = 'face' | 'dessus' | 'gauche';
+export type ViewName = DrawingViewName;
 
-interface ViewSpec {
+export interface ViewSpec {
   label: string;
   /** Axes horizontal et vertical de la feuille, et direction vers l'observateur. */
   u: Vec3;
@@ -195,10 +195,14 @@ export const roundNoteText = (n: RoundNote) => `${n.kind === 'diameter' ? 'Ø' :
 // ----- Mise en plan
 
 /** Échelles normalisées, de la plus grande à la plus petite. */
-const SCALES = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01];
+const SCALES: readonly number[] = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01];
 export const scaleLabel = (s: number) => (s >= 1 ? `${s}:1` : `1:${Math.round(1 / s)}`);
 
 const A4L = { width: 297, height: 210 };
+/** Feuilles de la mise en plan, en paysage. */
+export const DRAWING_FORMATS = { A4: A4L, A3: { width: 420, height: 297 } } as const;
+/** Échelles proposées, de la plus grande à la plus petite. */
+export const DRAWING_SCALES: readonly number[] = SCALES;
 const MARGIN = 10;
 const GAP = 24;
 const TEXT = 3.5;
@@ -235,7 +239,7 @@ class PageBuilder {
    * Cote entre `a` et `b` (points de la pièce sur la feuille), tracée parallèlement à a→b,
    * décalée de `offset` mm sur la gauche du segment, avec lignes d'attache et texte.
    */
-  dimension(a: Vec2, b: Vec2, offset: number, text: string) {
+  dimension(a: Vec2, b: Vec2, offset: number, text: string, attach = true) {
     const len = Math.hypot(b.x - a.x, b.y - a.y);
     if (len < 1e-6) return;
     const d = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
@@ -244,8 +248,10 @@ class PageBuilder {
     const pa = { x: a.x + n.x * offset, y: a.y + n.y * offset };
     const pb = { x: b.x + n.x * offset, y: b.y + n.y * offset };
     const ext = (p: Vec2, q: Vec2) => this.line({ x: p.x + n.x * s * 1.5, y: p.y + n.y * s * 1.5 }, { x: q.x + n.x * s * 2, y: q.y + n.y * s * 2 }, 'thin');
-    ext(a, pa);
-    ext(b, pb);
+    if (attach) {
+      ext(a, pa);
+      ext(b, pb);
+    }
     this.line(pa, pb, 'thin');
     this.arrow(pa, { x: -d.x, y: -d.y });
     this.arrow(pb, d);
@@ -261,13 +267,10 @@ class PageBuilder {
 export interface DrawingInfo {
   partName: string;
   projectName: string;
+  /** Matière de la pièce (nom de sa fiche), pour le cartouche. */
+  material?: string;
 }
 
-/**
- * Mise en plan d'une pièce sur une page A4 paysage : vue de face en haut à gauche, vue de
- * dessus en dessous, vue de gauche à droite (projection européenne), cotes d'encombrement,
- * liste des diamètres et rayons, cartouche.
- */
 /** Ordre des vues demandées au calcul exact des traits cachés. */
 export const VIEW_ORDER: readonly ViewName[] = ['face', 'dessus', 'gauche'];
 
@@ -286,68 +289,356 @@ export function viewFromLines(lines: ProjectedView['lines']): ProjectedView {
   return lines.length ? { lines, min, max } : { lines, min: { x: 0, y: 0 }, max: { x: 0, y: 0 } };
 }
 
+// ----- Points d'accroche et cercles d'une vue
+
+/** Cercle ou arc vu de face dans une vue (son axe est la direction du regard). */
+export interface ViewCircle {
+  center: Vec2;
+  radius: number;
+  /** Cercle complet (cote de diamètre) ou arc (cote de rayon). */
+  full: boolean;
+}
+
+/** Ce sur quoi une cote peut s'accrocher dans une vue : sommets de la pièce, centres, cercles. */
+export interface ViewAnchors {
+  points: Vec2[];
+  circles: ViewCircle[];
+}
+
+const SNAP_TOLERANCE = 0.02;
+const near = (a: Vec2, b: Vec2, tol = SNAP_TOLERANCE) => Math.abs(a.x - b.x) <= tol && Math.abs(a.y - b.y) <= tol;
+
+/** Points d'accroche d'une vue, pris sur la forme (extrémités des arêtes, centres des cercles). */
+export function viewAnchors(mesh: MeshData, view: ViewSpec): ViewAnchors {
+  const proj = (p: Vec3): Vec2 => ({ x: dot3(p, view.u), y: dot3(p, view.v) });
+  const seen = new Set<string>();
+  const points: Vec2[] = [];
+  const add = (p: Vec2) => {
+    const key = `${Math.round(p.x * 100)},${Math.round(p.y * 100)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    points.push(p);
+  };
+  const circles: ViewCircle[] = [];
+  const ep = mesh.edgePositions;
+  for (const e of mesh.edges) {
+    if (e.count < 2) continue;
+    const full = !!e.circle && e.length >= 2 * Math.PI * e.circle.radius * 0.99;
+    // Extrémités de l'arête (un cercle complet n'en a pas).
+    if (!full) {
+      add(proj(vertex(ep, e.start)));
+      add(proj(vertex(ep, e.start + e.count - 1)));
+    }
+    if (!e.circle || Math.abs(dot3(e.circle.axis, view.toViewer)) < 0.999) continue;
+    const center = proj(e.circle.center);
+    add(center);
+    const known = circles.find((c) => near(c.center, center) && Math.abs(c.radius - e.circle!.radius) <= SNAP_TOLERANCE);
+    if (known) known.full ||= full;
+    else circles.push({ center, radius: e.circle.radius, full });
+  }
+  return { points, circles };
+}
+
+// ----- Mise en plan
+
+/** Cotes d'une mise en plan sans réglage : les trois cotes d'encombrement. */
+export const DEFAULT_DIMENSIONS: readonly DrawingDimension[] = [
+  { id: 'auto-largeur', view: 'face', kind: 'overall', axis: 'x', offset: -8 },
+  { id: 'auto-hauteur', view: 'face', kind: 'overall', axis: 'y', offset: -8 },
+  { id: 'auto-profondeur', view: 'dessus', kind: 'overall', axis: 'y', offset: -8 },
+];
+
+type PageLine = DrawingPage['lines'][number];
+type PageText = DrawingPage['texts'][number];
+
+/** Une vue posée sur la feuille. */
+export interface PlacedView {
+  name: ViewName;
+  /** Rectangle de la vue sur la feuille (mm papier). */
+  box: { x: number; y: number; w: number; h: number };
+  /** Point de la vue (mm pièce) → point de la feuille, et l'inverse. */
+  toPaper: (p: Vec2) => Vec2;
+  toView: (q: Vec2) => Vec2;
+  anchors: ViewAnchors;
+  min: Vec2;
+  max: Vec2;
+  lines: PageLine[];
+  texts: PageText[];
+}
+
+/** Une cote tracée : ses traits, son texte, et de quoi la saisir à la souris. */
+export interface PlacedDimension {
+  dim: DrawingDimension;
+  /** Ce qu'elle mesurait n'existe plus dans la vue : elle n'est pas exportée. */
+  detached: boolean;
+  lines: PageLine[];
+  texts: PageText[];
+  /** Ligne de cote (ou trait de repère), pour la saisir. */
+  grip: [Vec2, Vec2];
+}
+
+export interface DrawingLayout {
+  format: 'A4' | 'A3';
+  width: number;
+  height: number;
+  scale: number;
+  views: Record<ViewName, PlacedView>;
+  /** Cadre, cartouche, liste des trous et arrondis. */
+  frame: { lines: PageLine[]; texts: PageText[] };
+  dimensions: PlacedDimension[];
+}
+
+const lengthText = (v: number) => formatNumber(v, 2);
+
 /**
- * Mise en plan ; `exact` : vues calculées par le noyau (traits cachés exacts). Sans elles, les
- * vues sont déduites du maillage (approché, mais immédiat).
+ * Trace une cote linéaire entre deux points de la feuille. `axis` : mesure horizontale (`x`),
+ * verticale (`y`) ou dans l'alignement des points ; `offset` : distance de la ligne de cote au
+ * bord de ce qui est mesuré (négative : en dessous, à gauche).
  */
-export function technicalDrawing(mesh: MeshData, info: DrawingInfo, exact?: Record<ViewName, ProjectedView>): { page: DrawingPage; scale: number } {
+function linearDimension(b: PageBuilder, pa: Vec2, pb: Vec2, axis: 'x' | 'y' | 'aligned', offset: number, text: string): [Vec2, Vec2] {
+  if (axis === 'aligned') {
+    b.dimension(pa, pb, offset, text);
+    const len = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1;
+    const n = { x: -(pb.y - pa.y) / len, y: (pb.x - pa.x) / len };
+    return [{ x: pa.x + n.x * offset, y: pa.y + n.y * offset }, { x: pb.x + n.x * offset, y: pb.y + n.y * offset }];
+  }
+  // Ligne de cote horizontale ou verticale : chaque point y est ramené par sa ligne d'attache.
+  const [lo, hi] = axis === 'x' ? [Math.min(pa.y, pb.y), Math.max(pa.y, pb.y)] : [Math.min(pa.x, pb.x), Math.max(pa.x, pb.x)];
+  const at = (offset < 0 ? lo : hi) + offset;
+  const foot = (p: Vec2): Vec2 => (axis === 'x' ? { x: p.x, y: at } : { x: at, y: p.y });
+  const [fa, fb] = [foot(pa), foot(pb)];
+  const ordered = axis === 'x' ? fa.x <= fb.x : fa.y >= fb.y;
+  const [first, second, p1, p2] = ordered ? [fa, fb, pa, pb] : [fb, fa, pb, pa];
+  const attach = (p: Vec2, f: Vec2) => {
+    const len = Math.hypot(f.x - p.x, f.y - p.y);
+    if (len < 1e-6) return;
+    const d = { x: (f.x - p.x) / len, y: (f.y - p.y) / len };
+    b.line({ x: p.x + d.x * Math.min(1.5, len / 2), y: p.y + d.y * Math.min(1.5, len / 2) }, { x: f.x + d.x * 2, y: f.y + d.y * 2 }, 'thin');
+  };
+  attach(p1, first);
+  attach(p2, second);
+  // Même convention que `dimension` : de la gauche vers la droite, ou du haut vers le bas.
+  b.dimension(first, second, 0, text, false);
+  return [first, second];
+}
+
+/** Trace une cote de diamètre ou de rayon : trait de repère dans la direction `angle`, texte au bout. */
+function roundDimension(b: PageBuilder, center: Vec2, radius: number, kind: 'diameter' | 'radius', angle: number, offset: number, text: string): [Vec2, Vec2] {
+  const d = { x: Math.cos((angle * Math.PI) / 180), y: Math.sin((angle * Math.PI) / 180) };
+  const tip = { x: center.x + d.x * radius, y: center.y + d.y * radius };
+  const end = { x: center.x + d.x * (radius + Math.max(2, offset)), y: center.y + d.y * (radius + Math.max(2, offset)) };
+  const from = kind === 'diameter' ? { x: center.x - d.x * radius, y: center.y - d.y * radius } : center;
+  b.line(from, end, 'thin');
+  b.arrow(tip, d);
+  if (kind === 'diameter') b.arrow(from, { x: -d.x, y: -d.y });
+  // Texte horizontal au bout du repère, sur un petit palier.
+  const side = d.x >= 0 ? 1 : -1;
+  b.line(end, { x: end.x + side * 2, y: end.y }, 'thin');
+  b.text({ x: end.x + side * 3, y: end.y - TEXT * 0.35 }, text, TEXT, side > 0 ? 'start' : 'end');
+  return [tip, end];
+}
+
+/** Trace une cote dans sa vue. Une cote dont les points ne sont plus sur la pièce est « détachée ». */
+export function placeDimension(dim: DrawingDimension, view: PlacedView, scale: number): PlacedDimension {
+  const b = new PageBuilder(0, 0);
+  let grip: [Vec2, Vec2] = [view.toPaper(view.min), view.toPaper(view.min)];
+  let detached = false;
+  if (dim.kind === 'overall') {
+    const x = dim.axis !== 'y';
+    const size = x ? view.max.x - view.min.x : view.max.y - view.min.y;
+    // Les points sont pris sur le bord de la vue du côté de la cote.
+    const edge = dim.offset < 0 ? view.min : view.max;
+    const pa = view.toPaper(x ? { x: view.min.x, y: edge.y } : { x: edge.x, y: view.max.y });
+    const pb = view.toPaper(x ? { x: view.max.x, y: edge.y } : { x: edge.x, y: view.min.y });
+    if (size > 1e-6) grip = linearDimension(b, pa, pb, x ? 'x' : 'y', dim.offset, lengthText(size));
+    else detached = true;
+  } else if (dim.kind === 'linear' && dim.a && dim.b) {
+    const axis = dim.axis ?? 'aligned';
+    const value = axis === 'x' ? Math.abs(dim.b.x - dim.a.x) : axis === 'y' ? Math.abs(dim.b.y - dim.a.y) : Math.hypot(dim.b.x - dim.a.x, dim.b.y - dim.a.y);
+    detached = !view.anchors.points.some((p) => near(p, dim.a!)) || !view.anchors.points.some((p) => near(p, dim.b!));
+    grip = linearDimension(b, view.toPaper(dim.a), view.toPaper(dim.b), axis, dim.offset, lengthText(value));
+  } else if ((dim.kind === 'diameter' || dim.kind === 'radius') && dim.a && dim.radius !== undefined) {
+    const radius = dim.radius;
+    detached = !view.anchors.circles.some((c) => near(c.center, dim.a!) && Math.abs(c.radius - radius) <= SNAP_TOLERANCE);
+    const text = dim.kind === 'diameter' ? `Ø ${lengthText(2 * radius)}` : `R ${lengthText(radius)}`;
+    grip = roundDimension(b, view.toPaper(dim.a), radius * scale, dim.kind, dim.angle ?? 45, dim.offset, text);
+  } else detached = true;
+  return { dim, detached, lines: b.page.lines, texts: b.page.texts, grip };
+}
+
+/** Écart minimal (mm papier) entre une ligne de cote et ce qu'elle mesure. */
+const MIN_OFFSET = 2;
+const sided = (p: number, lo: number, hi: number) => (p < (lo + hi) / 2 ? Math.min(p - lo, -MIN_OFFSET) : Math.max(p - hi, MIN_OFFSET));
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
+/** Décalage d'une cote linéaire entre deux points de la feuille quand sa ligne passe par `p`. */
+function linearOffset(pa: Vec2, pb: Vec2, axis: 'x' | 'y' | 'aligned', p: Vec2): number {
+  if (axis === 'x') return round1(sided(p.y, Math.min(pa.y, pb.y), Math.max(pa.y, pb.y)));
+  if (axis === 'y') return round1(sided(p.x, Math.min(pa.x, pb.x), Math.max(pa.x, pb.x)));
+  const len = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1;
+  const d = ((p.x - pa.x) * -(pb.y - pa.y) + (p.y - pa.y) * (pb.x - pa.x)) / len;
+  return round1(Math.abs(d) < MIN_OFFSET ? (d < 0 ? -MIN_OFFSET : MIN_OFFSET) : d);
+}
+
+/**
+ * Cote linéaire entre deux points d'une vue, posée là où est le pointeur `p` (feuille) : au-dessus
+ * ou en dessous des points, elle mesure à l'horizontale ; à côté, à la verticale ; ailleurs, dans
+ * leur alignement.
+ */
+export function linearAt(view: PlacedView, a: Vec2, b: Vec2, p: Vec2): Pick<DrawingDimension, 'axis' | 'offset'> {
+  const [pa, pb] = [view.toPaper(a), view.toPaper(b)];
+  const flatX = Math.abs(pa.x - pb.x) < 1e-6;
+  const flatY = Math.abs(pa.y - pb.y) < 1e-6;
+  const inX = p.x >= Math.min(pa.x, pb.x) && p.x <= Math.max(pa.x, pb.x);
+  const inY = p.y >= Math.min(pa.y, pb.y) && p.y <= Math.max(pa.y, pb.y);
+  const axis = flatY ? 'x' : flatX ? 'y' : inX && !inY ? 'x' : inY && !inX ? 'y' : 'aligned';
+  return { axis, offset: linearOffset(pa, pb, axis, p) };
+}
+
+/** Direction d'un trait de repère du centre `c` vers le point `p`, par pas de 5°. */
+export const leaderAngle = (c: Vec2, p: Vec2): number => Math.round((Math.atan2(p.y - c.y, p.x - c.x) * 180) / Math.PI / 5) * 5;
+
+/** Ce qui change dans une cote quand on la fait glisser jusqu'au point `p` de la feuille. */
+export function dragDimension(dim: DrawingDimension, view: PlacedView, scale: number, p: Vec2): Partial<DrawingDimension> {
+  if (dim.kind === 'overall') {
+    const x = dim.axis !== 'y';
+    return { offset: round1(x ? sided(p.y, view.box.y, view.box.y + view.box.h) : sided(p.x, view.box.x, view.box.x + view.box.w)) };
+  }
+  if (dim.kind === 'linear' && dim.a && dim.b) return { offset: linearOffset(view.toPaper(dim.a), view.toPaper(dim.b), dim.axis ?? 'aligned', p) };
+  if (dim.a && dim.radius !== undefined) {
+    const c = view.toPaper(dim.a);
+    return { angle: leaderAngle(c, p), offset: round1(Math.max(MIN_OFFSET, Math.hypot(p.x - c.x, p.y - c.y) - dim.radius * scale)) };
+  }
+  return {};
+}
+
+/** Point d'accroche d'une vue le plus proche du point `p` de la feuille, à moins de `reach` mm papier. */
+export function nearestAnchor(layout: DrawingLayout, p: Vec2, reach: number, only?: ViewName): { view: ViewName; point: Vec2 } | null {
+  let best: { view: ViewName; point: Vec2 } | null = null;
+  let bestD = reach;
+  for (const name of VIEW_ORDER) {
+    if (only && name !== only) continue;
+    const view = layout.views[name];
+    for (const point of view.anchors.points) {
+      const q = view.toPaper(point);
+      const d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d <= bestD) [best, bestD] = [{ view: name, point }, d];
+    }
+  }
+  return best;
+}
+
+/** Cercle ou arc d'une vue dont le trait passe le plus près du point `p` de la feuille. */
+export function nearestCircle(layout: DrawingLayout, p: Vec2, reach: number): { view: ViewName; circle: ViewCircle } | null {
+  let best: { view: ViewName; circle: ViewCircle } | null = null;
+  let bestD = reach;
+  for (const name of VIEW_ORDER) {
+    const view = layout.views[name];
+    for (const circle of view.anchors.circles) {
+      const c = view.toPaper(circle.center);
+      const d = Math.abs(Math.hypot(p.x - c.x, p.y - c.y) - circle.radius * layout.scale);
+      if (d <= bestD) [best, bestD] = [{ view: name, circle }, d];
+    }
+  }
+  return best;
+}
+
+/**
+ * Mise en plan d'une pièce sur une feuille en paysage : vue de face en haut à gauche, vue de
+ * dessus en dessous, vue de gauche à droite (projection européenne), cotes, liste des diamètres
+ * et rayons, cartouche. `exact` : vues calculées par le noyau (traits cachés exacts) ; sans elles,
+ * les vues sont déduites du maillage (approché, mais immédiat). `settings` : retouches de la mise
+ * en plan (feuille, échelle, place des vues, cotes, cartouche) ; absentes, tout est automatique.
+ */
+export function technicalDrawing(mesh: MeshData, info: DrawingInfo, exact?: Record<ViewName, ProjectedView>, settings?: PartDrawing): { page: DrawingPage; scale: number; layout: DrawingLayout } {
   const views = exact ?? {
     face: projectView(mesh, VIEWS.face),
     dessus: projectView(mesh, VIEWS.dessus),
     gauche: projectView(mesh, VIEWS.gauche),
   };
+  const format = settings?.format ?? 'A4';
+  const sheet = DRAWING_FORMATS[format];
   const ext = (v: ProjectedView) => ({ w: v.max.x - v.min.x, h: v.max.y - v.min.y });
   const F = ext(views.face);
   const T = ext(views.dessus);
   const G = ext(views.gauche);
-  const titleH = 24;
+  const titleH = 30;
   const left = MARGIN + 22;
-  const top = A4L.height - MARGIN - 12;
-  const availW = A4L.width - MARGIN - left - 8;
+  const top = sheet.height - MARGIN - 12;
+  const availW = sheet.width - MARGIN - left - 8;
   const availH = top - (MARGIN + titleH + 6);
-  const scale = SCALES.find((s) => s * (F.w + G.w) + GAP <= availW && s * (F.h + T.h) + GAP <= availH) ?? SCALES[SCALES.length - 1]!;
-  const b = new PageBuilder(A4L.width, A4L.height);
-  b.rect(MARGIN, MARGIN, A4L.width - 2 * MARGIN, A4L.height - 2 * MARGIN);
-  // Origines des vues sur la feuille.
-  const place = (v: ProjectedView, x: number, yTop: number) => (p: Vec2): Vec2 => ({ x: x + (p.x - v.min.x) * scale, y: yTop - (v.max.y - p.y) * scale });
-  const faceAt = place(views.face, left, top);
-  const dessusAt = place(views.dessus, left, top - F.h * scale - GAP);
-  const gaucheAt = place(views.gauche, left + F.w * scale + GAP, top);
-  const draw = (v: ProjectedView, at: (p: Vec2) => Vec2, name: ViewName) => {
-    for (const l of v.lines) if (l.hidden) b.line(at(l.a), at(l.b), 'hidden');
-    for (const l of v.lines) if (!l.hidden) b.line(at(l.a), at(l.b), 'thick');
-    const tl = at({ x: v.min.x, y: v.max.y });
-    b.text({ x: tl.x, y: tl.y + 3 }, VIEWS[name].label, 3);
+  const fitted = SCALES.find((s) => s * (F.w + G.w) + GAP <= availW && s * (F.h + T.h) + GAP <= availH) ?? SCALES[SCALES.length - 1]!;
+  const scale = settings?.scale && settings.scale > 0 ? settings.scale : fitted;
+  // Place des vues : automatique, puis décalée ; la vue de dessus reste sous la vue de face, la vue de gauche à sa droite.
+  const shift = settings?.views ?? {};
+  const face = { x: left + (shift.face?.x ?? 0), y: top + (shift.face?.y ?? 0) };
+  const origins: Record<ViewName, Vec2> = {
+    face,
+    dessus: { x: face.x, y: face.y - F.h * scale - GAP + (shift.dessus?.y ?? 0) },
+    gauche: { x: face.x + F.w * scale + GAP + (shift.gauche?.x ?? 0), y: face.y },
   };
-  draw(views.face, faceAt, 'face');
-  draw(views.dessus, dessusAt, 'dessus');
-  draw(views.gauche, gaucheAt, 'gauche');
-  const n = (v: number) => formatNumber(v, 2);
-  // Cotes d'encombrement : largeur et hauteur sur la vue de face, profondeur sur la vue de dessus.
-  const fv = views.face;
-  if (F.w > 1e-6) b.dimension(faceAt({ x: fv.min.x, y: fv.min.y }), faceAt({ x: fv.max.x, y: fv.min.y }), -8, n(F.w));
-  if (F.h > 1e-6) b.dimension(faceAt({ x: fv.min.x, y: fv.max.y }), faceAt({ x: fv.min.x, y: fv.min.y }), -8, n(F.h));
-  const tv = views.dessus;
-  if (T.h > 1e-6) b.dimension(dessusAt({ x: tv.min.x, y: tv.max.y }), dessusAt({ x: tv.min.x, y: tv.min.y }), -8, n(T.h));
-  // Cartouche.
-  const cw = 110;
-  const cx = A4L.width - MARGIN - cw;
+  const placed = (name: ViewName): PlacedView => {
+    const v = views[name];
+    const o = origins[name];
+    const toPaper = (p: Vec2): Vec2 => ({ x: o.x + (p.x - v.min.x) * scale, y: o.y - (v.max.y - p.y) * scale });
+    const toView = (q: Vec2): Vec2 => ({ x: v.min.x + (q.x - o.x) / scale, y: v.max.y + (q.y - o.y) / scale });
+    const b = new PageBuilder(0, 0);
+    for (const l of v.lines) if (l.hidden) b.line(toPaper(l.a), toPaper(l.b), 'hidden');
+    for (const l of v.lines) if (!l.hidden) b.line(toPaper(l.a), toPaper(l.b), 'thick');
+    b.text({ x: o.x, y: o.y + 3 }, VIEWS[name].label, 3);
+    const size = ext(v);
+    return { name, box: { x: o.x, y: o.y - size.h * scale, w: size.w * scale, h: size.h * scale }, toPaper, toView, anchors: viewAnchors(mesh, VIEWS[name]), min: v.min, max: v.max, lines: b.page.lines, texts: b.page.texts };
+  };
+  const layoutViews = { face: placed('face'), dessus: placed('dessus'), gauche: placed('gauche') };
+  const dimensions = (settings?.dimensions ?? DEFAULT_DIMENSIONS).map((dim) => placeDimension(dim, layoutViews[dim.view], scale));
+  // Cadre et cartouche.
+  const b = new PageBuilder(sheet.width, sheet.height);
+  b.rect(MARGIN, MARGIN, sheet.width - 2 * MARGIN, sheet.height - 2 * MARGIN);
+  const title = settings?.title ?? {};
+  const cw = 130;
+  const cx = sheet.width - MARGIN - cw;
   const cy = MARGIN;
   b.rect(cx, cy, cw, titleH);
-  b.line({ x: cx, y: cy + 12 }, { x: cx + cw, y: cy + 12 }, 'thin');
-  b.line({ x: cx + 70, y: cy }, { x: cx + 70, y: cy + 12 }, 'thin');
-  b.text({ x: cx + 3, y: cy + 16 }, info.partName, 5);
-  b.text({ x: cx + 3, y: cy + 7 }, info.projectName, 3);
-  b.text({ x: cx + 3, y: cy + 3 }, 'Cotes en mm · projection européenne', 2.5);
-  b.text({ x: cx + 73, y: cy + 7 }, `Échelle ${scaleLabel(scale)}`, 3.5);
-  b.text({ x: cx + 73, y: cy + 3 }, 'VibeCAD', 2.5);
+  b.line({ x: cx, y: cy + 9 }, { x: cx + cw, y: cy + 9 }, 'thin');
+  b.line({ x: cx, y: cy + 18 }, { x: cx + cw, y: cy + 18 }, 'thin');
+  const cell = (x: number, y: number, label: string, value: string, size = 3.2) => {
+    b.text({ x: cx + x + 2, y: cy + y + 6.2 }, label, 1.8);
+    if (value) b.text({ x: cx + x + 2, y: cy + y + 1.8 }, value, size);
+  };
+  const split = (x: number, y: number) => b.line({ x: cx + x, y: cy + y }, { x: cx + x, y: cy + y + 9 }, 'thin');
+  // Haut : titre et numéro du plan.
+  b.line({ x: cx + 95, y: cy + 18 }, { x: cx + 95, y: cy + titleH }, 'thin');
+  b.text({ x: cx + 3, y: cy + 21.5 }, title.title || info.partName, 5);
+  b.text({ x: cx + 97, y: cy + 27 }, 'Plan n°', 1.8);
+  if (title.number) b.text({ x: cx + 97, y: cy + 21 }, title.number, 3.5);
+  // Milieu : projet et matière.
+  cell(0, 9, 'Projet', info.projectName);
+  split(70, 9);
+  cell(70, 9, 'Matière', title.material ?? info.material ?? '');
+  // Bas : auteur, date, échelle, feuille.
+  cell(0, 0, 'Dessiné par', title.author ?? '');
+  split(50, 0);
+  cell(50, 0, 'Date', title.date ?? '');
+  split(80, 0);
+  cell(80, 0, 'Échelle', scaleLabel(scale));
+  split(105, 0);
+  cell(105, 0, 'Feuille', format);
+  b.text({ x: MARGIN + 2, y: MARGIN + 2 }, `Cotes en mm · projection européenne${title.note ? ` · ${title.note}` : ''}`, 2.5);
   // Trous et arrondis.
   const notes = roundNotes(mesh);
   if (notes.length) {
     const lines = ['Trous et arrondis :', ...notes.slice(0, 8).map(roundNoteText), ...(notes.length > 8 ? ['…'] : [])];
     lines.forEach((t, i) => b.text({ x: cx, y: cy + titleH + 6 + (lines.length - 1 - i) * 4.5 }, t, 3.2));
   }
-  return { page: b.page, scale };
+  const frame = { lines: b.page.lines, texts: b.page.texts };
+  const shown = dimensions.filter((d) => !d.detached);
+  const page: DrawingPage = {
+    width: sheet.width,
+    height: sheet.height,
+    lines: [...frame.lines, ...VIEW_ORDER.flatMap((name) => layoutViews[name].lines), ...shown.flatMap((d) => d.lines)],
+    texts: [...frame.texts, ...VIEW_ORDER.flatMap((name) => layoutViews[name].texts), ...shown.flatMap((d) => d.texts)],
+  };
+  return { page, scale, layout: { format, width: sheet.width, height: sheet.height, scale, views: layoutViews, frame, dimensions } };
 }
 
 // ----- Gabarit papier 1:1

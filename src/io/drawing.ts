@@ -1,6 +1,6 @@
 /**
  * Dessins techniques simples (mise en plan, gabarit 1:1) : une page en millimètres avec des
- * traits (continus, interrompus, fins) et des textes, écrite en SVG ou en PDF.
+ * traits (continus, interrompus, fins) et des textes, écrite en SVG, en PDF ou en DXF.
  * Le PDF est produit sans dépendance (PDF 1.4, police Helvetica, encodage WinAnsi).
  */
 import type { Vec2 } from '../math/vec';
@@ -51,6 +51,80 @@ export function drawingToSvg(page: DrawingPage, title: string): string {
     );
   }
   out.push('</svg>');
+  return out.join('\n');
+}
+
+/** Calques du DXF : contours, traits cachés (interrompus), traits fins (cotes, cartouche), textes. */
+const DXF_LAYERS: Record<LineStyle, string> = { thick: 'CONTOUR', hidden: 'CACHE', thin: 'COTE', cut: 'DECOUPE' };
+
+/** Texte DXF : les caractères hors ASCII sont écrits « \U+xxxx » (lus par AutoCAD, LibreCAD, QCAD). */
+const dxfText = (s: string) => s.replace(/[^\x20-\x7e]/g, (ch) => `\\U+${ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`);
+
+/** Une page en DXF R12 (unités : mm) : traits par calque, textes sur le calque TEXTE. */
+export function drawingToDxf(page: DrawingPage): string {
+  const out: string[] = [];
+  const g = (code: number, value: string | number) => out.push(String(code), typeof value === 'number' ? f(value) : value);
+  g(0, 'SECTION');
+  g(2, 'HEADER');
+  g(9, '$INSUNITS');
+  g(70, '4');
+  g(0, 'ENDSEC');
+  g(0, 'SECTION');
+  g(2, 'TABLES');
+  g(0, 'TABLE');
+  g(2, 'LTYPE');
+  g(70, '2');
+  g(0, 'LTYPE');
+  g(2, 'CONTINUOUS');
+  out.push('70', '0', '3', 'Trait continu', '72', '65', '73', '0', '40', '0');
+  g(0, 'LTYPE');
+  g(2, 'DASHED');
+  out.push('70', '0', '3', 'Trait interrompu', '72', '65', '73', '2', '40', '3.2', '49', '2', '49', '-1.2');
+  g(0, 'ENDTAB');
+  g(0, 'TABLE');
+  g(2, 'LAYER');
+  g(70, '5');
+  for (const [name, color, type] of [
+    ['CONTOUR', 7, 'CONTINUOUS'],
+    ['CACHE', 8, 'DASHED'],
+    ['COTE', 3, 'CONTINUOUS'],
+    ['DECOUPE', 1, 'CONTINUOUS'],
+    ['TEXTE', 7, 'CONTINUOUS'],
+  ] as const) {
+    g(0, 'LAYER');
+    g(2, name);
+    out.push('70', '0', '62', String(color));
+    g(6, type);
+  }
+  g(0, 'ENDTAB');
+  g(0, 'ENDSEC');
+  g(0, 'SECTION');
+  g(2, 'ENTITIES');
+  for (const l of page.lines) {
+    g(0, 'LINE');
+    g(8, DXF_LAYERS[l.style]);
+    g(10, l.a.x);
+    g(20, l.a.y);
+    g(30, 0);
+    g(11, l.b.x);
+    g(21, l.b.y);
+    g(31, 0);
+  }
+  for (const t of page.texts) {
+    g(0, 'TEXT');
+    g(8, 'TEXTE');
+    g(10, t.at.x);
+    g(20, t.at.y);
+    g(30, 0);
+    g(40, t.size * 0.72);
+    g(1, dxfText(t.text));
+    if (t.angle) g(50, t.angle);
+    const align = t.anchor === 'middle' ? 1 : t.anchor === 'end' ? 2 : 0;
+    // Texte centré ou à droite : le point d'alignement est donné une seconde fois (codes 11, 21).
+    if (align) out.push('72', String(align), '11', f(t.at.x), '21', f(t.at.y), '31', '0');
+  }
+  g(0, 'ENDSEC');
+  g(0, 'EOF');
   return out.join('\n');
 }
 

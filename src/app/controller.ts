@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -85,8 +85,8 @@ import { amsSlots, fabricationSettings, newLaserMaterial, printLayout, type Prin
 import { findPlanarFace, laserLayout, optimizedPlacements, type LaserLayout } from './laser';
 import { partEngravings, type Engraving } from './engravings';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
-import { billOfMaterials, bomCsv, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type ProjectedView, type ViewName } from './drawings';
-import { drawingsToPdf, drawingToSvg, type DrawingPage } from '../io/drawing';
+import { billOfMaterials, bomCsv, DEFAULT_DIMENSIONS, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type DrawingLayout, type ProjectedView, type ViewName } from './drawings';
+import { drawingsToPdf, drawingToDxf, drawingToSvg, type DrawingPage } from '../io/drawing';
 import { activeCount, insertionPoint, isRolledBack, normalizeRollback, rolledBackDocument, withRollbackAt } from './rollback';
 import type { Projection, StandardView } from '../viewport/camera-rig';
 import type { AssemblyDragEvent, ModelPick, Viewport } from '../viewport/viewport';
@@ -107,7 +107,7 @@ import { libraryMaterials, fetchLibrary, libraryBaseUrl, type LibraryCatalog } f
 import { copyPartsInto } from '../domain/part-copy';
 import { computeMechanism, computeMotion, coursePosition, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, solveScenario, withValue } from './mechanism';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
-import { createId } from '../domain/ids';
+import { createId, nextLocalId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
 import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
@@ -3964,7 +3964,7 @@ export class AppController {
 
   // ----- Documents (mise en plan, gabarit, nomenclature)
 
-  private drawingCache = new Map<string, { page: DrawingPage; scale: number }>();
+  private drawingCache = new Map<string, { page: DrawingPage; scale: number; layout: DrawingLayout }>();
 
   /** Pièce montrée seule (Matières, Documents) ; la vue se recadre sur elle. */
   setFabricationPart(partId: Id): void {
@@ -4021,7 +4021,7 @@ export class AppController {
    * Mise en plan d'une pièce (mise en cache par maillage). Les traits cachés exacts arrivent du
    * worker ; en attendant, ceux déduits du maillage s'affichent.
    */
-  drawingOf(partId: Id): { page: DrawingPage; scale: number } | null {
+  drawingOf(partId: Id): { page: DrawingPage; scale: number; layout: DrawingLayout } | null {
     const s = this.state;
     const part = findPart(s.doc, partId);
     const d = s.display[partId];
@@ -4029,30 +4029,108 @@ export class AppController {
     const exact = d.meshKey ? this.exactViews.get(d.meshKey) : undefined;
     const views = exact && exact !== 'pending' && exact !== 'failed' ? exact : undefined;
     if (!exact) void this.ensureExactViews(partId);
-    const key = `${d.meshKey}|${part.name}|${s.doc.name}|${views ? 'exact' : 'mesh'}`;
+    const settings = this.drawingSettings(partId);
+    const material = sheetOf(s.doc, part)?.name;
+    const key = `${d.meshKey}|${part.name}|${s.doc.name}|${material ?? ''}|${views ? 'exact' : 'mesh'}|${settings ? JSON.stringify(settings) : ''}`;
     let drawing = this.drawingCache.get(key);
     if (!drawing) {
-      drawing = technicalDrawing(d.mesh, { partName: part.name, projectName: s.doc.name }, views);
+      drawing = technicalDrawing(d.mesh, { partName: part.name, projectName: s.doc.name, ...(material ? { material } : {}) }, views, settings);
       if (this.drawingCache.size > 20) this.drawingCache.clear();
       this.drawingCache.set(key, drawing);
     }
     return drawing;
   }
 
+  /** Échelle que la mise en plan prendrait d'elle-même (sans échelle imposée). */
+  drawingAutoScale(partId: Id): number {
+    const d = this.state.display[partId];
+    const exact = d?.meshKey ? this.exactViews.get(d.meshKey) : undefined;
+    const settings = this.drawingSettings(partId);
+    if (!d?.mesh || !exact || exact === 'pending' || exact === 'failed') return this.drawingOf(partId)?.scale ?? 1;
+    return technicalDrawing(d.mesh, { partName: '', projectName: '' }, exact, settings?.format ? { partId, format: settings.format } : undefined).scale;
+  }
+
+  /** Retouches enregistrées de la mise en plan d'une pièce (absentes : mise en page automatique). */
+  drawingSettings(partId: Id): PartDrawing | undefined {
+    return this.state.doc.fabrication?.drawings?.find((x) => x.partId === partId);
+  }
+
+  /** Retouche la mise en plan d'une pièce (enregistrée dans le projet, annulable). */
+  updateDrawing(partId: Id, change: (d: PartDrawing) => PartDrawing, label: string): void {
+    const next = change(this.drawingSettings(partId) ?? { partId });
+    this.updateFabrication((f) => ({ ...f, drawings: [...(f.drawings ?? []).filter((x) => x.partId !== partId), next] }), label);
+  }
+
+  /** Cotes d'une mise en plan, pour les retoucher : celles enregistrées, sinon les cotes d'encombrement. */
+  drawingDimensions(partId: Id): DrawingDimension[] {
+    return this.drawingSettings(partId)?.dimensions ?? [...DEFAULT_DIMENSIONS];
+  }
+
+  /** Ajoute une cote à la mise en plan d'une pièce ; rend son identifiant. */
+  addDrawingDimension(partId: Id, dim: Omit<DrawingDimension, 'id'>): Id {
+    const current = this.drawingDimensions(partId);
+    const id = nextLocalId('cote', current.map((x) => x.id));
+    this.updateDrawing(partId, (d) => ({ ...d, dimensions: [...current, { ...dim, id }] }), 'Ajouter une cote au plan');
+    return id;
+  }
+
+  /** Déplace ou modifie une cote de la mise en plan. */
+  changeDrawingDimension(partId: Id, id: Id, change: Partial<DrawingDimension>, label = 'Déplacer une cote du plan'): void {
+    const current = this.drawingDimensions(partId);
+    this.updateDrawing(partId, (d) => ({ ...d, dimensions: current.map((x) => (x.id === id ? { ...x, ...change } : x)) }), label);
+  }
+
+  removeDrawingDimension(partId: Id, id: Id): void {
+    const current = this.drawingDimensions(partId);
+    this.updateDrawing(partId, (d) => ({ ...d, dimensions: current.filter((x) => x.id !== id) }), 'Supprimer une cote du plan');
+  }
+
+  /** Texte du cartouche (vide : la valeur par défaut revient). */
+  setDrawingTitle(partId: Id, key: keyof DrawingTitle, value: string): void {
+    const before = this.drawingSettings(partId)?.title?.[key] ?? '';
+    const text = value.trim();
+    if (text === before) return;
+    this.updateDrawing(
+      partId,
+      (d) => {
+        const { [key]: _old, ...rest } = d.title ?? {};
+        const title = text ? { ...rest, [key]: text } : rest;
+        const { title: _title, ...drawing } = d;
+        return Object.keys(title).length ? { ...drawing, title } : drawing;
+      },
+      'Modifier le cartouche',
+    );
+  }
+
+  /** Revient à la mise en plan automatique (vues, échelle, cotes d'encombrement) ; le cartouche est gardé. */
+  resetDrawing(partId: Id): void {
+    const d = this.drawingSettings(partId);
+    if (!d) return;
+    this.updateFabrication((f) => {
+      const others = (f.drawings ?? []).filter((x) => x.partId !== partId);
+      const drawings = d.title ? [...others, { partId, title: d.title }] : others;
+      const { drawings: _old, ...rest } = f;
+      return drawings.length ? { ...rest, drawings } : rest;
+    }, 'Mise en plan automatique');
+  }
+
   /** Mise en plan : PDF de toutes les pièces (une page chacune) ou SVG de la pièce affichée. */
-  async exportDrawing(format: 'pdf' | 'svg'): Promise<void> {
+  async exportDrawing(format: 'pdf' | 'svg' | 'dxf'): Promise<void> {
     const s = this.state;
     const ids = format === 'pdf' ? s.doc.parts.filter((p) => this.hasSolid(p.id)).map((p) => p.id) : [this.docsPart()].filter((id): id is Id => !!id);
     // Les fichiers exportés portent les traits cachés exacts.
     await Promise.all(ids.map((id) => this.ensureExactViews(id)));
     const pages = ids.map((id) => this.drawingOf(id)?.page).filter((p): p is DrawingPage => !!p);
     if (pages.length === 0) return this.explain('Aucune pièce avec un volume à mettre en plan.');
-    const name = format === 'svg' ? `${findPart(s.doc, ids[0]!)?.name ?? s.doc.name} - mise en plan` : `${s.doc.name} - mise en plan`;
+    const name = format === 'pdf' ? `${s.doc.name} - mise en plan` : `${findPart(s.doc, ids[0]!)?.name ?? s.doc.name} - mise en plan`;
     const blob =
       format === 'pdf'
         ? new Blob([drawingsToPdf(pages, `Mise en plan — ${s.doc.name}`) as Uint8Array<ArrayBuffer>], { type: 'application/pdf' })
-        : new Blob([drawingToSvg(pages[0]!, name)], { type: 'image/svg+xml' });
-    await this.download(blob, name, format, `Mise en plan téléchargée (${pages.length} page${pages.length > 1 ? 's' : ''}, A4 paysage) : imprimez-la en « taille réelle ».`);
+        : format === 'dxf'
+          ? new Blob([drawingToDxf(pages[0]!)], { type: 'application/dxf' })
+          : new Blob([drawingToSvg(pages[0]!, name)], { type: 'image/svg+xml' });
+    const done = format === 'dxf' ? 'Mise en plan téléchargée (DXF, en mm).' : `Mise en plan téléchargée (${pages.length} page${pages.length > 1 ? 's' : ''}) : imprimez-la en « taille réelle ».`;
+    await this.download(blob, name, format, done);
   }
 
   /** Gabarits papier 1:1 de toutes les pièces (PDF, une page par pièce). */
@@ -4095,8 +4173,8 @@ export class AppController {
     await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
   }
 
-  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json', message: string): Promise<void> {
-    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON' };
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF' };
     try {
       const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
       if (target) this.toast('success', `« ${target.name} » — ${message}`);

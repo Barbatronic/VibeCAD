@@ -28,7 +28,9 @@ import type {
   EdgeRef,
   FaceRef,
   Feature,
+  DrawingDimension,
   LaserMaterial,
+  PartDrawing,
   PatternAxis,
   Part,
   PartPaint,
@@ -383,7 +385,59 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
       ...(pr.ams !== undefined ? { ams: arr(v, pr, 'ams', `${path}.print`).filter((x): x is string => typeof x === 'string') } : {}),
     },
     laser: readLaser(v, la, `${path}.laser`, partIds),
+    ...(o.drawings !== undefined ? { drawings: readDrawings(v, o, path, partIds) } : {}),
   };
+}
+
+const DRAWING_VIEWS = ['face', 'dessus', 'gauche'] as const;
+
+/** Mises en plan retouchées ; celle d'une pièce disparue est retirée. */
+function readDrawings(v: Validator, o: Record<string, unknown>, path: string, partIds: ReadonlySet<string>): PartDrawing[] {
+  const point = (po: Record<string, unknown>, key: string, p: string) => {
+    const q = obj(v, po[key], `${p}.${key}`) ?? {};
+    return { x: num(v, q, 'x', `${p}.${key}`), y: num(v, q, 'y', `${p}.${key}`) };
+  };
+  const seen = new Set<string>();
+  return arr(v, o, 'drawings', path).flatMap((raw, i) => {
+    const dp = `${path}.drawings[${i}]`;
+    const d = obj(v, raw, dp) ?? {};
+    const drawing: PartDrawing = { partId: str(v, d, 'partId', dp) };
+    if (d.format !== undefined) drawing.format = oneOf(v, d, 'format', dp, ['A4', 'A3'] as const);
+    if (d.scale !== undefined) {
+      drawing.scale = num(v, d, 'scale', dp);
+      if (!(drawing.scale > 0)) v.error(`${dp}.scale`, 'doit être > 0');
+    }
+    const views = d.views !== undefined ? obj(v, d.views, `${dp}.views`) : null;
+    if (views) drawing.views = Object.fromEntries(DRAWING_VIEWS.filter((name) => views[name] !== undefined).map((name) => [name, point(views, name, `${dp}.views`)]));
+    if (d.dimensions !== undefined) {
+      drawing.dimensions = arr(v, d, 'dimensions', dp).map((rawDim, k) => {
+        const kp = `${dp}.dimensions[${k}]`;
+        const ko = obj(v, rawDim, kp) ?? {};
+        const kind = oneOf(v, ko, 'kind', kp, ['overall', 'linear', 'diameter', 'radius'] as const);
+        const dim: DrawingDimension = { id: str(v, ko, 'id', kp), view: oneOf(v, ko, 'view', kp, DRAWING_VIEWS), kind, offset: num(v, ko, 'offset', kp) };
+        if (kind === 'overall') dim.axis = oneOf(v, ko, 'axis', kp, ['x', 'y'] as const);
+        if (kind === 'linear') {
+          dim.axis = oneOf(v, ko, 'axis', kp, ['x', 'y', 'aligned'] as const);
+          dim.a = point(ko, 'a', kp);
+          dim.b = point(ko, 'b', kp);
+        }
+        if (kind === 'diameter' || kind === 'radius') {
+          dim.a = point(ko, 'a', kp);
+          dim.radius = num(v, ko, 'radius', kp, { min: 0 });
+          dim.angle = ko.angle !== undefined ? num(v, ko, 'angle', kp) : 45;
+        }
+        return dim;
+      });
+    }
+    const title = d.title !== undefined ? obj(v, d.title, `${dp}.title`) : null;
+    if (title) {
+      const texts = Object.fromEntries((['title', 'number', 'author', 'date', 'material', 'note'] as const).flatMap((key) => (typeof title[key] === 'string' && title[key] ? [[key, title[key]]] : [])));
+      if (Object.keys(texts).length) drawing.title = texts;
+    }
+    if (!partIds.has(drawing.partId) || seen.has(drawing.partId)) return [];
+    seen.add(drawing.partId);
+    return [drawing];
+  });
 }
 
 const LOAD_DIRECTIONS = ['push', 'pull', '-z', '+z', '-x', '+x', '-y', '+y', 'custom'] as const;

@@ -3,7 +3,7 @@ import { formatNumber } from '../domain/units';
 import { resolveParameters } from '../features/parameters';
 import { InputSuggestions, type InputSuggestion } from './components/number-input';
 import { Dialogs, Toasts } from './Dialogs';
-import { HelpDrawer, LaserBoard, Tutorial } from './lazy';
+import { DrawingBoard, HelpDrawer, LaserBoard, Tutorial } from './lazy';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { StatusBar } from './StatusBar';
@@ -46,6 +46,7 @@ export function App() {
             <ViewportHost />
             {/* Chargés à leur première utilisation (voir lazy.tsx). */}
             {laserOn ? <LaserBoard /> : null}
+            {laserOn ? <DrawingBoard /> : null}
             {tutorialOn ? <Tutorial /> : null}
           </div>
           <RightPanel />

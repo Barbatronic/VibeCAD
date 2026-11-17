@@ -121,10 +121,10 @@ test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomencl
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
   await page.click('#fab-docs');
-  const preview = page.getByRole('img', { name: 'Mise en plan de « Pièce 1 »' });
+  const preview = page.getByRole('img', { name: 'Feuille de la mise en plan' });
   await expect(preview).toBeVisible();
   await expect(preview.locator('text', { hasText: 'Vue de dessus' })).toHaveCount(1);
-  await expect(preview.locator('line[stroke-dasharray]').first()).toBeAttached();
+  await expect(preview.locator('[data-view="face"] .dwg-hidden')).toHaveAttribute('d', /^M/);
   // Les traits cachés exacts (calculés par le noyau) remplacent ceux déduits du maillage.
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.store.get().drawingRevision)).toBeGreaterThan(0);
   await expect(page.getByRole('table', { name: 'Nomenclature' }).locator('tbody tr')).toHaveCount(1);

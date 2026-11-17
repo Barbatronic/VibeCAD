@@ -5148,6 +5148,130 @@ option.is-unfit {
   font-weight: 600;
 }
 
+/* Mise en plan modifiable : la feuille, ses vues, ses cotes. */
+.drawing-empty {
+  margin: auto;
+  color: var(--text-muted);
+}
+.drawing-view.is-tool {
+  cursor: crosshair;
+}
+.dwg-page text {
+  fill: #000000;
+  font-family: Helvetica, Arial, sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+.dwg-paper {
+  fill: #ffffff;
+  stroke: var(--border-strong);
+  stroke-width: 0.3;
+}
+.dwg-thick,
+.dwg-thin,
+.dwg-hidden {
+  fill: none;
+  stroke: #000000;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.dwg-thick {
+  stroke-width: 0.5;
+}
+.dwg-thin {
+  stroke-width: 0.25;
+}
+.dwg-hidden {
+  stroke: #555555;
+  stroke-width: 0.25;
+  stroke-dasharray: 2 1.2;
+}
+.dwg-view-box {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 0.3;
+  stroke-dasharray: 1.5 1;
+  cursor: move;
+}
+.drawing-view.is-tool .dwg-view-box {
+  cursor: crosshair;
+  pointer-events: none;
+}
+.dwg-view-box:hover,
+.dwg-view.is-moving .dwg-view-box {
+  stroke: var(--accent);
+}
+.dwg-grip {
+  stroke: transparent;
+  stroke-linecap: round;
+}
+.dwg-dim {
+  cursor: move;
+}
+.drawing-view.is-tool .dwg-dim {
+  cursor: crosshair;
+  pointer-events: none;
+}
+.dwg-dim:hover .dwg-thin,
+.dwg-dim.is-selected .dwg-thin,
+.dwg-dim.is-draft .dwg-thin {
+  stroke: var(--accent);
+  stroke-width: 0.35;
+}
+.dwg-dim:hover text,
+.dwg-dim.is-selected text,
+.dwg-dim.is-draft text {
+  fill: var(--accent);
+}
+.dwg-dim.is-detached .dwg-thin {
+  stroke: #d1495b;
+  stroke-dasharray: 1.2 0.8;
+}
+.dwg-dim.is-detached text {
+  fill: #d1495b;
+}
+.dwg-anchor {
+  fill: var(--accent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.dwg-anchor.is-picked {
+  opacity: 1;
+}
+.dwg-anchor.is-near {
+  fill: none;
+  stroke: var(--accent);
+  opacity: 1;
+}
+.dwg-ring {
+  fill: none;
+  stroke: var(--accent);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.dwg-ring.is-near {
+  opacity: 1;
+}
+.drawing-title-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.drawing-title-fields .text-input {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+.drawing-title-fields .text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .level-choices {
   display: grid;
   gap: 8px;

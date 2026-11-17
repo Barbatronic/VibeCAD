@@ -7,11 +7,11 @@ import { formatNumber, readNumber } from '../domain/units';
 import { bomSizeText, scaleLabel } from '../app/drawings';
 import { allows } from '../app/levels';
 import { AMS_SLOTS, PLA_DENSITY } from '../app/fabrication';
-import type { DrawingPage } from '../io/drawing';
 import { useAppState, useController } from './context';
 import { ToolGroup } from './ToolSectors';
 import { useEffect, useState } from 'preact/hooks';
-import type { LaserItem } from '../domain/model';
+import type { DrawingTitle, LaserItem } from '../domain/model';
+import { sheetOf } from '../domain/material-sheets';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
@@ -568,50 +568,27 @@ function DocsSection() {
   );
 }
 
-/** Aperçu d'une page de mise en plan (fond blanc, comme le papier). */
-function DrawingPreview({ page, label }: { page: DrawingPage; label: string }) {
-  const y = (v: number) => page.height - v;
-  return (
-    <svg class="drawing-preview" viewBox={`0 0 ${page.width} ${page.height}`} role="img" aria-label={label}>
-      <rect width={page.width} height={page.height} fill="#ffffff" />
-      {page.lines.map((l, i) => (
-        <line
-          key={i}
-          x1={l.a.x}
-          y1={y(l.a.y)}
-          x2={l.b.x}
-          y2={y(l.b.y)}
-          stroke={l.style === 'hidden' ? '#555555' : '#000000'}
-          stroke-width={l.style === 'thick' ? 0.5 : 0.25}
-          stroke-dasharray={l.style === 'hidden' ? '2 1.2' : undefined}
-          stroke-linecap="round"
-        />
-      ))}
-      {page.texts.map((t, i) => (
-        <text
-          key={i}
-          x={t.at.x}
-          y={y(t.at.y)}
-          font-size={t.size}
-          font-family="Helvetica, Arial, sans-serif"
-          fill="#000000"
-          text-anchor={t.anchor ?? 'start'}
-          transform={t.angle ? `rotate(${-t.angle} ${t.at.x} ${y(t.at.y)})` : undefined}
-        >
-          {t.text}
-        </text>
-      ))}
-    </svg>
-  );
-}
+const TITLE_FIELDS: { key: keyof DrawingTitle; label: string; placeholder?: (info: { name: string; material: string }) => string }[] = [
+  { key: 'title', label: 'Titre', placeholder: (i) => i.name },
+  { key: 'number', label: 'Plan n°' },
+  { key: 'material', label: 'Matière', placeholder: (i) => i.material },
+  { key: 'author', label: 'Dessiné par' },
+  { key: 'date', label: 'Date' },
+  { key: 'note', label: 'Remarque' },
+];
 
 function DocsRightPanel() {
   const c = useController();
-  const info = useAppState((s) => {
-    const id = c.docsPart();
-    const part = id ? s.doc.parts.find((p) => p.id === id) : null;
-    return { id, name: part?.name ?? '', drawing: id ? c.drawingOf(id) : null };
-  }, (a, b) => a.id === b.id && a.name === b.name && a.drawing === b.drawing);
+  const info = useAppState(
+    (s) => {
+      const id = c.docsPart();
+      const part = id ? s.doc.parts.find((p) => p.id === id) : null;
+      const drawing = id ? c.drawingOf(id) : null;
+      return { id, name: part?.name ?? '', material: (part && sheetOf(s.doc, part)?.name) || '', title: (id && c.drawingSettings(id)?.title) || null, format: drawing?.layout.format ?? null, scale: drawing?.scale ?? null };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  const none = info.format ? null : 'Aucune pièce avec un volume.';
   return (
     <aside class="panel right-panel" aria-label="Mise en plan">
       <div class="panel-title">
@@ -619,25 +596,48 @@ function DocsRightPanel() {
         <span>Mise en plan</span>
       </div>
       <div class="panel-content">
-        {info.drawing ? (
-          <figure class="sheet-preview">
-            <DrawingPreview page={info.drawing.page} label={`Mise en plan de « ${info.name} »`} />
-            <figcaption class="field-help">
-              « {info.name} » · A4 paysage · échelle {scaleLabel(info.drawing.scale)}
-            </figcaption>
-          </figure>
+        {info.id && info.format && info.scale ? (
+          <>
+            <p class="field-help">
+              « {info.name} » · {info.format} paysage · échelle {scaleLabel(info.scale)}
+            </p>
+            <h3 class="list-title">Cartouche</h3>
+            <div class="drawing-title-fields">
+              {TITLE_FIELDS.map((f) => (
+                <label key={f.key} class="mini-field">
+                  <span>{f.label}</span>
+                  <input
+                    class="text-input"
+                    type="text"
+                    aria-label={`Cartouche : ${f.label}`}
+                    maxLength={60}
+                    value={info.title?.[f.key] ?? ''}
+                    placeholder={f.placeholder?.(info) ?? ''}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                    onChange={(e) => c.setDrawingTitle(info.id!, f.key, (e.target as HTMLInputElement).value)}
+                  />
+                </label>
+              ))}
+            </div>
+          </>
         ) : (
           <p class="empty-hint">Aucune pièce avec un volume.</p>
         )}
       </div>
       <div class="panel-actions stack">
-        <Button variant="primary" icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('pdf')}>
+        <Button variant="primary" icon="export" disabledReason={none} hint="Une page par pièce" onClick={() => void c.exportDrawing('pdf')}>
           Mise en plan (PDF)
         </Button>
-        <Button icon="export" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportDrawing('svg')}>
-          Mise en plan de cette pièce (SVG)
+        <Button icon="export" disabledReason={none} onClick={() => void c.exportDrawing('svg')}>
+          Cette pièce (SVG)
         </Button>
-        <Button icon="export" hint="Contour d’une face plate de chaque pièce, à imprimer en taille réelle" disabledReason={info.drawing ? null : 'Aucune pièce avec un volume.'} onClick={() => void c.exportTemplate()}>
+        <Button icon="export" disabledReason={none} hint="Traits par calque (contours, traits cachés, cotes), en mm" onClick={() => void c.exportDrawing('dxf')}>
+          Cette pièce (DXF)
+        </Button>
+        <Button icon="export" hint="Contour d’une face plate de chaque pièce, à imprimer en taille réelle" disabledReason={none} onClick={() => void c.exportTemplate()}>
           Gabarit 1:1 (PDF)
         </Button>
       </div>

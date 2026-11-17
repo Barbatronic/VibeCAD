@@ -82,6 +82,7 @@ export function fabricationSettings(doc: CadDocument, hasSolid: (partId: Id) => 
         return s ? { ...item, materialId: s.id } : item;
       }),
     },
+    ...(f.drawings?.length ? { drawings: f.drawings } : {}),
   };
 }
 
