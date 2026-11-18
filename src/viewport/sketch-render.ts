@@ -491,6 +491,16 @@ export class SketchView {
         strong.add([{ x: s.x, y: s.y - r * 0.6 }, { x: s.x, y: s.y + r * 0.6 }], cDim);
       } else if (snap.kind === 'center' || snap.kind === 'origin') {
         for (const seg of circleSegments(s, r, 20)) strong.add(seg, cSnap);
+      } else if (snap.kind === 'midpoint') {
+        const tri: Vec2[] = [{ x: s.x - r, y: s.y - r * 0.7 }, { x: s.x + r, y: s.y - r * 0.7 }, { x: s.x, y: s.y + r }];
+        for (let i = 0; i < 3; i++) strong.add([tri[i]!, tri[(i + 1) % 3]!], cSnap);
+      } else if (snap.kind === 'curve') {
+        // Sablier : point posé sur la courbe.
+        const k = r * 0.8;
+        strong.add([{ x: s.x - k, y: s.y - k }, { x: s.x + k, y: s.y + k }], cSnap);
+        strong.add([{ x: s.x - k, y: s.y + k }, { x: s.x + k, y: s.y - k }], cSnap);
+        strong.add([{ x: s.x - k, y: s.y + k }, { x: s.x + k, y: s.y + k }], cSnap);
+        strong.add([{ x: s.x - k, y: s.y - k }, { x: s.x + k, y: s.y - k }], cSnap);
       } else {
         const sq: Vec2[] = [
           { x: s.x - r, y: s.y - r },

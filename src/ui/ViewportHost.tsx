@@ -27,6 +27,7 @@ import {
   setInputValue,
   setPixelSize,
   toggleSnapToGrid,
+  toggleSnapToObjects,
   TOOL_LABELS,
   type SketchSession,
 } from '../sketch/session';
@@ -967,6 +968,7 @@ function ViewControls() {
   const canSection = useAppState((s) => s.workspace === 'parts' && allows(s.level, 'view-section'));
   const sketching = useAppState((s) => s.mode.kind === 'sketch');
   const grid = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.snapToGrid : false));
+  const objects = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.snapToObjects : false));
   const views: StandardView[] = ['iso', 'front', 'top', 'right'];
   const icons: Record<string, string> = { iso: 'iso', front: 'front', top: 'top', right: 'right' };
   if (sketching) {
@@ -982,6 +984,12 @@ function ViewControls() {
             label={grid ? 'Aimantation à la grille : activée (cliquer pour la couper ; Alt maintenu : aucun accrochage)' : 'Aimantation à la grille : coupée (cliquer pour l’activer)'}
             pressed={grid}
             onClick={() => c.updateSession(toggleSnapToGrid)}
+          />
+          <IconButton
+            icon="magnet"
+            label={objects ? 'Accrochage aux objets : activé (points, milieux, courbes, axes ; cliquer pour le couper)' : 'Accrochage aux objets : coupé (cliquer pour l’activer)'}
+            pressed={objects}
+            onClick={() => c.updateSession(toggleSnapToObjects)}
           />
         </div>
       </div>

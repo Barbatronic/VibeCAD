@@ -6,6 +6,7 @@ import { originPlaneFrame } from '../../src/math/frame';
 import { autoSplineHandle, splineBeziers } from '../../src/sketch/curves';
 import { addArc, addConstraint, addLine, addSpline, addSplineHandle, emptySketch, pointPosition, prepareSplineTangent, removeEntities, splineOf } from '../../src/sketch/model';
 import { createSession, pointerDown, pointerMove, pointerUp, setPixelSize, setTool, type SketchSession } from '../../src/sketch/session';
+import { snapPoint } from '../../src/sketch/snapping';
 import { solveSketch } from '../../src/sketch/solver';
 
 const XY = { kind: 'plane', plane: 'XY', offset: 0 } as const;
@@ -151,5 +152,27 @@ describe('splines : poignées de tangence', () => {
     expect(h).toBeDefined();
     expect(pointPosition(s.sketch, h!)).toMatchObject({ x: expect.closeTo(through.x + 5, 6), y: expect.closeTo(through.y + 4, 6) });
     expect(joint).toBe(spline(s.sketch, id).points[0]);
+  });
+});
+
+describe('accrochage aux objets', () => {
+  const l = addLine(emptySketch(XY), { x: 0, y: 0 }, { x: 20, y: 0 });
+  const opts = { tolerance: 1, gridStep: 5, snapToGrid: true };
+
+  it('milieu d’un segment, puis point sur le segment', () => {
+    expect(snapPoint(l.sketch, { x: 10.3, y: 0.4 }, opts)).toMatchObject({ kind: 'midpoint', midpointOf: l.lineId, point: { x: 10, y: 0 } });
+    expect(snapPoint(l.sketch, { x: 6.3, y: 0.4 }, opts)).toMatchObject({ kind: 'curve', curveId: l.lineId, point: { x: 6.3, y: 0 } });
+  });
+
+  it('coupé : seule la grille reste', () => {
+    expect(snapPoint(l.sketch, { x: 6.3, y: 0.4 }, { ...opts, objects: false })).toMatchObject({ kind: 'grid', point: { x: 5, y: 0 } });
+    expect(snapPoint(l.sketch, { x: 0.2, y: 0.2 }, { ...opts, snapToGrid: false, objects: false }).kind).toBe('free');
+  });
+
+  it('un point posé sur un segment au tracé y reste attaché', () => {
+    let s: SketchSession = setPixelSize(createSession({ featureId: 'sk-1', partId: 'pt-1', isNew: false, frame: originPlaneFrame('XY'), sketch: l.sketch }), 0.1);
+    s = setTool(s, 'point');
+    s = pointerDown(pointerMove(s, { x: 6.3, y: 0.4 }), { x: 6.3, y: 0.4 });
+    expect(s.sketch.constraints.at(-1)).toMatchObject({ type: 'pointOn', curve: l.lineId });
   });
 });

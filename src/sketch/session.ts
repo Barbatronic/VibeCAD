@@ -280,6 +280,8 @@ export interface SketchSession {
   pixelSize: number;
   gridStep: number;
   snapToGrid: boolean;
+  /** Accrochage aux objets du dessin (points, milieux, courbes, axes). */
+  snapToObjects: boolean;
   dirty: boolean;
 }
 
@@ -336,6 +338,7 @@ export function createSession(args: {
     pixelSize: 0.1,
     gridStep: 1,
     snapToGrid: true,
+    snapToObjects: true,
     dirty: false,
   };
 }
@@ -448,10 +451,16 @@ export function toggleSnapToGrid(s: SketchSession): SketchSession {
   return { ...s, snapToGrid: !s.snapToGrid, message: info(s.snapToGrid ? 'Aimantation à la grille désactivée.' : 'Aimantation à la grille activée.') };
 }
 
-/** Relie le point `id` à ce que visait l'accrochage : un point existant ou un axe de l'esquisse. */
+export function toggleSnapToObjects(s: SketchSession): SketchSession {
+  return { ...s, snapToObjects: !s.snapToObjects, message: info(s.snapToObjects ? 'Accrochage aux objets désactivé.' : 'Accrochage aux objets activé.') };
+}
+
+/** Relie le point `id` à ce que visait l'accrochage : point existant, axe, courbe ou milieu de segment. */
 function attachToSnap(sketch: SketchParams, snap: SnapResult, id: string): SketchParams {
   if (snap.pointId) return addConstraint(sketch, { type: 'coincident', a: snap.pointId, b: id }).sketch;
   if (snap.axisId) return addConstraint(sketch, { type: 'pointOn', point: id, curve: snap.axisId }).sketch;
+  if (snap.curveId) return addConstraint(sketch, { type: 'pointOn', point: id, curve: snap.curveId }).sketch;
+  if (snap.midpointOf) return addConstraint(sketch, { type: 'midpoint', point: id, line: snap.midpointOf }).sketch;
   return sketch;
 }
 
@@ -460,6 +469,7 @@ function computeSnap(s: SketchSession, p: Vec2, alt: boolean): SnapResult {
     tolerance: tolerance(s),
     gridStep: s.gridStep,
     snapToGrid: s.snapToGrid,
+    objects: s.snapToObjects,
     ...(s.start && s.tool === 'line' ? { reference: s.start.point } : {}),
     disabled: alt,
   });
@@ -1170,8 +1180,8 @@ function finishArc(s: SketchSession, endSnap: SnapResult | null, angleDeg: numbe
     const p = endSnap!.point;
     const d = Math.max(distance2(c, p), 1e-9);
     endPt = endSnap!.pointId ? p : { x: c.x + ((p.x - c.x) * r) / d, y: c.y + ((p.y - c.y) * r) / d };
-    // L'arrivée reste sur le cercle : le lien à un axe n'a de sens que si le cercle passe par là.
-    endRef = endSnap!.axisId && distance2(endPt, p) > tolerance(s) ? null : endSnap!;
+    // L'arrivée reste sur le cercle : le lien à un axe ou une courbe n'a de sens que si le cercle passe par là.
+    endRef = (endSnap!.axisId || endSnap!.curveId || endSnap!.midpointOf) && distance2(endPt, p) > tolerance(s) ? null : endSnap!;
     if (Math.abs(arcState.sweep) < 1e-6) ccw = true;
   }
   if (distance2(endPt, startPt) < tolerance(s) / 4 && Math.abs(arcState.sweep) < Math.PI) {
@@ -2242,7 +2252,7 @@ function dragTo(s: SketchSession, p: Vec2, alt: boolean): SketchSession {
     weights.set(`${r.handleId}.y`, 1e4);
   } else if (t.kind === 'point') {
     const exclude = new Set([t.id]);
-    const snap = snapPoint(base, p, { tolerance: tolerance(s), gridStep: s.gridStep, snapToGrid: s.snapToGrid, exclude, disabled: alt });
+    const snap = snapPoint(base, p, { tolerance: tolerance(s), gridStep: s.gridStep, snapToGrid: s.snapToGrid, objects: s.snapToObjects, exclude, disabled: alt });
     moved = movePoints(base, new Map([[t.id, snap.point]]));
     weights.set(`${t.id}.x`, 1e4);
     weights.set(`${t.id}.y`, 1e4);

@@ -556,6 +556,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4 12h16M12 5v14" opacity="0.45" />
     </>
   ),
+  magnet: (
+    <>
+      <path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z" />
+      <path d="M6 8h4M14 8h4" opacity="0.6" />
+    </>
+  ),
   grid: (
     <>
       <path d="M4 4h16v16H4z" />
