@@ -54,7 +54,7 @@ describe('bibliothèque de composants', () => {
     const doc = hideSketches(spec.build());
     const [result] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc);
     expect(result!.statuses.filter((s) => s.state !== 'ok').map((s) => s.message ?? s.state)).toEqual([]);
-    expect(result!.analysis?.solidCount).toBe(1);
+    expect(result!.analysis?.solidCount).toBe(spec.solids ?? 1);
     // Esquisses entièrement cotées : vertes à l'insertion, modifiables par leurs cotes.
     expect(result!.sketches).toHaveLength(doc.parts[0]!.features.filter((f) => f.type === 'sketch').length);
     expect(result!.sketches.map((k) => ({ sketch: k.featureId, dof: k.dof, converged: k.converged }))).toEqual(

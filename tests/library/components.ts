@@ -43,6 +43,8 @@ export interface ComponentSpec {
   tags: string[];
   /** Cotes principales (mm), affichées dans la fiche. */
   dimensions: Record<string, number>;
+  /** Nombre de solides séparés (1 par défaut) : plusieurs pour un ensemble de pièces non jointives. */
+  solids?: number;
   build: () => CadDocument;
 }
 
@@ -53,6 +55,7 @@ export const COLLECTIONS: CollectionSpec[] = [
   { id: 'couplers', name: 'Accouplements', description: 'Accouplements rigides entre deux arbres, avec vis de pression.' },
   { id: 'servos', name: 'Servomoteurs', description: 'Servomoteurs de modélisme : format standard (MG996R) et micro (SG90, MG90S), boîtier en trois parties, pattes de fixation, cannelure dentée et sortie du câble. Axe de sortie à l’origine.' },
   { id: 'makerbeam', name: 'MakerBeam', description: 'Accessoires pour profilés MakerBeam 10 × 10 (le profilé lui-même : étape « Profilé », système MakerBeam).' },
+  { id: 'leds', name: 'LED', description: 'LED adressables WS2812B (boîtier 5050) sur circuits imprimés. Circuit en Z = 0, LED vers +Z, centre à l’origine.' },
   { id: 'horns', name: 'Palonniers', description: 'Palonniers métalliques pour servomoteurs : cannelure dentée et trous taraudés. Axe de la cannelure sur Z, face de la cannelure en Z = 0.' },
 ];
 
@@ -839,6 +842,100 @@ function makerbeamCube(): ComponentSpec {
   };
 }
 
+/**
+ * Anneaux de LED WS2812B concentriques (type Treedix 109 LED / 7 anneaux) : LED centrale sur un
+ * disque Ø 12, puis des couronnes de 8 mm de large au pas radial de 10 mm (2 mm de jour entre deux
+ * couronnes), circuit de 1,6 mm, LED 5050 de 5 × 5 × 1,6 mm avec leur fenêtre Ø 3,6 mm.
+ * Couronne k (0 = disque central) : LED_RING_COUNTS[k] LED. Chaque couronne est un circuit séparé.
+ */
+const LED_RING_COUNTS = [1, 8, 12, 16, 20, 24, 28];
+const LED_RING = { pitch: 10, width: 8, pcb: 1.6, led: 5, ledH: 1.6 };
+const ledOuter = (k: number) => 6 + LED_RING.pitch * k;
+const ledMid = (k: number) => (k === 0 ? 0 : ledOuter(k) - LED_RING.width / 2);
+const LED_FRAME = 'Repère : centre à l’origine, dessous du circuit en Z = 0, LED vers +Z.';
+
+/** Pièce faite des couronnes `rings` (indices dans LED_RING_COUNTS), au même centre. */
+function buildLedRings(name: string, rings: number[]): CadDocument {
+  const { width, pcb, led, ledH } = LED_RING;
+  let { doc, partId } = single(name, '#26282c', 'pla');
+  const part = () => findPart(doc, partId)!;
+  const add = <T extends Parameters<typeof addFeature>[2]>(f: T, label: string): T => {
+    const g = named(f, label);
+    doc = addFeature(doc, partId, g);
+    return g;
+  };
+  const draw = (support: SketchSupport, label: string, fn: (p: SketchParams) => SketchParams) => {
+    const r = sketchOn(doc, partId, support, label, fn);
+    doc = r.doc;
+    return r.sketchId;
+  };
+  const around = (sourceId: Id, count: number, label: string) => {
+    const pattern = makePatternFeature(doc, part(), sourceId, 'circular');
+    add({ ...pattern, params: { ...pattern.params, axis: { kind: 'axis', axis: 'Z' }, count, angle: 360 } }, label);
+  };
+  const single1 = rings.length === 1;
+
+  // Circuits : disque central, couronnes (cercles extérieur et intérieur de chacune).
+  const pcbCircles = rings.flatMap((k) => (k === 0 ? [{ x: 0, y: 0, r: ledOuter(0) }] : [{ x: 0, y: 0, r: ledOuter(k) }, { x: 0, y: 0, r: ledOuter(k) - width }]));
+  const skPcb = draw(XY(0), single1 ? 'Esquisse du circuit' : 'Esquisse des circuits', (p) => circles(p, pcbCircles).sketch);
+  add(makeExtrudeFeature(doc, part(), skPcb, pcb), single1 ? 'Circuit' : 'Circuits');
+
+  // Par couronne : une LED en haut (axe +Y), sa fenêtre, répétées tout autour.
+  for (const k of rings) {
+    const n = LED_RING_COUNTS[k]!;
+    const of = single1 ? '' : k === 0 ? ' centrale' : ` de la couronne ${k}`;
+    const skLed = draw(XY(pcb), `Esquisse de la LED${of}`, (p) => rectangle(p, led, led, 0, ledMid(k)).sketch);
+    const exLed = add(makeExtrudeFeature(doc, part(), skLed, ledH), `LED${of}`);
+    const skLens = draw(XY(pcb + ledH), `Esquisse de la fenêtre${of}`, (p) => circles(p, [{ x: 0, y: ledMid(k), r: 1.8 }]).sketch);
+    const pkLens = add(makePocketFeature(doc, part(), skLens, { kind: 'distance', distance: 0.3 }), `Fenêtre${of}`);
+    if (n > 1) {
+      around(exLed.id, n, `LED${of} (${n})`);
+      around(pkLens.id, n, `Fenêtres${of}`);
+    }
+  }
+  return doc;
+}
+
+/** Ensemble des `rings` premières couronnes (7 pour le produit complet, 109 LED). */
+function ledRings(rings: number): ComponentSpec {
+  const counts = LED_RING_COUNTS.slice(0, rings);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const { pitch, width, pcb, ledH } = LED_RING;
+  const D = 2 * ledOuter(rings - 1);
+  const name = `Anneaux LED WS2812B ${total} LED`;
+  return {
+    collection: 'leds',
+    id: `ws2812b-rings-${total}`,
+    name,
+    description: `${rings} anneaux concentriques de LED WS2812B 5050 (${counts.join(' + ')} = ${total} LED) : Ø extérieur ${D} mm, couronnes de ${width} mm de large au pas de ${pitch} mm, circuit de 1,6 mm, hauteur 3,2 mm avec les LED. ${LED_FRAME}`,
+    tags: ['LED', 'WS2812B', 'NeoPixel', '5050', 'anneau', 'RGB', 'adressable', `${total} LED`],
+    dimensions: { D, couronnes: rings, LED: total, largeur: width, pas: pitch, e: pcb, H: pcb + ledH },
+    solids: rings,
+    build: () => buildLedRings(name, counts.map((_, k) => k)),
+  };
+}
+
+/** Une couronne seule (k = 0 : le disque de la LED centrale). */
+function ledRing(k: number): ComponentSpec {
+  const n = LED_RING_COUNTS[k]!;
+  const { width, pcb, ledH } = LED_RING;
+  const D = 2 * ledOuter(k);
+  const d = D - 2 * width;
+  const name = k === 0 ? 'LED WS2812B sur disque Ø 12' : `Anneau LED WS2812B ${n} LED`;
+  return {
+    collection: 'leds',
+    id: k === 0 ? 'ws2812b-disc-1' : `ws2812b-ring-${n}`,
+    name,
+    description:
+      k === 0
+        ? `LED WS2812B 5050 seule sur un disque Ø ${D} mm, circuit de 1,6 mm, hauteur 3,2 mm avec la LED (centre des anneaux concentriques). ${LED_FRAME}`
+        : `Anneau de ${n} LED WS2812B 5050 : Ø extérieur ${D} mm, Ø intérieur ${d} mm, circuit de 1,6 mm, hauteur 3,2 mm avec les LED, LED sur le Ø ${2 * ledMid(k)} mm. ${LED_FRAME}`,
+    tags: ['LED', 'WS2812B', 'NeoPixel', '5050', 'RGB', 'adressable', ...(k === 0 ? ['disque'] : ['anneau', `${n} LED`])],
+    dimensions: k === 0 ? { D, LED: n, e: pcb, H: pcb + ledH } : { D, d, LED: n, e: pcb, H: pcb + ledH },
+    build: () => buildLedRings(name, [k]),
+  };
+}
+
 export const COMPONENTS: ComponentSpec[] = [
   bearing('625', 5, 16, 5),
   bearing('608', 8, 22, 7),
@@ -858,4 +955,6 @@ export const COMPONENTS: ComponentSpec[] = [
   servo('mg90s', 'MG90S', MICRO_SERVO, '#737b87', 13.4, 'Micro-servo, pignons métal, couple ≈ 0,22 N·m sous 4,8 V.'),
   discHorn(),
   makerbeamCube(),
+  ledRings(6),
+  ...LED_RING_COUNTS.map((_, k) => ledRing(k)),
 ];
