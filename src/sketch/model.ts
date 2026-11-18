@@ -26,7 +26,8 @@ import {
   type SketchText,
 } from '../domain/model';
 import type { Vec2 } from '../math/vec';
-import { ellipseGeometry, splineBeziers, type Bezier, type EllipseGeometry } from './curves';
+import { splineContact } from './spline-contact';
+import { autoSplineHandle, ellipseGeometry, splineBeziers, type Bezier, type EllipseGeometry } from './curves';
 
 export function emptySketch(support: SketchSupport): SketchParams {
   return { support, entities: [], constraints: [] };
@@ -263,7 +264,98 @@ export function ellipseOf(sketch: SketchParams, e: SketchEllipse): EllipseGeomet
 export function splineOf(sketch: SketchParams, e: SketchSpline): Bezier[] {
   const pts = e.points.map((id) => pointPosition(sketch, id));
   if (pts.some((p) => !p)) return [];
-  return splineBeziers(pts as Vec2[], e.closed);
+  const handles = e.points.map((id) => (e.handles?.[id] ? pointPosition(sketch, e.handles[id]) : undefined));
+  return splineBeziers(pts as Vec2[], e.closed, handles);
+}
+
+/**
+ * Poignées sur lesquelles porte une tangence avec une spline : [] si aucune spline n'y prend part,
+ * null s'il en manque une (contact introuvable ou poignée absente).
+ */
+export function splineTangentHandles(sketch: SketchParams, c: { a: string; b: string }): { spline: string; point: string; handle: string }[] | null {
+  const kind = (id: string) => sketch.entities.find((e) => e.id === id)?.type;
+  const out: { spline: string; point: string; handle: string }[] = [];
+  for (const [sid, oid] of [
+    [c.a, c.b],
+    [c.b, c.a],
+  ] as const) {
+    if (kind(sid) !== 'spline') continue;
+    const contact = splineContact(sketch, sketch.constraints, sid, oid);
+    const sp = sketch.entities.find((e): e is SketchSpline => e.id === sid && e.type === 'spline')!;
+    const handle = contact && sp.handles?.[contact.point];
+    if (!contact || !handle) return null;
+    out.push({ spline: sid, point: contact.point, handle });
+  }
+  return out;
+}
+
+/** Donne leur poignée aux points de contact d'une tangence avec une ou deux splines. */
+export function prepareSplineTangent(sketch: SketchParams, c: { a: string; b: string }): SketchParams {
+  let sk = sketch;
+  for (const [sid, oid] of [
+    [c.a, c.b],
+    [c.b, c.a],
+  ] as const) {
+    if (!sk.entities.some((e) => e.id === sid && e.type === 'spline')) continue;
+    const contact = splineContact(sk, sk.constraints, sid, oid);
+    const r = contact && addSplineHandle(sk, sid, contact.point);
+    if (r) sk = r.sketch;
+  }
+  return sk;
+}
+
+/**
+ * Poignées de tangence proposées sur les splines choisies, aux points qui n'en ont pas encore :
+ * position de la poignée (tangente actuelle) et du point de passage.
+ */
+export function ghostSplineHandles(sketch: SketchParams, selection: readonly string[]): { spline: string; point: string; at: Vec2; through: Vec2 }[] {
+  const out: { spline: string; point: string; at: Vec2; through: Vec2 }[] = [];
+  for (const e of sketch.entities) {
+    if (e.type !== 'spline' || !selection.includes(e.id) || e.reference) continue;
+    for (const id of e.points) {
+      if (e.handles?.[id]) continue;
+      const at = splineHandlePosition(sketch, e, id);
+      const through = pointPosition(sketch, id);
+      if (at && through) out.push({ spline: e.id, point: id, at, through });
+    }
+  }
+  return out;
+}
+
+/** Points des poignées de tangence d'une spline. */
+export function splineHandles(e: SketchSpline): string[] {
+  return Object.values(e.handles ?? {});
+}
+
+/** Spline dont `pointId` est une poignée de tangence. */
+export function splineOfHandle(sketch: SketchParams, pointId: string): SketchSpline | undefined {
+  return sketch.entities.find((e): e is SketchSpline => e.type === 'spline' && splineHandles(e).includes(pointId));
+}
+
+/** Position de la poignée du point de passage `pointId` : la sienne, sinon l'automatique. */
+export function splineHandlePosition(sketch: SketchParams, e: SketchSpline, pointId: string): Vec2 | undefined {
+  const own = e.handles?.[pointId];
+  if (own) return pointPosition(sketch, own);
+  const pts = e.points.map((id) => pointPosition(sketch, id));
+  const i = e.points.indexOf(pointId);
+  if (i < 0 || pts.length < 2 || pts.some((p) => !p)) return undefined;
+  return autoSplineHandle(pts as Vec2[], e.closed, i);
+}
+
+/**
+ * Donne une poignée de tangence au point de passage `pointId` (à `at`, sinon là où la courbe ne
+ * change pas). Sans effet s'il en a déjà une.
+ */
+export function addSplineHandle(sketch: SketchParams, splineId: string, pointId: string, at?: Vec2): { sketch: SketchParams; handleId: string } | null {
+  const e = sketch.entities.find((x): x is SketchSpline => x.id === splineId && x.type === 'spline');
+  if (!e || !e.points.includes(pointId)) return null;
+  const own = e.handles?.[pointId];
+  if (own) return { sketch, handleId: own };
+  const pos = at ?? splineHandlePosition(sketch, e, pointId);
+  if (!pos) return null;
+  const r = addPoint(sketch, pos);
+  const next: SketchSpline = { ...e, handles: { ...e.handles, [pointId]: r.id } };
+  return { sketch: { ...r.sketch, entities: r.sketch.entities.map((x) => (x.id === splineId ? next : x)) }, handleId: r.id };
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -328,14 +420,20 @@ export function ownedPoints(entity: SketchEntity): string[] {
   if (entity.type === 'circle') return [entity.center];
   if (entity.type === 'arc') return [entity.center, entity.start, entity.end];
   if (entity.type === 'ellipse') return [entity.center, entity.major];
-  if (entity.type === 'spline') return [...entity.points];
+  if (entity.type === 'spline') return [...entity.points, ...splineHandles(entity)];
   if (entity.type === 'text' || entity.type === 'stamp') return [entity.anchor];
   return [];
 }
 
+/** Points sans lesquels une courbe n'existe plus (une poignée de spline n'en fait pas partie). */
+function essentialPoints(entity: SketchEntity): string[] {
+  return entity.type === 'spline' ? [...entity.points] : ownedPoints(entity);
+}
+
 /**
  * Supprime des éléments et tout ce qui en dépend : une courbe emporte ses points, un point
- * emporte les courbes qui l'utilisent, et les contraintes orphelines sont retirées.
+ * emporte les courbes qui l'utilisent, et les contraintes orphelines sont retirées. Supprimer la
+ * poignée d'une spline lui rend sa tangente automatique.
  */
 export function removeEntities(sketch: SketchParams, ids: Iterable<string>): SketchParams {
   const removed = new Set(ids);
@@ -351,14 +449,25 @@ export function removeEntities(sketch: SketchParams, ids: Iterable<string>): Ske
             changed = true;
           }
         }
-      } else if (ownedPoints(e).some((p) => removed.has(p))) {
+      } else if (essentialPoints(e).some((p) => removed.has(p))) {
         removed.add(e.id);
         changed = true;
       }
     }
   }
-  const entities = sketch.entities.filter((e) => !removed.has(e.id));
-  const constraints = sketch.constraints.filter((c) => constraintReferences(c).every((r) => !removed.has(r)));
+  const entities = sketch.entities
+    .filter((e) => !removed.has(e.id))
+    .map((e) => {
+      if (e.type !== 'spline' || !e.handles || !splineHandles(e).some((h) => removed.has(h))) return e;
+      const handles = Object.fromEntries(Object.entries(e.handles).filter(([, h]) => !removed.has(h)));
+      const next: SketchSpline = { ...e, handles };
+      if (Object.keys(handles).length === 0) delete next.handles;
+      return next;
+    });
+  const kept = sketch.constraints.filter((c) => constraintReferences(c).every((r) => !removed.has(r)));
+  // Une tangence de spline dont la poignée a été supprimée n'a plus d'objet.
+  const next = { ...sketch, entities, constraints: kept };
+  const constraints = kept.filter((c) => c.type !== 'tangent' || splineTangentHandles(next, c) !== null);
   return { ...sketch, entities, constraints };
 }
 

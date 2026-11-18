@@ -14,6 +14,7 @@
 import { AXIS_X_END_ID, AXIS_X_ID, AXIS_Y_END_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type SketchConstraint, type SketchParams } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { choleskySolve, rowReduce } from '../math/linalg';
+import { splineContact } from './spline-contact';
 
 type PointRef = { kind: 'var'; ix: number; iy: number } | { kind: 'const'; x: number; y: number };
 
@@ -294,6 +295,31 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
     },
   });
 
+  /** Tangente d'une spline au point de passage `pointId` : du point vers sa poignée. */
+  const splineTangentLine = (splineId: string, pointId: string): LineRef | undefined => {
+    const sp = sketch.entities.find((e) => e.id === splineId);
+    const handle = sp?.type === 'spline' ? sp.handles?.[pointId] : undefined;
+    const a = points.get(pointId);
+    const b = handle ? points.get(handle) : undefined;
+    return a && b ? { a, b } : undefined;
+  };
+  /**
+   * Tangence avec une spline, au point où elle touche l'autre courbe : la poignée y est alignée
+   * avec le segment, perpendiculaire au rayon du cercle, ou alignée avec la poignée de l'autre spline.
+   */
+  const splineTangent = (id: string, a: string, b: string, aIsSpline: boolean): Equation | null => {
+    const [sid, oid] = aIsSpline ? [a, b] : [b, a];
+    const contact = splineContact(sketch, constraints, sid, oid, root);
+    const tan = contact && splineTangentLine(sid, contact.point);
+    if (!contact || !tan) return null;
+    const line = lines.get(oid);
+    if (line) return lineAngleEquation(id, tan, line, 'sin');
+    const circle = circles.get(oid);
+    if (circle) return lineAngleEquation(id, tan, { a: circle.c, b: tan.a }, 'cos');
+    const other = contact.otherPoint ? splineTangentLine(oid, contact.otherPoint) : undefined;
+    return other ? lineAngleEquation(id, tan, other, 'sin') : null;
+  };
+
   // Équation propre à chaque arc : le point d'arrivée reste sur le cercle de l'arc.
   for (const e of sketch.entities) {
     if (e.type !== 'arc') continue;
@@ -480,6 +506,13 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
         break;
       }
       case 'tangent': {
+        const isSpline = (id: string) => sketch.entities.some((e) => e.id === id && e.type === 'spline');
+        if (isSpline(c.a) || isSpline(c.b)) {
+          const eq = splineTangent(c.id, c.a, c.b, isSpline(c.a));
+          if (eq) equations.push(eq);
+          else fail();
+          break;
+        }
         const cb = circles.get(c.b);
         const la = lines.get(c.a);
         const ca = circles.get(c.a);

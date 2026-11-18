@@ -674,12 +674,18 @@ export interface SketchEllipse extends CurveFlags {
   minorRadius: number;
 }
 
-/** Spline : courbe lisse passant par les points `points` (au moins 2), ouverte ou fermée. */
+/**
+ * Spline : courbe lisse passant par les points `points` (au moins 2), ouverte ou fermée.
+ * `handles` associe à un point de passage le point de sa poignée de tangence : la courbe y part
+ * vers la poignée (direction et force de la tangente). Sans poignée, la tangente suit les points
+ * voisins.
+ */
 export interface SketchSpline extends CurveFlags {
   id: string;
   type: 'spline';
   points: string[];
   closed: boolean;
+  handles?: Record<string, string>;
 }
 
 /**
@@ -760,7 +766,8 @@ export type CollinearConstraint = ConstraintBase<'collinear'> & { a: string; b: 
 export type EqualConstraint = ConstraintBase<'equal'> & { a: string; b: string };
 /**
  * Tangence : `a` segment ou cercle, `b` cercle. Pour deux cercles, `internal` indique que l'un
- * est à l'intérieur de l'autre (choisi d'après le dessin au moment de l'ajout).
+ * est à l'intérieur de l'autre (choisi d'après le dessin au moment de l'ajout). Avec une spline
+ * (en `a` ou en `b`), la tangence porte sur la poignée du point où elle touche l'autre courbe.
  */
 export type TangentConstraint = ConstraintBase<'tangent'> & { a: string; b: string; internal?: boolean };
 /** Point posé sur une courbe (sur la droite qui porte un segment, ou sur un cercle). */

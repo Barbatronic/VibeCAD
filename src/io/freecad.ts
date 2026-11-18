@@ -22,7 +22,7 @@ import { holeDiameter } from '../features/hole/definition';
 import { primitiveSides } from '../features/primitive/definition';
 import type { Frame3D } from '../math/frame';
 import type { Vec2, Vec3 } from '../math/vec';
-import { ellipseOf, findLine, pointPosition, standalonePoints } from '../sketch/model';
+import { ellipseOf, findLine, pointPosition, splineOf, standalonePoints } from '../sketch/model';
 import { outlineContours } from '../sketch/stamp';
 import { createZip } from './zip';
 
@@ -307,7 +307,14 @@ function sketchCode(
     } else if (e.type === 'spline') {
       const pts = e.points.map((id) => pointPosition(s, id)).filter((p): p is Vec2 => !!p);
       if (pts.length < 2) continue;
-      lines.push(`_bs = Part.BSplineCurve()`, `_bs.interpolate([${pts.map(vec).join(', ')}], PeriodicFlag=${e.closed ? 'True' : 'False'})`);
+      if (e.handles && Object.keys(e.handles).length) {
+        // Poignées de tangence : la courbe exacte, Bézier par Bézier, en une seule B-spline C1.
+        const bz = splineOf(s, e);
+        const poles = [bz[0]![0], ...bz.flatMap((b) => [b[1], b[2], b[3]])];
+        const mults = [4, ...bz.slice(1).map(() => 3), 4];
+        const knots = Array.from({ length: bz.length + 1 }, (_, k) => k);
+        lines.push(`_bs = Part.BSplineCurve()`, `_bs.buildFromPolesMultsKnots([${poles.map(vec).join(', ')}], [${mults.join(', ')}], [${knots.join(', ')}], False, 3)`);
+      } else lines.push(`_bs = Part.BSplineCurve()`, `_bs.interpolate([${pts.map(vec).join(', ')}], PeriodicFlag=${e.closed ? 'True' : 'False'})`);
       const i = add('_bs', construction);
       geoOf.set(e.id, i);
       if (!e.closed) {
@@ -374,6 +381,9 @@ function sketchCode(
       case 'perpendicular':
       case 'equal':
       case 'tangent': {
+        // Tangence avec une spline : la géométrie exportée la respecte déjà ; FreeCAD ne la pose
+        // qu'entre extrémités, avec une autre écriture.
+        if (c.type === 'tangent' && s.entities.some((e) => (e.id === c.a || e.id === c.b) && e.type === 'spline')) break;
         const a = geo(c.a);
         const b = geo(c.b);
         const kind = { parallel: 'Parallel', perpendicular: 'Perpendicular', equal: 'Equal', tangent: 'Tangent' }[c.type];

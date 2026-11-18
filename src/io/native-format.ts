@@ -1303,7 +1303,17 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
     else if (type === 'spline') {
       const pts = arr(v, o, 'points', ep).map((x, k) => (typeof x === 'string' ? x : (v.error(`${ep}.points[${k}]`, 'identifiant de point attendu'), '')));
       if (pts.length < 2) v.error(`${ep}.points`, 'au moins deux points');
-      entities.push({ id, type, points: pts, closed: o.closed === true, ...flags });
+      let handles: Record<string, string> | undefined;
+      if (o.handles !== undefined) {
+        const h = obj(v, o.handles, `${ep}.handles`);
+        handles = {};
+        for (const [k, x] of Object.entries(h ?? {})) {
+          if (typeof x !== 'string') v.error(`${ep}.handles.${k}`, 'identifiant de point attendu');
+          else if (!pts.includes(k)) v.error(`${ep}.handles.${k}`, 'point de passage inconnu');
+          else handles[k] = x;
+        }
+      }
+      entities.push({ id, type, points: pts, closed: o.closed === true, ...(handles && Object.keys(handles).length ? { handles } : {}), ...flags });
     } else if (type === 'text') {
       const text = typeof o.text === 'string' ? o.text : (v.error(`${ep}.text`, 'texte attendu'), '');
       const angle = o.angle === undefined ? 0 : num(v, o, 'angle', ep);
@@ -1481,7 +1491,7 @@ function checkSketch(v: Validator, sketch: SketchParams, name: string, path: str
     if (e.type === 'circle' && !points.has(e.center)) v.error(`${path}.params`, `le cercle « ${e.id} » vise un centre absent`);
     if (e.type === 'arc' && (!points.has(e.center) || !points.has(e.start) || !points.has(e.end))) v.error(`${path}.params`, `l’arc « ${e.id} » vise un point absent`);
     if (e.type === 'ellipse' && (!points.has(e.center) || !points.has(e.major))) v.error(`${path}.params`, `l’ellipse « ${e.id} » vise un point absent`);
-    if (e.type === 'spline' && e.points.some((id) => !points.has(id))) v.error(`${path}.params`, `la spline « ${e.id} » vise un point absent`);
+    if (e.type === 'spline' && [...e.points, ...Object.values(e.handles ?? {})].some((id) => !points.has(id))) v.error(`${path}.params`, `la spline « ${e.id} » vise un point absent`);
     if (e.type === 'text' && !points.has(e.anchor)) v.error(`${path}.params`, `le texte « ${e.id} » vise un point d’ancrage absent`);
     if (e.type === 'stamp' && !points.has(e.anchor)) v.error(`${path}.params`, `le tampon « ${e.id} » vise un point d’ancrage absent`);
   }

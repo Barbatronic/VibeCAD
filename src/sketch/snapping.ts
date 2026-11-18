@@ -77,6 +77,8 @@ export function snapPoint(sketch: SketchParams, cursor: Vec2, options: SnapOptio
     const d = distance2(cursor, e);
     if (d < bestDist - 1e-12) {
       const owner = ownerOfPoint(sketch, e.id);
+      // Une poignée de tangence n'est pas un point du dessin.
+      if (owner?.type === 'spline' && !owner.points.includes(e.id)) continue;
       const kind: SnapKind = owner?.type === 'circle' || ((owner?.type === 'arc' || owner?.type === 'ellipse') && owner.center === e.id) ? 'center' : 'point';
       best = { point: { x: e.x, y: e.y }, kind, pointId: e.id, label: SNAP_LABELS[kind] };
       bestDist = d;

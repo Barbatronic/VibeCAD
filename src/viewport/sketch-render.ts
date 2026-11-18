@@ -12,7 +12,7 @@ import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type ConstraintType, type Sketch
 import { formatAngle, formatLength } from '../domain/units';
 import type { Frame3D } from '../math/frame';
 import { add2, cross2, distance2, dot2, midpoint2, normalize2, perp2, scale2, sub2, type Vec2 } from '../math/vec';
-import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, pointPosition, splineOf, standalonePoints } from '../sketch/model';
+import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, ghostSplineHandles, pointPosition, splineOf, standalonePoints } from '../sketch/model';
 import { sampleBeziers, sampleEllipse } from '../sketch/curves';
 import { outlineContours } from '../sketch/stamp';
 import { contourPolyline } from '../sketch/text';
@@ -310,6 +310,26 @@ export class SketchView {
         for (const seg of segs) construction.add(seg, style.color);
       } else {
         for (const seg of segs) (style.strong ? strong : normal).add(seg, style.color);
+      }
+    }
+
+    // Poignées de tangence des splines : un trait de part et d'autre du point de passage. Sur une
+    // spline choisie, les points sans poignée en proposent une (petit rond), à glisser.
+    if (edit) {
+      const bar = (through: Vec2, at: Vec2): Segment => [sub2(scale2(through, 2), at), at];
+      for (const e of sketch.entities) {
+        if (e.type !== 'spline' || !e.handles) continue;
+        for (const [pid, hid] of Object.entries(e.handles)) {
+          const t = pointPosition(sketch, pid);
+          const h = pointPosition(sketch, hid);
+          if (!t || !h) continue;
+          const on = sel.has(hid) || sel.has(e.id) || input.hover === hid;
+          thin.add(bar(t, h), on ? cSel : free.has(hid) ? cFree : cDone);
+        }
+      }
+      for (const g of ghostSplineHandles(sketch, [...sel])) {
+        thin.add(bar(g.through, g.at), cHover);
+        for (const seg of circleSegments(g.at, 4 * px, 16)) normal.add(seg, cHover);
       }
     }
 

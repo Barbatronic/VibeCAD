@@ -16,6 +16,7 @@ import { addOffsetLoop, loopOfCurve, offsetSegments, signedDistanceToLoop } from
 import type { ProfileLoop } from './profiles';
 import { ellipseGeometry, ellipsePoint, sampleBeziers, sampleEllipse, splineBeziers } from './curves';
 import { hitTest, type SketchTarget } from './hit-test';
+import { splineContact } from './spline-contact';
 import { layoutStamp, outlineFrame, type StampShape } from './stamp';
 import { contourPolyline, layoutText, unsupportedChars } from './text';
 import {
@@ -27,6 +28,7 @@ import {
   addRectangle,
   addEllipse,
   addSpline,
+  addSplineHandle,
   addStamp,
   addText,
   updateStamp,
@@ -45,6 +47,8 @@ import {
   movePoints,
   ownerOfPoint,
   pointPosition,
+  prepareSplineTangent,
+  ghostSplineHandles,
   removeConstraints,
   removeEntities,
   setCircleRadius,
@@ -145,7 +149,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   perpendicular: 'Perpendiculaire : deux segments',
   equal: 'Égalité : deux segments ou deux cercles',
   collinear: 'Colinéaire : deux segments',
-  tangent: 'Tangence : un segment et un cercle, ou deux cercles',
+  tangent: 'Tangence : segment, cercle, arc ou spline (au point de raccord)',
   pointOn: 'Point sur : un point, puis un segment ou un cercle',
   midpoint: 'Milieu : un point, puis un segment',
   symmetric: 'Symétrie : deux points (ou un segment), puis le centre (un point) ou l’axe (un segment, un axe)',
@@ -210,8 +214,11 @@ export interface DrawInput {
   error: string | null;
 }
 
+/** Poignée de tangence pas encore créée d'une spline choisie : la glisser la crée. */
+type HandleTarget = { kind: 'handle'; id: string; point: string };
+
 interface DragState {
-  target: SketchTarget;
+  target: SketchTarget | HandleTarget;
   origin: Vec2;
   base: SketchParams;
   moved: boolean;
@@ -1866,10 +1873,12 @@ interface ConstraintLabels {
 }
 
 function tryAddConstraint(s: SketchSession, constraint: NewConstraint, labels: ConstraintLabels) {
-  const kind = classifyNewConstraint(s.sketch, { ...constraint, id: '__candidate__' } as SketchConstraint);
+  // Tangence avec une spline : elle porte sur la poignée du point de contact, créée au besoin.
+  const base = constraint.type === 'tangent' ? prepareSplineTangent(s.sketch, constraint) : s.sketch;
+  const kind = classifyNewConstraint(base, { ...constraint, id: '__candidate__' } as SketchConstraint);
   if (kind === 'redundant') return { session: { ...s, message: info(labels.redundant) }, added: false };
   if (kind === 'conflicting') return { session: { ...s, message: failure(labels.conflicting) }, added: false };
-  const { session, ok } = commit(s, addConstraint(s.sketch, constraint).sketch, { message: success(labels.done) });
+  const { session, ok } = commit(s, addConstraint(base, constraint).sketch, { message: success(labels.done) });
   return { session, added: ok };
 }
 
@@ -1941,6 +1950,13 @@ function buildConstraint(s: SketchSession, tool: ConstraintTool, picks: readonly
       if (isRound(b.kind) !== isRound(a.kind) || b.kind === 'point') return invalid('Choisissez deux éléments du même type : deux segments, ou deux cercles / arcs.');
       return done({ type: 'equal', a: a.id, b: b.id });
     case 'tangent': {
+      if (a.kind === 'spline' || b?.kind === 'spline') {
+        if (!b) return nextPick('Cliquez la courbe à laquelle raccorder la spline.');
+        if (a.kind === 'point' || b.kind === 'point' || a.kind === 'ellipse' || b.kind === 'ellipse') return invalid('Cliquez sur un segment, un cercle, un arc ou une spline.');
+        const [sid, oid] = a.kind === 'spline' ? [a.id, b.id] : [b.id, a.id];
+        if (!splineContact(sk, sk.constraints, sid, oid)) return invalid('La spline doit d’abord toucher cette courbe : extrémité commune ou point sur la courbe.');
+        return done({ type: 'tangent', a: a.id, b: b.id });
+      }
       if (a.kind === 'point') return invalid('Cliquez sur un segment ou un cercle.');
       if (!b) return nextPick(a.kind === 'line' ? 'Cliquez le cercle qui doit toucher ce segment.' : 'Cliquez un segment ou un second cercle.');
       if (b.kind === 'point') return invalid('Cliquez sur un segment ou un cercle.');
@@ -2130,6 +2146,9 @@ function isFixedTarget(sketch: SketchParams, target: SketchTarget): boolean {
  */
 function selectClick(s: SketchSession, p: Vec2, double: boolean): SketchSession {
   const target = hitTest(s.sketch, p, tolerance(s));
+  const ghost = ghostHandleAt(s, p);
+  const pointDistance = target?.kind === 'point' ? distance2(p, pointPosition(s.sketch, target.id) ?? p) : Infinity;
+  if (ghost && ghost.d < pointDistance) return { ...s, drag: { target: ghost.target, origin: p, base: s.sketch, moved: false } };
   if (!target) {
     if (double) return { ...s, selection: [], drag: null, box: null, message: s.selection.length ? info('Sélection vidée.') : s.message };
     return { ...s, drag: null, box: { origin: p, current: p } };
@@ -2143,6 +2162,15 @@ function selectClick(s: SketchSession, p: Vec2, double: boolean): SketchSession 
     : fixed && target.id !== ORIGIN_POINT_ID ? info('Élément repris de la pièce : il est fixe et suit la pièce. Cotez ou contraignez votre dessin par rapport à lui.') : s.message;
   if (fixed) return { ...s, selection: already ? s.selection.filter((x) => x !== id) : selection, message, drag: null };
   return { ...s, selection, message, drag: { target, origin: p, base: s.sketch, moved: false, toggleOff: already } };
+}
+
+function ghostHandleAt(s: SketchSession, p: Vec2): { target: HandleTarget; d: number } | null {
+  let best: { target: HandleTarget; d: number } | null = null;
+  for (const g of ghostSplineHandles(s.sketch, s.selection)) {
+    const d = distance2(p, g.at);
+    if (d <= tolerance(s) && (!best || d < best.d)) best = { target: { kind: 'handle', id: g.spline, point: g.point }, d };
+  }
+  return best;
 }
 
 /** Vide la sélection (double-clic dans le vide, touche Espace). */
@@ -2205,7 +2233,14 @@ function dragTo(s: SketchSession, p: Vec2, alt: boolean): SketchSession {
   const weights = new Map<string, number>();
   let moved: SketchParams = base;
   const t = drag.target;
-  if (t.kind === 'point') {
+  if (t.kind === 'handle') {
+    // Première prise d'une poignée proposée : elle est créée là où se trouve la souris.
+    const r = addSplineHandle(base, t.id, t.point, p);
+    if (!r) return s;
+    moved = r.sketch;
+    weights.set(`${r.handleId}.x`, 1e4);
+    weights.set(`${r.handleId}.y`, 1e4);
+  } else if (t.kind === 'point') {
     const exclude = new Set([t.id]);
     const snap = snapPoint(base, p, { tolerance: tolerance(s), gridStep: s.gridStep, snapToGrid: s.snapToGrid, exclude, disabled: alt });
     moved = movePoints(base, new Map([[t.id, snap.point]]));

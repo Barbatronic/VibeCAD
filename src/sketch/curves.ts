@@ -4,33 +4,48 @@
  * - Ellipse : un centre, un point au bout du grand axe (il donne le rayon et l'orientation) et un
  *   petit rayon.
  * - Spline : courbe lisse qui passe par une suite de points (Catmull-Rom uniforme), ouverte ou
- *   fermée. Elle est définie comme une suite de courbes de Bézier cubiques, construites telles
- *   quelles par le noyau : la courbe affichée et celle du volume sont la même.
+ *   fermée ; une poignée de tangence peut fixer la tangente en un point. Elle est définie comme
+ *   une suite de courbes de Bézier cubiques, construites telles quelles par le noyau : la courbe
+ *   affichée et celle du volume sont la même.
  */
 import { add2, scale2, sub2, type Vec2 } from '../math/vec';
 
 /** Courbe de Bézier cubique : départ, deux points de contrôle, arrivée. */
 export type Bezier = [Vec2, Vec2, Vec2, Vec2];
 
-/** Morceaux de Bézier d'une spline passant par `pts` (au moins 2 points). */
-export function splineBeziers(pts: readonly Vec2[], closed: boolean): Bezier[] {
+/** Point `i` de la spline, prolongé aux extrémités d'une spline ouverte (tangente naturelle). */
+function splineAt(pts: readonly Vec2[], closed: boolean, i: number): Vec2 {
+  const n = pts.length;
+  if (closed) return pts[((i % n) + n) % n]!;
+  if (i < 0) return sub2(scale2(pts[0]!, 2), pts[1]!);
+  if (i >= n) return sub2(scale2(pts[n - 1]!, 2), pts[n - 2]!);
+  return pts[i]!;
+}
+
+/**
+ * Poignée automatique du point `i` : le point de contrôle de départ du morceau qui en part. La
+ * courbe y garde la tangente donnée par les points voisins.
+ */
+export function autoSplineHandle(pts: readonly Vec2[], closed: boolean, i: number): Vec2 {
+  return add2(pts[i]!, scale2(sub2(splineAt(pts, closed, i + 1), splineAt(pts, closed, i - 1)), 1 / 6));
+}
+
+/**
+ * Morceaux de Bézier d'une spline passant par `pts` (au moins 2 points). `handles[i]`, s'il est
+ * donné, remplace la poignée automatique du point `i` : il devient le point de contrôle de départ
+ * du morceau suivant, et son symétrique par rapport au point celui d'arrivée du morceau précédent.
+ */
+export function splineBeziers(pts: readonly Vec2[], closed: boolean, handles: readonly (Vec2 | undefined)[] = []): Bezier[] {
   const n = pts.length;
   if (n < 2) return [];
-  const at = (i: number): Vec2 => {
-    if (closed) return pts[((i % n) + n) % n]!;
-    // Extrémités d'une spline ouverte : point fantôme dans le prolongement (tangente naturelle).
-    if (i < 0) return sub2(scale2(pts[0]!, 2), pts[1]!);
-    if (i >= n) return sub2(scale2(pts[n - 1]!, 2), pts[n - 2]!);
-    return pts[i]!;
-  };
+  const handle = (i: number) => handles[i] ?? autoSplineHandle(pts, closed, i);
   const out: Bezier[] = [];
   const count = closed ? n : n - 1;
   for (let i = 0; i < count; i++) {
-    const p0 = at(i);
-    const p1 = at(i + 1);
-    const c1 = add2(p0, scale2(sub2(p1, at(i - 1)), 1 / 6));
-    const c2 = sub2(p1, scale2(sub2(at(i + 2), p0), 1 / 6));
-    out.push([p0, c1, c2, p1]);
+    const j = (i + 1) % n;
+    const p0 = pts[i]!;
+    const p1 = pts[j]!;
+    out.push([p0, handle(i), sub2(scale2(p1, 2), handle(j)), p1]);
   }
   return out;
 }
