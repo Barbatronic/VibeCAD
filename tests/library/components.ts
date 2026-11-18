@@ -845,7 +845,8 @@ function makerbeamCube(): ComponentSpec {
 /**
  * Anneaux de LED WS2812B concentriques (type Treedix 109 LED / 7 anneaux) : LED centrale sur un
  * disque Ø 12, puis des couronnes de 8 mm de large au pas radial de 10 mm (2 mm de jour entre deux
- * couronnes), circuit de 1,6 mm, LED 5050 de 5 × 5 × 1,6 mm avec leur fenêtre Ø 3,6 mm.
+ * couronnes), circuit de 1,6 mm, LED 5050 de 5 × 5 × 1,6 mm. Sans la fenêtre des LED : 81 poches
+ * répétées sextuplaient les triangles et doublaient le recalcul, pour un détail invisible en assemblage.
  * Couronne k (0 = disque central) : LED_RING_COUNTS[k] LED. Chaque couronne est un circuit séparé.
  */
 const LED_RING_COUNTS = [1, 8, 12, 16, 20, 24, 28];
@@ -880,18 +881,13 @@ function buildLedRings(name: string, rings: number[]): CadDocument {
   const skPcb = draw(XY(0), single1 ? 'Esquisse du circuit' : 'Esquisse des circuits', (p) => circles(p, pcbCircles).sketch);
   add(makeExtrudeFeature(doc, part(), skPcb, pcb), single1 ? 'Circuit' : 'Circuits');
 
-  // Par couronne : une LED en haut (axe +Y), sa fenêtre, répétées tout autour.
+  // Par couronne : une LED en haut (axe +Y), répétée tout autour.
   for (const k of rings) {
     const n = LED_RING_COUNTS[k]!;
     const of = single1 ? '' : k === 0 ? ' centrale' : ` de la couronne ${k}`;
     const skLed = draw(XY(pcb), `Esquisse de la LED${of}`, (p) => rectangle(p, led, led, 0, ledMid(k)).sketch);
     const exLed = add(makeExtrudeFeature(doc, part(), skLed, ledH), `LED${of}`);
-    const skLens = draw(XY(pcb + ledH), `Esquisse de la fenêtre${of}`, (p) => circles(p, [{ x: 0, y: ledMid(k), r: 1.8 }]).sketch);
-    const pkLens = add(makePocketFeature(doc, part(), skLens, { kind: 'distance', distance: 0.3 }), `Fenêtre${of}`);
-    if (n > 1) {
-      around(exLed.id, n, `LED${of} (${n})`);
-      around(pkLens.id, n, `Fenêtres${of}`);
-    }
+    if (n > 1) around(exLed.id, n, `LED${of} (${n})`);
   }
   return doc;
 }

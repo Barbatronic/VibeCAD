@@ -8,18 +8,24 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { partMaterial, partMaterialId } from '../../src/domain/part-material';
+import { DISPLAY_MESH } from '../../src/domain/tolerances';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { documentForWorker } from '../../src/geometry/protocol';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 import type { CadDocument } from '../../src/domain/model';
-import { GeometryService } from '../../src/workers/geometry-service';
+import { GeometryService, meshOptionsFor } from '../../src/workers/geometry-service';
 import { getKernel } from '../helpers/kernel';
 import { COLLECTIONS, COMPONENTS } from './components';
 
 const OUT = process.env.LIBRARY_OUT ? resolve(process.env.LIBRARY_OUT) : null;
 /** Date fixe : les fichiers ne changent que si le modèle change. */
 const SAVED_AT = '2026-10-25T00:00:00.000Z';
+/**
+ * Poids d'un composant dans un assemblage : triangles de son maillage d'affichage. Un composant
+ * s'insère souvent en plusieurs exemplaires ; au-delà, simplifier le modèle (détails invisibles).
+ */
+const MAX_TRIANGLES = 20_000;
 
 /**
  * Identifiants tirés au hasard (`sk-60u517wj`) renumérotés dans l'ordre d'apparition (`sk-1`) : le
@@ -60,6 +66,8 @@ describe('bibliothèque de composants', () => {
     expect(result!.sketches.map((k) => ({ sketch: k.featureId, dof: k.dof, converged: k.converged }))).toEqual(
       result!.sketches.map((k) => ({ sketch: k.featureId, dof: 0, converged: true })),
     );
+    const mesh = kernel.mesh(result!.shape!, meshOptionsFor(result!.analysis!.bbox, DISPLAY_MESH));
+    expect(mesh.indices.length / 3).toBeLessThanOrEqual(MAX_TRIANGLES);
     if (!OUT) return;
 
     const dir = join(OUT, spec.collection);
