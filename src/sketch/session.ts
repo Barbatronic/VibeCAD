@@ -387,7 +387,7 @@ export function setTool(s: SketchSession, tool: SketchTool): SketchSession {
   let next = resetDraw({ ...s, tool, editor: null, drag: null, box: null, projectHover: null, message: info(TOOL_HELP[tool]) });
   if (isConstraintTool(tool)) {
     const applied = applyConstraintToSelection(next, tool);
-    if (applied) next = { ...applied, tool: 'select' };
+    if (applied) next = applied.done ? { ...applied.session, tool: 'select' } : applied.session;
   }
   if (tool === 'project' && s.projectable.length === 0) {
     next = { ...next, message: info('Aucune arête de la pièce ne peut être projetée sur ce plan pour l’instant (il faut un volume déjà construit).') };
@@ -2038,12 +2038,37 @@ function buildSymmetric(sk: SketchParams, picks: readonly PickTarget[]): Constra
   return invalid('Le centre de symétrie est un point, l’axe un segment ou un axe : pas un cercle.');
 }
 
-/** Applique une contrainte à la sélection courante ; renvoie null si la sélection ne convient pas. */
-function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): SketchSession | null {
+/**
+ * Groupes d'éléments auxquels appliquer l'outil, d'après la sélection : plusieurs points réunis
+ * au premier, plusieurs points posés sur une même courbe, plusieurs segments ou cercles égaux ou
+ * parallèles au premier. Sinon la sélection entière forme un seul groupe.
+ */
+function selectionGroups(tool: ConstraintTool, targets: readonly PickTarget[]): PickTarget[][] {
+  const points = targets.filter((t) => t.kind === 'point');
+  const curves = targets.filter((t) => t.kind !== 'point');
+  if (targets.length <= 2) return [[...targets]];
+  if ((tool === 'coincident' || tool === 'pointOn') && curves.length === 1) return points.map((p) => [p, curves[0]!]);
+  if (tool === 'coincident' && curves.length === 0) return points.slice(1).map((p) => [points[0]!, p]);
+  if ((tool === 'equal' || tool === 'parallel') && points.length === 0) return targets.slice(1).map((t) => [targets[0]!, t]);
+  if (tool === 'symmetric' && targets.length === 3) {
+    // Sélection faite au cadre : l'axe (un segment parmi des points) se reconnaît de lui-même.
+    const lines = targets.filter((t) => t.kind === 'line');
+    return [lines.length === 1 ? [...targets.filter((t) => t.kind !== 'line'), ...lines] : [...targets]];
+  }
+  return [[...targets]];
+}
+
+/**
+ * Applique un outil de contrainte à la sélection courante (sélection puis outil). Renvoie null
+ * sans sélection. `done` : la contrainte est traitée (posée, ou refusée avec une explication) ;
+ * sinon l'outil reste actif, la sélection servant de premiers éléments choisis.
+ */
+function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): { session: SketchSession; done: boolean } | null {
   const targets = s.selection.map((id) => targetOf(s.sketch, id)).filter((t): t is PickTarget => t !== null);
+  if (targets.length === 0) return null;
   if (tool === 'horizontal' || tool === 'vertical') {
     const lines = targets.filter((t) => t.kind === 'line');
-    if (lines.length === 0) return null;
+    if (lines.length === 0) return { session: { ...s, selection: [], message: info('Choisissez un segment.') }, done: false };
     let cur = s;
     let any = false;
     for (const line of lines) {
@@ -2052,23 +2077,29 @@ function applyConstraintToSelection(s: SketchSession, tool: ConstraintTool): Ske
       any = any || r.added;
     }
     // Contrainte posée : la sélection a servi, elle est vidée.
-    return any ? { ...cur, selection: [] } : cur;
+    return { session: any ? { ...cur, selection: [] } : cur, done: true };
   }
-  if (tool === 'symmetric') {
-    // Sélection faite au cadre : l'axe (un segment parmi des points) se reconnaît de lui-même.
-    const lines = targets.filter((t) => t.kind === 'line');
-    const ordered = targets.length === 3 && lines.length === 1 ? [...targets.filter((t) => t.kind !== 'line'), ...lines] : targets;
-    if (ordered.length < 2 || ordered.length > 3) return null;
-    const built = buildConstraint(s, tool, ordered);
-    if (built.kind !== 'done') return null;
-    const r = tryAddConstraint(s, built.constraint, labelsFor(tool, built.constraint));
-    return r.added ? { ...r.session, selection: [] } : r.session;
+  const groups = selectionGroups(tool, targets);
+  const builds = groups.map((g) => buildConstraint(s, tool, g));
+  const first = builds[0]!;
+  // Sélection incomplète (un seul élément pour une contrainte qui en demande deux) : elle devient
+  // le premier choix de l'outil, il reste à cliquer la suite.
+  if (builds.length === 1 && first.kind === 'next') return { session: { ...s, selection: [], picks: groups[0]!.map((t) => t.id), message: info(first.hint) }, done: false };
+  const refused = builds.find((b) => b.kind !== 'done');
+  if (refused) {
+    // L'outil reste actif, sans la sélection : son indication dit quoi choisir.
+    return { session: { ...s, selection: [], picks: [], message: info(refused.kind === 'invalid' ? refused.hint : TOOL_HELP[tool]) }, done: false };
   }
-  if (targets.length !== 2) return null;
-  const built = buildConstraint(s, tool, targets);
-  if (built.kind !== 'done') return null;
-  const r = tryAddConstraint(s, built.constraint, labelsFor(tool, built.constraint));
-  return r.added ? { ...r.session, selection: [] } : r.session;
+  let cur = s;
+  let added = 0;
+  for (const b of builds) {
+    if (b.kind !== 'done') continue;
+    const r = tryAddConstraint(cur, b.constraint, labelsFor(tool, b.constraint));
+    cur = r.session;
+    if (r.added) added++;
+  }
+  if (added > 1) cur = { ...cur, message: success(`${added} contraintes ajoutées : ${TOOL_LABELS[tool].toLowerCase()}.`) };
+  return { session: added ? { ...cur, selection: [] } : cur, done: true };
 }
 
 function constraintToolClick(s: SketchSession, p: Vec2, tool: ConstraintTool): SketchSession {
