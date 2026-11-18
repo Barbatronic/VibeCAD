@@ -1198,73 +1198,126 @@ export class OcctKernel implements GeometryKernel {
 
   shell(baseIn: KernelShape, request: ShellRequest): ShellResult {
     const base = asOcct(baseIn);
-    const oc = this.oc;
     if (!(request.thickness > 0)) return { status: 'failed', detail: 'L’épaisseur doit être positive.' };
-    try {
-      return withScope((scope) => {
-        const resolved = request.open.map((ref) => base.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref))));
-        const missing = resolved.flatMap((faces, i) => (faces.length === 0 ? [i] : []));
-        if (missing.length > 0) return { status: 'faces-lost', missing };
-        const list = scope.track(new oc.NCollection_List_TopoDS_Shape());
-        const added: TaggedFace[] = [];
-        for (const faces of resolved) for (const f of faces) if (!added.includes(f)) (added.push(f), list.Append(f.face));
-        const mk = scope.track(new oc.BRepOffsetAPI_MakeThickSolid());
-        // Jointures « intersection » : coins vifs (par défaut, le moteur les arrondit vers l'extérieur).
-        mk.MakeThickSolidByJoin(
-          base.shape,
-          list,
-          request.outward ? request.thickness : -request.thickness,
-          1e-3,
-          oc.BRepOffset_Mode.BRepOffset_Skin,
-          false,
-          false,
-          oc.GeomAbs_JoinType.GeomAbs_Intersection,
-        );
-        if (!mk.IsDone()) return { status: 'failed', detail: 'Construction impossible avec cette épaisseur.' };
-        if (added.length === 0) {
-          // Sans face ouverte, le moteur rend le volume décalé (intérieur ou agrandi) : la pièce
-          // creuse fermée s'obtient en le retirant de la pièce (ou la pièce du volume agrandi).
-          const offset = mk.Shape();
-          const offsetFaces = this.taggedFaces(offset);
-          offsetFaces.forEach((f, index) => addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: request.outward ? 'outer' : 'inner', index }]));
-          const tool = new OcctShape(offset, offsetFaces);
-          try {
-            const closed = request.outward ? this.boolean('cut', tool, base) : this.boolean('cut', base, tool);
-            return { status: 'ok', shape: closed };
-          } finally {
-            this.dispose(tool);
+    const resolved = request.open.map((ref) => base.faces.filter((f) => f.tags.some((t) => sameFaceTag(t, ref))));
+    const missing = resolved.flatMap((faces, i) => (faces.length === 0 ? [i] : []));
+    if (missing.length > 0) return { status: 'faces-lost', missing };
+    const added: TaggedFace[] = [];
+    for (const faces of resolved) for (const f of faces) if (!added.includes(f)) added.push(f);
+    // Réglages du décalage. Coins vifs (jointures « intersection »), en intersectant toutes les faces
+    // décalées entre elles : plus sûr et souvent bien plus rapide que l'intersection entre voisines,
+    // qui peut tourner une minute avant d'échouer (coupes en biais de surfaces de révolution).
+    // Vers l'intérieur, les jointures en arc ne changent la paroi qu'aux arêtes rentrantes
+    // (épaisseur constante) : elles passent avant l'intersection entre voisines, dernier recours.
+    const attempts: { arc: boolean; complete: boolean }[] = [
+      { arc: false, complete: true },
+      ...(request.outward ? [] : [{ arc: true, complete: true }]),
+      { arc: false, complete: false },
+    ];
+    // Volume attendu d'une paroi : surface (hors faces ouvertes) × épaisseur, à un facteur près.
+    const expected = (this.areaOf(base.shape) - added.reduce((a, f) => a + this.areaOf(f.face), 0)) * request.thickness;
+    const baseVolume = Math.abs(this.volumeOf(base).volume);
+    let detail = 'Construction impossible avec cette épaisseur.';
+    for (const attempt of attempts) {
+      try {
+        const r = this.shellAttempt(base, added, request, attempt.arc, attempt.complete);
+        if (r.status !== 'ok') {
+          detail = r.detail;
+          continue;
+        }
+        const { volume, solidCount } = this.volumeOf(r.shape);
+        const v = Math.abs(volume);
+        const ratio = expected > 0 ? v / expected : 1;
+        // Vers l'intérieur, la coque est prise dans la pièce : elle doit lui retirer de la matière.
+        const nested = request.outward || v < baseVolume * 0.999;
+        if (solidCount === 1 && nested && ratio > 0.25 && ratio < 2.5 && this.isValid(asOcct(r.shape).shape)) return r;
+        this.dispose(r.shape);
+        detail = 'Le décalage des faces donne un volume incohérent.';
+      } catch (err) {
+        const e = this.toKernelError('coque', err);
+        detail = [e.message, e.detail].filter(Boolean).join(' — ');
+      }
+    }
+    return { status: 'failed', detail };
+  }
+
+  private areaOf(shape: TopoDS_Shape): number {
+    return withScope((scope) => {
+      const p = scope.track(new this.oc.GProp_GProps());
+      this.oc.BRepGProp.SurfaceProperties(shape, p, false, false);
+      return p.Mass();
+    });
+  }
+
+  private shellAttempt(
+    base: OcctShape,
+    added: TaggedFace[],
+    request: ShellRequest,
+    arc: boolean,
+    complete: boolean,
+  ): { status: 'ok'; shape: KernelShape } | { status: 'failed'; detail: string } {
+    const oc = this.oc;
+    return withScope((scope) => {
+      const list = scope.track(new oc.NCollection_List_TopoDS_Shape());
+      for (const f of added) list.Append(f.face);
+      const mk = scope.track(new oc.BRepOffsetAPI_MakeThickSolid());
+      mk.MakeThickSolidByJoin(
+        base.shape,
+        list,
+        request.outward ? request.thickness : -request.thickness,
+        1e-3,
+        oc.BRepOffset_Mode.BRepOffset_Skin,
+        complete,
+        false,
+        arc ? oc.GeomAbs_JoinType.GeomAbs_Arc : oc.GeomAbs_JoinType.GeomAbs_Intersection,
+      );
+      if (!mk.IsDone()) return { status: 'failed', detail: 'Construction impossible avec cette épaisseur.' };
+      let result = mk.Shape();
+      // Le moteur rend parfois une simple enveloppe fermée : on la referme en solide.
+      if (this.explore(result, 'solid').length === 0) {
+        const shells = this.explore(result, 'shell');
+        if (shells.length !== 1) return { status: 'failed', detail: 'Le décalage n’a pas donné un volume fermé.' };
+        scope.track(result);
+        result = scope.track(new oc.ShapeFix_Solid()).SolidFromShell(oc.TopoDS.Shell(shells[0]!));
+      }
+      if (added.length === 0) {
+        // Sans face ouverte, le moteur rend le volume décalé (intérieur ou agrandi) : la pièce
+        // creuse fermée s'obtient en le retirant de la pièce (ou la pièce du volume agrandi).
+        const offsetFaces = this.taggedFaces(result);
+        offsetFaces.forEach((f, index) => addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: request.outward ? 'outer' : 'inner', index }]));
+        const tool = new OcctShape(result, offsetFaces);
+        try {
+          const closed = request.outward ? this.boolean('cut', tool, base) : this.boolean('cut', base, tool);
+          return { status: 'ok', shape: closed };
+        } finally {
+          this.dispose(tool);
+        }
+      }
+      const faces = this.taggedFaces(result);
+      base.faces.forEach((tf, index) => {
+        if (tf.tags.length === 0) return;
+        // Faces d'origine conservées (ou modifiées) : mêmes étiquettes.
+        if (!mk.IsDeleted(tf.face)) {
+          const modified = this.listToArray(scope.track(mk.Modified(tf.face)));
+          const targets = modified.length === 0 ? [tf.face] : modified.map((m) => scope.track(m));
+          for (const m of targets) {
+            const i = this.indexOfFace(faces, m);
+            if (i >= 0) addTags(faces[i]!.tags, tf.tags);
           }
         }
-        const result = mk.Shape();
-        const faces = this.taggedFaces(result);
-        base.faces.forEach((tf, index) => {
-          if (tf.tags.length === 0) return;
-          // Faces d'origine conservées (ou modifiées) : mêmes étiquettes.
-          if (!mk.IsDeleted(tf.face)) {
-            const modified = this.listToArray(scope.track(mk.Modified(tf.face)));
-            const targets = modified.length === 0 ? [tf.face] : modified.map((m) => scope.track(m));
-            for (const m of targets) {
-              const i = this.indexOfFace(faces, m);
-              if (i >= 0) addTags(faces[i]!.tags, tf.tags);
-            }
-          }
-          // Faces de la paroi intérieure, engendrées par le décalage de la face d'origine.
-          for (const g of this.listToArray(scope.track(mk.Generated(tf.face)))) {
-            scope.track(g);
-            const i = this.indexOfFace(faces, g);
-            if (i >= 0 && faces[i]!.tags.length === 0) addTags(faces[i]!.tags, [{ featureId: request.featureId, role: 'side', entityId: 'inner', index }]);
-          }
-        });
-        // Faces restantes sans étiquette (jointures) : rattachées à la coque.
-        faces.forEach((f, k) => {
-          if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: 'join', index: k }]);
-        });
-        return { status: 'ok', shape: new OcctShape(result, faces) };
+        // Faces de la paroi intérieure, engendrées par le décalage de la face d'origine.
+        for (const g of this.listToArray(scope.track(mk.Generated(tf.face)))) {
+          scope.track(g);
+          const i = this.indexOfFace(faces, g);
+          if (i >= 0 && faces[i]!.tags.length === 0) addTags(faces[i]!.tags, [{ featureId: request.featureId, role: 'side', entityId: 'inner', index }]);
+        }
       });
-    } catch (err) {
-      const e = this.toKernelError('coque', err);
-      return { status: 'failed', detail: [e.message, e.detail].filter(Boolean).join(' — ') };
-    }
+      // Faces restantes sans étiquette (jointures) : rattachées à la coque.
+      faces.forEach((f, k) => {
+        if (f.tags.length === 0) addTags(f.tags, [{ featureId: request.featureId, role: 'side', entityId: 'join', index: k }]);
+      });
+      return { status: 'ok', shape: new OcctShape(result, faces) };
+    });
   }
 
   thicken(baseIn: KernelShape, request: ThickenRequest): { status: 'ok'; shape: KernelShape } | { status: 'failed'; detail: string } {

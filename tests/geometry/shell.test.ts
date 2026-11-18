@@ -2,7 +2,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { addFeature, createDocument, findPart, makePrimitiveFeature, makeShellFeature, makeSketchFeature } from '../../src/domain/document';
-import type { CadDocument, FaceRef, ShellFeature } from '../../src/domain/model';
+import type { CadDocument, FaceRef, Feature, ShellFeature } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
 import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
@@ -82,4 +82,26 @@ describe('coque', () => {
     validate(JSON.parse(text));
     expect(validate.errors ?? []).toEqual([]);
   });
+
+  it('révolution coupée en biais puis creusée : pièce creuse fermée, sans attendre', () => {
+    // Révolution autour d'un axe incliné, coupée par un plan et creusée de poches : le décalage
+    // rend une simple enveloppe, et l'intersection entre faces voisines tournait une minute pour échouer.
+    const features = JSON.parse(readFileSync('tests/fixtures/shell-revolve-cut.features.json', 'utf8')) as Feature[];
+    const doc0 = createDocument('Révolution coupée');
+    const part = { ...doc0.parts[0]!, features };
+    let doc: CadDocument = { ...doc0, parts: [part] };
+    const base = evaluate(doc).res;
+    expect(base.statuses.every((s) => s.state === 'ok')).toBe(true);
+    const shell = makeShellFeature(doc, part, [], 2);
+    doc = addFeature(doc, part.id, shell);
+    const t0 = Date.now();
+    const { res } = evaluate(doc);
+    expect(Date.now() - t0).toBeLessThan(20000);
+    expect(res.statuses.at(-1)!.state).toBe('ok');
+    expect(res.analysis!.valid).toBe(true);
+    expect(res.analysis!.solidCount).toBe(1);
+    // Paroi de 2 mm sur environ 63 500 mm² de surface.
+    expect(res.analysis!.volume).toBeGreaterThan(100000);
+    expect(res.analysis!.volume).toBeLessThan(140000);
+  }, 60000);
 });

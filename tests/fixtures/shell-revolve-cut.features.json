@@ -1,0 +1,1088 @@
+[
+ {
+  "id": "sk-ti9n6uml",
+  "name": "Esquisse 1",
+  "type": "sketch",
+  "visible": false,
+  "params": {
+   "support": {
+    "kind": "plane",
+    "plane": "XZ",
+    "offset": 0
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": 0,
+     "y": 65
+    },
+    {
+     "id": "p2",
+     "type": "point",
+     "x": 0,
+     "y": -65
+    },
+    {
+     "id": "l1",
+     "type": "line",
+     "a": "p1",
+     "b": "p2",
+     "construction": true
+    },
+    {
+     "id": "p3",
+     "type": "point",
+     "x": 0,
+     "y": 65
+    },
+    {
+     "id": "p4",
+     "type": "point",
+     "x": 22.922507492100443,
+     "y": -65
+    },
+    {
+     "id": "l2",
+     "type": "line",
+     "a": "p3",
+     "b": "p4",
+     "construction": true
+    },
+    {
+     "id": "p5",
+     "type": "point",
+     "x": 11.461253746,
+     "y": 0
+    },
+    {
+     "id": "p6",
+     "type": "point",
+     "x": -165.8041417961475,
+     "y": -31.25667198
+    },
+    {
+     "id": "l3",
+     "type": "line",
+     "a": "p5",
+     "b": "p6"
+    },
+    {
+     "id": "p7",
+     "type": "point",
+     "x": 22.922507492100443,
+     "y": -65
+    },
+    {
+     "id": "p8",
+     "type": "point",
+     "x": -27.077492507899553,
+     "y": -65
+    },
+    {
+     "id": "l4",
+     "type": "line",
+     "a": "p7",
+     "b": "p8"
+    },
+    {
+     "id": "p9",
+     "type": "point",
+     "x": 22.922507492100443,
+     "y": -65
+    },
+    {
+     "id": "p10",
+     "type": "point",
+     "x": 11.461253746,
+     "y": 0
+    },
+    {
+     "id": "l5",
+     "type": "line",
+     "a": "p9",
+     "b": "p10"
+    },
+    {
+     "id": "p11",
+     "type": "point",
+     "x": -165.8041417961475,
+     "y": -31.25667198
+    },
+    {
+     "id": "p12",
+     "type": "point",
+     "x": -165.28319726314672,
+     "y": -34.211095239
+    },
+    {
+     "id": "l6",
+     "type": "line",
+     "a": "p11",
+     "b": "p12"
+    },
+    {
+     "id": "p13",
+     "type": "point",
+     "x": -155.435119733,
+     "y": -32.47461346241319
+    },
+    {
+     "id": "p14",
+     "type": "point",
+     "x": -165.28319726314672,
+     "y": -34.211095239
+    },
+    {
+     "id": "p15",
+     "type": "point",
+     "x": -158.84008078447158,
+     "y": -41.87707272787076
+    },
+    {
+     "id": "a1",
+     "type": "arc",
+     "center": "p13",
+     "start": "p14",
+     "end": "p15"
+    },
+    {
+     "id": "p16",
+     "type": "point",
+     "x": -27.077492507899553,
+     "y": 321.97629466149016
+    },
+    {
+     "id": "p17",
+     "type": "point",
+     "x": -158.8400807844794,
+     "y": -41.877072727892376
+    },
+    {
+     "id": "p18",
+     "type": "point",
+     "x": -27.077492507899553,
+     "y": -65
+    },
+    {
+     "id": "a2",
+     "type": "arc",
+     "center": "p16",
+     "start": "p17",
+     "end": "p18"
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "pointOn",
+     "point": "p1",
+     "curve": "axis-y"
+    },
+    {
+     "id": "k2",
+     "type": "vertical",
+     "line": "l1"
+    },
+    {
+     "id": "k3",
+     "type": "midpoint",
+     "point": "origin",
+     "line": "l1"
+    },
+    {
+     "id": "k4",
+     "type": "length",
+     "line": "l1",
+     "value": 130
+    },
+    {
+     "id": "k5",
+     "type": "pointOn",
+     "point": "p5",
+     "curve": "l2"
+    },
+    {
+     "id": "k6",
+     "type": "midpoint",
+     "point": "p5",
+     "line": "l2"
+    },
+    {
+     "id": "k7",
+     "type": "perpendicular",
+     "a": "l3",
+     "b": "l2"
+    },
+    {
+     "id": "k8",
+     "type": "length",
+     "line": "l3",
+     "value": 180
+    },
+    {
+     "id": "k9",
+     "type": "coincident",
+     "a": "p3",
+     "b": "p1"
+    },
+    {
+     "id": "k10",
+     "type": "coincident",
+     "a": "p4",
+     "b": "p7"
+    },
+    {
+     "id": "k11",
+     "type": "horizontal",
+     "line": "l4"
+    },
+    {
+     "id": "k12",
+     "type": "pointOn",
+     "point": "p2",
+     "curve": "l4"
+    },
+    {
+     "id": "k13",
+     "type": "coincident",
+     "a": "p4",
+     "b": "p9"
+    },
+    {
+     "id": "k14",
+     "type": "coincident",
+     "a": "p5",
+     "b": "p10"
+    },
+    {
+     "id": "k15",
+     "type": "angle",
+     "a": "l1",
+     "b": "l5",
+     "value": 10,
+     "supplementary": true
+    },
+    {
+     "id": "k16",
+     "type": "coincident",
+     "a": "p6",
+     "b": "p11"
+    },
+    {
+     "id": "k17",
+     "type": "perpendicular",
+     "a": "l6",
+     "b": "l3"
+    },
+    {
+     "id": "k18",
+     "type": "coincident",
+     "a": "p12",
+     "b": "p14"
+    },
+    {
+     "id": "k19",
+     "type": "tangent",
+     "a": "l6",
+     "b": "a1"
+    },
+    {
+     "id": "k20",
+     "type": "coincident",
+     "a": "p15",
+     "b": "p17"
+    },
+    {
+     "id": "k21",
+     "type": "coincident",
+     "a": "p8",
+     "b": "p18"
+    },
+    {
+     "id": "k22",
+     "type": "tangent",
+     "a": "l4",
+     "b": "a2"
+    },
+    {
+     "id": "k23",
+     "type": "tangent",
+     "a": "a1",
+     "b": "a2",
+     "internal": true
+    },
+    {
+     "id": "k24",
+     "type": "length",
+     "line": "l4",
+     "value": 50
+    },
+    {
+     "id": "k25",
+     "type": "radius",
+     "circle": "a1",
+     "value": 10
+    },
+    {
+     "id": "k26",
+     "type": "length",
+     "line": "l6",
+     "value": 3
+    }
+   ]
+  },
+  "dependsOn": []
+ },
+ {
+  "id": "re-5dz4tczz",
+  "name": "Révolution 1",
+  "type": "revolve",
+  "params": {
+   "sketchId": "sk-ti9n6uml",
+   "axis": {
+    "kind": "line",
+    "lineId": "l3"
+   },
+   "angle": 360,
+   "reversed": false,
+   "operation": "add"
+  },
+  "dependsOn": [
+   "sk-ti9n6uml"
+  ]
+ },
+ {
+  "id": "sk-8nu9r8wx",
+  "name": "Esquisse 2",
+  "type": "sketch",
+  "visible": false,
+  "params": {
+   "support": {
+    "kind": "plane",
+    "plane": "XZ",
+    "offset": 0
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": 0,
+     "y": 75
+    },
+    {
+     "id": "p2",
+     "type": "point",
+     "x": 40,
+     "y": 75
+    },
+    {
+     "id": "l1",
+     "type": "line",
+     "a": "p1",
+     "b": "p2"
+    },
+    {
+     "id": "p3",
+     "type": "point",
+     "x": 40,
+     "y": 75
+    },
+    {
+     "id": "p4",
+     "type": "point",
+     "x": 40,
+     "y": -75
+    },
+    {
+     "id": "l2",
+     "type": "line",
+     "a": "p3",
+     "b": "p4"
+    },
+    {
+     "id": "p5",
+     "type": "point",
+     "x": 40,
+     "y": -75
+    },
+    {
+     "id": "p6",
+     "type": "point",
+     "x": 0,
+     "y": -75
+    },
+    {
+     "id": "l3",
+     "type": "line",
+     "a": "p5",
+     "b": "p6"
+    },
+    {
+     "id": "p7",
+     "type": "point",
+     "x": 0,
+     "y": -75
+    },
+    {
+     "id": "p8",
+     "type": "point",
+     "x": 0,
+     "y": 75
+    },
+    {
+     "id": "l4",
+     "type": "line",
+     "a": "p7",
+     "b": "p8"
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "coincident",
+     "a": "p2",
+     "b": "p3"
+    },
+    {
+     "id": "k2",
+     "type": "coincident",
+     "a": "p4",
+     "b": "p5"
+    },
+    {
+     "id": "k3",
+     "type": "coincident",
+     "a": "p6",
+     "b": "p7"
+    },
+    {
+     "id": "k4",
+     "type": "coincident",
+     "a": "p8",
+     "b": "p1"
+    },
+    {
+     "id": "k5",
+     "type": "horizontal",
+     "line": "l1"
+    },
+    {
+     "id": "k6",
+     "type": "horizontal",
+     "line": "l3"
+    },
+    {
+     "id": "k7",
+     "type": "vertical",
+     "line": "l2"
+    },
+    {
+     "id": "k8",
+     "type": "vertical",
+     "line": "l4"
+    },
+    {
+     "id": "k9",
+     "type": "pointOn",
+     "point": "p1",
+     "curve": "axis-y"
+    },
+    {
+     "id": "k10",
+     "type": "midpoint",
+     "point": "origin",
+     "line": "l4"
+    },
+    {
+     "id": "k11",
+     "type": "length",
+     "line": "l1",
+     "value": 40
+    },
+    {
+     "id": "k12",
+     "type": "length",
+     "line": "l4",
+     "value": 150
+    }
+   ]
+  },
+  "dependsOn": []
+ },
+ {
+  "id": "po-z7k28iuh",
+  "name": "Poche 1",
+  "type": "pocket",
+  "params": {
+   "sketchId": "sk-8nu9r8wx",
+   "extent": {
+    "kind": "throughAll"
+   },
+   "direction": "symmetric"
+  },
+  "dependsOn": [
+   "sk-8nu9r8wx"
+  ]
+ },
+ {
+  "id": "sk-w2kzmn5o",
+  "name": "Esquisse 3",
+  "type": "sketch",
+  "visible": false,
+  "dependsOn": [
+   "po-z7k28iuh"
+  ],
+  "params": {
+   "support": {
+    "kind": "face",
+    "ref": {
+     "featureId": "po-z7k28iuh",
+     "role": "side",
+     "entityId": "l4"
+    }
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": 0,
+     "y": 0
+    },
+    {
+     "id": "c1",
+     "type": "circle",
+     "center": "p1",
+     "radius": 58
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "coincident",
+     "a": "origin",
+     "b": "p1"
+    },
+    {
+     "id": "k2",
+     "type": "diameter",
+     "circle": "c1",
+     "value": 116
+    }
+   ]
+  }
+ },
+ {
+  "id": "po-1fao0myf",
+  "name": "Poche 2",
+  "type": "pocket",
+  "dependsOn": [
+   "sk-w2kzmn5o"
+  ],
+  "params": {
+   "sketchId": "sk-w2kzmn5o",
+   "extent": {
+    "kind": "distance",
+    "distance": 5
+   },
+   "direction": "default"
+  }
+ },
+ {
+  "id": "sk-3sur2htl",
+  "name": "Esquisse 4",
+  "type": "sketch",
+  "visible": false,
+  "params": {
+   "support": {
+    "kind": "plane",
+    "plane": "XZ",
+    "offset": 0
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": -61.547005383792516,
+     "y": 50
+    },
+    {
+     "id": "p2",
+     "type": "point",
+     "x": -50,
+     "y": 30
+    },
+    {
+     "id": "l1",
+     "type": "line",
+     "a": "p1",
+     "b": "p2"
+    },
+    {
+     "id": "p3",
+     "type": "point",
+     "x": -61.547005383792516,
+     "y": 50
+    },
+    {
+     "id": "p4",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 50
+    },
+    {
+     "id": "l2",
+     "type": "line",
+     "a": "p3",
+     "b": "p4"
+    },
+    {
+     "id": "p5",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 50
+    },
+    {
+     "id": "p6",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 0
+    },
+    {
+     "id": "l3",
+     "type": "line",
+     "a": "p5",
+     "b": "p6"
+    },
+    {
+     "id": "p7",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 223.92304845413275
+    },
+    {
+     "id": "p8",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 0
+    },
+    {
+     "id": "p9",
+     "type": "point",
+     "x": -50,
+     "y": 30
+    },
+    {
+     "id": "a1",
+     "type": "arc",
+     "center": "p7",
+     "start": "p8",
+     "end": "p9"
+    },
+    {
+     "id": "p10",
+     "type": "point",
+     "x": -161.961524227,
+     "y": 0
+    },
+    {
+     "id": "p11",
+     "type": "point",
+     "x": -101.961524227,
+     "y": 0
+    },
+    {
+     "id": "l4",
+     "type": "line",
+     "a": "p10",
+     "b": "p11",
+     "construction": true
+    },
+    {
+     "id": "p12",
+     "type": "point",
+     "x": -50,
+     "y": 30
+    },
+    {
+     "id": "p13",
+     "type": "point",
+     "x": -101.961524227,
+     "y": 0
+    },
+    {
+     "id": "l5",
+     "type": "line",
+     "a": "p12",
+     "b": "p13",
+     "construction": true
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "horizontal",
+     "line": "l2"
+    },
+    {
+     "id": "k2",
+     "type": "coincident",
+     "a": "p4",
+     "b": "p5"
+    },
+    {
+     "id": "k3",
+     "type": "vertical",
+     "line": "l3"
+    },
+    {
+     "id": "k4",
+     "type": "coincident",
+     "a": "p6",
+     "b": "p8"
+    },
+    {
+     "id": "k5",
+     "type": "coincident",
+     "a": "p2",
+     "b": "p9"
+    },
+    {
+     "id": "k6",
+     "type": "horizontal",
+     "line": "l4"
+    },
+    {
+     "id": "k7",
+     "type": "tangent",
+     "a": "l4",
+     "b": "a1"
+    },
+    {
+     "id": "k8",
+     "type": "coincident",
+     "a": "p6",
+     "b": "p10"
+    },
+    {
+     "id": "k9",
+     "type": "coincident",
+     "a": "p1",
+     "b": "p3"
+    },
+    {
+     "id": "k10",
+     "type": "coincident",
+     "a": "p2",
+     "b": "p12"
+    },
+    {
+     "id": "k11",
+     "type": "coincident",
+     "a": "p11",
+     "b": "p13"
+    },
+    {
+     "id": "k12",
+     "type": "tangent",
+     "a": "l5",
+     "b": "a1"
+    },
+    {
+     "id": "k13",
+     "type": "perpendicular",
+     "a": "l1",
+     "b": "l5"
+    },
+    {
+     "id": "k14",
+     "type": "angle",
+     "a": "l2",
+     "b": "l1",
+     "value": 60,
+     "supplementary": true
+    },
+    {
+     "id": "k15",
+     "type": "pointLineDistance",
+     "point": "p2",
+     "line": "axis-y",
+     "value": 50
+    },
+    {
+     "id": "k16",
+     "type": "pointLineDistance",
+     "point": "p2",
+     "line": "axis-x",
+     "value": 30
+    },
+    {
+     "id": "k17",
+     "type": "length",
+     "line": "l3",
+     "value": 50
+    },
+    {
+     "id": "k18",
+     "type": "pointOn",
+     "point": "p6",
+     "curve": "axis-x"
+    }
+   ]
+  },
+  "dependsOn": []
+ },
+ {
+  "id": "po-begbofrr",
+  "name": "Poche 3",
+  "type": "pocket",
+  "params": {
+   "sketchId": "sk-3sur2htl",
+   "extent": {
+    "kind": "throughAll"
+   },
+   "direction": "symmetric"
+  },
+  "dependsOn": [
+   "sk-3sur2htl"
+  ]
+ },
+ {
+  "id": "sk-00opmx5v",
+  "name": "Esquisse 5",
+  "type": "sketch",
+  "visible": false,
+  "params": {
+   "support": {
+    "kind": "plane",
+    "plane": "XZ",
+    "offset": 0
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": -75,
+     "y": -55
+    },
+    {
+     "id": "p2",
+     "type": "point",
+     "x": -15,
+     "y": -55
+    },
+    {
+     "id": "l1",
+     "type": "line",
+     "a": "p1",
+     "b": "p2"
+    },
+    {
+     "id": "p3",
+     "type": "point",
+     "x": -15,
+     "y": -55
+    },
+    {
+     "id": "p4",
+     "type": "point",
+     "x": -15,
+     "y": -65
+    },
+    {
+     "id": "l2",
+     "type": "line",
+     "a": "p3",
+     "b": "p4"
+    },
+    {
+     "id": "p5",
+     "type": "point",
+     "x": -15,
+     "y": -65
+    },
+    {
+     "id": "p6",
+     "type": "point",
+     "x": -75,
+     "y": -65
+    },
+    {
+     "id": "l3",
+     "type": "line",
+     "a": "p5",
+     "b": "p6"
+    },
+    {
+     "id": "p7",
+     "type": "point",
+     "x": -75,
+     "y": -65
+    },
+    {
+     "id": "p8",
+     "type": "point",
+     "x": -75,
+     "y": -55
+    },
+    {
+     "id": "l4",
+     "type": "line",
+     "a": "p7",
+     "b": "p8"
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "coincident",
+     "a": "p2",
+     "b": "p3"
+    },
+    {
+     "id": "k2",
+     "type": "coincident",
+     "a": "p4",
+     "b": "p5"
+    },
+    {
+     "id": "k3",
+     "type": "coincident",
+     "a": "p6",
+     "b": "p7"
+    },
+    {
+     "id": "k4",
+     "type": "coincident",
+     "a": "p8",
+     "b": "p1"
+    },
+    {
+     "id": "k5",
+     "type": "horizontal",
+     "line": "l1"
+    },
+    {
+     "id": "k6",
+     "type": "horizontal",
+     "line": "l3"
+    },
+    {
+     "id": "k7",
+     "type": "vertical",
+     "line": "l2"
+    },
+    {
+     "id": "k8",
+     "type": "vertical",
+     "line": "l4"
+    },
+    {
+     "id": "k9",
+     "type": "length",
+     "line": "l3",
+     "value": 60
+    },
+    {
+     "id": "k10",
+     "type": "pointLineDistance",
+     "point": "p3",
+     "line": "axis-y",
+     "value": 15
+    },
+    {
+     "id": "k11",
+     "type": "length",
+     "line": "l2",
+     "value": 10
+    },
+    {
+     "id": "k12",
+     "type": "pointLineDistance",
+     "point": "p5",
+     "line": "axis-x",
+     "value": 65
+    }
+   ]
+  },
+  "dependsOn": []
+ },
+ {
+  "id": "po-uec0otz3",
+  "name": "Poche 4",
+  "type": "pocket",
+  "params": {
+   "sketchId": "sk-00opmx5v",
+   "extent": {
+    "kind": "distance",
+    "distance": 30
+   },
+   "direction": "symmetric"
+  },
+  "dependsOn": [
+   "sk-00opmx5v"
+  ]
+ },
+ {
+  "id": "sk-x4tipw4v",
+  "name": "Esquisse 6",
+  "type": "sketch",
+  "visible": false,
+  "dependsOn": [
+   "po-1fao0myf"
+  ],
+  "params": {
+   "support": {
+    "kind": "face",
+    "ref": {
+     "featureId": "po-1fao0myf",
+     "role": "start"
+    }
+   },
+   "entities": [
+    {
+     "id": "p1",
+     "type": "point",
+     "x": 0,
+     "y": 0
+    },
+    {
+     "id": "c1",
+     "type": "circle",
+     "center": "p1",
+     "radius": 53
+    }
+   ],
+   "constraints": [
+    {
+     "id": "k1",
+     "type": "coincident",
+     "a": "origin",
+     "b": "p1"
+    },
+    {
+     "id": "k2",
+     "type": "diameter",
+     "circle": "c1",
+     "value": 106
+    }
+   ]
+  }
+ },
+ {
+  "id": "po-cjeuhg5g",
+  "name": "Poche 5",
+  "type": "pocket",
+  "dependsOn": [
+   "sk-x4tipw4v"
+  ],
+  "params": {
+   "sketchId": "sk-x4tipw4v",
+   "extent": {
+    "kind": "distance",
+    "distance": 3
+   },
+   "direction": "symmetric"
+  }
+ }
+]

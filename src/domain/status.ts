@@ -133,7 +133,7 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   SHELL_FACE_LOST: 'Une des faces à ouvrir n’existe plus (une étape précédente a changé la pièce) : retirez-la ou cliquez-en une autre.',
   COMMON_EMPTY: 'La pièce et ce volume n’ont aucune matière en commun : avec « Garder », rien ne resterait. Déplacez le volume ou choisissez « Ajouter ».',
   LOFT_PROFILE: 'Chaque esquisse d’un lissage doit avoir un seul contour fermé, sans trou, sur un plan différent des autres.',
-  SHELL_FAILED: 'La coque n’a pas pu être calculée : essayez une épaisseur plus petite que les parties fines de la pièce, ou ouvrez d’autres faces.',
+  SHELL_FAILED: 'Coque impossible sur cette forme. Essayez une autre épaisseur, d’autres faces ouvertes, ou placez la coque plus tôt dans l’historique.',
   MIRROR_PLANE_LOST: 'La face choisie comme plan de symétrie n’existe plus ou n’est pas plane : choisissez un autre plan.',
   EXTRUDE_FACE_LOST: 'La face d’arrivée de l’extrusion n’existe plus ou n’est pas plane : choisissez-en une autre, ou une longueur.',
   EXTRUDE_FACE_PARALLEL: 'La face d’arrivée est parallèle à la direction d’extrusion : l’extrusion ne l’atteint jamais. Choisissez une face en face de l’esquisse.',
