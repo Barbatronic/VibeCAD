@@ -2013,6 +2013,8 @@ export class AppController {
     if (mode.kind !== 'feature' || this.state.kernel.status !== 'ready') return;
     const draft = mode.draft;
     const seq = ++this.previewSeq;
+    // Un aperçu long devenu inutile (paramètres changés) n'empêche pas le suivant de partir.
+    this.deps.client.abortPreview(3000);
     try {
       const result = await this.deps.client.evaluate(this.previewDocument(draft), draft.feature.id);
       const now = this.state.mode;
@@ -2118,7 +2120,8 @@ export class AppController {
   cancelDraft(): void {
     if (this.state.mode.kind !== 'feature') return;
     this.previewSeq++;
-    this.set({ mode: model, preview: null, pendingImage: null });
+    this.deps.client.abortPreview();
+    this.set({ mode: model, preview: null, pendingImage: null, evaluating: this.deps.client.busy });
   }
 
   // =========================================================================

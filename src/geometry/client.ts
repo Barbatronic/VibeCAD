@@ -46,7 +46,7 @@ export class GeometryWorkerError extends Error {
 const MESH_CACHE_LIMIT = 40;
 
 export class GeometryClient {
-  private readonly worker: Worker;
+  private worker!: Worker;
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void; progress?: (fraction: number) => void }>();
   private readonly sentResources = new Set<string>();
@@ -56,12 +56,23 @@ export class GeometryClient {
   private queuedCommit: QueuedEvaluation | null = null;
   private queuedPreview: QueuedEvaluation | null = null;
   private crashed: Error | null = null;
+  /** Recalcul en cours dans le worker (pour pouvoir abandonner un aperçu trop long). */
+  private current: { job: QueuedEvaluation; requestId: number; startedAt: number } | null = null;
   readonly ready: Promise<WorkerResultMap['init']>;
 
-  constructor(createWorker: () => Worker) {
-    this.worker = createWorker();
-    this.worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => this.onMessage(event.data));
-    this.worker.addEventListener('error', (event) => {
+  constructor(private readonly createWorker: () => Worker) {
+    this.spawn();
+    this.ready = this.request('init', {});
+  }
+
+  private spawn(): void {
+    const worker = this.createWorker();
+    this.worker = worker;
+    worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
+      if (worker === this.worker) this.onMessage(event.data);
+    });
+    worker.addEventListener('error', (event) => {
+      if (worker !== this.worker) return;
       event.preventDefault?.();
       this.crashed = new GeometryWorkerError(
         'Le moteur de calcul géométrique ne répond plus. Enregistrez votre travail puis rechargez la page.',
@@ -70,7 +81,27 @@ export class GeometryClient {
       for (const p of this.pending.values()) p.reject(this.crashed);
       this.pending.clear();
     });
-    this.ready = this.request('init', {});
+  }
+
+  /**
+   * Abandonne l'aperçu en cours de calcul s'il tourne depuis au moins `minAgeMs`. Le noyau ne
+   * s'interrompt pas : le worker est remplacé par un neuf, qui retrouve les formes déjà calculées
+   * dans le cache du navigateur. Sans effet si d'autres requêtes attendent leur réponse.
+   */
+  abortPreview(minAgeMs = 0): boolean {
+    const cur = this.current;
+    if (!cur || !cur.job.previewFeatureId || this.crashed) return false;
+    if (performance.now() - cur.startedAt < minAgeMs) return false;
+    if ([...this.pending.keys()].some((id) => id !== cur.requestId)) return false;
+    this.pending.delete(cur.requestId);
+    this.worker.terminate();
+    this.spawn();
+    this.sentResources.clear();
+    this.current = null;
+    this.running = false;
+    cur.job.resolve(null);
+    void this.pump();
+    return true;
   }
 
   private onMessage(msg: WorkerResponse): void {
@@ -142,6 +173,8 @@ export class GeometryClient {
     this.running = true;
     try {
       await this.syncResources(job.doc);
+      const current = { job, requestId: this.nextId, startedAt: performance.now() };
+      this.current = current;
       const result = await this.request(
         'evaluate',
         {
@@ -165,6 +198,7 @@ export class GeometryClient {
     } catch (err) {
       job.reject(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      this.current = null;
       this.running = false;
       void this.pump();
     }
