@@ -236,6 +236,12 @@ export class GeometryClient {
     return this.request('exportFreecad', { doc: documentForWorker(doc), partIds, leaves });
   }
 
+  /** Maillage de la pièce juste avant une étape (arêtes reprenables par une esquisse). */
+  async meshBefore(doc: CadDocument, partId: Id, featureId: Id): Promise<WorkerResultMap['meshBefore']> {
+    await this.syncResources(doc);
+    return this.request('meshBefore', { doc: documentForWorker(doc), partId, featureId });
+  }
+
   /** Version d'essai d'une pièce (série d'essais) : le paramètre `parameter` vaut `value`. */
   async variant(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark, zone?: VariantZone): Promise<WorkerResultMap['variant']> {
     await this.syncResources(doc);

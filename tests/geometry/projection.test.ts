@@ -1,13 +1,15 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, findPart, makeExtrudeFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
+import { addFeature, findPart, makeExtrudeFeature, makeFilletFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
 import { ORIGIN_POINT_ID, type SketchFeature, type SketchParams } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
-import type { GeometryKernel } from '../../src/geometry/kernel';
+import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
+import { documentForWorker } from '../../src/geometry/protocol';
+import { GeometryService } from '../../src/workers/geometry-service';
 import { projectableCurves } from '../../src/app/projection';
 import { addCircle, addConstraint, addLine, pointPosition } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 import { getKernel } from '../helpers/kernel';
-import { buildPlateDocument } from '../helpers/plate';
+import { buildPlateDocument, topFrontEdge } from '../helpers/plate';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -87,5 +89,27 @@ describe('géométrie reprise de la pièce dans une esquisse', () => {
     const doc = addFeature(base, ids.partId, { ...sk, params });
     const [res] = engine.evaluateDocument(doc);
     expect(res!.statuses[4]).toMatchObject({ state: 'warning', code: 'REFERENCE_LOST' });
+  });
+
+  it('arêtes reprises de la pièce telle qu’elle est avant l’esquisse : un congé ajouté après ne les retire pas', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    // Congé de 3 mm sur l'arête avant du dessus, après l'esquisse du trou (posée sur le dessus).
+    const doc = addFeature(base, ids.partId, makeFilletFeature(base, findPart(base, ids.partId)!, [topFrontEdge(base, ids.sketch1, ids.extrude)], 3));
+    const svc = new GeometryService(kernel);
+    const final = svc.evaluate(documentForWorker(doc));
+    const frame = final.parts[0]!.sketches.find((s) => s.featureId === ids.sketch2)!.frame!;
+    const part = findPart(doc, ids.partId)!;
+    const lines = (mesh: MeshData | null | undefined) => projectableCurves(mesh, frame, part, ids.sketch2).filter((c) => c.kind === 'line');
+    // L'arête avant du dessus : entre le dessus (« end ») et la face avant de l'extrusion.
+    const topFront = (mesh: MeshData | null | undefined) => lines(mesh).filter((c) => c.ref.faces.some((f) => f.role === 'end') && c.ref.faces.some((f) => f.role === 'side' && Math.abs(c.kind === 'line' ? c.a.y + c.b.y : 1) < 1e-6));
+    // Pièce finie : elle a disparu dans le congé (seule l'arête du dessous se projette au même endroit).
+    expect(topFront(final.parts[0]!.mesh)).toHaveLength(0);
+    // Pièce juste avant l'esquisse : les quatre arêtes du dessus, entières ; le bord du trou n'y est pas encore.
+    const before = svc.meshBefore(documentForWorker(doc), ids.partId, ids.sketch2);
+    expect(topFront(before.mesh)).toHaveLength(1);
+    expect(lines(before.mesh).filter((c) => c.ref.faces.some((f) => f.role === 'end'))).toHaveLength(4);
+    expect(projectableCurves(before.mesh, frame, part, ids.sketch2).some((c) => c.kind === 'circle')).toBe(false);
+    // Première étape, ou aucune étape avant : rien.
+    expect(svc.meshBefore(documentForWorker(doc), ids.partId, ids.sketch1).mesh).toBeNull();
   });
 });

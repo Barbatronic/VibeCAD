@@ -857,7 +857,10 @@ function HistorySection() {
   const list = useRef<HTMLOListElement>(null);
   if (!part) return null;
   const statusOf = (id: Id) => statuses?.find((st) => st.featureId === id);
-  const active = activeCount(part, rollback);
+  // Esquisse existante en cours de modification : l'historique est montré à son niveau (les étapes
+  // suivantes, grisées, ne sont pas dans la vue).
+  const editingIndex = editingSketch ? part.features.findIndex((f) => f.id === editingSketch) : -1;
+  const active = editingIndex >= 0 ? Math.min(editingIndex + 1, activeCount(part, rollback)) : activeCount(part, rollback);
   // Repliée : seule l'étape choisie (sinon l'esquisse en cours, sinon la dernière étape calculée).
   const selectedId = selection?.kind === 'feature' && part.features.some((f) => f.id === selection.featureId) ? selection.featureId : null;
   const shownId = foldHistory ? (selectedId ?? editingSketch ?? part.features[active - 1]?.id ?? null) : null;
@@ -921,7 +924,13 @@ function HistorySection() {
       }}
     >
       <span class="rollback-line" aria-hidden="true" />
-      {active < n ? (
+      {active < n && editingIndex >= 0 ? (
+        <span class="rollback-info">
+          <span class="rollback-text">
+            {n - active} étape{n - active > 1 ? 's' : ''} après l’esquisse
+          </span>
+        </span>
+      ) : active < n ? (
         <span class="rollback-info">
           <span class="rollback-text">{n - active} non calculée{n - active > 1 ? 's' : ''}</span>
           <button type="button" class="tl-link" onClick={() => c.rollbackToEnd(part.id)}>
@@ -1025,7 +1034,7 @@ function HistorySection() {
                       <span class="feature-texts">
                         <span class="name">{f.name}</span>
                         <span class="status-line">
-                          {after ? <span class="status-badge status-rolled-back">Non calculée</span> : <StatusBadge status={status} />}
+                          {after ? <span class="status-badge status-rolled-back">{editingIndex >= 0 ? 'Après l’esquisse' : 'Non calculée'}</span> : <StatusBadge status={status} />}
                           <span class="summary">{featureSummary(f)}</span>
                           {!after && (stepMs?.[f.id] ?? 0) >= SLOW_STEP_MS ? (
                             <span class={`step-time${stepMs![f.id]! >= 1000 ? ' is-slow' : ''}`} title="Durée de calcul de cette étape (dernière mesure)">
@@ -1038,6 +1047,7 @@ function HistorySection() {
                   )}
                   <span class="row-actions">
                     {f.type !== 'imported-solid' ? <IconButton icon="edit" label={`Modifier « ${f.name} »`} small onClick={() => c.editFeature(f.id)} /> : null}
+                    {f.type === 'sketch' ? <IconButton icon="swap" label={`Changer le support de « ${f.name} »`} small onClick={() => c.repairSketch(f.id)} /> : null}
                     {f.type === 'sketch' && f.params.support.kind === 'face' && f.params.support.context ? (
                       <IconButton
                         icon="pivot"
@@ -1047,7 +1057,6 @@ function HistorySection() {
                         onClick={() => c.toggleContextFrozen(f.id)}
                       />
                     ) : null}
-                    {f.type === 'sketch' ? <IconButton icon="swap" label={`Changer le support de « ${f.name} »`} small onClick={() => c.repairSketch(f.id)} /> : null}
                     {f.type === 'sketch' || f.type === 'image' ? (
                       <IconButton icon={f.visible ? 'eye' : 'eye-off'} label={f.visible ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
                     ) : null}

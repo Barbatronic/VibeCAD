@@ -268,6 +268,11 @@ export interface AppState {
    * repères ; `parts` : ses deux pièces sont aussi surlignées (choix d'une liaison).
    */
   hoverJoint: { id: Id; parts: boolean } | null;
+  /**
+   * Esquisse existante en cours de modification : la pièce telle qu'elle est juste avant elle dans
+   * l'historique (affichée à la place de la pièce terminée, et source des arêtes à projeter).
+   */
+  sketchBase: { partId: Id; featureId: Id; features: unknown; mesh: MeshData | null; meshKey: string | null } | null;
   /** Image en cours d'ajout (calque) : sa ressource n'entre dans le projet qu'à la validation. */
   pendingImage: StepResource | null;
   /** Incrémenté quand une image finit de se charger (nouveau rendu de la vue). */
@@ -413,6 +418,7 @@ export function initialState(): AppState {
     laserPage: null,
     hoverPart: null,
     hoverJoint: null,
+    sketchBase: null,
     imageVersion: 0,
     isolatedPartId: null,
     drawingRevision: 0,

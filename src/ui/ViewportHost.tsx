@@ -557,6 +557,18 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     }
     // Tôlerie dépliée : la tôle à plat à la place de la pièce pliée.
     const flat = s.unfolded && mode === 'model' ? d?.result.flat : undefined;
+    // Esquisse existante modifiée : la pièce telle qu'elle est à ce point de l'historique.
+    const base = s.mode.kind === 'sketch' && s.sketchBase?.partId === p.id && s.sketchBase.featureId === s.mode.session.featureId ? s.sketchBase : null;
+    if (base) {
+      return {
+        partId: p.id,
+        ...lookOf(s, p, base.mesh ?? undefined),
+        visible: partShown(s, p) && !!base.mesh,
+        meshKey: base.meshKey,
+        mesh: base.mesh,
+        appearance: workingPartId && p.id !== workingPartId ? 'ghost' : 'dimmed',
+      };
+    }
     return {
       partId: p.id,
       ...lookOf(s, p, flat?.mesh ?? d?.mesh),
@@ -1096,7 +1108,7 @@ export function ViewportHost() {
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.hoverJoint, state.versionView],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.hoverJoint, state.sketchBase, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

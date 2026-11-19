@@ -146,6 +146,7 @@ export type WorkerRequest =
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
   | { id: number; type: 'hiddenLines'; doc: DocumentForWorker; partId: Id; views: { u: Vec3; toViewer: Vec3 }[] }
   | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] }
+  | { id: number; type: 'meshBefore'; doc: DocumentForWorker; partId: Id; featureId: Id }
   | { id: number; type: 'variant'; doc: DocumentForWorker; partId: Id; parameter: string; value: number; mark?: VariantMark; zone?: VariantZone }
   | { id: number; type: 'shapeCache'; clear?: boolean };
 
@@ -198,6 +199,8 @@ export interface WorkerResultMap {
   /** Traits vus et cachés exacts de chaque vue demandée (vide si la pièce n'a pas de volume). */
   hiddenLines: { views: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] };
   collisions: { collisions: Collision[] };
+  /** Maillage de la pièce juste avant une étape (arêtes que l'esquisse peut reprendre). */
+  meshBefore: { meshKey: string | null; mesh: MeshData | null };
   /** Version d'essai d'une pièce : maillage d'affichage, analyse, étape en échec (son nom). */
   variant: { meshKey: string | null; mesh: MeshData | null; analysis: ShapeAnalysis | null; failed: string | null; zone?: 'lost' | 'empty' };
   /** Cache des formes du navigateur : pièces gardées et taille estimée (après vidage si demandé). */

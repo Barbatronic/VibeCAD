@@ -9,6 +9,7 @@ import { add3, scale3, type Vec3 } from '../math/vec';
 import { foldLines } from '../features/sheet/fold';
 import { variantDocument } from '../features/parameters';
 import { markedDocument, zoneBox, type VariantMark } from '../features/series-mark';
+import { externalParts } from '../features/sketch/definition';
 
 /** Version d'essai : le paramètre prend la valeur, puis la valeur est gravée si un marquage est demandé. */
 function seriesVersion(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark): CadDocument {
@@ -279,6 +280,44 @@ export class GeometryService {
     } finally {
       this.kernel.dispose(cut.shape);
     }
+  }
+
+  /**
+   * Maillage de la pièce juste avant une étape (esquisse) : ses arêtes sont celles que l'esquisse
+   * peut reprendre (Projeter), même si des étapes suivantes les ont arrondies, coupées ou fusionnées.
+   * Null s'il n'y a pas encore de volume avant cette étape.
+   */
+  meshBefore(docIn: DocumentForWorker, partId: Id, featureId: Id): WorkerResultMap['meshBefore'] {
+    const doc = this.asDocument(docIn);
+    const part = doc.parts.find((p) => p.id === partId);
+    const index = part?.features.findIndex((f) => f.id === featureId) ?? -1;
+    if (!part || index <= 0) return { meshKey: null, mesh: null };
+    const prev = part.features[index - 1]!.id;
+    // Seulement cette pièce et celles qu'elle reprend : rejouer tout le projet serait bien plus long.
+    const needed = new Set<Id>([partId]);
+    const stack = [partId];
+    while (stack.length) {
+      for (const f of doc.parts.find((p) => p.id === stack.pop())?.features ?? []) {
+        for (const id of externalParts(f)) if (!needed.has(id)) (needed.add(id), stack.push(id));
+      }
+    }
+    const scoped = { ...doc, parts: doc.parts.filter((p) => needed.has(p.id)) };
+    let ev = this.engine.evaluateDocument(scoped, undefined, { aside: true }).find((e) => e.partId === partId);
+    // Pièce reprise du cache des formes : ses étapes intermédiaires sont rejouées.
+    if (ev?.fromCache) {
+      this.engine.useSnapshots = false;
+      try {
+        ev = this.engine.evaluateDocument(scoped, undefined, { aside: true }).find((e) => e.partId === partId);
+      } finally {
+        this.engine.useSnapshots = true;
+      }
+    }
+    const shape = ev ? this.engine.shapeAfter(part, ev, prev) : null;
+    const stepKey = ev?.stepKeys.get(prev);
+    if (!shape || !stepKey) return { meshKey: null, mesh: null };
+    const options = meshOptionsFor(this.kernel.analyze(shape).bbox, DISPLAY_MESH);
+    const meshKey = `avant|${stepKey}|${options.linearDeflection}`;
+    return { meshKey, mesh: this.engine.meshFor(meshKey, shape, options) };
   }
 
   /**

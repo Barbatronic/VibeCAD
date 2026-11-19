@@ -172,6 +172,8 @@ export class AppController {
     if (partial.doc && !partial.printVariants && (partial.doc.parts !== this.state.doc.parts || partial.doc.parameters !== this.state.doc.parameters || partial.doc.resources !== this.state.doc.resources)) {
       if (Object.keys(this.state.printVariants).length) partial = { ...partial, printVariants: {} };
     }
+    // Esquisse refermée : la pièce d'avant l'esquisse ne sert plus.
+    if (partial.mode && partial.mode.kind !== 'sketch' && this.state.sketchBase) partial = { ...partial, sketchBase: null };
     // Changement d'atelier : la liste survolée disparaît, la liaison montrée aussi.
     if (partial.workspace && partial.workspace !== this.state.workspace && this.state.hoverJoint) partial = { ...partial, hoverJoint: null };
     this.store.patch(partial);
@@ -993,6 +995,7 @@ export class AppController {
       if (mode.kind === 'sketch') {
         const session = setProjectable(mode.session, this.projectables(mode.session.partId, mode.session.frame, mode.session.featureId));
         if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
+        if (!mode.session.isNew) void this.refreshMeshBefore(mode.session.partId, mode.session.featureId);
       }
     } catch (err) {
       if (seq !== this.evalSeq) return;
@@ -1573,24 +1576,54 @@ export class AppController {
     const s = this.state;
     const part = findPart(s.doc, partId);
     if (!part) return [];
-    const own = projectableCurves(s.display[partId]?.mesh, frame, part, featureId);
+    // La pièce telle qu'elle est juste avant l'esquisse (sinon, en attendant, la pièce affichée).
+    const before = s.sketchBase;
+    const ownMesh = before && before.partId === partId && before.featureId === featureId && before.features === part.features ? before.mesh : s.display[partId]?.mesh;
+    const own = projectableCurves(ownMesh, frame, part, featureId);
     // Conception dans l'assemblage : les arêtes des voisines, à leur place (repère de l'esquisse
     // exprimé dans celui de la voisine), reprises avec le contexte.
     const ctx = activeContext(s);
     if (ctx && ctx.partId === partId) {
       const neighbours = ctx.leaves.flatMap((leaf) => {
         const p = findPart(s.doc, leaf.partId);
-        if (!p || p.id === partId || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
+        // Pièce isolée : les voisines sont cachées, leurs arêtes ne sont pas proposées.
+        if (!p || p.id === partId || !p.visible || (s.isolatedPartId && p.id !== s.isolatedPartId) || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
         const local = frameInFrame(invertRigid4(leaf.reference), frame);
         const context = contextOf(ctx.instanceId, leaf);
         return projectableCurves(s.display[p.id]?.mesh, local, p, featureId, true).map((c) => ({ ...c, context }));
       });
       return [...own, ...neighbours];
     }
+    // Pièce isolée : les autres sont cachées, leurs arêtes ne sont pas proposées.
     const others = s.doc.parts
-      .filter((p) => p.id !== partId && p.visible && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
+      .filter((p) => p.id !== partId && p.visible && (!s.isolatedPartId || p.id === s.isolatedPartId) && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
       .flatMap((p) => projectableCurves(s.display[p.id]?.mesh, frame, p, featureId, true));
     return [...own, ...others];
+  }
+
+  /**
+   * Demande au worker la pièce juste avant l'esquisse (une esquisse existante) : des étapes
+   * suivantes ont pu arrondir, couper ou fusionner les arêtes de la pièce affichée.
+   */
+  private async refreshMeshBefore(partId: Id, featureId: Id): Promise<void> {
+    const doc = this.state.doc;
+    const part = findPart(doc, partId);
+    if (!part || part.features.findIndex((f) => f.id === featureId) <= 0) return;
+    const c = this.state.sketchBase;
+    if (c && c.partId === partId && c.featureId === featureId && c.features === part.features) return;
+    let r: { mesh: MeshData | null; meshKey: string | null };
+    try {
+      r = await this.deps.client.meshBefore(doc, partId, featureId);
+    } catch {
+      return;
+    }
+    if (findPart(this.state.doc, partId)?.features !== part.features) return;
+    const mode = this.state.mode;
+    // L'esquisse a été refermée entre-temps : rien à montrer.
+    if (mode.kind !== 'sketch' || mode.session.partId !== partId || mode.session.featureId !== featureId) return;
+    this.set({ sketchBase: { partId, featureId, features: part.features, mesh: r.mesh, meshKey: r.meshKey } });
+    const session = setProjectable(mode.session, this.projectables(partId, mode.session.frame, featureId));
+    if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
   }
 
   private openSession(partId: Id, featureId: Id, isNew: boolean, frame: Frame3D, params: SketchFeature['params'], supportChanged = false): void {
@@ -1602,6 +1635,7 @@ export class AppController {
     const px = this.viewport?.pixelSize();
     if (px) session = setPixelSize(session, px);
     this.set({ mode: { kind: 'sketch', session }, activePartId: partId, selection: null, hover: null });
+    if (!isNew) void this.refreshMeshBefore(partId, featureId);
   }
 
   /** Applique une transformation à la session d'esquisse en cours. */

@@ -1,5 +1,8 @@
+import { addFeature, addPart, findPart, makeFilletFeature, makePrimitiveFeature } from '../../src/domain/document';
+import { serializeDocument } from '../../src/io/native-format';
+import { buildPlateDocument, topFrontEdge } from '../helpers/plate';
 import { expect, test } from '@playwright/test';
-import { buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session, worldToScreen, clickTool } from './helpers';
+import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, moveSketch, openApp, PLATE_VOLUME, session, worldToScreen, clickTool } from './helpers';
 
 test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arête reprise, construction', async ({ page }) => {
   await openApp(page);
@@ -138,4 +141,58 @@ test('un clic sur un axe y relie le point : le repère l’annonce et le dessin 
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, 40 * 20 * 5);
+});
+
+test('projeter : les arêtes de la pièce avant l’esquisse, même arrondies par un congé ajouté après', async ({ page }) => {
+  const { doc: base, ids } = buildPlateDocument();
+  const doc = addFeature(base, ids.partId, makeFilletFeature(base, findPart(base, ids.partId)!, [topFrontEdge(base, ids.sketch1, ids.extrude)], 3));
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), serializeDocument(doc));
+  await expect.poll(() => appState(page, (s) => !!s.display[s.doc.parts[0].id]?.mesh)).toBe(true);
+  const history = page.getByRole('list', { name: /Étapes de construction/ });
+  await history.locator('.feature-main', { hasText: 'Esquisse 2' }).dblclick();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  await clickTool(page, 'sk-project');
+  // L'arête avant du dessus (y = 0, entre le dessus et la face avant) est proposée, entière.
+  await expect
+    .poll(async () => {
+      const s = await session(page);
+      return s.projectable.filter((c: any) => c.kind === 'line' && Math.abs(c.a.y) < 1e-6 && Math.abs(c.b.y) < 1e-6 && c.ref.faces.some((f: any) => f.role === 'end')).length;
+    })
+    .toBe(1);
+  // La vue montre la pièce à ce point de l'historique (sans le congé ni la poche), l'historique est grisé après l'esquisse.
+  const shownKey = () => page.evaluate(() => (window as any).vibecad.controller.viewport.input.parts[0]?.meshKey as string | null);
+  await expect.poll(shownKey).toMatch(/^avant\|/);
+  await expect(history.locator('.feature-row.is-rolled-back')).toHaveCount(2);
+  await page.screenshot({ path: 'tests/output/e2e-esquisse-avant.png' });
+  // Esquisse refermée : la pièce terminée revient.
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+  await expect.poll(shownKey).not.toMatch(/^avant\|/);
+  await expect(history.locator('.feature-row.is-rolled-back')).toHaveCount(0);
+});
+
+test('projeter dans une pièce isolée : seules ses arêtes sont proposées (les autres pièces sont cachées)', async ({ page }) => {
+  const { doc: base, ids } = buildPlateDocument();
+  // Seconde pièce : un pavé posé à côté de la plaque.
+  const added = addPart(base, 'Pavé');
+  const box = makePrimitiveFeature(added.doc, findPart(added.doc, added.partId)!);
+  const doc = addFeature(added.doc, added.partId, { ...box, params: { ...box.params, position: { x: 70, y: 0, z: 0 }, width: 20, depth: 20, height: 5 } });
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), serializeDocument(doc));
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  const fromOthers = async () => ((await session(page))?.projectable ?? []).filter((c: any) => c.partId).length;
+  const history = page.getByRole('list', { name: /Étapes de construction/ });
+  // Sans isolement : les arêtes du pavé sont proposées aussi.
+  await page.evaluate((id) => (window as any).vibecad.controller.setActivePart(id), ids.partId);
+  await history.locator('.feature-main', { hasText: 'Esquisse 2' }).dblclick();
+  await clickTool(page, 'sk-project');
+  await expect.poll(fromOthers).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('model');
+  // Plaque isolée : le pavé est caché, ses arêtes ne sont plus proposées.
+  await page.evaluate((id) => (window as any).vibecad.controller.toggleIsolate(id), ids.partId);
+  await history.locator('.feature-main', { hasText: 'Esquisse 2' }).dblclick();
+  await clickTool(page, 'sk-project');
+  await expect.poll(async () => ((await session(page))?.projectable ?? []).length).toBeGreaterThan(0);
+  expect(await fromOthers()).toBe(0);
 });
