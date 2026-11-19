@@ -256,7 +256,7 @@ describe('format natif .vibecad', () => {
 describe('scénarios de mouvement dans le fichier', () => {
   it('aller-retour sans perte', () => {
     const { doc } = buildPlateDocument();
-    const withScenario = { ...doc, simulation: { studies: [], scenarios: [{ id: 'sc-1', name: 'Manivelle', drivers: [{ jointId: 'jt-1', dof: 'angle' as const, value: 42 }], sensors: [{ jointId: 'jt-3', dof: 'offset' as const }] }] } };
+    const withScenario = { ...doc, simulation: { studies: [], scenarios: [{ id: 'sc-1', name: 'Manivelle', drivers: [{ jointId: 'jt-1', dof: 'angle' as const, value: 42 }], sensors: [{ jointId: 'jt-3', dof: 'offset' as const }], law: { outputs: [{ jointId: 'jt-3', dof: 'offset' as const }], inputs: [{ jointId: 'jt-1', dof: 'angle' as const, min: -30, max: 60 }], steps: 41 } }] } };
     const parsed = parseNativeFile(serializeDocument(withScenario));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.doc.simulation?.scenarios).toEqual(withScenario.simulation.scenarios);

@@ -6385,3 +6385,33 @@ button.versions-conflict-name:hover {
   padding-top: 6px;
   border-top: 1px solid var(--border);
 }
+
+/* Loi de pilotage (scénario de mouvement) */
+.control-law {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.law-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.law-input .limits-row {
+  margin: 2px 0 4px 24px;
+}
+
+.law-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 140px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}

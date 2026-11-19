@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { addFeature, addInstance, addJoint, addPart, createDocument, findPart, makePrimitiveFeature } from '../../src/domain/document';
 import type { CadDocument, EdgeRef, Id, LcsRef } from '../../src/domain/model';
@@ -163,3 +167,39 @@ test('scénario de mouvement : la manivelle pilote, le balancier est relevé com
   await page.screenshot({ path: 'tests/output/e2e-scenario.png' });
 });
 
+
+test('loi de pilotage : calculée sur le quadrilatère, en-tête C compilé, la commande trouvée donne la position voulue', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.click('#sim-scenarios');
+  await page.getByRole('button', { name: 'Nouveau scénario' }).first().click();
+  const roles = page.getByRole('list', { name: 'Rôle des liaisons dans le scénario' });
+  await roles.getByRole('group', { name: 'Rôle de Liaison 1' }).getByRole('button', { name: 'Pilote' }).click();
+  await roles.getByRole('group', { name: 'Rôle de Liaison 3' }).getByRole('button', { name: 'Relevé' }).click();
+  // Manivelle balayée de 40° à 140° : le balancier suit.
+  await page.getByLabel('Liaison 1 : début du balayage').fill('40');
+  await page.getByLabel('Liaison 1 : fin du balayage').fill('140');
+  await page.getByRole('button', { name: 'Calculer la loi' }).click();
+  const law = page.getByRole('group', { name: 'Loi de pilotage' });
+  await expect(law).toContainText('Écart vérifié', { timeout: 30000 });
+  await page.screenshot({ path: 'tests/output/e2e-loi-pilotage.png' });
+  const [download] = await Promise.all([page.waitForEvent('download'), law.getByRole('button', { name: 'En-tête C (.h)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.h$/);
+  const dir = mkdtempSync(join(tmpdir(), 'loi-e2e-'));
+  await download.saveAs(join(dir, 'loi.h'));
+  const header = readFileSync(join(dir, 'loi.h'), 'utf8');
+  const fn = /static inline bool (\w+)_commandes\(float position1, float \*commande1\)/.exec(header)![1]!;
+  // Position voulue du balancier : au milieu de la plage couverte.
+  const range = await page.evaluate(() => (window as any).vibecad.controller.state.controlLaw.law.axes[0]);
+  const target = (range.min + range.max) / 2;
+  writeFileSync(join(dir, 'main.c'), `#include <stdio.h>\n#include "loi.h"\nint main(void) { float c = 0; bool ok = ${fn}_commandes((float)(${target}), &c); printf("%d %f\\n", ok, c); return 0; }\n`);
+  execFileSync('gcc', ['-std=c99', '-Wall', '-Werror', '-o', join(dir, 'loi'), join(dir, 'main.c')]);
+  const [ok, command] = execFileSync(join(dir, 'loi'), { encoding: 'utf8' }).trim().split(' ').map(Number);
+  expect(ok).toBe(1);
+  // La commande trouvée, appliquée à la manivelle : le balancier arrive à la position voulue.
+  await page.getByLabel('Liaison 1 : réglage exact').fill(String(command).replace('.', ','));
+  const j3 = await appState(page, (s) => s.doc.assembly.joints[2].id);
+  await expect.poll(async () => Math.abs(Number((await page.locator(`#sensor-${j3}-angle`).textContent())!.replace(/[^\d,.-]/g, '').replace(',', '.')) - target)).toBeLessThan(0.2);
+});

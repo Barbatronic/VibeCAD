@@ -9,6 +9,21 @@ import type { Level } from './levels';
 import type { SectionPlane } from '../geometry/protocol';
 import type { RollbackState } from './rollback';
 import type { PrintVariant } from './fabrication';
+import type { ControlLaw } from './control-law';
+
+/** Calcul de la loi de pilotage d'un scénario (le résultat n'est pas enregistré dans le projet). */
+export interface ControlLawRun {
+  scenarioId: Id;
+  /** Réglages et assemblage du calcul : le résultat ne vaut plus s'ils ont changé. */
+  specKey: string;
+  assembly: unknown;
+  status: 'running' | 'done';
+  done: number;
+  total: number;
+  law?: ControlLaw;
+  /** Écart maximal vérifié, par position voulue (null : aucun point de contrôle). */
+  maxError?: number[] | null;
+}
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
 import type { CadDocument, Id, JointEnd } from '../domain/model';
@@ -284,6 +299,8 @@ export interface AppState {
   /** Scénario de mouvement ouvert, et réglages des pilotantes pendant le glissement d'un curseur. */
   scenarioId: Id | null;
   scenarioLive: Record<string, number>;
+  /** Loi de pilotage du scénario ouvert : calcul en cours (avancement) ou résultat. */
+  controlLaw: ControlLawRun | null;
   simulationRun: SimulationRun | null;
   /** Couleurs du résultat : contrainte ou déplacement ; pièce montrée déformée (exagérée). */
   simulationDisplay: ResultDisplay;
@@ -415,6 +432,7 @@ export function initialState(): AppState {
     simulationPart: null,
     scenarioId: null,
     scenarioLive: {},
+    controlLaw: null,
     simulationRun: null,
     simulationDisplay: 'stress',
     simulationDeformed: true,

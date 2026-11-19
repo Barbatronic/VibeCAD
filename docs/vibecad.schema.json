@@ -887,6 +887,71 @@
                         }
                       }
                     }
+                  },
+                  "law": {
+                    "description": "Loi de pilotage : positions voulues des pilotées → réglages des pilotantes (commandes), balayées entre min et max.",
+                    "type": "object",
+                    "required": [
+                      "outputs",
+                      "inputs",
+                      "steps"
+                    ],
+                    "properties": {
+                      "outputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "jointId",
+                            "dof"
+                          ],
+                          "properties": {
+                            "jointId": {
+                              "$ref": "#/$defs/id"
+                            },
+                            "dof": {
+                              "enum": [
+                                "angle",
+                                "offset"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "jointId",
+                            "dof",
+                            "min",
+                            "max"
+                          ],
+                          "properties": {
+                            "jointId": {
+                              "$ref": "#/$defs/id"
+                            },
+                            "dof": {
+                              "enum": [
+                                "angle",
+                                "offset"
+                              ]
+                            },
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      },
+                      "steps": {
+                        "type": "integer",
+                        "minimum": 2
+                      }
+                    }
                   }
                 }
               }

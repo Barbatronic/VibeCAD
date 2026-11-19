@@ -290,6 +290,19 @@ export interface MotionScenario {
   name: string;
   drivers: { jointId: Id; dof: MotionDof; value: number }[];
   sensors: { jointId: Id; dof: MotionDof }[];
+  /** Loi de pilotage : réglages de la loi inverse (positions voulues → commandes). */
+  law?: ControlLawSpec;
+}
+
+/**
+ * Loi de pilotage inverse : pour des positions voulues de 1 ou 2 liaisons pilotées (`outputs`), les
+ * réglages à donner à autant de pilotantes (`inputs`, balayées entre `min` et `max`). Les autres
+ * pilotantes restent à leur réglage. `steps` : points par axe de la grille.
+ */
+export interface ControlLawSpec {
+  outputs: { jointId: Id; dof: MotionDof }[];
+  inputs: { jointId: Id; dof: MotionDof; min: number; max: number }[];
+  steps: number;
 }
 
 export interface SimulationSettings {

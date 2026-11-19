@@ -585,6 +585,27 @@ function readScenarios(v: Validator, raw: unknown, path: string): MotionScenario
         const o = obj(v, d, dp) ?? {};
         return { jointId: str(v, o, 'jointId', dp), dof: dof(o, dp) };
       }),
+      ...(so.law !== undefined
+        ? {
+            law: (() => {
+              const lp = `${sp}.law`;
+              const lo = obj(v, so.law, lp) ?? {};
+              return {
+                outputs: arr(v, lo, 'outputs', lp).map((d, k) => {
+                  const dp = `${lp}.outputs[${k}]`;
+                  const o = obj(v, d, dp) ?? {};
+                  return { jointId: str(v, o, 'jointId', dp), dof: dof(o, dp) };
+                }),
+                inputs: arr(v, lo, 'inputs', lp).map((d, k) => {
+                  const dp = `${lp}.inputs[${k}]`;
+                  const o = obj(v, d, dp) ?? {};
+                  return { jointId: str(v, o, 'jointId', dp), dof: dof(o, dp), min: num(v, o, 'min', dp), max: num(v, o, 'max', dp) };
+                }),
+                steps: num(v, lo, 'steps', lp, { min: 2, integer: true }),
+              };
+            })(),
+          }
+        : {}),
     };
   });
 }

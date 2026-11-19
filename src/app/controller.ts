@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { Assembly, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, ControlLawSpec, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -106,13 +106,14 @@ import { topologyOutline } from '../sim/topology-outline';
 import { addClosedPolyline } from '../sketch/model';
 import { libraryMaterials, fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
-import { computeMechanism, computeMotion, coursePosition, defaultMechanismStudy, drivableJoints, MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, solveScenario, withValue } from './mechanism';
+import { computeMechanism, computeMotion, coursePosition, defaultMechanismStudy, dofRange, drivableJoints, jointDofs, MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, solveScenario, withValue } from './mechanism';
+import { axisValues, checkPoints, cIdentifier, forwardOrder, invertLaw, lawCsv, lawHeader, lawPoint, type LawLabel } from './control-law';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { createId, nextLocalId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
 import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
-import { EMPTY_VERSION_VIEW, isDirty, type AppState, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
+import { EMPTY_VERSION_VIEW, isDirty, type AppState, type ControlLawRun, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -3512,6 +3513,140 @@ export class AppController {
     this.setScenarios(this.scenarios().map((x) => (x.id === current.id ? change(x) : x)), label);
   }
 
+  // ----- Loi de pilotage (positions voulues → commandes)
+
+  /** Réglages de la loi du scénario ouvert : ceux enregistrés, ou par défaut (relevées et premières pilotantes). */
+  controlLawSpec(): ControlLawSpec | null {
+    const scenario = this.currentScenario();
+    const joints = this.state.doc.assembly?.joints ?? [];
+    if (!scenario || scenario.drivers.length === 0 || scenario.sensors.length === 0) return null;
+    const isDriver = (x: { jointId: Id; dof: MotionDof }) => scenario.drivers.some((d) => d.jointId === x.jointId && d.dof === x.dof);
+    const isSensor = (x: { jointId: Id; dof: MotionDof }) => scenario.sensors.some((d) => d.jointId === x.jointId && d.dof === x.dof);
+    const saved = scenario.law;
+    if (saved && saved.inputs.length === saved.outputs.length && saved.inputs.length > 0 && saved.inputs.every(isDriver) && saved.outputs.every(isSensor)) return saved;
+    const count = Math.min(2, scenario.drivers.length, scenario.sensors.length);
+    const inputs = scenario.drivers.slice(0, count).map((d) => {
+      const joint = joints.find((j) => j.id === d.jointId);
+      const [min, max] = joint ? dofRange(joint, d.dof) : [-90, 90];
+      return { jointId: d.jointId, dof: d.dof, min, max };
+    });
+    return { inputs, outputs: scenario.sensors.slice(0, count).map((s) => ({ jointId: s.jointId, dof: s.dof })), steps: count === 1 ? 61 : 25 };
+  }
+
+  setControlLawSpec(spec: ControlLawSpec): void {
+    this.updateScenario((s) => ({ ...s, law: spec }), 'Loi de pilotage');
+  }
+
+  /** Le résultat affiché correspond-il encore aux réglages et à l'assemblage ? */
+  controlLawStale(): boolean {
+    const run = this.state.controlLaw;
+    const spec = this.controlLawSpec();
+    return !!run && (run.specKey !== JSON.stringify([spec, this.currentScenario()?.drivers]) || run.assembly !== this.state.doc.assembly);
+  }
+
+  private lawSeq = 0;
+
+  /**
+   * Calcule la loi : balayage des commandes (en serpentin, chaque point part du précédent), inversion,
+   * puis vérification sur des points de contrôle (les commandes trouvées, recalculées). Par
+   * morceaux, pour ne pas figer l'interface ; un nouveau calcul arrête le précédent.
+   */
+  async computeControlLaw(): Promise<void> {
+    const scenario = this.currentScenario();
+    const assembly = this.state.doc.assembly;
+    const spec = this.controlLawSpec();
+    if (!scenario || !assembly || !spec) return this.explain('Il faut au moins une liaison pilotante et une liaison pilotée.');
+    const seq = ++this.lawSeq;
+    const specKey = JSON.stringify([spec, scenario.drivers]);
+    const display = this.state.display;
+    const options = this.solveOptions();
+    const lawScenario: MotionScenario = { ...scenario, sensors: spec.outputs };
+    const axes = spec.inputs.map((i) => axisValues(i.min, i.max, spec.steps));
+    const n2 = axes[1]?.length ?? 1;
+    const order = forwardOrder(spec);
+    const checks = 60;
+    const total = order.length + checks;
+    const run = (patch: Partial<ControlLawRun>) => this.set({ controlLaw: { scenarioId: scenario.id, specKey, assembly, status: 'running', done: 0, total, ...this.state.controlLaw, ...patch } as ControlLawRun });
+    this.set({ controlLaw: { scenarioId: scenario.id, specKey, assembly, status: 'running', done: 0, total } });
+    // Réglages trouvés à chaque point de la grille : départ des calculs voisins.
+    const settledAt: (Assembly | null)[] = new Array(axes[0]!.length * n2).fill(null);
+    let warm: Assembly = assembly;
+    const evaluate = (values: number[], from: Assembly): { outputs: number[]; settled: Assembly } | null => {
+      const live = Object.fromEntries(spec.inputs.map((inp, k) => [`${inp.jointId}:${inp.dof}`, values[k]!]));
+      const r = solveScenario(from, lawScenario, (id) => display[id]?.mesh, options, live);
+      if (r.blocked || r.readings.some((x) => x.value === null)) return null;
+      const settled = { ...r.assembly, joints: r.assembly.joints.map((j) => ({ ...j, ...(r.placement.solvedValues.get(j.id) ?? {}) })) };
+      return { outputs: r.readings.map((x) => x.value!), settled };
+    };
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const outputs: (number[] | null)[] = new Array(axes[0]!.length * n2).fill(null);
+    let t0 = performance.now();
+    for (let k = 0; k < order.length; k++) {
+      const idx = order[k]!;
+      const flat = idx[0]! * n2 + (idx[1] ?? 0);
+      const r = evaluate(idx.map((v, a) => axes[a]![v]!), warm);
+      if (r) {
+        outputs[flat] = r.outputs;
+        settledAt[flat] = r.settled;
+        warm = r.settled;
+      } else warm = assembly;
+      if (performance.now() - t0 > 30) {
+        run({ done: k + 1 });
+        await pause();
+        if (seq !== this.lawSeq) return;
+        t0 = performance.now();
+      }
+    }
+    const law = invertLaw(spec, { axes, outputs });
+    // Vérification : les commandes trouvées, recalculées depuis le point de la grille le plus proche.
+    const nearest = (values: number[]) => {
+      const idx = values.map((v, a) => {
+        const ax = axes[a]!;
+        return Math.max(0, Math.min(ax.length - 1, Math.round(((v - ax[0]!) / (ax[ax.length - 1]! - ax[0]! || 1)) * (ax.length - 1))));
+      });
+      return settledAt[idx[0]! * n2 + (idx[1] ?? 0)] ?? assembly;
+    };
+    const points = checkPoints(law, checks);
+    const maxError = points.length ? spec.outputs.map(() => 0) : null;
+    for (let k = 0; k < points.length; k++) {
+      const p = lawPoint(law, points[k]!);
+      const r = evaluate(p.commands, nearest(p.commands));
+      if (r && maxError) r.outputs.forEach((v, a) => (maxError[a] = Math.max(maxError[a]!, Math.abs(v - p.targets[a]!))));
+      if (performance.now() - t0 > 30) {
+        run({ done: order.length + k + 1 });
+        await pause();
+        if (seq !== this.lawSeq) return;
+        t0 = performance.now();
+      }
+    }
+    if (seq !== this.lawSeq) return;
+    this.set({ controlLaw: { scenarioId: scenario.id, specKey, assembly, status: 'done', done: total, total, law, maxError } });
+  }
+
+  /** Noms des liaisons de la loi (positions voulues, commandes), pour l'export. */
+  private lawLabels(spec: ControlLawSpec): { outputs: LawLabel[]; inputs: LawLabel[] } {
+    const joints = this.state.doc.assembly?.joints ?? [];
+    const label = (x: { jointId: Id; dof: MotionDof }) => {
+      const j = joints.find((y) => y.id === x.jointId);
+      const many = j && jointDofs(j).length > 1;
+      return { name: `${j?.name ?? '?'}${many ? (x.dof === 'angle' ? ' rotation' : ' translation') : ''}`, dof: x.dof };
+    };
+    return { outputs: spec.outputs.map(label), inputs: spec.inputs.map(label) };
+  }
+
+  /** Exporte la loi calculée : en-tête C (microcontrôleur) ou CSV. */
+  async exportControlLaw(format: 'h' | 'csv'): Promise<void> {
+    const run = this.state.controlLaw;
+    const spec = this.controlLawSpec();
+    const scenario = this.currentScenario();
+    if (!run?.law || !spec || !scenario) return this.explain('Calculez d’abord la loi.');
+    const labels = this.lawLabels(spec);
+    const base = `${this.state.doc.name} - loi ${scenario.name}`;
+    if (format === 'csv') return this.download(new Blob([lawCsv(run.law, labels)], { type: 'text/csv' }), base, 'csv', 'Loi de pilotage téléchargée (CSV).');
+    const text = lawHeader(run.law, { scenario: scenario.name, ...labels, application: `${APP_NAME} ${APP_VERSION}`, maxError: run.maxError ?? null });
+    await this.download(new Blob([text], { type: 'text/x-c' }), cIdentifier(base), 'h', `Loi de pilotage téléchargée (en-tête C) : fonction ${cIdentifier(scenario.name)}_commandes().`);
+  }
+
   /** Nouveau scénario, vide, qui devient le scénario ouvert. */
   addScenario(): void {
     const list = this.scenarios();
@@ -4300,8 +4435,8 @@ export class AppController {
     await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
   }
 
-  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf', message: string): Promise<void> {
-    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF' };
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf' | 'h', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF', h: 'En-tête C' };
     try {
       const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
       if (target) this.toast('success', `« ${target.name} » — ${message}`);
