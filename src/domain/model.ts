@@ -1007,7 +1007,11 @@ export interface DatumPlaneParams {
  * étape (extrusion, poche, révolution), par rapport à un plan.
  */
 export interface MirrorParams {
-  source: { kind: 'part' } | { kind: 'feature'; featureId: Id };
+  /**
+   * Toute la pièce, ou des étapes : `featureId` puis `extraFeatureIds` (autres étapes reflétées
+   * avec la première, appliquées dans l'ordre de l'historique).
+   */
+  source: { kind: 'part' } | { kind: 'feature'; featureId: Id; extraFeatureIds?: Id[] };
   plane: MirrorPlane;
 }
 

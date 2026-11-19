@@ -1,5 +1,5 @@
 /** Panneau des paramètres d'une symétrie. */
-import { PATTERN_SOURCE_TYPES } from '../../domain/document';
+import { mirrorSources, PATTERN_SOURCE_TYPES } from '../../domain/document';
 import type { MirrorFeature, PlaneName } from '../../domain/model';
 import { Segmented } from '../../ui/components/controls';
 import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
@@ -15,6 +15,18 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
   const steps = props.part.features.filter((x, i) => PATTERN_SOURCE_TYPES.includes(x.type) && (own < 0 || i < own));
   const picking = draft.fields.pick === 'plane';
   const datums = datumPlanesBefore(props.part, f.id);
+  const chosen = new Set(mirrorSources(p));
+  /** Coche ou décoche une étape ; les étapes gardent l'ordre de l'historique. */
+  const toggleSource = (id: string) =>
+    update((x) => {
+      const now = new Set(mirrorSources(x.params));
+      if (now.has(id)) now.delete(id);
+      else now.add(id);
+      const ordered = steps.map((s) => s.id).filter((s) => now.has(s));
+      if (ordered.length === 0) return x;
+      const [featureId, ...extra] = ordered;
+      return withParams(x, { source: { kind: 'feature', featureId: featureId!, ...(extra.length ? { extraFeatureIds: extra } : {}) } });
+    });
   const plane: PlaneChoice = picking || p.plane.kind === 'face' ? 'face' : p.plane.kind === 'datum' ? 'datum' : p.plane.plane;
   return (
     <>
@@ -23,31 +35,29 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
         value={p.source.kind}
         options={[
           { value: 'part', label: 'Toute la pièce', title: 'Le reflet de toute la pièce est ajouté' },
-          { value: 'feature', label: 'Une étape', title: 'Seul le volume ajouté ou retiré par une étape (un trou, un plot…) est reproduit' },
+          { value: 'feature', label: 'Des étapes', title: 'Seuls les volumes ajoutés ou retirés par les étapes cochées (trous, plots…) sont reproduits' },
         ]}
         onChange={(kind) =>
           update((x) => withParams(x, { source: kind === 'part' ? { kind: 'part' } : { kind: 'feature', featureId: steps[steps.length - 1]?.id ?? '' } }))
         }
       />
       {p.source.kind === 'feature' ? (
-        <div class="field">
-          <label class="field-label" for="draft-source">
-            Étape à reproduire
-          </label>
-          <select
-            id="draft-source"
-            class="select"
-            value={p.source.featureId}
-            onChange={(e) => update((x) => withParams(x, { source: { kind: 'feature', featureId: (e.target as HTMLSelectElement).value } }))}
-          >
-            {steps.length === 0 ? <option value="">Aucune extrusion, poche ou révolution avant</option> : null}
-            {steps.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <fieldset class="field pattern-sources">
+          <legend class="field-label">Étapes à reproduire</legend>
+          {steps.length === 0 ? <span class="field-help">Aucune extrusion, poche ou révolution avant</span> : null}
+          {steps.map((s) => (
+            <label key={s.id} class="checkbox-row">
+              <input
+                type="checkbox"
+                checked={chosen.has(s.id)}
+                // La dernière étape cochée reste cochée : la symétrie reproduit au moins une étape.
+                disabled={chosen.has(s.id) && chosen.size === 1}
+                onChange={() => toggleSource(s.id)}
+              />
+              <span>{s.name}</span>
+            </label>
+          ))}
+        </fieldset>
       ) : null}
       <Segmented<PlaneChoice>
         label="Plan de symétrie (le miroir)"

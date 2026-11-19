@@ -15,7 +15,7 @@
  * Voir docs/export-freecad.md.
  */
 import type { CadDocument, Feature, Id, Part, ProjectParameter, SketchConstraint, SketchParams } from '../domain/model';
-import { patternSources } from '../domain/document';
+import { mirrorSources, patternSources } from '../domain/document';
 import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../domain/model';
 import { expressionNames } from '../domain/units';
 import { holeDiameter } from '../features/hole/definition';
@@ -108,7 +108,7 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
     case 'pattern':
       return !f.params.second && patternSources(f.params).every((id) => inBody.has(id));
     case 'mirror':
-      return f.params.source.kind === 'part' || inBody.has(f.params.source.featureId);
+      return f.params.source.kind === 'part' || mirrorSources(f.params).every((id) => inBody.has(id));
     default:
       return false;
   }
@@ -664,8 +664,8 @@ export function freecadScript(input: FreecadInput): string {
           lines.push(`${v} = ${body}.newObject("PartDesign::Mirrored", "Mirrored")`, label, `${v}.MirrorPlane = ${plane}`);
           if (f.params.source.kind === 'part') lines.push(`${v}.TransformMode = "Whole shape"`);
           else {
-            const src = objects.get(f.params.source.featureId);
-            if (src) lines.push(`${v}.Originals = [${src}]`);
+            const originals = mirrorSources(f.params).map((id) => objects.get(id));
+            if (originals.every(Boolean)) lines.push(`${v}.Originals = [${originals.join(', ')}]`);
           }
           objects.set(f.id, v);
           break;

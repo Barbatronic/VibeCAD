@@ -399,6 +399,11 @@ export function makePatternFeature(doc: CadDocument, part: Part, sourceId: Id, k
   };
 }
 
+/** Étapes reflétées par une symétrie (aucune : toute la pièce). */
+export function mirrorSources(params: MirrorParams): Id[] {
+  return params.source.kind === 'feature' ? [params.source.featureId, ...(params.source.extraFeatureIds ?? [])].filter(Boolean) : [];
+}
+
 export function makeMirrorFeature(doc: CadDocument, part: Part, source: MirrorParams['source'] = { kind: 'part' }, plane: MirrorPlane = { kind: 'plane', plane: 'YZ' }): MirrorFeature {
   return { id: newFeatureId(doc, 'mirror'), type: 'mirror', name: nextFeatureName(part, 'mirror'), params: { source, plane } };
 }

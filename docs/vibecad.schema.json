@@ -1591,6 +1591,13 @@
                         },
                         "featureId": {
                           "$ref": "#/$defs/id"
+                        },
+                        "extraFeatureIds": {
+                          "description": "Autres étapes reflétées avec la première (dans l'ordre de l'historique).",
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/id"
+                          }
                         }
                       }
                     }

@@ -1125,7 +1125,16 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: {
-          source: srcKind === 'part' ? { kind: 'part' } : { kind: 'feature', featureId: str(v, src, 'featureId', `${pp}.source`) },
+          source:
+            srcKind === 'part'
+              ? { kind: 'part' }
+              : {
+                  kind: 'feature',
+                  featureId: str(v, src, 'featureId', `${pp}.source`),
+                  ...(Array.isArray(src.extraFeatureIds) && src.extraFeatureIds.length > 0
+                    ? { extraFeatureIds: src.extraFeatureIds.map((x, i) => (typeof x === 'string' && x ? x : (v.error(`${pp}.source.extraFeatureIds[${i}]`, 'identifiant d’étape attendu'), ''))) }
+                    : {}),
+                },
           plane: readPlaneRef(v, p.plane, `${pp}.plane`),
         },
       };

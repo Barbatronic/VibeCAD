@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { addFeature, findPart, makePlaneFeature, makePocketFeature, makeSketchFeature } from '../../src/domain/document';
+import { serializeDocument } from '../../src/io/native-format';
+import { buildPlateDocument, holeSketch } from '../helpers/plate';
 import { appState, buildPlateViaUi, expectVolume, openApp, clickTool } from './helpers';
 
 const PLATE = 9000 - Math.PI * 9 * 5;
@@ -25,4 +28,39 @@ test('symétrie : reflet de toute la pièce par rapport à YZ, puis à XY', asyn
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, 2 * PLATE);
   expect(await appState(page, (s) => s.doc.parts[0].features.at(-1).params.plane)).toEqual({ kind: 'plane', plane: 'XY' });
+});
+
+/** Plaque percée de deux trous (Ø 6 en (15, 15), Ø 4 en (8, 8)) et un plan de construction à x = 30. */
+function twoHolesDocument(): string {
+  const { doc: base, ids } = buildPlateDocument();
+  let doc = base;
+  const part = () => findPart(doc, ids.partId)!;
+  const sk = makeSketchFeature(doc, part(), { kind: 'face', ref: { featureId: ids.extrude, role: 'end' } });
+  doc = addFeature(doc, ids.partId, { ...sk, params: holeSketch(sk.params, 8, 8, 4) });
+  doc = addFeature(doc, ids.partId, makePocketFeature(doc, part(), sk.id, { kind: 'throughAll' }));
+  const plane = makePlaneFeature(doc, part());
+  doc = addFeature(doc, ids.partId, { ...plane, params: { base: { kind: 'plane', plane: 'YZ' }, offset: 30, angle: 0, hinge: { kind: 'axis', axis: 'X' } } });
+  return serializeDocument(doc);
+}
+
+test('symétrie de plusieurs étapes à la fois : les deux trous reflétés en une seule symétrie', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), twoHolesDocument());
+  const holes = Math.PI * 9 * 5 + Math.PI * 4 * 5;
+  await expectVolume(page, 9000 - holes);
+  await clickTool(page, 'tool-mirror');
+  await page.getByRole('group', { name: 'Copier' }).getByRole('button', { name: 'Des étapes' }).click();
+  const steps = page.getByRole('group', { name: 'Étapes à reproduire' });
+  // La dernière étape est cochée d'office ; on coche aussi la première poche.
+  await expect(steps.getByRole('checkbox', { name: 'Poche 2' })).toBeChecked();
+  await steps.getByRole('checkbox', { name: 'Poche 1' }).check();
+  await page.getByRole('group', { name: 'Plan de symétrie (le miroir)' }).getByRole('button', { name: 'Plan…' }).click();
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  // Quatre trous : les deux d'origine et leurs reflets de l'autre côté du plan x = 30.
+  await expectVolume(page, 9000 - 2 * holes);
+  const source = await appState(page, (s) => s.doc.parts[0].features.at(-1).params.source);
+  expect(source.kind).toBe('feature');
+  expect(source.extraFeatureIds).toHaveLength(1);
+  await page.screenshot({ path: 'tests/output/e2e-symetrie-plusieurs.png' });
 });

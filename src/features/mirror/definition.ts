@@ -1,4 +1,4 @@
-import { makeMirrorFeature } from '../../domain/document';
+import { makeMirrorFeature, mirrorSources } from '../../domain/document';
 import type { MirrorFeature, MirrorPlane } from '../../domain/model';
 import type { FeatureDefinition, ParamIssue } from '../definition';
 import { planeDependency } from '../plane/resolve';
@@ -16,7 +16,7 @@ export const mirrorDefinition: FeatureDefinition<MirrorFeature> = {
   affectsSolid: true,
   dependencies: (feature) => {
     const p = feature.params;
-    return Array.from(new Set([...(p.source.kind === 'feature' ? [p.source.featureId] : []), ...planeDependency(p.plane)]));
+    return Array.from(new Set([...mirrorSources(p), ...planeDependency(p.plane)]));
   },
   validate(feature) {
     const issues: ParamIssue[] = [];
@@ -24,7 +24,8 @@ export const mirrorDefinition: FeatureDefinition<MirrorFeature> = {
     return issues;
   },
   summary(feature) {
-    const what = feature.params.source.kind === 'part' ? 'toute la pièce' : 'une étape';
+    const n = mirrorSources(feature.params).length;
+    const what = feature.params.source.kind === 'part' ? 'toute la pièce' : n > 1 ? `${n} étapes` : 'une étape';
     return `${what}, par rapport à ${describeMirrorPlane(feature.params.plane)}`;
   },
   tool: {

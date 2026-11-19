@@ -104,4 +104,37 @@ describe('symétrie', () => {
     validate(JSON.parse(text));
     expect(validate.errors ?? []).toEqual([]);
   });
+
+  it('plusieurs étapes en une symétrie : le trou et un plot, reflétés ensemble', () => {
+    const { doc: base, partId, pocketId } = centeredPlate();
+    // Plot Ø 8 × 8 mm posé sur le dessus en (10, −8).
+    let doc = base;
+    const sk = makeSketchFeature(doc, findPart(doc, partId)!, { kind: 'plane', plane: 'XY', offset: 5 });
+    doc = addFeature(doc, partId, { ...sk, params: solveSketch(addCircle(sk.params, { x: 10, y: -8 }, 4).sketch).sketch });
+    const boss = makeExtrudeFeature(doc, findPart(doc, partId)!, sk.id, 8);
+    doc = addFeature(doc, partId, boss);
+    const before = evaluate(doc).res.analysis!.volume;
+    const params: MirrorParams = { source: { kind: 'feature', featureId: pocketId, extraFeatureIds: [boss.id] }, plane: { kind: 'plane', plane: 'YZ' } };
+    const mirrored = withMirror(doc, partId, params);
+    const { res, engine } = evaluate(mirrored);
+    expect(res.statuses.at(-1)).toMatchObject({ state: 'ok' });
+    expect(res.analysis!.solidCount).toBe(1);
+    // Un trou de plus, un plot de plus.
+    expect(res.analysis!.volume).toBeCloseTo(before - HOLE + Math.PI * 16 * 8, 3);
+    // Le reflet du plot est en (−10, −8) : faces numérotées 2 (deuxième étape reflétée).
+    const mesh = engine.meshOf(res, { linearDeflection: 0.05, angularDeflection: 0.3 })!;
+    const mirrorId = findPart(mirrored, partId)!.features.at(-1)!.id;
+    const bossTop = mesh.faces.filter((f) => f.tags.some((t) => t.featureId === mirrorId && t.role === 'end' && t.index === 2));
+    expect(bossTop).toHaveLength(1);
+    expect(bossTop[0]!.plane!.origin.z).toBeCloseTo(13, 6);
+    // Une étape absente est signalée.
+    const missing = withMirror(doc, partId, { ...params, source: { kind: 'feature', featureId: pocketId, extraFeatureIds: ['introuvable'] } });
+    expect(evaluate(missing).res.statuses.at(-1)).toMatchObject({ state: 'error', code: 'PATTERN_SOURCE_MISSING', relatedFeatureId: 'introuvable' });
+    // Aller-retour du format natif et schéma publié.
+    const text = serializeDocument(mirrored, '2026-11-19T12:00:00.000Z');
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc).toEqual(mirrored);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
+  });
 });

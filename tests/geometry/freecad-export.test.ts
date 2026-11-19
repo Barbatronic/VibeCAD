@@ -119,6 +119,23 @@ describe('export FreeCAD (script Python)', () => {
     await check(d, 'freecad-repetition-multiple');
   });
 
+  it('symétrie de deux étapes ensemble (trou et plot) : Mirrored à deux Originals', async () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = findPart(doc, ids.partId)!;
+    const sketch = part.features.find((f) => f.id === ids.sketch2) as SketchFeature;
+    const bossSketch = solveSketch({ ...sketch.params, constraints: sketch.params.constraints.map((c) => (c.type === 'diameter' ? { ...c, value: 10 } : c)) }).sketch;
+    let d = addFeature(doc, ids.partId, { ...sketch, id: 'sk-boss', name: 'Plot', params: bossSketch });
+    const boss = makeExtrudeFeature(d, findPart(d, ids.partId)!, 'sk-boss', 8);
+    d = addFeature(d, ids.partId, boss);
+    // Miroir : plan de construction au milieu de la plaque (x = 30), le trou et le plot passent de l'autre côté.
+    const plane = makePlaneFeature(d, findPart(d, ids.partId)!);
+    d = addFeature(d, ids.partId, { ...plane, params: { base: { kind: 'plane', plane: 'YZ' }, offset: 30, angle: 0, hinge: { kind: 'axis', axis: 'X' } } });
+    d = addFeature(d, ids.partId, makeMirrorFeature(d, findPart(d, ids.partId)!, { kind: 'feature', featureId: ids.pocket, extraFeatureIds: [boss.id] }, { kind: 'datum', featureId: plane.id }));
+    const { script } = await exportDoc(d);
+    expect(script).toMatch(/\.Originals = \[\w+, \w+\]/);
+    await check(d, 'freecad-symetrie-multiple');
+  });
+
   it('congé sur une arête verticale et chanfrein sur l’arête avant du dessus', async () => {
     const { doc, ids } = buildPlateDocument();
     let d = addFeature(doc, ids.partId, makeFilletFeature(doc, findPart(doc, ids.partId)!, [cornerEdge(doc, ids.sketch1, ids.extrude)], 4));

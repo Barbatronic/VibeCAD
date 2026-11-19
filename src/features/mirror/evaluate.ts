@@ -4,6 +4,7 @@ import type { KernelShape } from '../../geometry/kernel';
 import { resolvePlaneRef } from '../plane/resolve';
 import type { FeatureEvaluator } from '../evaluation';
 import { mirrorDefinition } from './definition';
+import { mirrorSources } from '../../domain/document';
 
 export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) => {
   const paramIssues = mirrorDefinition.validate(feature);
@@ -14,21 +15,34 @@ export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) =>
   const found = resolvePlaneRef(p.plane, ctx);
   if (!found.ok) return { status: issue(feature.id, 'error', 'MIRROR_PLANE_LOST', { relatedFeatureId: found.relatedFeatureId }) };
   const { origin, normal } = found.frame;
-  // Volume à copier : toute la pièce, ou le corps outil d'une étape.
-  let source: { shape: KernelShape; mode: 'add' | 'cut' };
-  if (p.source.kind === 'part') source = { shape: ctx.shape, mode: 'add' };
+  // Volumes à copier : toute la pièce, ou les corps outils des étapes choisies (dans l'ordre de l'historique).
+  const sources: { shape: KernelShape; mode: 'add' | 'cut' }[] = [];
+  if (p.source.kind === 'part') sources.push({ shape: ctx.shape, mode: 'add' });
   else {
-    const tool = ctx.tools.get(p.source.featureId);
-    if (!tool) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING', { relatedFeatureId: p.source.featureId }) };
-    source = tool;
+    for (const id of mirrorSources(p)) {
+      const tool = ctx.tools.get(id);
+      if (!tool) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING', { relatedFeatureId: id }) };
+      sources.push(tool);
+    }
   }
   const kernel = ctx.kernel;
-  const copy = kernel.mirrored(source.shape, origin, normal, p.source.kind === 'part' ? { featureId: feature.id, whole: true } : { featureId: feature.id, index: 1 });
-  let shape: KernelShape;
+  // Chaque reflet est ajouté ou retiré à son tour ; une étape suivante voit les reflets des précédentes.
+  let shape: KernelShape = ctx.shape;
   try {
-    shape = source.mode === 'add' ? kernel.fuse(ctx.shape, copy) : kernel.cut(ctx.shape, copy);
-  } finally {
-    kernel.dispose(copy);
+    sources.forEach((source, n) => {
+      const copy = kernel.mirrored(source.shape, origin, normal, p.source.kind === 'part' ? { featureId: feature.id, whole: true } : { featureId: feature.id, index: n + 1 });
+      let next: KernelShape;
+      try {
+        next = source.mode === 'add' ? kernel.fuse(shape, copy) : kernel.cut(shape, copy);
+      } finally {
+        kernel.dispose(copy);
+      }
+      if (shape !== ctx.shape) kernel.dispose(shape);
+      shape = next;
+    });
+  } catch (err) {
+    if (shape !== ctx.shape) kernel.dispose(shape);
+    throw err;
   }
   const analysis = kernel.analyze(shape);
   if (!analysis.valid || analysis.solidCount === 0) {
@@ -38,7 +52,7 @@ export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) =>
   const before = ctx.shapeAnalysis.volume;
   const tiny = Math.max(1e-9, before * 1e-9);
   let status: FeatureStatus = okStatus(feature.id);
-  if (Math.abs(analysis.volume - before) <= tiny) status = issue(feature.id, 'warning', source.mode === 'add' ? 'MIRROR_NOTHING_ADDED' : 'PATTERN_COPIES_OUTSIDE');
+  if (Math.abs(analysis.volume - before) <= tiny) status = issue(feature.id, 'warning', sources.every((x) => x.mode === 'add') ? 'MIRROR_NOTHING_ADDED' : 'PATTERN_COPIES_OUTSIDE');
   else if (analysis.solidCount > ctx.shapeAnalysis.solidCount) status = issue(feature.id, 'warning', 'DISJOINT_SOLID');
   return { status, shape, analysis };
 };
