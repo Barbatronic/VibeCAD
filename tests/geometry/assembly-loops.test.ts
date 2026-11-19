@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { explodeOffsets, lcsFromPick, meshBox, solveAssembly } from '../../src/app/assembly';
+import { solveScenario } from '../../src/app/mechanism';
 import { addFeature, addPart, createDocument, findPart, makePrimitiveFeature, makeSketchFeature } from '../../src/domain/document';
 import type { Assembly, AssemblyJoint, CadDocument, Id, LcsRef } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
@@ -111,6 +112,20 @@ describe('assemblage : boucles fermées', () => {
       // Parallélogramme : l'axe de la bielle reste parallèle à celui du socle.
       const bx = transformDirection4(placed.matrices.get('bielle')!, { x: 1, y: 0, z: 0 });
       expect(Math.abs(bx.x)).toBeCloseTo(1, 4);
+    }
+  });
+
+  it('scénario : repartir des réglages du pas précédent donne les mêmes positions qu’un calcul complet', () => {
+    const { assembly, meshOf } = fourBar();
+    const scenario = { id: 's', name: 's', drivers: [{ jointId: 'j1', dof: 'angle' as const, value: 70 }], sensors: [{ jointId: 'j3', dof: 'angle' as const }] };
+    let warm = assembly;
+    for (let crank = 70; crank <= 160; crank += 2) {
+      const live = { 'j1:angle': crank };
+      const cold = solveScenario(assembly, scenario, meshOf, {}, live);
+      const hot = solveScenario(warm, scenario, meshOf, {}, live);
+      expect(hot.blocked).toBe(false);
+      expect(hot.readings[0]!.value!).toBeCloseTo(cold.readings[0]!.value!, 2);
+      warm = { ...hot.assembly, joints: hot.assembly.joints.map((j) => ({ ...j, ...(hot.placement.solvedValues.get(j.id) ?? {}) })) };
     }
   });
 

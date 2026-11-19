@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -171,6 +171,8 @@ export class AppController {
     if (partial.doc && !partial.printVariants && (partial.doc.parts !== this.state.doc.parts || partial.doc.parameters !== this.state.doc.parameters || partial.doc.resources !== this.state.doc.resources)) {
       if (Object.keys(this.state.printVariants).length) partial = { ...partial, printVariants: {} };
     }
+    // Changement d'atelier : la liste survolée disparaît, la liaison montrée aussi.
+    if (partial.workspace && partial.workspace !== this.state.workspace && this.state.hoverJoint) partial = { ...partial, hoverJoint: null };
     this.store.patch(partial);
     if (partial.doc || partial.display || partial.workspace || partial.fabricationTab) this.schedulePrintVariants();
   }
@@ -3557,12 +3559,36 @@ export class AppController {
     this.updateScenario((s) => ({ ...s, drivers: s.drivers.map((d) => (d.jointId === jointId && d.dof === dof ? { ...d, value } : d)) }), 'Réglage d’une liaison pilotante');
   }
 
-  /** État du scénario ouvert : assemblage placé, relevés des pilotées, blocage. */
-  scenarioState(): ReturnType<typeof solveScenario> | null {
+  /** Dernier état calculé du scénario (mêmes entrées : même résultat, sans recalcul). */
+  private scenarioCache: {
+    assembly: Assembly;
+    scenario: MotionScenario;
+    live: Record<string, number>;
+    display: AppState['display'];
+    result: ReturnType<typeof solveScenario> & { settled: Assembly };
+  } | null = null;
+
+  /**
+   * État du scénario ouvert : assemblage placé, relevés des pilotées, blocage, et `settled`
+   * (l'assemblage aux réglages trouvés, montré dans la vue). Un seul calcul par réglage, partagé
+   * par le panneau et la vue ; pendant un glissement, le calcul repart des réglages trouvés au pas
+   * précédent (comme le glisser d'une liaison dans l'assemblage) : la boucle se referme en quelques
+   * itérations au lieu de repartir de la position enregistrée.
+   */
+  scenarioState(): (ReturnType<typeof solveScenario> & { settled: Assembly }) | null {
     const scenario = this.currentScenario();
     const assembly = this.state.doc.assembly;
     if (!scenario || !assembly) return null;
-    return solveScenario(assembly, scenario, (id) => this.state.display[id]?.mesh, this.solveOptions(), this.state.scenarioLive);
+    const { scenarioLive: live, display } = this.state;
+    const prev = this.scenarioCache;
+    if (prev && prev.assembly === assembly && prev.scenario === scenario && prev.live === live && prev.display === display) return prev.result;
+    // Départ : les réglages trouvés au pas précédent, tant que l'assemblage et le scénario sont les mêmes.
+    const warm = prev && prev.assembly === assembly && prev.scenario.id === scenario.id && !prev.result.blocked ? prev.result.settled : assembly;
+    const r = solveScenario(warm, scenario, (id) => display[id]?.mesh, this.solveOptions(), live);
+    const settled = { ...r.assembly, joints: r.assembly.joints.map((j) => ({ ...j, ...(r.placement.solvedValues.get(j.id) ?? {}) })) };
+    const result = { ...r, settled };
+    this.scenarioCache = { assembly, scenario, live, display, result };
+    return result;
   }
 
   updateStudy(partId: Id, change: (s: SimulationStudy) => SimulationStudy, label: string): void {
@@ -3838,6 +3864,15 @@ export class AppController {
     const d = this.state.display[partId];
     const part = findPart(this.state.doc, partId);
     return d && part && !d.result.flat ? partEngravings(part, d.result.sketches) : [];
+  }
+
+  /**
+   * Liaison survolée dans une liste (null : aucune) : ses repères sont montrés ; avec `parts`, ses
+   * deux pièces sont surlignées aussi (pour choisir une liaison ; au pilotage, les repères suffisent).
+   */
+  setHoverJoint(jointId: Id | null, parts = true): void {
+    const h = this.state.hoverJoint;
+    if (jointId === null ? h !== null : h?.id !== jointId || h.parts !== parts) this.set({ hoverJoint: jointId === null ? null : { id: jointId, parts } });
   }
 
   /** Pièce survolée dans la liste des pièces (null : aucune). */

@@ -431,7 +431,7 @@ export function AssemblySection() {
         {jointsFolded ? null : (
           <ul class="feature-list asm-list joint-list" aria-label="Liaisons de l’assemblage">
             {joints.map((j) => (
-              <li key={j.id}>
+              <li key={j.id} onMouseEnter={() => c.setHoverJoint(j.id)} onMouseLeave={() => c.setHoverJoint(null)} onFocusIn={() => c.setHoverJoint(j.id)} onFocusOut={() => c.setHoverJoint(null)}>
                 <div class={`feature-row asm-row${data.sel?.kind === 'joint' && data.sel.id === j.id ? ' is-selected' : ''}`}>
                   <button
                     type="button"

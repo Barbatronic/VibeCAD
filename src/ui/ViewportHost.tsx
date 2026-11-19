@@ -155,11 +155,21 @@ function buildAssemblyInput(s: AppState): ViewportInput {
   }
   const markers: ViewMarker[] = [];
   const sel = s.assemblySelection;
-  if (sel?.kind === 'joint' && !exploded) {
-    const f = placement.jointFrames.get(sel.id);
-    if (f) markers.push({ origin: f.base.origin, axis: f.base.normal, role: 'base' }, { origin: f.moving.origin, axis: f.moving.normal, role: 'moving' });
+  // Liaison survolée dans une liste : elle passe devant la liaison sélectionnée.
+  const hovered = s.hoverJoint ? assembly.joints.find((j) => j.id === s.hoverJoint!.id) : undefined;
+  const shownJoint = hovered?.id ?? (sel?.kind === 'joint' ? sel.id : null);
+  if (shownJoint && !exploded) {
+    const f = placement.jointFrames.get(shownJoint);
+    if (f) markers.push({ origin: f.base.origin, axis: f.base.normal, role: 'base' }, { origin: f.moving.origin, axis: f.moving.normal, role: 'moving', ...(hovered ? { label: hovered.name } : {}) });
   }
   const selection: ViewportInput['selection'] = [];
+  if (hovered && s.hoverJoint?.parts && !exploded) {
+    // Les deux pièces de la liaison survolée : toutes leurs arêtes en surbrillance.
+    for (const leaf of leaves.filter((l) => l.instanceId === hovered.moving.instanceId || l.instanceId === hovered.base.instanceId)) {
+      const mesh = s.display[leaf.partId]?.mesh;
+      if (mesh) mesh.edges.forEach((_e, index) => selection.push({ partId: leaf.key, kind: 'edge', index }));
+    }
+  }
   if (s.mode.kind === 'joint' && s.mode.moving) {
     const m = s.mode.moving;
     // La pièce (dépliée) du repère choisi : pièce insérée, ou pièce d'un bloc.
@@ -477,15 +487,16 @@ function buildVersionsInput(s: AppState): ViewportInput {
 }
 
 /** Construit la représentation d'affichage à partir de l'état de l'application. */
-export function buildViewportInput(s: AppState, simulation: { partId: string | null; source: StudySource | null } = { partId: null, source: null }): ViewportInput {
+export function buildViewportInput(s: AppState, simulation: { partId: string | null; source: StudySource | null; scenario?: Assembly | null } = { partId: null, source: null }): ViewportInput {
   if (s.workspace === 'assembly') return buildAssemblyInput(s);
   if (s.workspace === 'fabrication') return buildFabricationInput(s);
   if (s.workspace === 'versions') return buildVersionsInput(s);
-  // Scénario de mouvement : l'assemblage aux réglages des pilotantes ; les pilotes sont surlignés.
+  // Scénario de mouvement : l'assemblage aux réglages des pilotantes.
   if (s.workspace === 'simulation' && simulation.partId === SCENARIO_STUDY && s.doc.assembly) {
     const scenario = s.doc.simulation?.scenarios?.find((x) => x.id === s.scenarioId) ?? s.doc.simulation?.scenarios?.[0];
-    const assembly = scenario ? scenarioAssembly(s.doc.assembly, scenario, s.scenarioLive) : s.doc.assembly;
-    return buildAssemblyInput({ ...s, doc: { ...s.doc, assembly }, assemblySelection: scenario?.drivers[0] ? { kind: 'joint', id: scenario.drivers[0].jointId } : null, explode: 0 });
+    const assembly = simulation.scenario ?? (scenario ? scenarioAssembly(s.doc.assembly, scenario, s.scenarioLive) : s.doc.assembly);
+    // Aucune liaison montrée d'office : seule la liaison survolée dans le panneau l'est.
+    return buildAssemblyInput({ ...s, doc: { ...s.doc, assembly }, assemblySelection: null, explode: 0 });
   }
   // Étude « Mécanisme » : l'assemblage, à la position survolée sur la courbe.
   if (s.workspace === 'simulation' && simulation.partId === MECHANISM_STUDY) {
@@ -1078,12 +1089,14 @@ export function ViewportHost() {
   const input = useMemo(
     () => {
       const partId = state.workspace === 'simulation' ? c.simulationPartId() : null;
-      const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null });
+      // Scénario de mouvement : l'assemblage aux réglages déjà calculés pour le panneau (un seul calcul).
+      const scenario = partId === SCENARIO_STUDY ? (c.scenarioState()?.settled ?? null) : null;
+      const built = state.workspace !== 'simulation' ? buildViewportInput(state) : buildViewportInput(state, { partId, source: partId ? c.simulationSource(partId) : null, scenario });
       // Repère de la scène dans l'assemblage : celui de la pièce modifiée (onglet Pièces), l'assemblage lui-même sinon.
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.versionView],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.hoverJoint, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

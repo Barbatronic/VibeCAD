@@ -6274,6 +6274,23 @@ button.versions-conflict-name:hover {
   align-items: center;
   gap: 8px;
   min-height: 34px;
+  margin: 0 -6px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* Curseurs des pilotantes : couleur d'accent (sinon, en thème sombre, le curseur se fond dans le fond). */
+.scenario-driver input[type='range'] {
+  width: 100%;
+  margin: 6px 0;
+  accent-color: var(--accent);
+}
+
+/* Liaison survolée : montrée en même temps sur l'assemblage. */
+.scenario-joints li:hover,
+.scenario-driver:hover,
+.scenario-sensors dt:hover {
+  background: var(--surface-2);
 }
 
 .scenario-joints li > svg {

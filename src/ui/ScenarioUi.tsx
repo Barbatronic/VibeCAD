@@ -99,6 +99,14 @@ export function ScenarioPanel() {
   const roleOf = (jointId: string, dof: MotionDof) =>
     scenario.drivers.some((d) => d.jointId === jointId && d.dof === dof) ? 'driver' : scenario.sensors.some((d) => d.jointId === jointId && d.dof === dof) ? 'sensor' : null;
   const rows = joints.flatMap((j) => jointDofs(j).map((dof) => ({ joint: j, dof, many: jointDofs(j).length > 1 })));
+  // Survol d'une liaison (souris ou clavier) : elle est montrée sur l'assemblage.
+  // `parts` : liste des liaisons (choix) ; au pilotage (curseurs, relevés), seuls les repères.
+  const hoverProps = (jointId: string, parts = false) => ({
+    onMouseEnter: () => c.setHoverJoint(jointId, parts),
+    onMouseLeave: () => c.setHoverJoint(null),
+    onFocusIn: () => c.setHoverJoint(jointId, parts),
+    onFocusOut: () => c.setHoverJoint(null),
+  });
   const reading = (jointId: string, dof: MotionDof): ScenarioReading | undefined => state?.readings.find((r) => r.jointId === jointId && r.dof === dof);
   return (
     <aside class="panel right-panel" aria-label="Scénario de mouvement">
@@ -116,7 +124,7 @@ export function ScenarioPanel() {
           const [lo, hi] = dofRange(joint, d.dof);
           const value = live[`${d.jointId}:${d.dof}`] ?? d.value;
           return (
-            <div key={`${d.jointId}:${d.dof}`} class="field scenario-driver">
+            <div key={`${d.jointId}:${d.dof}`} class="field scenario-driver" {...hoverProps(d.jointId)}>
               <label class="field-label" for={`drv-${d.jointId}-${d.dof}`}>
                 {joint.name}
                 {jointDofs(joint).length > 1 ? ` · ${DOF_LABELS[d.dof]}` : ''} : <strong>{show(value, d.dof)}</strong>
@@ -154,7 +162,7 @@ export function ScenarioPanel() {
               if (!joint) return null;
               const r = reading(s.jointId, s.dof);
               return [
-                <dt key={`t${s.jointId}${s.dof}`}>
+                <dt key={`t${s.jointId}${s.dof}`} {...hoverProps(s.jointId)}>
                   {joint.name}
                   {jointDofs(joint).length > 1 ? ` · ${DOF_LABELS[s.dof]}` : ''}
                 </dt>,
@@ -171,7 +179,7 @@ export function ScenarioPanel() {
             const role = roleOf(joint.id, dof);
             const set = (next: 'driver' | 'sensor' | null) => c.setScenarioRole(joint.id, dof, role === next ? null : next);
             return (
-              <li key={`${joint.id}:${dof}`}>
+              <li key={`${joint.id}:${dof}`} {...hoverProps(joint.id, true)}>
                 <Icon name={`joint-${joint.kind}`} />
                 <span class="name" title={`${joint.name} · ${JOINT_LABELS[joint.kind]}`}>
                   {joint.name}

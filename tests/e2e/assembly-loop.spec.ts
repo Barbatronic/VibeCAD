@@ -138,6 +138,25 @@ test('scénario de mouvement : la manivelle pilote, le balancier est relevé com
   await expect(sensor(j3)).not.toHaveText(before!);
   const reading = Number((await sensor(j3).textContent())!.replace(/[^\d,.-]/g, '').replace(',', '.'));
   expect(Number.isFinite(reading)).toBe(true);
+  // Survol d'une liaison de la liste : elle est montrée sur l'assemblage (repères, deux pièces surlignées).
+  const j2 = await appState(page, (s) => s.doc.assembly.joints[1].id);
+  await roles.locator('li', { hasText: 'Liaison 2' }).hover();
+  await expect.poll(() => appState(page, (s) => s.hoverJoint)).toEqual({ id: j2, parts: true });
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.input.markers.map((m: any) => m.label ?? null))).toContain('Liaison 2');
+  await page.screenshot({ path: 'tests/output/e2e-scenario-survol.png' });
+  const outlined = () => page.evaluate(() => (window as any).vibecad.controller.viewport.input.selection.length);
+  expect(await outlined()).toBeGreaterThan(0);
+  // Au pilotage (curseur de la pilotante) : les repères seulement, pas de pièces surlignées.
+  const j1 = await appState(page, (s) => s.doc.assembly.joints[0].id);
+  await page.locator('.scenario-driver').first().hover();
+  await expect.poll(() => appState(page, (s) => s.hoverJoint)).toEqual({ id: j1, parts: false });
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.input.markers.map((m: any) => m.label ?? null))).toContain('Liaison 1');
+  expect(await outlined()).toBe(0);
+  await page.screenshot({ path: 'tests/output/e2e-scenario-pilotage.png' });
+  await page.mouse.move(5, 5);
+  await expect.poll(() => appState(page, (s) => s.hoverJoint)).toBe(null);
+  // Rien de survolé : aucune liaison montrée d'office.
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.input.markers.length)).toBe(0);
   const scenario = await appState(page, (s) => s.doc.simulation.scenarios[0]);
   expect(scenario.drivers).toMatchObject([{ dof: 'angle', value: 100 }]);
   expect(scenario.sensors).toHaveLength(1);

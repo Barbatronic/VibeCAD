@@ -248,6 +248,11 @@ export interface AppState {
   laserPage: Id | null;
   /** Pièce survolée dans la liste : les autres s'estompent dans la vue, pour la repérer. */
   hoverPart: Id | null;
+  /**
+   * Liaison survolée dans une liste (assemblage, scénario) : montrée sur l'assemblage par ses
+   * repères ; `parts` : ses deux pièces sont aussi surlignées (choix d'une liaison).
+   */
+  hoverJoint: { id: Id; parts: boolean } | null;
   /** Image en cours d'ajout (calque) : sa ressource n'entre dans le projet qu'à la validation. */
   pendingImage: StepResource | null;
   /** Incrémenté quand une image finit de se charger (nouveau rendu de la vue). */
@@ -390,6 +395,7 @@ export function initialState(): AppState {
     pendingImage: null,
     laserPage: null,
     hoverPart: null,
+    hoverJoint: null,
     imageVersion: 0,
     isolatedPartId: null,
     drawingRevision: 0,
