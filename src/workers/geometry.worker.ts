@@ -69,7 +69,7 @@ async function handle(req: WorkerRequest): Promise<unknown> {
     case 'collisions':
       return svc.collisions(req.doc, req.placements);
     case 'variant':
-      return svc.variant(req.doc, req.partId, req.parameter, req.value, req.mark);
+      return svc.variant(req.doc, req.partId, req.parameter, req.value, req.mark, req.zone);
     case 'shapeCache':
       if (req.clear) await clearCache();
       return cacheStats();

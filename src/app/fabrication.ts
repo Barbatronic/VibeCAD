@@ -10,7 +10,7 @@ import type { FaceTag, MeshData, ShapeAnalysis } from '../geometry/kernel';
 import { multiply4, translation4, type Mat4 } from '../math/mat4';
 import { normalize3, type Vec3 } from '../math/vec';
 import { formatNumber } from '../domain/units';
-import { markLayout, type VariantMark } from '../features/series-mark';
+import { markLayout, zoneBox, type VariantMark } from '../features/series-mark';
 
 /**
  * Matériaux préréglés : plaques de 300 × 200 mm de contreplaqué et d'acrylique, en 3 et 5 mm. À
@@ -223,14 +223,15 @@ export function formatSeriesValue(v: number): string {
 }
 
 /** Clé d'une version calculée : pièce, paramètre, valeur et marquage. */
-export function variantKey(partId: Id, series: Pick<PrintSeries, 'parameter' | 'mark'>, value: number): string {
-  return `${partId}|${series.parameter.toLowerCase()}|${roundValue(value)}|${series.mark ? JSON.stringify(series.mark) : ''}`;
+export function variantKey(partId: Id, series: Pick<PrintSeries, 'parameter' | 'mark' | 'zone'>, value: number): string {
+  return `${partId}|${series.parameter.toLowerCase()}|${roundValue(value)}|${series.mark ? JSON.stringify(series.mark) : ''}|${series.zone ? JSON.stringify(series.zone) : ''}`;
 }
 
 /** Marquage d'une version (texte de la valeur centré sur la face), d'après le maillage de la pièce. */
 export function seriesMark(mesh: MeshData | null | undefined, series: PrintSeries, value: number): (VariantMark & { tooSmall: boolean }) | null {
   if (!series.mark || !mesh) return null;
-  return markLayout(mesh, series.mark.face, formatSeriesValue(value), series.mark.height, series.mark.depth);
+  const clip = series.zone ? zoneBox(mesh, series.zone.face, series.zone.margin) : null;
+  return markLayout(mesh, series.mark.face, formatSeriesValue(value), series.mark.height, series.mark.depth, clip);
 }
 
 /** Version d'une pièce pour une valeur d'essai, calculée à part. */
@@ -240,6 +241,8 @@ export interface PrintVariant {
   analysis: ShapeAnalysis | null;
   /** Étape en échec dans cette version (son nom). */
   failed?: string;
+  /** Zone d'essai : face introuvable, ou zone sans matière. */
+  zone?: 'lost' | 'empty';
 }
 
 export interface PrintPlacement {
@@ -309,7 +312,7 @@ export function printLayout(
       const longest = [...r.values].sort((a, b) => formatSeriesValue(b).length - formatSeriesValue(a).length)[0];
       if (series.mark && longest !== undefined) {
         const m = seriesMark(baseMesh, series, longest);
-        if (!m) warnings.push(`« ${part.name} » : la face du marquage n’existe plus ou n’est pas plane ; choisissez-en une autre.`);
+        if (!m) warnings.push(series.zone ? `« ${part.name} » : la face du marquage n’est pas dans la zone d’essai (ou n’existe plus) ; choisissez-en une autre.` : `« ${part.name} » : la face du marquage n’existe plus ou n’est pas plane ; choisissez-en une autre.`);
         else if (m.tooSmall) warnings.push(`« ${part.name} » : face trop petite, le marquage ferait ${formatNumber(m.height, 1)} mm de haut (illisible) ; choisissez une face plus grande.`);
       }
     }
@@ -320,6 +323,7 @@ export function printLayout(
       const variant = series && value !== null ? variantOf?.(item.partId, series, value) : undefined;
       const label = series && value !== null ? `${part.name} — ${series.parameter} ${formatSeriesValue(value)}` : part.name;
       if (variant?.failed) warnings.push(`« ${label} » : erreur à l’étape « ${variant.failed} ».`);
+      if (variant?.zone) warnings.push(`« ${label} » : ${variant.zone === 'lost' ? 'la face de la zone d’essai n’existe plus ; choisissez-en une autre' : 'la zone d’essai ne contient aucune matière'}.`);
       if (variant && !variant.mesh) continue;
       const mesh = variant?.mesh ?? baseMesh;
       const analysis = variant ? variant.analysis : analysisOf(item.partId);

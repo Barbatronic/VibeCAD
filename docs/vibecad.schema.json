@@ -4003,6 +4003,24 @@
                   "minimum": 0
                 }
               }
+            },
+            "zone": {
+              "description": "Zone d'essai : seule la matière à moins de `margin` mm (boîte) de cette face est imprimée.",
+              "type": "object",
+              "required": [
+                "face",
+                "margin"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/faceRef"
+                },
+                "margin": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
             }
           }
         }

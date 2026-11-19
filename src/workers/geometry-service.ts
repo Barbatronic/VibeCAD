@@ -8,7 +8,7 @@ import type { CadDocument, EdgeRef, Id, Part } from '../domain/model';
 import { add3, scale3, type Vec3 } from '../math/vec';
 import { foldLines } from '../features/sheet/fold';
 import { variantDocument } from '../features/parameters';
-import { markedDocument, type VariantMark } from '../features/series-mark';
+import { markedDocument, zoneBox, type VariantMark } from '../features/series-mark';
 
 /** Version d'essai : le paramètre prend la valeur, puis la valeur est gravée si un marquage est demandé. */
 function seriesVersion(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark): CadDocument {
@@ -19,7 +19,7 @@ import { engraveSteps, faceMaterials } from '../domain/paint';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation, type PartSnapshot } from '../features/engine';
 import type { ResourceData } from '../features/evaluation';
-import type { BoundingBox, DistanceTarget, GeometryKernel, KernelShape, MeshData, MeshOptions } from '../geometry/kernel';
+import type { BoundingBox, DistanceTarget, GeometryKernel, KernelShape, MeshData, MeshOptions, ShapeAnalysis } from '../geometry/kernel';
 import { stepProductNames } from '../io/resources';
 import { meshesToBinaryStl, STL_MAX_TRIANGLES, stlTriangleCount } from '../io/stl';
 import { meshesTo3mf } from '../io/threemf';
@@ -36,6 +36,7 @@ import type {
   StepInspection,
   WorkerResourcePayload,
   WorkerResultMap,
+  VariantZone,
 } from '../geometry/protocol';
 
 export function meshOptionsFor(bbox: BoundingBox | null, quality: typeof DISPLAY_MESH | typeof EXPORT_MESH): MeshOptions {
@@ -240,6 +241,15 @@ export class GeometryService {
           return [];
         }
         source = ev.shape;
+        if (pl.variant.zone) {
+          const cut = this.zoneCut(ev, pl.variant.zone);
+          if ('problem' in cut) {
+            warnings.push(`« ${pl.name} » : ${cut.problem === 'lost' ? 'la face de la zone d’essai n’existe plus' : 'la zone d’essai ne contient aucune matière'} ; elle n’est pas exportée.`);
+            return [];
+          }
+          placed.push(cut.shape);
+          source = cut.shape;
+        }
       }
       // Les faces gardent leurs étiquettes (reprises par la peinture des faces, et par les exports).
       const shape = this.kernel.transformed(source, pl.matrix, { keep: true });
@@ -253,14 +263,44 @@ export class GeometryService {
    * Version d'essai d'une pièce : le projet où le paramètre prend cette valeur, calculé à part
    * (le cache du projet ouvert est gardé tel quel).
    */
-  variant(docIn: DocumentForWorker, partId: Id, parameter: string, value: number, mark?: VariantMark): WorkerResultMap['variant'] {
+  variant(docIn: DocumentForWorker, partId: Id, parameter: string, value: number, mark?: VariantMark, zone?: VariantZone): WorkerResultMap['variant'] {
     const doc = seriesVersion(this.asDocument(docIn), partId, parameter, value, mark);
     const ev = this.engine.evaluateDocument(doc, undefined, { aside: true }).find((e) => e.partId === partId);
     if (!ev) return { meshKey: null, mesh: null, analysis: null, failed: null };
     const failed = ev.failedFeatureId ? (doc.parts.find((p) => p.id === partId)?.features.find((f) => f.id === ev.failedFeatureId)?.name ?? '?') : null;
     if (!ev.shape || !ev.shapeKey) return { meshKey: null, mesh: null, analysis: ev.analysis, failed };
     const options = meshOptionsFor(ev.analysis?.bbox ?? null, DISPLAY_MESH);
-    return { meshKey: `${ev.shapeKey}|${options.linearDeflection}`, mesh: this.engine.meshOf(ev, options), analysis: ev.analysis, failed };
+    if (!zone) return { meshKey: `${ev.shapeKey}|${options.linearDeflection}`, mesh: this.engine.meshOf(ev, options), analysis: ev.analysis, failed };
+    const cut = this.zoneCut(ev, zone);
+    if ('problem' in cut) return { meshKey: null, mesh: null, analysis: null, failed, zone: cut.problem };
+    try {
+      const mesh = this.kernel.mesh(cut.shape, meshOptionsFor(cut.analysis.bbox, DISPLAY_MESH));
+      return { meshKey: `${ev.shapeKey}|zone|${JSON.stringify(zone)}|${options.linearDeflection}`, mesh, analysis: cut.analysis, failed };
+    } finally {
+      this.kernel.dispose(cut.shape);
+    }
+  }
+
+  /**
+   * Zone d'essai : la partie de la version comprise dans la boîte entourant la face désignée.
+   * La forme rendue est à libérer par l'appelant.
+   */
+  private zoneCut(ev: PartEvaluation, zone: VariantZone): { shape: KernelShape; analysis: ShapeAnalysis } | { problem: 'lost' | 'empty' } {
+    const box = zoneBox(this.engine.meshOf(ev, meshOptionsFor(ev.analysis?.bbox ?? null, DISPLAY_MESH))!, zone.face, zone.margin);
+    if (!box || !ev.shape) return { problem: 'lost' };
+    const tool = this.kernel.makePrimitive({ featureId: 'zone-essai', shape: 'box', position: box.min, width: box.max.x - box.min.x, depth: box.max.y - box.min.y, height: box.max.z - box.min.z, diameter: 0, thickness: 0 });
+    let shape: KernelShape;
+    try {
+      shape = this.kernel.common(ev.shape, tool);
+    } finally {
+      this.kernel.dispose(tool);
+    }
+    const analysis = this.kernel.analyze(shape);
+    if (analysis.solidCount === 0 || analysis.volume <= 0) {
+      this.kernel.dispose(shape);
+      return { problem: 'empty' };
+    }
+    return { shape, analysis };
   }
 
   exportStep(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[], tree?: StepTree): { text: string; warnings: string[] } {

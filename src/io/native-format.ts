@@ -426,7 +426,13 @@ function readSeries(v: Validator, x: unknown, path: string): PrintSeries {
     ...opt('step'),
     ...(o.values !== undefined ? { values: arr(v, o, 'values', path).filter((n): n is number => typeof n === 'number' && Number.isFinite(n)) } : {}),
     ...(o.mark !== undefined ? { mark: readSeriesMark(v, o.mark, `${path}.mark`) } : {}),
+    ...(o.zone !== undefined ? { zone: readSeriesZone(v, o.zone, `${path}.zone`) } : {}),
   };
+}
+
+function readSeriesZone(v: Validator, x: unknown, path: string): NonNullable<PrintSeries['zone']> {
+  const o = obj(v, x, path) ?? {};
+  return { face: readFaceRef(v, o.face, `${path}.face`), margin: num(v, o, 'margin', path, { min: 0 }) };
 }
 
 function readSeriesMark(v: Validator, x: unknown, path: string): NonNullable<PrintSeries['mark']> {

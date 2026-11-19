@@ -15,6 +15,7 @@ import {
   type WorkerRequest,
   type WorkerResponse,
   type ExportPlacement,
+  type VariantZone,
   type StepTree,
   type WorkerResultMap,
   type SectionPlane,
@@ -236,9 +237,9 @@ export class GeometryClient {
   }
 
   /** Version d'essai d'une pièce (série d'essais) : le paramètre `parameter` vaut `value`. */
-  async variant(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark): Promise<WorkerResultMap['variant']> {
+  async variant(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark, zone?: VariantZone): Promise<WorkerResultMap['variant']> {
     await this.syncResources(doc);
-    return this.request('variant', { doc: documentForWorker(doc), partId, parameter, value, ...(mark ? { mark } : {}) });
+    return this.request('variant', { doc: documentForWorker(doc), partId, parameter, value, ...(mark ? { mark } : {}), ...(zone ? { zone } : {}) });
   }
 
   async export3mf(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[]): Promise<WorkerResultMap['export3mf']> {

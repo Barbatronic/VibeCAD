@@ -88,6 +88,8 @@ export interface PrintSeries {
   values?: number[];
   /** Marquage : la valeur est gravée sur cette face plane de chaque version (hauteur du texte, profondeur, mm). */
   mark?: { face: FaceRef; height: number; depth: number };
+  /** Zone d'essai : seule la matière à moins de `margin` mm (boîte) de cette face est imprimée. */
+  zone?: { face: FaceRef; margin: number };
 }
 
 /**

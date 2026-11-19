@@ -501,6 +501,7 @@ function SeriesEditor(props: { partId: string; name: string; series: PrintSeries
   const { partId, name, series } = props;
   const doc = useAppState((s) => s.doc);
   const picking = useAppState((s) => s.mode.kind === 'pick-fab-face' && s.mode.purpose === 'mark' && s.mode.partId === partId);
+  const pickingZone = useAppState((s) => s.mode.kind === 'pick-fab-face' && s.mode.purpose === 'zone' && s.mode.partId === partId);
   const params = doc.parameters ?? [];
   const known = params.find((p) => p.name.toLowerCase() === series.parameter.toLowerCase());
   const r = seriesValues(series);
@@ -604,6 +605,34 @@ function SeriesEditor(props: { partId: string; name: string; series: PrintSeries
         </p>
       ) : null}
       {unused ? <Callout kind="warning">« {known!.name} » ne modifie pas « {name} » : toutes les versions sont identiques.</Callout> : null}
+      <div class="fab-series-mark" role="group" aria-label="Zone d’essai">
+        <div class="fab-face">
+          <Button small icon="section" hint="N’imprime que la matière autour d’une face (un trou, un ergot…) : moins de filament, essai plus rapide" onClick={() => (pickingZone ? c.cancelFabricationPick() : c.pickFabricationFace('zone', partId))}>
+            {pickingZone ? 'Cliquez une face…' : series.zone ? 'Face de la zone' : 'Zone d’essai'}
+          </Button>
+          {series.zone ? (
+            <button type="button" class="tl-link" onClick={() => c.setPrintSeries(partId, (({ zone: _z, ...rest }) => rest)(series))}>
+              pièce entière
+            </button>
+          ) : null}
+        </div>
+        {series.zone ? (
+          <label class="mini-field">
+            <span>Marge autour de la face</span>
+            <NumberInput
+              value={formatNumber(series.zone.margin, 2)}
+              unit="mm"
+              step={0.5}
+              min={0}
+              ariaLabel={`Zone d’essai de « ${name} » : marge`}
+              onInput={(t) => {
+                const n = num(t);
+                if (n !== null && n >= 0 && n <= 200) set({ zone: { ...series.zone!, margin: n } });
+              }}
+            />
+          </label>
+        ) : null}
+      </div>
       <div class="fab-series-mark" role="group" aria-label="Marquage de la valeur">
         <div class="fab-face">
           <Button small icon="text" hint="Grave la valeur essayée sur une face plane de chaque version" onClick={() => (picking ? c.cancelFabricationPick() : c.pickFabricationFace('mark', partId))}>

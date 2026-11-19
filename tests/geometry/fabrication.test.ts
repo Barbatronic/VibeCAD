@@ -9,6 +9,7 @@ import { documentForWorker } from '../../src/geometry/protocol';
 import { readZip } from '../../src/io/zip';
 import { transformPoint4 } from '../../src/math/mat4';
 import { GeometryService } from '../../src/workers/geometry-service';
+import { textWidth } from '../../src/sketch/text';
 import { getKernel } from '../helpers/kernel';
 import { buildPlateDocument } from '../helpers/plate';
 
@@ -162,8 +163,9 @@ describe('fabrication : plateau d’impression', () => {
     const mark = seriesMark(main.parts[0]!.mesh, series, 4)!;
     expect(mark.text).toBe('4');
     expect(mark.tooSmall).toBe(false);
-    // Plaque 60 × 30 : le texte (6 mm de haut) est centré vers (30, 15).
-    expect(mark.anchor.y + mark.height / 2).toBeCloseTo(15, 3);
+    // Plaque 60 × 30 : le texte (6 mm de haut) est au milieu de la face, vers (30, 15).
+    expect(mark.height).toBeCloseTo(6, 6);
+    expect(mark.anchor.y + 0.35 * mark.height).toBeCloseTo(15, 0);
     const plain = svc.variant(documentForWorker(doc), ids.partId, 'ep', 4);
     const marked = svc.variant(documentForWorker(doc), ids.partId, 'ep', 4, mark);
     expect(marked.failed).toBeNull();
@@ -213,5 +215,62 @@ describe('fabrication : plateau d’impression', () => {
     (await holeDiameters(100)).forEach((d, i) => expect(d).toBeCloseTo(values[i]!, 3));
     // Échelle 110 % sur le plateau : tout est agrandi, le trou aussi.
     (await holeDiameters(110)).forEach((d, i) => expect(d).toBeCloseTo(values[i]! * 1.1, 3));
+  });
+
+  it('zone d’essai : seule la matière autour du trou est gardée, à l’affichage comme dans le 3MF', async () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const part = base.parts[0]!;
+    const features = part.features.map((f) =>
+      f.id === ids.sketch2 && f.type === 'sketch' ? { ...f, params: { ...f.params, constraints: f.params.constraints.map((c) => (c.type === 'diameter' ? { ...c, expression: 'd' } : c)) } } : f,
+    );
+    const doc = applyParameters({ ...base, parts: [{ ...part, features }], parameters: [{ name: 'd', expression: '6' }] });
+    const svc = new GeometryService(kernel);
+    const main = svc.evaluate(documentForWorker(doc));
+    // Face du trou : la face cylindrique de la plaque.
+    const hole = main.parts[0]!.mesh!.faces.find((f) => f.cylinder)!;
+    const zone = { face: { featureId: hole.tags[0]!.featureId, role: hole.tags[0]!.role, ...(hole.tags[0]!.entityId ? { entityId: hole.tags[0]!.entityId } : {}), ...(hole.tags[0]!.index !== undefined ? { index: hole.tags[0]!.index } : {}) }, margin: 3 };
+    for (const d of [5, 8]) {
+      const r = svc.variant(documentForWorker(doc), ids.partId, 'd', d, undefined, zone);
+      expect(r.zone).toBeUndefined();
+      const b = r.analysis!.bbox!;
+      // Carré de d + 2 × 3 mm autour du trou (centre 15, 15), toute l'épaisseur de la plaque.
+      expect(b.max.x - b.min.x).toBeCloseTo(d + 6, 1);
+      expect(b.max.y - b.min.y).toBeCloseTo(d + 6, 1);
+      expect(b.max.z - b.min.z).toBeCloseTo(5, 4);
+      expect(r.analysis!.volume).toBeCloseTo(((d + 6) ** 2 - Math.PI * (d / 2) ** 2) * 5, -1);
+    }
+    // Export : le même anneau carré, au diamètre essayé.
+    const series = { parameter: 'd', mode: 'list' as const, values: [5, 8], zone };
+    const settings = { ...DEFAULT_FABRICATION.print, items: [{ partId: ids.partId, copies: 1, scale: 100, series }] };
+    const layout = printLayout(settings, doc.parts, () => main.parts[0]!.mesh, () => main.parts[0]!.analysis);
+    const { bytes, warnings } = await svc.export3mf(
+      documentForWorker(doc),
+      [ids.partId],
+      layout.placements.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, variant: { parameter: 'd', value: p.variant!.value, zone } })),
+    );
+    expect(warnings).toEqual([]);
+    const model = new TextDecoder().decode((await readZip(bytes)).get('3D/3dmodel.model'));
+    const widths = model.split('<object ').slice(1).map((o) => {
+      const xs = Array.from(o.matchAll(/<vertex x="([^"]+)"/g), (m) => Number(m[1]));
+      return Math.max(...xs) - Math.min(...xs);
+    });
+    expect(widths[0]).toBeCloseTo(11, 1);
+    expect(widths[1]).toBeCloseTo(14, 1);
+    // Marquage dans la zone : centré sur la partie imprimée du dessus.
+    const mark = seriesMark(main.parts[0]!.mesh, { ...series, mark: { face: { featureId: ids.extrude, role: 'end' }, height: 5, depth: 0.3 } }, 5)!;
+    // Le texte rétrécit pour tenir dans la bande de matière autour du trou, sans le chevaucher.
+    expect(mark.height).toBeGreaterThan(1);
+    expect(mark.height).toBeLessThan(3);
+    const w = textWidth(mark.text, mark.height);
+    const rect = { x0: mark.anchor.x, x1: mark.anchor.x + w, y0: mark.anchor.y - 0.3 * mark.height, y1: mark.anchor.y + mark.height };
+    const nearest = { x: Math.min(Math.max(15, rect.x0), rect.x1), y: Math.min(Math.max(15, rect.y0), rect.y1) };
+    expect(Math.hypot(nearest.x - 15, nearest.y - 15)).toBeGreaterThan(6 / 2);
+    // Et reste dans la zone (carré de 12 mm autour du trou du projet, Ø 6).
+    expect(rect.x0).toBeGreaterThan(9 - 1e-6);
+    expect(rect.x1).toBeLessThan(21 + 1e-6);
+    expect(rect.y0).toBeGreaterThan(9 - 1e-6);
+    expect(rect.y1).toBeLessThan(21 + 1e-6);
+    // Face introuvable : signalé.
+    expect(svc.variant(documentForWorker(doc), ids.partId, 'd', 5, undefined, { face: { featureId: 'absent', role: 'side' }, margin: 3 }).zone).toBe('lost');
   });
 });

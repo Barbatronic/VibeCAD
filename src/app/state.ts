@@ -53,7 +53,7 @@ export type Mode =
       lockedFace?: { instanceId: Id; index: number } | null;
     }
   /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
-  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser' | 'mark'; partId: Id }
+  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser' | 'mark' | 'zone'; partId: Id }
   /** Assemblage : poser de la visserie dans les trous (chaque clic sur un trou en pose un élément). */
   | { kind: 'fastener'; fastenerKind: FastenerKind }
   /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */

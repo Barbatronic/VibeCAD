@@ -12,6 +12,12 @@ import type { Vec2, Vec3 } from '../math/vec';
 import type { MeshData, ShapeAnalysis } from './kernel';
 import type { VariantMark } from '../features/series-mark';
 
+/** Zone d'essai d'une version : face désignée et marge de la boîte (mm). */
+export interface VariantZone {
+  face: FaceRef;
+  margin: number;
+}
+
 export type SketchProfileSummary =
   | { ok: true; regionCount: number; area: number }
   | { ok: false; code: FeatureIssueCode; points: string[]; positions: Vec2[] };
@@ -118,7 +124,7 @@ export interface ExportPlacement {
   /** Gravures colorées : faces créées par l'opération, emplacement de l'AMS de sa matière. */
   engraveFilaments?: { featureId: Id; filament: number }[];
   /** Série d'essais : la pièce telle qu'elle est quand ce paramètre du projet prend cette valeur. */
-  variant?: { parameter: string; value: number; mark?: VariantMark };
+  variant?: { parameter: string; value: number; mark?: VariantMark; zone?: VariantZone };
 }
 
 /** Arborescence STEP d'un assemblage : composants de premier niveau et sous-assemblages (blocs). */
@@ -140,7 +146,7 @@ export type WorkerRequest =
   | { id: number; type: 'section'; doc: DocumentForWorker; section: SectionPlane }
   | { id: number; type: 'hiddenLines'; doc: DocumentForWorker; partId: Id; views: { u: Vec3; toViewer: Vec3 }[] }
   | { id: number; type: 'collisions'; doc: DocumentForWorker; placements: CollisionPlacement[] }
-  | { id: number; type: 'variant'; doc: DocumentForWorker; partId: Id; parameter: string; value: number; mark?: VariantMark }
+  | { id: number; type: 'variant'; doc: DocumentForWorker; partId: Id; parameter: string; value: number; mark?: VariantMark; zone?: VariantZone }
   | { id: number; type: 'shapeCache'; clear?: boolean };
 
 /** Pièce insérée placée dans l'assemblage, pour la recherche de collisions. */
@@ -193,7 +199,7 @@ export interface WorkerResultMap {
   hiddenLines: { views: { a: { x: number; y: number }; b: { x: number; y: number }; hidden: boolean }[][] };
   collisions: { collisions: Collision[] };
   /** Version d'essai d'une pièce : maillage d'affichage, analyse, étape en échec (son nom). */
-  variant: { meshKey: string | null; mesh: MeshData | null; analysis: ShapeAnalysis | null; failed: string | null };
+  variant: { meshKey: string | null; mesh: MeshData | null; analysis: ShapeAnalysis | null; failed: string | null; zone?: 'lost' | 'empty' };
   /** Cache des formes du navigateur : pièces gardées et taille estimée (après vidage si demandé). */
   shapeCache: { count: number; bytes: number };
 }

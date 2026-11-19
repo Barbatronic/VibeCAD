@@ -52,7 +52,7 @@ import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
 import { moveDefinition } from '../features/move/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
-import type { ExportPlacement, MeasureTarget, PartResult } from '../geometry/protocol';
+import type { ExportPlacement, MeasureTarget, PartResult, VariantZone } from '../geometry/protocol';
 import type { VariantMark } from '../features/series-mark';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
 import { canonicalHistory, historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
@@ -3811,7 +3811,7 @@ export class AppController {
     this.commit({ ...this.state.doc, fabrication: next }, label);
   }
 
-  pickFabricationFace(purpose: 'print' | 'laser' | 'mark', partId: Id): void {
+  pickFabricationFace(purpose: 'print' | 'laser' | 'mark' | 'zone', partId: Id): void {
     // Découpe laser : la vue 3D ne montre que cette pièce, cadrée, le temps de choisir.
     this.set({ mode: { kind: 'pick-fab-face', purpose, partId }, fitRequest: this.state.fitRequest + 1 });
   }
@@ -4288,14 +4288,14 @@ export class AppController {
   private variantAgain = false;
 
   /** Versions d'essai que le plateau attend : une par valeur de chaque série. */
-  private wantedVariants(): { key: string; partId: Id; parameter: string; value: number; mark?: VariantMark }[] {
+  private wantedVariants(): { key: string; partId: Id; parameter: string; value: number; mark?: VariantMark; zone?: VariantZone }[] {
     const params = new Set((this.state.doc.parameters ?? []).map((p) => p.name.toLowerCase()));
     return this.currentPlate().items.flatMap((i) => {
       const series = i.series;
       if (!series || i.copies <= 0 || !params.has(series.parameter.toLowerCase())) return [];
       return seriesValues(series).values.map((value) => {
         const mark = this.markOf(i.partId, series, value);
-        return { key: variantKey(i.partId, series, value), partId: i.partId, parameter: series.parameter, value, ...(mark ? { mark } : {}) };
+        return { key: variantKey(i.partId, series, value), partId: i.partId, parameter: series.parameter, value, ...(mark ? { mark } : {}), ...(series.zone ? { zone: series.zone } : {}) };
       });
     });
   }
@@ -4343,7 +4343,7 @@ export class AppController {
         if (this.state.workspace !== 'fabrication') break;
         let r: Awaited<ReturnType<GeometryClient['variant']>>;
         try {
-          r = await this.deps.client.variant(doc, w.partId, w.parameter, w.value, w.mark);
+          r = await this.deps.client.variant(doc, w.partId, w.parameter, w.value, w.mark, w.zone);
         } catch {
           r = { meshKey: null, mesh: null, analysis: null, failed: null };
         }
@@ -4352,7 +4352,7 @@ export class AppController {
           this.variantAgain = true;
           break;
         }
-        this.set({ printVariants: { ...this.state.printVariants, [w.key]: { mesh: r.mesh, meshKey: r.meshKey, analysis: r.analysis, ...(r.failed ? { failed: r.failed } : {}) } } });
+        this.set({ printVariants: { ...this.state.printVariants, [w.key]: { mesh: r.mesh, meshKey: r.meshKey, analysis: r.analysis, ...(r.failed ? { failed: r.failed } : {}), ...(r.zone ? { zone: r.zone } : {}) } } });
       }
     } finally {
       this.variantRunning = false;
@@ -4373,7 +4373,7 @@ export class AppController {
   private exportVariant(partId: Id, value: number): NonNullable<ExportPlacement['variant']> {
     const series = this.currentPlate().items.find((i) => i.partId === partId)?.series;
     const mark = series ? this.markOf(partId, series, value) : undefined;
-    return { parameter: series?.parameter ?? '', value, ...(mark ? { mark } : {}) };
+    return { parameter: series?.parameter ?? '', value, ...(mark ? { mark } : {}), ...(series?.zone ? { zone: series.zone } : {}) };
   }
 
   /** Imprime la pièce en série d'essais (ou l'arrête) ; au départ : ± 0,2 autour de la valeur actuelle. */
@@ -4434,13 +4434,16 @@ export class AppController {
     const shown = this.state.fabricationTab === 'print' ? this.printLayout().placements.find((p) => p.partId === partId && p.copy === copy)?.mesh : undefined;
     const face = (shown ?? this.state.display[partId]?.mesh)?.faces[pick.index];
     if (!part || !face) return;
-    if (!face.plane) return this.explain('Choisissez une face plate.');
+    if (!face.plane && mode.purpose !== 'zone') return this.explain('Choisissez une face plate.');
     const ref = pickFaceReference(face.tags, part);
     if (!ref) return;
     if (mode.purpose === 'print') this.updatePrintItem(partId, { downFace: ref }, `Poser « ${part.name} » sur une autre face`);
     else if (mode.purpose === 'mark') {
       const series = this.currentPlate().items.find((i) => i.partId === partId)?.series;
       if (series) this.setPrintSeries(partId, { ...series, mark: { height: series.mark?.height ?? 5, depth: series.mark?.depth ?? 0.4, face: ref } });
+    } else if (mode.purpose === 'zone') {
+      const series = this.currentPlate().items.find((i) => i.partId === partId)?.series;
+      if (series) this.setPrintSeries(partId, { ...series, zone: { face: ref, margin: series.zone?.margin ?? 3 } });
     } else
       this.updateFabrication(
         (f) => ({ ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? { ...i, face: ref } : i)) } }),
