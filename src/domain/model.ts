@@ -56,9 +56,38 @@ export interface CadDocument {
 /** Pièce à imprimer : nombre d'exemplaires, échelle (%), face posée sur le plateau. */
 export interface PrintItem {
   partId: Id;
+  /** Exemplaires (par valeur quand la pièce est imprimée en série d'essais). */
   copies: number;
   scale: number;
   downFace?: FaceRef;
+  /** Série d'essais : une version de la pièce par valeur d'un paramètre du projet. */
+  series?: PrintSeries;
+}
+
+/** Plateau d'impression : un nom et les pièces qu'on a choisi d'y mettre (une ligne par pièce). */
+export interface PrintPlate {
+  id: Id;
+  name: string;
+  items: PrintItem[];
+}
+
+/**
+ * Série d'essais (tolérances) : le paramètre prend chaque valeur à tour de rôle et chaque version de
+ * la pièce est posée sur le plateau. `range` : de `from` à `to` en `count` valeurs ; `around` :
+ * `center` ± `delta` par pas de `step` ; `list` : les valeurs `values`.
+ */
+export interface PrintSeries {
+  parameter: string;
+  mode: 'range' | 'around' | 'list';
+  from?: number;
+  to?: number;
+  count?: number;
+  center?: number;
+  delta?: number;
+  step?: number;
+  values?: number[];
+  /** Marquage : la valeur est gravée sur cette face plane de chaque version (hauteur du texte, profondeur, mm). */
+  mark?: { face: FaceRef; height: number; depth: number };
 }
 
 /**
@@ -162,7 +191,10 @@ export interface FabricationSettings {
   print: {
     bed: { x: number; y: number; z: number };
     spacing: number;
+    /** Ancien format (une ligne par pièce, sans plateaux) : repris dans « Plateau 1 » à l'ouverture. */
     items: PrintItem[];
+    /** Plateaux d'impression : chacun porte les pièces qu'on y a ajoutées. */
+    plates?: PrintPlate[];
     /** Emplacements de l'AMS : la fiche matière chargée dans chacun (le 1er = emplacement 1). */
     ams?: Id[];
   };

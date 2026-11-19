@@ -38,7 +38,7 @@ import { subassemblyContent } from '../domain/subassemblies';
 import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
 import { MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, scenarioAssembly, withValue } from '../app/mechanism';
 import { fastenerColor, fastenerMesh, placeFasteners } from '../app/fasteners';
-import { fabricationSettings, printLayout } from '../app/fabrication';
+import { fabricationSettings, printLayout, selectedPlate, variantKey } from '../app/fabrication';
 import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
 import { engravingLoops, partEngravings } from '../app/engravings';
 import { engraveSteps, faceMaterials } from '../domain/paint';
@@ -328,12 +328,15 @@ function buildFabricationInput(s: AppState): ViewportInput {
       .map((p) => ({ partId: `fab:${p.id}:0`, ...lookOf(s, p, s.display[p.id]?.mesh), visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));
     return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face' || s.brush !== null, fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
   }
-  const layout = printLayout(settings.print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
+  const layout = printLayout({ ...settings.print, items: selectedPlate(settings.print, s.printPlateId).items }, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis, (id, series, value) => s.printVariants[variantKey(id, series, value)]);
   const plate = Math.max(0, Math.min(s.printPlate, layout.plates - 1));
   const parts: ViewPartInput[] = layout.placements.filter((p) => p.plate === plate).map((p) => {
     const part = s.doc.parts.find((x) => x.id === p.partId);
     const d = s.display[p.partId];
-    return { partId: `fab:${p.partId}:${p.copy}`, ...lookOf(s, part, d?.mesh), visible: true, meshKey: d?.meshKey ?? null, mesh: d?.mesh ?? null, appearance: 'normal', matrix: p.matrix };
+    // Série d'essais : la version de la pièce pour sa valeur (la pièce actuelle tant qu'elle se calcule, estompée).
+    const mesh = p.mesh ?? d?.mesh ?? null;
+    const meshKey = p.mesh ? (p.meshKey ?? null) : (d?.meshKey ?? null);
+    return { partId: `fab:${p.partId}:${p.copy}`, ...lookOf(s, part, mesh ?? undefined), visible: true, meshKey, mesh, appearance: p.variant?.pending ? 'stale' : s.printItem && s.printItem !== p.partId ? 'dimmed' : 'normal', matrix: p.matrix };
   });
   return {
     mode: 'model',
@@ -1080,7 +1083,7 @@ export function ViewportHost() {
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.versionView],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

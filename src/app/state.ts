@@ -8,6 +8,7 @@ import type { TutorialId } from '../tutorials';
 import type { Level } from './levels';
 import type { SectionPlane } from '../geometry/protocol';
 import type { RollbackState } from './rollback';
+import type { PrintVariant } from './fabrication';
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
 import type { CadDocument, Id, JointEnd } from '../domain/model';
@@ -52,7 +53,7 @@ export type Mode =
       lockedFace?: { instanceId: Id; index: number } | null;
     }
   /** Fabrication : choisir à la souris la face posée sur le plateau (impression) ou la face à découper (laser). */
-  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser'; partId: Id }
+  | { kind: 'pick-fab-face'; purpose: 'print' | 'laser' | 'mark'; partId: Id }
   /** Assemblage : poser de la visserie dans les trous (chaque clic sur un trou en pose un élément). */
   | { kind: 'fastener'; fastenerKind: FastenerKind }
   /** Simulation : cliquer les faces fixées ou chargées (un clic ajoute ou retire une face). */
@@ -265,8 +266,14 @@ export interface AppState {
   fabricationTab: FabricationTab;
   /** Pièce dont on prépare la mise en plan (onglet Fabrication › Documents). */
   fabricationPart: Id | null;
-  /** Plateau d'impression affiché (0, 1, 2…). */
+  /** Plateau d'impression choisi dans la liste (null : le premier). */
+  printPlateId: Id | null;
+  /** Pièce du plateau dont on règle l'impression (panneau de droite) ; null : réglages du plateau. */
+  printItem: Id | null;
+  /** Impression affichée quand les pièces du plateau ne tiennent pas en une fois (0, 1, 2…). */
   printPlate: number;
+  /** Versions d'essai calculées (séries d'essais), par `variantKey` ; vidé quand le modèle change. */
+  printVariants: Record<string, PrintVariant>;
   /** Pièce étudiée dans l'onglet Simulation. */
   simulationPart: Id | null;
   /** Scénario de mouvement ouvert, et réglages des pilotantes pendant le glissement d'un curseur. */
@@ -395,7 +402,10 @@ export function initialState(): AppState {
     explode: 0,
     jointAnimation: null,
     fabricationPart: null,
+    printPlateId: null,
+    printItem: null,
     printPlate: 0,
+    printVariants: {},
     simulationPart: null,
     scenarioId: null,
     scenarioLive: {},

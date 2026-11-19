@@ -6,11 +6,13 @@
 import { formatNumber, readNumber } from '../domain/units';
 import { bomSizeText, scaleLabel } from '../app/drawings';
 import { allows } from '../app/levels';
-import { AMS_SLOTS, PLA_DENSITY } from '../app/fabrication';
+import { AMS_SLOTS, PLA_DENSITY, formatSeriesValue, seriesValues } from '../app/fabrication';
 import { useAppState, useController } from './context';
 import { ToolGroup } from './ToolSectors';
-import { useEffect, useState } from 'preact/hooks';
-import type { DrawingTitle, LaserItem } from '../domain/model';
+import { useEffect, useMemo, useState } from 'preact/hooks';
+import type { DrawingTitle, LaserItem, PrintSeries } from '../domain/model';
+import { variantDocument } from '../features/parameters';
+import { MARK_MIN_HEIGHT } from '../features/series-mark';
 import { sheetOf } from '../domain/material-sheets';
 import { Button, Callout, IconButton, ToolButton } from './components/controls';
 import { NumberInput } from './components/number-input';
@@ -291,84 +293,416 @@ function LaserRightPanel() {
   );
 }
 
-/** Impression 3D : réglages de chaque pièce. */
+/** Impression 3D, à gauche : les plateaux, puis les pièces du plateau choisi. */
 function PrintSection() {
   const c = useController();
   const data = useAppState(
     (s) => {
       const f = c.fabrication();
+      const current = c.currentPlate();
+      const nameOf = (id: string) => s.doc.parts.find((p) => p.id === id);
       return {
-        mode: s.mode.kind === 'pick-fab-face' ? s.mode.partId : null,
-        items: f.print.items.map((i) => {
-          const part = s.doc.parts.find((p) => p.id === i.partId)!;
-          return { ...i, name: part.name, color: part.color };
+        plates: (f.print.plates ?? []).map((p) => ({ id: p.id, name: p.name, count: p.items.reduce((n, i) => n + i.copies * (i.series ? Math.max(1, seriesValues(i.series).values.length) : 1), 0) })),
+        current: current.id,
+        selected: s.printItem,
+        items: current.items.map((i) => {
+          const part = nameOf(i.partId);
+          const values = i.series ? seriesValues(i.series).values.length : 0;
+          return { partId: i.partId, name: part?.name ?? '?', color: part?.color ?? '#888', copies: i.copies, scale: i.scale, series: i.series ? { parameter: i.series.parameter, values } : null };
         }),
+        addable: c.partsToAddToPlate().map((p) => ({ id: p.id, name: p.name })),
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
   );
-  const setItem = (partId: string, patch: Record<string, unknown>, label: string) =>
-    c.updateFabrication((f) => ({ ...f, print: { ...f.print, items: f.print.items.map((i) => (i.partId === partId ? { ...i, ...patch } : i)) } }), label);
   return (
-    <section class="panel-section grow" aria-labelledby="fab-title">
-      <div class="panel-header">
-        <span id="fab-title">Impression 3D</span>
+    <>
+      <section class="panel-section" aria-labelledby="plates-title">
+        <div class="panel-header">
+          <span id="plates-title">Plateaux</span>
+          <IconButton icon="plus" label="Nouveau plateau" small onClick={() => c.addPrintPlate()} />
+        </div>
+        <div class="panel-body">
+          <ul class="feature-list fab-list" aria-label="Plateaux d’impression">
+            {data.plates.map((p) => (
+              <li key={p.id} class="plate-row">
+                <button type="button" class={`doc-part${p.id === data.current ? ' selected' : ''}`} aria-pressed={p.id === data.current} onClick={() => c.selectPrintPlate(p.id)}>
+                  <Icon name="print3d" />
+                  <span class="plate-row-name">{p.name}</span>
+                  <span class="field-help">{p.count ? `${p.count} pièce${p.count > 1 ? 's' : ''}` : 'vide'}</span>
+                </button>
+                {data.plates.length > 1 ? <IconButton icon="trash" label={`Supprimer « ${p.name} »`} small onClick={() => c.removePrintPlate(p.id)} /> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+      <section class="panel-section grow" aria-labelledby="plate-parts-title">
+        <div class="panel-header">
+          <span id="plate-parts-title">Pièces du plateau</span>
+        </div>
+        <div class="panel-body">
+          {data.items.length === 0 ? <p class="empty-hint">Aucune pièce sur ce plateau.</p> : null}
+          <ul class="feature-list fab-list" aria-label="Pièces du plateau">
+            {data.items.map((i) => (
+              <li key={i.partId} class="plate-row">
+                <button type="button" class={`doc-part${i.partId === data.selected ? ' selected' : ''}`} aria-pressed={i.partId === data.selected} onClick={() => c.selectPrintItem(i.partId === data.selected ? null : i.partId)}>
+                  <span class="color-swatch" style={{ background: i.color, width: '14px', height: '14px' }} />
+                  <span class="plate-row-name">{i.name}</span>
+                  <span class="field-help">
+                    {i.series ? `${i.series.parameter} × ${i.series.values}` : `× ${i.copies}`}
+                    {i.scale !== 100 ? ` · ${formatNumber(i.scale, 1)} %` : ''}
+                  </span>
+                </button>
+                <IconButton icon="close" label={`Retirer « ${i.name} » du plateau`} small onClick={() => c.removeFromPlate(i.partId)} />
+              </li>
+            ))}
+          </ul>
+          {data.addable.length ? (
+            <select
+              class="select plate-add"
+              aria-label="Ajouter une pièce au plateau"
+              value=""
+              onChange={(e) => {
+                const id = (e.target as HTMLSelectElement).value;
+                if (id) c.addToPlate(id);
+              }}
+            >
+              <option value="">+ Ajouter une pièce…</option>
+              {data.addable.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          ) : data.items.length === 0 ? (
+            <p class="field-help">Aucune pièce imprimée avec un volume dans le projet.</p>
+          ) : null}
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** Impression 3D, à droite : réglages de la pièce choisie sur le plateau. */
+function PrintItemPanel() {
+  const c = useController();
+  const data = useAppState(
+    (s) => {
+      // La pièce peut quitter le plateau (autre plateau, annulation) juste avant que le panneau se ferme.
+      const item = c.printItem();
+      if (!item) return null;
+      const part = s.doc.parts.find((p) => p.id === item.partId);
+      return {
+        item,
+        name: part?.name ?? '?',
+        color: part?.color ?? '#888',
+        picking: s.mode.kind === 'pick-fab-face' && s.mode.partId === item.partId,
+        progress: item.series ? c.printVariantProgress(item.partId) : null,
+        hasParameters: (s.doc.parameters ?? []).length > 0,
+      };
+    },
+    (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  );
+  if (!data) return null;
+  const i = data.item;
+  const set = (patch: Partial<typeof i>, label: string) => c.updatePrintItem(i.partId, patch, label);
+  return (
+    <aside class="panel right-panel" aria-label={`Impression de « ${data.name} »`}>
+      <div class="panel-title">
+        <IconButton icon="chevron-left" label="Retour au plateau" small onClick={() => c.selectPrintItem(null)} />
+        <span class="color-swatch" style={{ background: data.color, width: '16px', height: '16px' }} />
+        <span>{data.name}</span>
       </div>
-      <div class="panel-body">
-        {data.items.length === 0 ? <p class="empty-hint">Aucune pièce avec un volume.</p> : null}
-        <ul class="feature-list fab-list" aria-label="Pièces à imprimer">
-          {data.items.map((i) => (
-            <li key={i.partId} class="fab-item">
-              <div class="fab-item-title">
-                <span class="color-swatch" style={{ background: i.color, width: '16px', height: '16px' }} />
-                <strong>{i.name}</strong>
-              </div>
-              <div class="limits-row">
-                <label class="mini-field">
-                  <span>Exemplaires</span>
-                  <NumberInput
-                    value={String(i.copies)}
-                    unit="×"
-                    min={0}
-                    max={50}
-                    ariaLabel={`Exemplaires de « ${i.name} »`}
-                    onInput={(t) => {
-                      const v = num(t);
-                      if (v !== null && v >= 0 && v <= 50) setItem(i.partId, { copies: Math.round(v) }, `Exemplaires de « ${i.name} »`);
-                    }}
-                  />
-                </label>
-                <label class="mini-field">
-                  <span>Échelle</span>
-                  <NumberInput
-                    value={formatNumber(i.scale, 1)}
-                    unit="%"
-                    step={10}
-                    min={1}
-                    max={1000}
-                    ariaLabel={`Échelle de « ${i.name} »`}
-                    onInput={(t) => {
-                      const v = num(t);
-                      if (v !== null && v > 0 && v <= 1000) setItem(i.partId, { scale: v }, `Échelle de « ${i.name} »`);
-                    }}
-                  />
-                </label>
-              </div>
-              <div class="fab-face">
-                <Button small icon="target" onClick={() => (data.mode === i.partId ? c.cancelFabricationPick() : c.pickFabricationFace('print', i.partId))}>
-                  {data.mode === i.partId ? 'Cliquez une face…' : 'Face du dessous'}
-                </Button>
-                {i.downFace ? (
-                  <button type="button" class="tl-link" onClick={() => setItem(i.partId, { downFace: undefined }, `Orientation d’origine de « ${i.name} »`)}>
-                    orientation d’origine
-                  </button>
-                ) : null}
-              </div>
-            </li>
+      <div class="panel-content">
+        <div class="limits-row">
+          <label class="mini-field">
+            <span>{i.series ? 'Exemplaires par valeur' : 'Exemplaires'}</span>
+            <NumberInput
+              value={String(i.copies)}
+              unit="×"
+              min={1}
+              max={50}
+              ariaLabel={`Exemplaires de « ${data.name} »`}
+              onInput={(t) => {
+                const v = num(t);
+                if (v !== null && v >= 1 && v <= 50) set({ copies: Math.round(v) }, `Exemplaires de « ${data.name} »`);
+              }}
+            />
+          </label>
+          <label class="mini-field">
+            <span>Échelle</span>
+            <NumberInput
+              value={formatNumber(i.scale, 1)}
+              unit="%"
+              step={10}
+              min={1}
+              max={1000}
+              ariaLabel={`Échelle de « ${data.name} »`}
+              onInput={(t) => {
+                const v = num(t);
+                if (v !== null && v > 0 && v <= 1000) set({ scale: v }, `Échelle de « ${data.name} »`);
+              }}
+            />
+          </label>
+        </div>
+        <div class="fab-face">
+          <Button small icon="target" onClick={() => (data.picking ? c.cancelFabricationPick() : c.pickFabricationFace('print', i.partId))}>
+            {data.picking ? 'Cliquez une face…' : 'Face du dessous'}
+          </Button>
+          {i.downFace ? (
+            <button type="button" class="tl-link" onClick={() => set({ downFace: undefined }, `Orientation d’origine de « ${data.name} »`)}>
+              orientation d’origine
+            </button>
+          ) : null}
+        </div>
+        {i.series && i.scale !== 100 ? (
+          <Callout kind="warning">
+            Échelle {formatNumber(i.scale, 1)} % : les valeurs essayées sont agrandies d’autant. Pour un essai de tolérance, laissez 100 %.
+          </Callout>
+        ) : null}
+        {i.series ? (
+          <SeriesEditor partId={i.partId} name={data.name} series={i.series} progress={data.progress} />
+        ) : (
+          <div class="fab-face">
+            <Button
+              small
+              icon="pattern"
+              hint="Une version de la pièce par valeur d’un paramètre, pour trouver le bon jeu"
+              disabledReason={data.hasParameters ? null : 'Aucun paramètre dans le projet : créez-en un dans Paramètres.'}
+              onClick={() => {
+                const series = c.defaultPrintSeries();
+                if (series) c.setPrintSeries(i.partId, series);
+              }}
+            >
+              Série d’essais
+            </Button>
+          </div>
+        )}
+      </div>
+      <div class="panel-actions">
+        <Button icon="close" onClick={() => c.removeFromPlate(i.partId)}>
+          Retirer du plateau
+        </Button>
+      </div>
+    </aside>
+  );
+}
+
+const SERIES_MODES: { value: PrintSeries['mode']; label: string; title: string }[] = [
+  { value: 'around', label: 'Autour', title: 'Valeur ± écart, par pas' },
+  { value: 'range', label: 'Entre', title: 'De … à …, en n essais' },
+  { value: 'list', label: 'Liste', title: 'Valeurs données une à une' },
+];
+
+/** Série d'essais d'une pièce : paramètre, valeurs, avancement du calcul, valeur retenue. */
+function SeriesEditor(props: { partId: string; name: string; series: PrintSeries; progress: { done: number; total: number } | null }) {
+  const c = useController();
+  const { partId, name, series } = props;
+  const doc = useAppState((s) => s.doc);
+  const picking = useAppState((s) => s.mode.kind === 'pick-fab-face' && s.mode.purpose === 'mark' && s.mode.partId === partId);
+  const params = doc.parameters ?? [];
+  const known = params.find((p) => p.name.toLowerCase() === series.parameter.toLowerCase());
+  const r = seriesValues(series);
+  const set = (patch: Partial<PrintSeries>) => c.setPrintSeries(partId, { ...series, ...patch });
+  // Paramètre sans effet sur la pièce : toutes les versions seraient identiques.
+  const unused = useMemo(() => {
+    const part = doc.parts.find((p) => p.id === partId);
+    if (!known || !part || r.values.length < 2) return false;
+    return [r.values[0]!, r.values[r.values.length - 1]!].every((v) => variantDocument(doc, known.name, v).parts.find((p) => p.id === partId) === part);
+  }, [doc.parts, doc.parameters, partId, known?.name, r.values.join(';')]);
+  const [kept, setKept] = useState<number | null>(null);
+  const keep = kept !== null && r.values.includes(kept) ? kept : (r.values[Math.floor(r.values.length / 2)] ?? null);
+  const changeMode = (mode: PrintSeries['mode']) => {
+    if (mode === series.mode) return;
+    const v = r.values;
+    const min = v[0] ?? 0;
+    const max = v[v.length - 1] ?? 0;
+    if (mode === 'range') set({ mode, from: min, to: max, count: Math.max(2, v.length) });
+    else if (mode === 'around') set({ mode, center: (min + max) / 2, delta: (max - min) / 2, step: v.length > 1 ? v[1]! - v[0]! : 0.1 });
+    else set({ mode, values: v });
+  };
+  const field = (label: string, value: number | undefined, key: keyof PrintSeries, opts: { unit?: string; step?: number; min?: number; integer?: boolean } = {}) => (
+    <label class="mini-field">
+      <span>{label}</span>
+      <NumberInput
+        value={value === undefined ? '' : formatNumber(value, 4)}
+        unit={opts.unit ?? ''}
+        step={opts.step ?? 0.05}
+        {...(opts.min !== undefined ? { min: opts.min } : {})}
+        ariaLabel={`Série d’essais de « ${name} » : ${label.toLowerCase()}`}
+        onInput={(t) => {
+          const n = num(t);
+          if (n !== null && (opts.min === undefined || n >= opts.min)) set({ [key]: opts.integer ? Math.round(n) : n });
+        }}
+      />
+    </label>
+  );
+  return (
+    <div class="fab-series" role="group" aria-label={`Série d’essais de « ${name} »`}>
+      <div class="fab-series-head">
+        <strong>Série d’essais</strong>
+        <button type="button" class="tl-link" onClick={() => c.setPrintSeries(partId, null)}>
+          arrêter
+        </button>
+      </div>
+      <label class="mini-field">
+        <span>Paramètre</span>
+        <select
+          class="select"
+          aria-label={`Paramètre essayé sur « ${name} »`}
+          value={known?.name ?? ''}
+          onChange={(e) => {
+            const parameter = (e.target as HTMLSelectElement).value;
+            // Autour : on repart de la valeur actuelle du nouveau paramètre.
+            const center = resolveValue(params, parameter);
+            set(series.mode === 'around' && center !== null ? { parameter, center } : { parameter });
+          }}
+        >
+          {known ? null : <option value="">{series.parameter} (supprimé)</option>}
+          {params.map((p) => (
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
           ))}
-        </ul>
+        </select>
+      </label>
+      <div class="segmented small" role="group" aria-label="Valeurs essayées">
+        {SERIES_MODES.map((m) => (
+          <button type="button" key={m.value} aria-pressed={m.value === series.mode} title={m.title} onClick={() => changeMode(m.value)}>
+            {m.label}
+          </button>
+        ))}
       </div>
-    </section>
+      {series.mode === 'around' ? (
+        <div class="limits-row three">
+          {field('Valeur', series.center, 'center', { unit: 'mm' })}
+          {field('± écart', series.delta, 'delta', { unit: 'mm', min: 0 })}
+          {field('Pas', series.step, 'step', { unit: 'mm', min: 0 })}
+        </div>
+      ) : series.mode === 'range' ? (
+        <div class="limits-row three">
+          {field('De', series.from, 'from', { unit: 'mm' })}
+          {field('À', series.to, 'to', { unit: 'mm' })}
+          {field('Essais', series.count, 'count', { unit: '×', step: 1, min: 1, integer: true })}
+        </div>
+      ) : (
+        <SeriesList name={name} values={series.values ?? []} onChange={(values) => set({ values })} />
+      )}
+      {r.error ? (
+        <span class="field-error" role="alert">
+          {r.error}
+        </span>
+      ) : (
+        <p class="field-help">
+          {r.values.length} essai{r.values.length > 1 ? 's' : ''} : {r.values.map(formatSeriesValue).join(' · ')}
+        </p>
+      )}
+      {props.progress && props.progress.done < props.progress.total ? (
+        <p class="field-help" aria-live="polite">
+          Calcul des versions : {props.progress.done} / {props.progress.total}
+        </p>
+      ) : null}
+      {unused ? <Callout kind="warning">« {known!.name} » ne modifie pas « {name} » : toutes les versions sont identiques.</Callout> : null}
+      <div class="fab-series-mark" role="group" aria-label="Marquage de la valeur">
+        <div class="fab-face">
+          <Button small icon="text" hint="Grave la valeur essayée sur une face plane de chaque version" onClick={() => (picking ? c.cancelFabricationPick() : c.pickFabricationFace('mark', partId))}>
+            {picking ? 'Cliquez une face…' : series.mark ? 'Face du marquage' : 'Marquer la valeur'}
+          </Button>
+          {series.mark ? (
+            <button type="button" class="tl-link" onClick={() => c.setPrintSeries(partId, (({ mark: _m, ...rest }) => rest)(series))}>
+              sans marquage
+            </button>
+          ) : null}
+        </div>
+        {series.mark ? (
+          <div class="limits-row">
+            <label class="mini-field">
+              <span>Hauteur du texte</span>
+              <NumberInput
+                value={formatNumber(series.mark.height, 2)}
+                unit="mm"
+                step={0.5}
+                min={MARK_MIN_HEIGHT}
+                ariaLabel={`Marquage de « ${name} » : hauteur du texte`}
+                onInput={(t) => {
+                  const n = num(t);
+                  if (n !== null && n >= MARK_MIN_HEIGHT && n <= 100) set({ mark: { ...series.mark!, height: n } });
+                }}
+              />
+            </label>
+            <label class="mini-field">
+              <span>Profondeur</span>
+              <NumberInput
+                value={formatNumber(series.mark.depth, 2)}
+                unit="mm"
+                step={0.1}
+                min={0}
+                ariaLabel={`Marquage de « ${name} » : profondeur`}
+                onInput={(t) => {
+                  const n = num(t);
+                  if (n !== null && n >= 0 && n <= 10) set({ mark: { ...series.mark!, depth: n } });
+                }}
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+      {known && keep !== null ? (
+        <div class="fab-face">
+          <select class="select" aria-label={`Valeur retenue pour « ${known.name} »`} value={String(keep)} onChange={(e) => setKept(Number((e.target as HTMLSelectElement).value))}>
+            {r.values.map((v) => (
+              <option key={v} value={String(v)}>
+                {known.name} = {formatSeriesValue(v)}
+              </option>
+            ))}
+          </select>
+          <Button small hint={`Donne cette valeur au paramètre « ${known.name} » et termine la série`} onClick={() => c.keepSeriesValue(partId, keep)}>
+            Retenir
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Valeur actuelle d'un paramètre du projet (null s'il est en erreur). */
+function resolveValue(params: readonly { name: string; expression: string }[], name: string): number | null {
+  const own = params.find((p) => p.name === name);
+  if (!own) return null;
+  return num(own.expression) ?? null;
+}
+
+/** Liste de valeurs saisie librement (« 0,1 ; 0,15 ; 0,2 »), prise en compte à la validation. */
+function SeriesList(props: { name: string; values: number[]; onChange: (values: number[]) => void }) {
+  const shown = props.values.map(formatSeriesValue).join(' ; ');
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
+  const apply = () => {
+    const values = text
+      .split(/[;\s]+/)
+      .filter(Boolean)
+      .map((t) => num(t));
+    if (values.every((v): v is number => v !== null)) props.onChange(values);
+    else setText(shown);
+  };
+  return (
+    <label class="mini-field">
+      <span>Valeurs (séparées par ;)</span>
+      <input
+        class="text-input"
+        type="text"
+        aria-label={`Série d’essais de « ${props.name} » : valeurs`}
+        value={text}
+        placeholder="0,1 ; 0,15 ; 0,2"
+        onInput={(e) => setText((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        onBlur={apply}
+      />
+    </label>
   );
 }
 
@@ -379,6 +713,12 @@ export function FabricationRightPanel() {
 }
 
 function PrintRightPanel() {
+  const c = useController();
+  const hasItem = useAppState(() => c.printItem() !== null);
+  return hasItem ? <PrintItemPanel /> : <PlatePanel />;
+}
+
+function PlatePanel() {
   const c = useController();
   const info = useAppState(
     () => {
@@ -397,6 +737,7 @@ function PrintRightPanel() {
         plateCount: on.length,
         plateGrams: on.reduce((g, p) => g + p.grams, 0),
         ams: c.amsSlots().map((m) => ({ id: m.id, name: m.name, color: m.color })),
+        name: c.currentPlate().name,
       };
     },
     (a, b) => JSON.stringify(a) === JSON.stringify(b),
@@ -409,6 +750,7 @@ function PrintRightPanel() {
         <span>Plateau d’impression</span>
       </div>
       <div class="panel-content">
+        <NameField value={info.name} label="Nom du plateau" onDone={(v) => c.renamePrintPlate(v)} />
         {info.ams.length ? (
           <div class="field" role="group" aria-labelledby="ams-title">
             <span class="field-label" id="ams-title">
@@ -461,19 +803,19 @@ function PrintRightPanel() {
           </div>
         </div>
         {info.plates > 1 ? (
-          <div class="plate-nav" role="group" aria-label="Plateaux">
-            <IconButton icon="chevron-left" label="Plateau précédent" small disabled={info.plate === 0} onClick={() => c.setPrintPlate(info.plate - 1)} />
+          <div class="plate-nav" role="group" aria-label="Impressions">
+            <IconButton icon="chevron-left" label="Impression précédente" small disabled={info.plate === 0} onClick={() => c.setPrintPlate(info.plate - 1)} />
             <strong aria-live="polite">
-              Plateau {info.plate + 1} sur {info.plates}
+              Impression {info.plate + 1} sur {info.plates}
             </strong>
-            <IconButton icon="chevron-right" label="Plateau suivant" small disabled={info.plate >= info.plates - 1} onClick={() => c.setPrintPlate(info.plate + 1)} />
+            <IconButton icon="chevron-right" label="Impression suivante" small disabled={info.plate >= info.plates - 1} onClick={() => c.setPrintPlate(info.plate + 1)} />
           </div>
         ) : null}
         <p>
           {info.plates > 1 ? (
             <>
-              <strong>{info.plateCount}</strong> pièce{info.plateCount > 1 ? 's' : ''} sur ce plateau (≈ {formatNumber(info.plateGrams, 1)} g) ·{' '}
-              <strong>{info.count}</strong> en tout sur {info.plates} plateaux · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
+              Ne tient pas en une fois : <strong>{info.plateCount}</strong> pièce{info.plateCount > 1 ? 's' : ''} sur cette impression (≈ {formatNumber(info.plateGrams, 1)} g) ·{' '}
+              <strong>{info.count}</strong> en tout sur {info.plates} impressions · matière ≈ <strong>{formatNumber(info.grams, 1)} g</strong>
             </>
           ) : (
             <>
@@ -490,10 +832,10 @@ function PrintRightPanel() {
       </div>
       <div class="panel-actions">
         <Button variant="primary" icon="print3d" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => void c.sendToSlicer()}>
-          {info.plates > 1 ? `Envoyer le plateau ${info.plate + 1} au slicer` : 'Envoyer au slicer'}
+          {info.plates > 1 ? `Envoyer l’impression ${info.plate + 1} au slicer` : 'Envoyer au slicer'}
         </Button>
         <Button icon="export" disabledReason={info.count === 0 ? 'Le plateau est vide.' : null} onClick={() => c.showExportDialog('3mf')}>
-          {info.plates > 1 ? 'Exporter les plateaux (3MF)' : 'Exporter le plateau (3MF)'}
+          {info.plates > 1 ? 'Exporter les impressions (3MF)' : 'Exporter le plateau (3MF)'}
         </Button>
       </div>
     </aside>

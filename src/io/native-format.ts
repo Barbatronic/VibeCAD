@@ -18,6 +18,8 @@ import type {
   Assembly,
   AssemblyFastener,
   FabricationSettings,
+  PrintSeries,
+  PrintItem,
   SimulationSettings,
   ProjectParameter,
   StudyFace,
@@ -370,23 +372,66 @@ function readFabrication(v: Validator, x: unknown, path: string, partIds: Readon
   const pr = obj(v, o.print, `${path}.print`) ?? {};
   const la = obj(v, o.laser, `${path}.laser`) ?? {};
   const bed = obj(v, pr.bed, `${path}.print.bed`) ?? {};
-  const face = (io: Record<string, unknown>, key: string, p: string) => (io[key] !== undefined ? { [key]: readFaceRef(v, io[key], `${p}.${key}`) } : {});
   return {
     print: {
       bed: { x: num(v, bed, 'x', `${path}.print.bed`, { min: 1 }), y: num(v, bed, 'y', `${path}.print.bed`, { min: 1 }), z: num(v, bed, 'z', `${path}.print.bed`, { min: 1 }) },
       spacing: num(v, pr, 'spacing', `${path}.print`, { min: 0 }),
       items: arr(v, pr, 'items', `${path}.print`)
-        .map((raw, i) => {
-          const ip = `${path}.print.items[${i}]`;
-          const io = obj(v, raw, ip) ?? {};
-          return { partId: str(v, io, 'partId', ip), copies: num(v, io, 'copies', ip, { min: 0, integer: true }), scale: num(v, io, 'scale', ip, { min: 0 }), ...face(io, 'downFace', ip) };
-        })
+        .map((raw, i) => readPrintItem(v, raw, `${path}.print.items[${i}]`))
         .filter((i) => partIds.has(i.partId)),
+      ...(pr.plates !== undefined
+        ? {
+            plates: arr(v, pr, 'plates', `${path}.print`).map((raw, k) => {
+              const pp = `${path}.print.plates[${k}]`;
+              const po = obj(v, raw, pp) ?? {};
+              return { id: str(v, po, 'id', pp), name: str(v, po, 'name', pp), items: arr(v, po, 'items', pp).map((it, i) => readPrintItem(v, it, `${pp}.items[${i}]`)).filter((i) => partIds.has(i.partId)) };
+            }),
+          }
+        : {}),
       ...(pr.ams !== undefined ? { ams: arr(v, pr, 'ams', `${path}.print`).filter((x): x is string => typeof x === 'string') } : {}),
     },
     laser: readLaser(v, la, `${path}.laser`, partIds),
     ...(o.drawings !== undefined ? { drawings: readDrawings(v, o, path, partIds) } : {}),
   };
+}
+
+/** Pièce posée sur un plateau d'impression. */
+function readPrintItem(v: Validator, raw: unknown, ip: string): PrintItem {
+  const io = obj(v, raw, ip) ?? {};
+  return {
+    partId: str(v, io, 'partId', ip),
+    copies: num(v, io, 'copies', ip, { min: 0, integer: true }),
+    scale: num(v, io, 'scale', ip, { min: 0 }),
+    ...(io.downFace !== undefined ? { downFace: readFaceRef(v, io.downFace, `${ip}.downFace`) } : {}),
+    ...(io.series !== undefined ? { series: readSeries(v, io.series, `${ip}.series`) } : {}),
+  };
+}
+
+const SERIES_MODES = ['range', 'around', 'list'] as const;
+
+/** Série d'essais d'une pièce imprimée (valeurs absentes : série à compléter). */
+function readSeries(v: Validator, x: unknown, path: string): PrintSeries {
+  const o = obj(v, x, path) ?? {};
+  const mode = SERIES_MODES.find((m) => m === o.mode);
+  if (!mode) v.error(`${path}.mode`, 'range, around ou list attendu');
+  const opt = (key: keyof PrintSeries) => (o[key] !== undefined ? { [key]: num(v, o, key, path) } : {});
+  return {
+    parameter: str(v, o, 'parameter', path),
+    mode: mode ?? 'range',
+    ...opt('from'),
+    ...opt('to'),
+    ...opt('count'),
+    ...opt('center'),
+    ...opt('delta'),
+    ...opt('step'),
+    ...(o.values !== undefined ? { values: arr(v, o, 'values', path).filter((n): n is number => typeof n === 'number' && Number.isFinite(n)) } : {}),
+    ...(o.mark !== undefined ? { mark: readSeriesMark(v, o.mark, `${path}.mark`) } : {}),
+  };
+}
+
+function readSeriesMark(v: Validator, x: unknown, path: string): NonNullable<PrintSeries['mark']> {
+  const o = obj(v, x, path) ?? {};
+  return { face: readFaceRef(v, o.face, `${path}.face`), height: num(v, o, 'height', path, { min: 0 }), depth: num(v, o, 'depth', path, { min: 0 }) };
 }
 
 const DRAWING_VIEWS = ['face', 'dessus', 'gauche'] as const;

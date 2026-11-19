@@ -37,6 +37,7 @@ test('parcours guidés : choix du parcours, assemblage puis fabrication suivis p
   await expect(done).toBeVisible();
   await tour.getByRole('button', { name: 'Suivant' }).click();
   await page.click('#fab-print');
+  await page.getByLabel('Ajouter une pièce au plateau').selectOption({ label: 'Pièce 1' });
   await page.getByLabel('Exemplaires de « Pièce 1 »').fill('2');
   await expect(done).toBeVisible();
   await tour.getByRole('button', { name: 'Suivant' }).click();

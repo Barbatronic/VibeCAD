@@ -21,7 +21,8 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
   await page.click('#fab-print');
-  await expect(page.getByRole('list', { name: 'Pièces à imprimer' })).toBeVisible();
+  await expect(page.getByText('Aucune pièce sur ce plateau.')).toBeVisible();
+  await page.getByLabel('Ajouter une pièce au plateau').selectOption({ label: 'Pièce 1' });
   await page.getByLabel('Exemplaires de « Pièce 1 »').fill('2');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.printLayout().placements.length)).toBe(2);
   await page.waitForTimeout(500);
@@ -30,7 +31,7 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   await page.getByRole('button', { name: 'Face du dessous' }).click();
   const top = await topFaceOnScreen(page, 0);
   await page.mouse.click(top.x, top.y);
-  await expect.poll(() => appState(page, (s) => !!s.doc.fabrication?.print.items[0]?.downFace)).toBe(true);
+  await expect.poll(() => appState(page, (s) => !!s.doc.fabrication?.print.plates?.[0]?.items[0]?.downFace)).toBe(true);
   await page.screenshot({ path: 'tests/output/e2e-fabrication-plateau.png' });
 
   await openFileMenu(page);
@@ -38,7 +39,7 @@ test('fabrication : deux exemplaires posés sur leur face du dessus, export du p
   await page.click('#fab-export-3mf');
   const dialog = page.getByRole('dialog', { name: /3MF/ });
   const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Exporter' }).click()]);
-  expect(download.suggestedFilename()).toMatch(/plateau.*\.3mf$/);
+  expect(download.suggestedFilename()).toMatch(/Plateau 1.*\.3mf$/);
   await download.saveAs('tests/output/e2e-plateau.3mf');
   const model = new TextDecoder().decode((await readZip(new Uint8Array(readFileSync('tests/output/e2e-plateau.3mf')))).get('3D/3dmodel.model'));
   expect((model.match(/<object /g) ?? []).length).toBe(2);
@@ -96,24 +97,26 @@ test('impression 3D : vingt exemplaires répartis sur deux plateaux, export de c
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
   await page.click('#fab-print');
+  await page.getByLabel('Ajouter une pièce au plateau').selectOption({ label: 'Pièce 1' });
   await page.getByLabel('Exemplaires de « Pièce 1 »').fill('20');
-  await expect(page.getByRole('group', { name: 'Plateaux' })).toContainText('Plateau 1 sur 2');
+  await page.getByRole('button', { name: 'Retour au plateau' }).click();
+  await expect(page.getByRole('group', { name: 'Impressions' })).toContainText('Impression 1 sur 2');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.parts.size)).toBe(18);
-  await page.getByRole('button', { name: 'Plateau suivant' }).click();
-  await expect(page.getByRole('group', { name: 'Plateaux' })).toContainText('Plateau 2 sur 2');
+  await page.getByRole('button', { name: 'Impression suivante' }).click();
+  await expect(page.getByRole('group', { name: 'Impressions' })).toContainText('Impression 2 sur 2');
   await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.parts.size)).toBe(2);
   await page.screenshot({ path: 'tests/output/e2e-plateaux.png' });
 
   await page.click('#fab-export-3mf');
   const dialog = page.getByRole('dialog', { name: /3MF/ });
-  await expect(dialog.getByRole('radio', { name: 'Plateau 2' })).toBeChecked();
-  await dialog.getByRole('radio', { name: /Tous les plateaux/ }).check();
+  await expect(dialog.getByRole('radio', { name: 'Impression 2' })).toBeChecked();
+  await dialog.getByRole('radio', { name: /Toutes/ }).check();
   const downloads: string[] = [];
   page.on('download', (d) => downloads.push(d.suggestedFilename()));
   await dialog.getByRole('button', { name: 'Exporter' }).click();
   await expect.poll(() => downloads.length).toBe(2);
-  expect(downloads[0]).toMatch(/plateau 1\.3mf$/);
-  expect(downloads[1]).toMatch(/plateau 2\.3mf$/);
+  expect(downloads[0]).toMatch(/Plateau 1 \(1\)\.3mf$/);
+  expect(downloads[1]).toMatch(/Plateau 1 \(2\)\.3mf$/);
 });
 
 test('documents : aperçu de la mise en plan, export PDF, gabarit 1:1 et nomenclature CSV', async ({ page }) => {
@@ -156,12 +159,13 @@ test('envoyer au slicer : un clic télécharge le plateau, le réglage du naviga
   await buildPlateViaUi(page);
   await page.click('#tab-fabrication');
   await page.click('#fab-print');
-  await expect(page.getByRole('list', { name: 'Pièces à imprimer' })).toBeVisible();
+  await page.getByLabel('Ajouter une pièce au plateau').selectOption({ label: 'Pièce 1' });
+  await page.getByRole('button', { name: 'Retour au plateau' }).click();
 
   const first = page.waitForEvent('download');
   await page.click('#fab-send-slicer');
   const file = await first;
-  expect(file.suggestedFilename()).toMatch(/plateau\.3mf$/);
+  expect(file.suggestedFilename()).toMatch(/Plateau 1\.3mf$/);
   await file.saveAs('tests/output/envoi-slicer.3mf');
   const zip = await readZip(new Uint8Array(readFileSync('tests/output/envoi-slicer.3mf')));
   expect(zip.has('3D/3dmodel.model')).toBe(true);
@@ -184,7 +188,7 @@ test('envoyer au slicer : un clic télécharge le plateau, le réglage du naviga
   // Même envoi depuis le bas du panneau du plateau.
   const third = page.waitForEvent('download');
   await page.locator('.right-panel').getByRole('button', { name: 'Envoyer au slicer' }).click();
-  expect((await third).suggestedFilename()).toMatch(/plateau\.3mf$/);
+  expect((await third).suggestedFilename()).toMatch(/Plateau 1\.3mf$/);
   await page.screenshot({ path: 'tests/output/e2e-envoi-panneau.png' });
 
   // Le choix est retenu sur l'appareil.

@@ -104,12 +104,13 @@ function ExportDialog() {
   const parts = useAppState((s) => s.doc.parts.map((p) => ({ part: p, display: s.display[p.id] })));
   const assemblyCount = useAppState((s) => s.doc.assembly?.instances.length ?? 0);
   const plates = useAppState((s) => (s.dialog?.kind === 'export' && s.dialog.plate !== undefined ? c.printLayout().plates : 0));
+  const plateName = useAppState((s) => (s.dialog?.kind === 'export' && s.dialog.plate !== undefined ? c.currentPlate().name : ''));
   if (!d) return null;
   const close = () => c.setDialog(null);
   const isStep = d.format === 'step';
   return (
     <Modal
-      title={d.plate !== undefined ? 'Exporter le plateau en 3MF' : `Exporter${d.assembly ? ' l’assemblage' : ''}`}
+      title={d.plate !== undefined ? `Exporter « ${plateName} » en 3MF` : `Exporter${d.assembly ? ' l’assemblage' : ''}`}
       onClose={close}
       footer={
         <>
@@ -140,16 +141,16 @@ function ExportDialog() {
           </p>
           {plates > 1 ? (
             <fieldset style={{ border: 'none', padding: 0, margin: '0 0 8px' }}>
-              <legend class="field-label">Plateaux à exporter</legend>
+              <legend class="field-label">Le plateau ne tient pas en une fois : impressions à exporter</legend>
               {Array.from({ length: plates }, (_v, i) => (
                 <label class="checkbox-row" key={i}>
                   <input type="radio" name="export-plate" checked={d.plate === i} onChange={() => c.setExportPlate(i)} />
-                  <span>Plateau {i + 1}</span>
+                  <span>Impression {i + 1}</span>
                 </label>
               ))}
               <label class="checkbox-row">
                 <input type="radio" name="export-plate" checked={d.plate === 'all'} onChange={() => c.setExportPlate('all')} />
-                <span>Tous les plateaux (un fichier 3MF par plateau)</span>
+                <span>Toutes (un fichier 3MF par impression)</span>
               </label>
             </fieldset>
           ) : null}

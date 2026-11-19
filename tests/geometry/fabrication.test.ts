@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { printLayout, PLA_DENSITY, DEFAULT_FABRICATION } from '../../src/app/fabrication';
+import { printLayout, PLA_DENSITY, DEFAULT_FABRICATION, seriesMark, variantKey, type PrintVariant } from '../../src/app/fabrication';
+import { applyParameters } from '../../src/features/parameters';
 import { findPart } from '../../src/domain/document';
 import type { CadDocument, Id } from '../../src/domain/model';
 import { RecomputeEngine, type PartEvaluation } from '../../src/features/engine';
@@ -92,5 +93,125 @@ describe('fabrication : plateau d’impression', () => {
     const xsv = Array.from(model.matchAll(/<vertex x="([^"]+)"/g), (m) => Number(m[1]));
     expect(Math.max(...xsv) - Math.min(...xsv)).toBeCloseTo(30, 3);
     expect(findPart(doc, ids.partId)!.name).toBe('Pièce 1');
+  });
+
+  it('série d’essais : une version par valeur, posée dans l’ordre, exportée telle quelle en 3MF', async () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const part = base.parts[0]!;
+    // Épaisseur de la plaque = paramètre « ep ».
+    const doc = applyParameters({
+      ...base,
+      parts: [{ ...part, features: part.features.map((f) => (f.id === ids.extrude ? { ...f, expressions: { distance: 'ep' } } : f)) }],
+      parameters: [{ name: 'ep', expression: '5' }],
+    });
+    const svc = new GeometryService(kernel);
+    const main = svc.evaluate(documentForWorker(doc));
+    const values = [3, 4, 6];
+    const variants = new Map<string, PrintVariant>();
+    for (const v of values) {
+      const r = svc.variant(documentForWorker(doc), ids.partId, 'ep', v);
+      expect(r.failed).toBeNull();
+      expect(r.analysis!.bbox!.max.z - r.analysis!.bbox!.min.z).toBeCloseTo(v, 6);
+      variants.set(variantKey(ids.partId, { parameter: 'ep' }, v), { mesh: r.mesh, meshKey: r.meshKey, analysis: r.analysis });
+    }
+    // Calcul à part : le projet ouvert garde son cache (même clé de maillage au recalcul suivant).
+    const again = svc.evaluate(documentForWorker(doc), main.parts.map((p) => p.meshKey!));
+    expect(again.parts[0]!.meshKey).toBe(main.parts[0]!.meshKey);
+    expect(again.parts[0]!.mesh).toBeNull();
+
+    const settings = { ...DEFAULT_FABRICATION.print, items: [{ partId: ids.partId, copies: 1, scale: 100, series: { parameter: 'ep', mode: 'list' as const, values: [6, 3, 4] } }] };
+    const parts = doc.parts.map((p) => ({ id: p.id, name: p.name }));
+    const pending = printLayout(settings, parts, () => main.parts[0]!.mesh, () => main.parts[0]!.analysis);
+    expect(pending.placements.map((p) => p.variant)).toEqual(values.map((value) => ({ parameter: 'ep', value, pending: true })));
+    const layout = printLayout(settings, parts, () => main.parts[0]!.mesh, () => main.parts[0]!.analysis, (id, series, value) => variants.get(variantKey(id, series, value)));
+    expect(layout.warnings).toEqual([]);
+    expect(layout.placements.map((p) => p.name)).toEqual(['Pièce 1 — ep 3', 'Pièce 1 — ep 4', 'Pièce 1 — ep 6']);
+    expect(layout.placements.map((p) => Math.round(p.size.z))).toEqual(values);
+    expect(layout.placements.every((p) => !p.variant!.pending && p.mesh)).toBe(true);
+    // Rangées de gauche à droite dans l'ordre croissant.
+    const xs = layout.placements.map((p) => transformPoint4(p.matrix, { x: 0, y: 0, z: 0 }).x);
+    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+
+    const { bytes } = await svc.export3mf(
+      documentForWorker(doc),
+      [ids.partId],
+      layout.placements.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, variant: { parameter: p.variant!.parameter, value: p.variant!.value } })),
+    );
+    const model = new TextDecoder().decode((await readZip(bytes)).get('3D/3dmodel.model'));
+    expect(model).toContain('name="Pièce 1 — ep 3"');
+    const objects = model.split('<object ').slice(1);
+    expect(objects).toHaveLength(3);
+    const heights = objects.map((o) => {
+      const zs = Array.from(o.matchAll(/ z="([^"]+)"/g), (m) => Number(m[1]));
+      return Math.max(...zs) - Math.min(...zs);
+    });
+    heights.forEach((h, i) => expect(h).toBeCloseTo(values[i]!, 3));
+  });
+
+  it('série d’essais marquée : la valeur est gravée au centre de la face choisie', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const part = base.parts[0]!;
+    const doc = applyParameters({
+      ...base,
+      parts: [{ ...part, features: part.features.map((f) => (f.id === ids.extrude ? { ...f, expressions: { distance: 'ep' } } : f)) }],
+      parameters: [{ name: 'ep', expression: '5' }],
+    });
+    const svc = new GeometryService(kernel);
+    const main = svc.evaluate(documentForWorker(doc));
+    const series = { parameter: 'ep', mode: 'list' as const, values: [4], mark: { face: { featureId: ids.extrude, role: 'end' as const }, height: 6, depth: 0.4 } };
+    const mark = seriesMark(main.parts[0]!.mesh, series, 4)!;
+    expect(mark.text).toBe('4');
+    expect(mark.tooSmall).toBe(false);
+    // Plaque 60 × 30 : le texte (6 mm de haut) est centré vers (30, 15).
+    expect(mark.anchor.y + mark.height / 2).toBeCloseTo(15, 3);
+    const plain = svc.variant(documentForWorker(doc), ids.partId, 'ep', 4);
+    const marked = svc.variant(documentForWorker(doc), ids.partId, 'ep', 4, mark);
+    expect(marked.failed).toBeNull();
+    expect(marked.analysis!.bbox!.max.z).toBeCloseTo(4, 6);
+    // Le chiffre est creusé : un peu de matière en moins, plus de faces.
+    expect(marked.analysis!.volume).toBeLessThan(plain.analysis!.volume - 1);
+    expect(marked.analysis!.volume).toBeGreaterThan(plain.analysis!.volume - 30);
+    expect(marked.mesh!.faces.length).toBeGreaterThan(plain.mesh!.faces.length);
+    // Face trop petite : le texte rétrécit et le signale.
+    const tiny = seriesMark(main.parts[0]!.mesh, { ...series, mark: { ...series.mark, height: 6, face: { featureId: ids.extrude, role: 'side', index: 0 } } }, 4.25);
+    if (tiny) expect(tiny.height).toBeLessThanOrEqual(0.6 * 5 + 1e-6);
+  });
+
+  it('test croisé : le diamètre du trou dans le 3MF suit la valeur essayée (et l’échelle du plateau)', async () => {
+    // Plaque percée dont le diamètre du trou est le paramètre « d ».
+    const { doc: base, ids } = buildPlateDocument();
+    const part = base.parts[0]!;
+    const features = part.features.map((f) =>
+      f.id === ids.sketch2 && f.type === 'sketch' ? { ...f, params: { ...f.params, constraints: f.params.constraints.map((c) => (c.type === 'diameter' ? { ...c, expression: 'd' } : c)) } } : f,
+    );
+    const doc = applyParameters({ ...base, parts: [{ ...part, features }], parameters: [{ name: 'd', expression: '6' }] });
+    const svc = new GeometryService(kernel);
+    const main = svc.evaluate(documentForWorker(doc));
+    const values = [5, 7, 7.5];
+    /** Diamètre du trou de chaque objet du 3MF : sommets intérieurs, distance au centre du trou. */
+    const holeDiameters = async (scale: number) => {
+      const settings = { ...DEFAULT_FABRICATION.print, items: [{ partId: ids.partId, copies: 1, scale, series: { parameter: 'd', mode: 'list' as const, values } }] };
+      const layout = printLayout(settings, doc.parts, () => main.parts[0]!.mesh, () => main.parts[0]!.analysis);
+      const { bytes } = await svc.export3mf(
+        documentForWorker(doc),
+        [ids.partId],
+        layout.placements.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, variant: { parameter: 'd', value: p.variant!.value } })),
+      );
+      const model = new TextDecoder().decode((await readZip(bytes)).get('3D/3dmodel.model'));
+      return model
+        .split('<object ')
+        .slice(1)
+        .map((o) => {
+          const v = Array.from(o.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g), (m) => ({ x: Number(m[1]), y: Number(m[2]) }));
+          const [x0, x1, y0, y1] = [Math.min(...v.map((p) => p.x)), Math.max(...v.map((p) => p.x)), Math.min(...v.map((p) => p.y)), Math.max(...v.map((p) => p.y))];
+          const inner = v.filter((p) => p.x > x0 + 0.5 && p.x < x1 - 0.5 && p.y > y0 + 0.5 && p.y < y1 - 0.5);
+          const cx = (Math.min(...inner.map((p) => p.x)) + Math.max(...inner.map((p) => p.x))) / 2;
+          const cy = (Math.min(...inner.map((p) => p.y)) + Math.max(...inner.map((p) => p.y))) / 2;
+          return 2 * Math.max(...inner.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+        });
+    };
+    (await holeDiameters(100)).forEach((d, i) => expect(d).toBeCloseTo(values[i]!, 3));
+    // Échelle 110 % sur le plateau : tout est agrandi, le trou aussi.
+    (await holeDiameters(110)).forEach((d, i) => expect(d).toBeCloseTo(values[i]! * 1.1, 3));
   });
 });

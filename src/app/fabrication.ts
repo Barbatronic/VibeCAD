@@ -3,12 +3,14 @@
  * « face posée sur le plateau », disposition des pièces et des exemplaires sur le plateau
  * d'impression, estimation de matière.
  */
-import type { CadDocument, FabricationSettings, FaceRef, Id, LaserMaterial, Part, PrintItem } from '../domain/model';
+import type { CadDocument, FabricationSettings, FaceRef, Id, LaserMaterial, Part, PrintItem, PrintPlate, PrintSeries } from '../domain/model';
 import { engraveColors, sheetOf, type MaterialSheet } from '../domain/material-sheets';
 import { paintMaterials } from '../domain/paint';
 import type { FaceTag, MeshData, ShapeAnalysis } from '../geometry/kernel';
 import { multiply4, translation4, type Mat4 } from '../math/mat4';
 import { normalize3, type Vec3 } from '../math/vec';
+import { formatNumber } from '../domain/units';
+import { markLayout, type VariantMark } from '../features/series-mark';
 
 /**
  * Matériaux préréglés : plaques de 300 × 200 mm de contreplaqué et d'acrylique, en 3 et 5 mm. À
@@ -48,7 +50,6 @@ export function fabricationSettings(doc: CadDocument, hasSolid: (partId: Id) => 
   const f = doc.fabrication ?? DEFAULT_FABRICATION;
   const parts = doc.parts.filter((p) => hasSolid(p.id));
   const processOf = (p: Part) => sheetOf(doc, p)?.process;
-  const printed = parts.filter((p) => (processOf(p) ?? 'print') === 'print');
   const cut = parts.filter((p) => (processOf(p) ?? 'laser') === 'laser');
   // Plaques des matières découpées : nom et épaisseur de la fiche, le reste gardé d'un réglage à l'autre.
   const laserSheets = [...new Map(cut.flatMap((p) => {
@@ -67,11 +68,14 @@ export function fabricationSettings(doc: CadDocument, hasSolid: (partId: Id) => 
       fromSheet: true,
     };
   });
+  // Plateaux : ceux du projet, ou (ancien format) les pièces qui avaient des exemplaires, sur « Plateau 1 ».
+  const exists = new Set(doc.parts.map((p) => p.id));
+  const plates = (f.print.plates ?? [{ id: 'plate-1', name: 'Plateau 1', items: f.print.items.filter((i) => i.copies > 0) }]).map((pl) => ({
+    ...pl,
+    items: pl.items.filter((i) => exists.has(i.partId)),
+  }));
   return {
-    print: {
-      ...f.print,
-      items: printed.map((p) => f.print.items.find((i) => i.partId === p.id) ?? { partId: p.id, copies: 1, scale: 100 }),
-    },
+    print: { ...f.print, items: [], plates },
     laser: {
       ...f.laser,
       // Les anciens matériaux laser ne servent plus qu'aux pièces sans matière choisie.
@@ -84,6 +88,26 @@ export function fabricationSettings(doc: CadDocument, hasSolid: (partId: Id) => 
     },
     ...(f.drawings?.length ? { drawings: f.drawings } : {}),
   };
+}
+
+/** Nouveau plateau vide, au premier nom libre (« Plateau 2 »…). */
+export function newPlate(plates: readonly PrintPlate[]): PrintPlate {
+  const ids = new Set(plates.map((p) => p.id));
+  const names = new Set(plates.map((p) => p.name));
+  let n = plates.length + 1;
+  while (ids.has(`plate-${n}`) || names.has(`Plateau ${n}`)) n++;
+  return { id: `plate-${n}`, name: `Plateau ${n}`, items: [] };
+}
+
+/** Plateau choisi (le premier si l'identifiant n'existe pas, un plateau vide s'il n'y en a aucun). */
+export function selectedPlate(print: FabricationSettings['print'], id: Id | null): PrintPlate {
+  const plates = print.plates ?? [];
+  return plates.find((p) => p.id === id) ?? plates[0] ?? { id: 'plate-1', name: 'Plateau 1', items: [] };
+}
+
+/** Pièces qu'on peut mettre sur un plateau : un volume, et une matière imprimée (ou pas encore de matière). */
+export function printableParts(doc: CadDocument, hasSolid: (partId: Id) => boolean): Part[] {
+  return doc.parts.filter((p) => hasSolid(p.id) && (sheetOf(doc, p)?.process ?? 'print') === 'print');
 }
 
 /** Nombre d'emplacements d'un AMS. */
@@ -159,9 +183,69 @@ function transformedBounds(mesh: MeshData, m: Mat4): { min: Vec3; max: Vec3 } {
   return { min, max };
 }
 
+/** Nombre maximal de versions dans une série d'essais (chacune est un recalcul de la pièce). */
+export const SERIES_MAX = 25;
+
+const roundValue = (v: number) => Math.round(v * 1e6) / 1e6;
+
+/**
+ * Valeurs d'une série d'essais, dans l'ordre croissant et sans doublon (l'ordre de pose sur le
+ * plateau). `error` explique une saisie incomplète ou une série trop longue.
+ */
+export function seriesValues(series: PrintSeries): { values: number[]; error?: string } {
+  let raw: number[] = [];
+  const finite = (...xs: (number | undefined)[]) => xs.every((x) => x !== undefined && Number.isFinite(x));
+  if (series.mode === 'range') {
+    const { from, to, count } = series;
+    if (!finite(from, to, count)) return { values: [], error: 'Indiquez les deux valeurs et le nombre d’essais.' };
+    const n = Math.round(count!);
+    if (n < 1) return { values: [], error: 'Au moins un essai.' };
+    if (n > SERIES_MAX) return { values: [], error: `${SERIES_MAX} essais au plus.` };
+    raw = n === 1 ? [from!] : Array.from({ length: n }, (_v, i) => from! + ((to! - from!) * i) / (n - 1));
+  } else if (series.mode === 'around') {
+    const { center, delta, step } = series;
+    if (!finite(center, delta, step)) return { values: [], error: 'Indiquez la valeur, l’écart et le pas.' };
+    if (step! <= 0) return { values: [], error: 'Le pas doit être positif.' };
+    const k = Math.floor(Math.abs(delta!) / step! + 1e-9);
+    if (2 * k + 1 > SERIES_MAX) return { values: [], error: `${2 * k + 1} essais : ${SERIES_MAX} au plus. Augmentez le pas.` };
+    raw = Array.from({ length: 2 * k + 1 }, (_v, i) => center! + (i - k) * step!);
+  } else {
+    raw = (series.values ?? []).filter((x) => Number.isFinite(x));
+    if (raw.length === 0) return { values: [], error: 'Indiquez au moins une valeur.' };
+    if (raw.length > SERIES_MAX) return { values: [], error: `${SERIES_MAX} essais au plus.` };
+  }
+  return { values: [...new Set(raw.map(roundValue))].sort((a, b) => a - b) };
+}
+
+/** Valeur d'essai écrite pour l'utilisateur (virgule décimale, 4 décimales au plus). */
+export function formatSeriesValue(v: number): string {
+  return v.toLocaleString('fr-FR', { maximumFractionDigits: 4, useGrouping: false });
+}
+
+/** Clé d'une version calculée : pièce, paramètre, valeur et marquage. */
+export function variantKey(partId: Id, series: Pick<PrintSeries, 'parameter' | 'mark'>, value: number): string {
+  return `${partId}|${series.parameter.toLowerCase()}|${roundValue(value)}|${series.mark ? JSON.stringify(series.mark) : ''}`;
+}
+
+/** Marquage d'une version (texte de la valeur centré sur la face), d'après le maillage de la pièce. */
+export function seriesMark(mesh: MeshData | null | undefined, series: PrintSeries, value: number): (VariantMark & { tooSmall: boolean }) | null {
+  if (!series.mark || !mesh) return null;
+  return markLayout(mesh, series.mark.face, formatSeriesValue(value), series.mark.height, series.mark.depth);
+}
+
+/** Version d'une pièce pour une valeur d'essai, calculée à part. */
+export interface PrintVariant {
+  mesh: MeshData | null;
+  meshKey: string | null;
+  analysis: ShapeAnalysis | null;
+  /** Étape en échec dans cette version (son nom). */
+  failed?: string;
+}
+
 export interface PrintPlacement {
   partId: Id;
   name: string;
+  /** Rang de l'exemplaire parmi ceux de la pièce (toutes valeurs d'essai confondues). */
   copy: number;
   /** Plateau (0, 1, 2…) : quand un plateau est plein, on passe au suivant. */
   plate: number;
@@ -169,6 +253,11 @@ export interface PrintPlacement {
   size: Vec3;
   /** Matière estimée de cet exemplaire (g). */
   grams: number;
+  /** Série d'essais : valeur du paramètre ; `pending` tant que cette version n'est pas calculée. */
+  variant?: { parameter: string; value: number; pending: boolean };
+  /** Maillage de la version d'essai (absent : celui de la pièce). */
+  mesh?: MeshData;
+  meshKey?: string | null;
 }
 
 export interface PrintLayout {
@@ -184,13 +273,16 @@ export interface PrintLayout {
 /**
  * Dispose les pièces (et leurs exemplaires) sur le plateau : chaque pièce est orientée (face
  * choisie vers le bas), mise à l'échelle, posée à z = 0 puis rangée en lignes, de gauche à droite
- * et d'avant en arrière. Quand le plateau est plein, la suite va sur un nouveau plateau.
+ * et d'avant en arrière. Quand le plateau est plein, la suite va sur un nouveau plateau. Une pièce
+ * en série d'essais donne une version par valeur, dans l'ordre croissant (`variantOf` : version
+ * calculée, ou undefined tant qu'elle ne l'est pas — la pièce actuelle tient alors sa place).
  */
 export function printLayout(
   settings: FabricationSettings['print'],
   parts: readonly { id: Id; name: string }[],
   meshOf: (partId: Id) => MeshData | null | undefined,
   analysisOf: (partId: Id) => ShapeAnalysis | null | undefined,
+  variantOf?: (partId: Id, series: PrintSeries, value: number) => PrintVariant | undefined,
 ): PrintLayout {
   const placements: PrintPlacement[] = [];
   const warnings: string[] = [];
@@ -201,39 +293,80 @@ export function printLayout(
   let rowDepth = 0;
   for (const item of settings.items as PrintItem[]) {
     const part = parts.find((p) => p.id === item.partId);
-    const mesh = meshOf(item.partId);
-    if (!part || !mesh || item.copies <= 0) continue;
+    const baseMesh = meshOf(item.partId);
+    if (!part || !baseMesh || item.copies <= 0) continue;
+    const series = item.series;
+    let values: (number | null)[] = [null];
+    if (series) {
+      const r = seriesValues(series);
+      if (r.error) warnings.push(`« ${part.name} », série d’essais : ${r.error}`);
+      values = r.values;
+      if (item.scale !== 100 && r.values.length) {
+        const v = r.values[0]!;
+        warnings.push(`« ${part.name} » : échelle ${formatNumber(item.scale, 1)} % pendant une série d’essais : les cotes essayées sont agrandies d’autant (${series.parameter} ${formatSeriesValue(v)} → ${formatSeriesValue((v * item.scale) / 100)} mm). Remettez 100 %.`);
+      }
+      // Marquage : la face existe-t-elle encore, le texte le plus long reste-t-il lisible ?
+      const longest = [...r.values].sort((a, b) => formatSeriesValue(b).length - formatSeriesValue(a).length)[0];
+      if (series.mark && longest !== undefined) {
+        const m = seriesMark(baseMesh, series, longest);
+        if (!m) warnings.push(`« ${part.name} » : la face du marquage n’existe plus ou n’est pas plane ; choisissez-en une autre.`);
+        else if (m.tooSmall) warnings.push(`« ${part.name} » : face trop petite, le marquage ferait ${formatNumber(m.height, 1)} mm de haut (illisible) ; choisissez une face plus grande.`);
+      }
+    }
     const s = item.scale / 100;
-    let rotation: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    if (item.downFace) {
-      const n = faceNormal(mesh, item.downFace);
-      if (n) rotation = rotationToDown(n);
-      else warnings.push(`« ${part.name} » : la face choisie pour poser la pièce n’existe plus ; choisissez-en une autre.`);
-    }
-    const oriented = multiply4(scale4(s), rotation);
-    const b = transformedBounds(mesh, oriented);
-    const size = { x: b.max.x - b.min.x, y: b.max.y - b.min.y, z: b.max.z - b.min.z };
-    if (size.x > settings.bed.x || size.y > settings.bed.y || size.z > settings.bed.z) {
-      warnings.push(`« ${part.name} » (${Math.ceil(size.x)} × ${Math.ceil(size.y)} × ${Math.ceil(size.z)} mm) est plus grande que le plateau.`);
-    }
-    const each = ((analysisOf(item.partId)?.volume ?? 0) * s * s * s * PLA_DENSITY) / 1000;
-    grams += each * item.copies;
-    for (let copy = 0; copy < item.copies; copy++) {
-      if (x > 0 && x + size.x > settings.bed.x) {
-        x = 0;
-        y += rowDepth + settings.spacing;
-        rowDepth = 0;
+    let copy = 0;
+    let faceWarned = false;
+    for (const value of values) {
+      const variant = series && value !== null ? variantOf?.(item.partId, series, value) : undefined;
+      const label = series && value !== null ? `${part.name} — ${series.parameter} ${formatSeriesValue(value)}` : part.name;
+      if (variant?.failed) warnings.push(`« ${label} » : erreur à l’étape « ${variant.failed} ».`);
+      if (variant && !variant.mesh) continue;
+      const mesh = variant?.mesh ?? baseMesh;
+      const analysis = variant ? variant.analysis : analysisOf(item.partId);
+      let rotation: Mat4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+      if (item.downFace) {
+        const n = faceNormal(mesh, item.downFace);
+        if (n) rotation = rotationToDown(n);
+        else if (!faceWarned) {
+          faceWarned = true;
+          warnings.push(`« ${part.name} » : la face choisie pour poser la pièce n’existe plus ; choisissez-en une autre.`);
+        }
       }
-      if (y > 0 && y + size.y > settings.bed.y) {
-        plate++;
-        x = 0;
-        y = 0;
-        rowDepth = 0;
+      const oriented = multiply4(scale4(s), rotation);
+      const b = transformedBounds(mesh, oriented);
+      const size = { x: b.max.x - b.min.x, y: b.max.y - b.min.y, z: b.max.z - b.min.z };
+      if (size.x > settings.bed.x || size.y > settings.bed.y || size.z > settings.bed.z) {
+        warnings.push(`« ${label} » (${Math.ceil(size.x)} × ${Math.ceil(size.y)} × ${Math.ceil(size.z)} mm) est plus grande que le plateau.`);
       }
-      const at = translation4({ x: x - b.min.x, y: y - b.min.y, z: -b.min.z });
-      placements.push({ partId: item.partId, name: item.copies > 1 ? `${part.name} (${copy + 1})` : part.name, copy, plate, matrix: multiply4(at, oriented), size, grams: each });
-      x += size.x + settings.spacing;
-      rowDepth = Math.max(rowDepth, size.y);
+      const each = ((analysis?.volume ?? 0) * s * s * s * PLA_DENSITY) / 1000;
+      grams += each * item.copies;
+      for (let k = 0; k < item.copies; k++) {
+        if (x > 0 && x + size.x > settings.bed.x) {
+          x = 0;
+          y += rowDepth + settings.spacing;
+          rowDepth = 0;
+        }
+        if (y > 0 && y + size.y > settings.bed.y) {
+          plate++;
+          x = 0;
+          y = 0;
+          rowDepth = 0;
+        }
+        const at = translation4({ x: x - b.min.x, y: y - b.min.y, z: -b.min.z });
+        placements.push({
+          partId: item.partId,
+          name: item.copies > 1 ? `${label} (${k + 1})` : label,
+          copy: copy++,
+          plate,
+          matrix: multiply4(at, oriented),
+          size,
+          grams: each,
+          ...(series && value !== null ? { variant: { parameter: series.parameter, value, pending: !variant } } : {}),
+          ...(variant?.mesh ? { mesh: variant.mesh, meshKey: variant.meshKey } : {}),
+        });
+        x += size.x + settings.spacing;
+        rowDepth = Math.max(rowDepth, size.y);
+      }
     }
   }
   return { placements, plates: placements.length ? plate + 1 : 0, grams, warnings };

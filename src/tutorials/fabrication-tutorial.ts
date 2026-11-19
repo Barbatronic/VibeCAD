@@ -7,6 +7,8 @@ import type { TutorialStep } from './types';
 
 const hasSolid = (s: AppState) => s.doc.parts.some((p) => (s.display[p.id]?.result.analysis?.solidCount ?? 0) > 0);
 const fab = (s: AppState) => s.doc.fabrication;
+/** Pièces posées sur les plateaux d'impression. */
+const printItems = (s: AppState) => (fab(s)?.print.plates ?? []).flatMap((p) => p.items);
 
 export const FABRICATION_TUTORIAL: TutorialStep[] = [
   {
@@ -32,10 +34,10 @@ export const FABRICATION_TUTORIAL: TutorialStep[] = [
     title: '2. Imprimer deux exemplaires',
     body: [
       'Cliquez **Impression 3D** dans la barre d’outils : la vue montre le plateau de l’imprimante.',
-      'À gauche, mettez **2** dans « Exemplaires » : les pièces se rangent seules sur le plateau. S’il y en a trop, elles passent sur un deuxième plateau.',
+      'À gauche, sous « Pièces du plateau », ajoutez la pièce, puis mettez **2** dans « Exemplaires » à droite : les pièces se rangent seules. S’il y en a trop, elles passent sur une deuxième impression.',
       'La matière nécessaire (en grammes de PLA) s’affiche à droite.',
     ],
-    check: (s) => (fab(s)?.print.items ?? []).some((i) => i.copies >= 2),
+    check: (s) => printItems(s).some((i) => i.copies >= 2),
   },
   {
     id: 'down-face',
@@ -44,7 +46,7 @@ export const FABRICATION_TUTORIAL: TutorialStep[] = [
       'Cliquez **Face du dessous**, puis une face plate de la pièce dans la vue : la pièce se retourne pour se poser sur cette face. Une grande face plate en bas imprime mieux.',
       'Le bouton **Exporter 3MF** produit le fichier pour le logiciel d’impression (PrusaSlicer, Bambu Studio, Cura…).',
     ],
-    check: (s) => (fab(s)?.print.items ?? []).some((i) => !!i.downFace),
+    check: (s) => printItems(s).some((i) => !!i.downFace),
   },
   {
     id: 'laser',

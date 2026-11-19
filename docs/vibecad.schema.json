@@ -253,28 +253,7 @@
                 "items": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "required": [
-                      "partId",
-                      "copies",
-                      "scale"
-                    ],
-                    "properties": {
-                      "partId": {
-                        "$ref": "#/$defs/id"
-                      },
-                      "copies": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "scale": {
-                        "type": "number",
-                        "exclusiveMinimum": 0
-                      },
-                      "downFace": {
-                        "$ref": "#/$defs/faceRef"
-                      }
-                    }
+                    "$ref": "#/$defs/printItem"
                   }
                 },
                 "ams": {
@@ -283,6 +262,32 @@
                     "type": "string"
                   },
                   "description": "Fiches matière des emplacements de l’AMS, dans l’ordre."
+                },
+                "plates": {
+                  "description": "Plateaux d'impression : chacun porte les pièces qu'on y a ajoutées.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "items"
+                    ],
+                    "properties": {
+                      "id": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/printItem"
+                        }
+                      }
+                    }
+                  }
                 }
               },
               "description": "Impression 3D : les pièces qui ne tiennent pas sur un plateau passent sur le suivant (plateaux calculés, non enregistrés)."
@@ -3908,6 +3913,98 @@
         },
         "frozen": {
           "type": "boolean"
+        }
+      }
+    },
+    "printItem": {
+      "type": "object",
+      "required": [
+        "partId",
+        "copies",
+        "scale"
+      ],
+      "properties": {
+        "partId": {
+          "$ref": "#/$defs/id"
+        },
+        "copies": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "downFace": {
+          "$ref": "#/$defs/faceRef"
+        },
+        "series": {
+          "description": "Série d'essais : une version de la pièce par valeur d'un paramètre du projet.",
+          "type": "object",
+          "required": [
+            "parameter",
+            "mode"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "parameter": {
+              "type": "string"
+            },
+            "mode": {
+              "enum": [
+                "range",
+                "around",
+                "list"
+              ]
+            },
+            "from": {
+              "type": "number"
+            },
+            "to": {
+              "type": "number"
+            },
+            "count": {
+              "type": "number"
+            },
+            "center": {
+              "type": "number"
+            },
+            "delta": {
+              "type": "number"
+            },
+            "step": {
+              "type": "number"
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "mark": {
+              "description": "Marquage : la valeur est gravée sur cette face plane de chaque version.",
+              "type": "object",
+              "required": [
+                "face",
+                "height",
+                "depth"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/faceRef"
+                },
+                "height": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "depth": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
         }
       }
     }

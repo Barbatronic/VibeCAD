@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -53,6 +53,7 @@ import { moveDefinition } from '../features/move/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { ExportPlacement, MeasureTarget, PartResult } from '../geometry/protocol';
+import type { VariantMark } from '../features/series-mark';
 import { NATIVE_EXTENSION, NATIVE_MIME, parseNativeFile, serializeDocument } from '../io/native-format';
 import { canonicalHistory, historyToFile, objectsComplete, packObjects, unpackObjects, type VersionHistory } from '../io/version-store';
 import { addBranch, advanceBranch, commitDiff, commitOf, createVersion, deleteBranch, diffTrees, documentAt, documentOfTree, headOf, mergeBase, mergeState, mergeTrees, sameTree, switchBranch, treeAt, treeOf, type MergeSide } from '../io/versions';
@@ -81,7 +82,7 @@ import { externalParts } from '../features/sketch/definition';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
-import { amsSlots, fabricationSettings, newLaserMaterial, printLayout, type PrintLayout } from './fabrication';
+import { amsSlots, fabricationSettings, formatSeriesValue, newLaserMaterial, newPlate, printableParts, printLayout, selectedPlate, seriesMark, seriesValues, variantKey, type PrintLayout } from './fabrication';
 import { findPlanarFace, laserLayout, optimizedPlacements, type LaserLayout } from './laser';
 import { partEngravings, type Engraving } from './engravings';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
@@ -166,7 +167,12 @@ export class AppController {
   private set(partial: Partial<AppState>): void {
     // Les champs numériques connaissent les paramètres du projet (équations comme « largeur/2 »).
     if (partial.doc && partial.doc.parameters !== this.state.doc.parameters) setParameterScope(resolveParameters(partial.doc.parameters ?? []).values);
+    // Séries d'essais : les versions calculées ne valent plus dès que le modèle change.
+    if (partial.doc && !partial.printVariants && (partial.doc.parts !== this.state.doc.parts || partial.doc.parameters !== this.state.doc.parameters || partial.doc.resources !== this.state.doc.resources)) {
+      if (Object.keys(this.state.printVariants).length) partial = { ...partial, printVariants: {} };
+    }
     this.store.patch(partial);
+    if (partial.doc || partial.display || partial.workspace || partial.fabricationTab) this.schedulePrintVariants();
   }
 
   private patchProject(partial: Partial<AppState['project']>): void {
@@ -2868,7 +2874,8 @@ export class AppController {
     const layout = this.printLayout();
     const plates = which === 'all' ? Array.from({ length: layout.plates }, (_v, i) => i) : [which];
     // Matières imprimées du plateau : leur emplacement AMS part dans le 3MF (s'il y en a au moins une).
-    const slots = amsSlots(s.doc, this.fabrication().print);
+    const slots = amsSlots(s.doc, this.platePrint());
+    const plateName = this.currentPlate().name;
     try {
       for (const plate of plates) {
         const on = layout.placements.filter((p) => p.plate === plate);
@@ -2876,9 +2883,9 @@ export class AppController {
         const { bytes, warnings } = await this.deps.client.export3mf(
           s.doc,
           partIds,
-          on.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, ...this.filamentOf(p.partId, slots) })),
+          on.map((p) => ({ partId: p.partId, name: p.name, matrix: p.matrix, ...this.filamentOf(p.partId, slots), ...(p.variant ? { variant: this.exportVariant(p.partId, p.variant.value) } : {}) })),
         );
-        const name = layout.plates > 1 ? `${s.doc.name} - plateau ${plate + 1}` : `${s.doc.name} - plateau`;
+        const name = layout.plates > 1 ? `${s.doc.name} - ${plateName} (${plate + 1})` : `${s.doc.name} - ${plateName}`;
         const target = await saveFile(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'model/3mf' }), safeFileName(name, '.3mf'), {
           description: 'Fichier 3MF',
           mime: 'model/3mf',
@@ -2903,7 +2910,7 @@ export class AppController {
 
   /** Matières imprimées du plateau, dans l'ordre des emplacements de l'AMS. */
   amsSlots(): MaterialSheet[] {
-    return amsSlots(this.state.doc, this.fabrication().print);
+    return amsSlots(this.state.doc, this.platePrint());
   }
 
   /** Emplacement AMS d'une pièce pour l'export (rien si aucune matière imprimée n'est choisie). */
@@ -2926,7 +2933,7 @@ export class AppController {
 
   /** Charge une matière dans un emplacement de l'AMS (celle qui y était prend son ancienne place). */
   setAmsSlot(sheetId: Id, slot: number): void {
-    const order = amsSlots(this.state.doc, this.fabrication().print).map((m) => m.id);
+    const order = amsSlots(this.state.doc, this.platePrint()).map((m) => m.id);
     const from = order.indexOf(sheetId);
     if (from < 0 || slot < 0 || slot >= order.length || from === slot) return;
     [order[from], order[slot]] = [order[slot]!, order[from]!];
@@ -3804,7 +3811,7 @@ export class AppController {
     this.commit({ ...this.state.doc, fabrication: next }, label);
   }
 
-  pickFabricationFace(purpose: 'print' | 'laser', partId: Id): void {
+  pickFabricationFace(purpose: 'print' | 'laser' | 'mark', partId: Id): void {
     // Découpe laser : la vue 3D ne montre que cette pièce, cadrée, le temps de choisir.
     this.set({ mode: { kind: 'pick-fab-face', purpose, partId }, fitRequest: this.state.fitRequest + 1 });
   }
@@ -3954,7 +3961,89 @@ export class AppController {
     );
   }
 
-  /** Plateau d'impression affiché (et exporté par défaut). */
+  // ----- Plateaux d'impression
+
+  /** Plateau choisi dans la liste (le premier si aucun ne l'est). */
+  currentPlate(): PrintPlate {
+    return selectedPlate(this.fabrication().print, this.state.printPlateId);
+  }
+
+  /** Réglages d'impression limités aux pièces du plateau choisi. */
+  private platePrint(): FabricationSettings['print'] {
+    return { ...this.fabrication().print, items: this.currentPlate().items };
+  }
+
+  /** Modifie le plateau choisi (enregistré dans le projet, annulable). */
+  private updatePlate(change: (plate: PrintPlate) => PrintPlate, label: string): void {
+    const id = this.currentPlate().id;
+    this.updateFabrication((f) => {
+      const plates = f.print.plates?.length ? f.print.plates : [this.currentPlate()];
+      return { ...f, print: { ...f.print, plates: plates.map((p) => (p.id === id ? change(p) : p)) } };
+    }, label);
+  }
+
+  selectPrintPlate(id: Id): void {
+    this.set({ printPlateId: id, printItem: null, printPlate: 0, fitRequest: this.state.fitRequest + 1 });
+  }
+
+  addPrintPlate(): void {
+    const plates = this.fabrication().print.plates ?? [];
+    const plate = newPlate(plates);
+    this.updateFabrication((f) => ({ ...f, print: { ...f.print, plates: [...plates, plate] } }), `Ajouter « ${plate.name} »`);
+    this.selectPrintPlate(plate.id);
+  }
+
+  removePrintPlate(id: Id): void {
+    const plates = this.fabrication().print.plates ?? [];
+    const plate = plates.find((p) => p.id === id);
+    if (!plate || plates.length < 2) return;
+    this.updateFabrication((f) => ({ ...f, print: { ...f.print, plates: plates.filter((p) => p.id !== id) } }), `Supprimer « ${plate.name} »`);
+    if (this.currentPlate().id === id || this.state.printPlateId === id) this.set({ printPlateId: null, printItem: null, printPlate: 0 });
+  }
+
+  renamePrintPlate(name: string): void {
+    const clean = name.trim();
+    if (!clean || clean === this.currentPlate().name) return;
+    this.updatePlate((p) => ({ ...p, name: clean }), `Renommer le plateau « ${clean} »`);
+  }
+
+  /** Ajoute une pièce au plateau choisi (un exemplaire) et l'ouvre à droite. */
+  addToPlate(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part || this.currentPlate().items.some((i) => i.partId === partId)) return;
+    this.updatePlate((p) => ({ ...p, items: [...p.items, { partId, copies: 1, scale: 100 }] }), `Ajouter « ${part.name} » au plateau`);
+    this.set({ printItem: partId });
+  }
+
+  removeFromPlate(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    this.updatePlate((p) => ({ ...p, items: p.items.filter((i) => i.partId !== partId) }), `Retirer « ${part?.name ?? '?'} » du plateau`);
+    if (this.state.printItem === partId) this.set({ printItem: null });
+  }
+
+  /** Pièces qu'on peut ajouter au plateau choisi (imprimées, avec un volume, pas encore dessus). */
+  partsToAddToPlate(): Part[] {
+    const on = new Set(this.currentPlate().items.map((i) => i.partId));
+    return printableParts(this.state.doc, (id) => (this.state.display[id]?.result.analysis?.solidCount ?? 0) > 0).filter((p) => !on.has(p.id));
+  }
+
+  /** Pièce du plateau réglée à droite (null : réglages du plateau). */
+  selectPrintItem(partId: Id | null): void {
+    if (this.state.mode.kind === 'pick-fab-face') this.set({ mode: model });
+    this.set({ printItem: partId });
+  }
+
+  /** Pièce du plateau ouverte à droite, si elle y est toujours. */
+  printItem(): PrintItem | null {
+    const id = this.state.printItem;
+    return id ? (this.currentPlate().items.find((i) => i.partId === id) ?? null) : null;
+  }
+
+  updatePrintItem(partId: Id, patch: Partial<PrintItem>, label: string): void {
+    this.updatePlate((p) => ({ ...p, items: p.items.map((i) => (i.partId === partId ? { ...i, ...patch } : i)) }), label);
+  }
+
+  /** Impression affichée (et exportée par défaut) quand le plateau ne tient pas en une fois. */
   setPrintPlate(plate: number): void {
     const plates = this.printLayout().plates;
     this.set({ printPlate: Math.max(0, Math.min(plate, plates - 1)), fitRequest: this.state.fitRequest + 1 });
@@ -4189,7 +4278,140 @@ export class AppController {
   /** Disposition actuelle du plateau d'impression. */
   printLayout(): PrintLayout {
     const s = this.state;
-    return printLayout(this.fabrication().print, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis);
+    return printLayout(this.platePrint(), s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis, (id, series, value) => s.printVariants[variantKey(id, series, value)]);
+  }
+
+  // ----- Séries d'essais (versions d'une pièce selon un paramètre)
+
+  private variantTimer: ReturnType<typeof setTimeout> | null = null;
+  private variantRunning = false;
+  private variantAgain = false;
+
+  /** Versions d'essai que le plateau attend : une par valeur de chaque série. */
+  private wantedVariants(): { key: string; partId: Id; parameter: string; value: number; mark?: VariantMark }[] {
+    const params = new Set((this.state.doc.parameters ?? []).map((p) => p.name.toLowerCase()));
+    return this.currentPlate().items.flatMap((i) => {
+      const series = i.series;
+      if (!series || i.copies <= 0 || !params.has(series.parameter.toLowerCase())) return [];
+      return seriesValues(series).values.map((value) => {
+        const mark = this.markOf(i.partId, series, value);
+        return { key: variantKey(i.partId, series, value), partId: i.partId, parameter: series.parameter, value, ...(mark ? { mark } : {}) };
+      });
+    });
+  }
+
+  /** Marquage d'une version d'essai (texte centré sur la face choisie), absent si impossible. */
+  private markOf(partId: Id, series: PrintSeries, value: number): VariantMark | undefined {
+    const m = seriesMark(this.state.display[partId]?.mesh, series, value);
+    if (!m) return undefined;
+    const { tooSmall: _t, ...mark } = m;
+    return mark;
+  }
+
+  /** Calcul des versions d'essai manquantes, peu après le dernier changement (onglet Impression 3D). */
+  private schedulePrintVariants(): void {
+    const s = this.state;
+    if (s.workspace !== 'fabrication' || s.fabricationTab !== 'print') return;
+    if (!this.currentPlate().items.some((i) => i.series)) return;
+    if (this.variantTimer) clearTimeout(this.variantTimer);
+    this.variantTimer = setTimeout(() => {
+      this.variantTimer = null;
+      void this.computePrintVariants();
+    }, 150);
+  }
+
+  /**
+   * Calcule une à une les versions d'essai manquantes, après le recalcul du projet ouvert. Une
+   * modification du modèle en cours de route interrompt la série, qui reprend sur le nouveau modèle.
+   */
+  private async computePrintVariants(): Promise<void> {
+    if (this.variantRunning) {
+      this.variantAgain = true;
+      return;
+    }
+    this.variantRunning = true;
+    try {
+      const wanted = this.wantedVariants();
+      const keys = new Set(wanted.map((w) => w.key));
+      const kept = this.state.printVariants;
+      // Versions qui ne servent plus (valeur ou paramètre changés) : libérées.
+      if (Object.keys(kept).some((k) => !keys.has(k))) this.set({ printVariants: Object.fromEntries(Object.entries(kept).filter(([k]) => keys.has(k))) });
+      for (const w of wanted) {
+        if (this.state.printVariants[w.key]) continue;
+        while (this.deps.client.busy) await new Promise((r) => setTimeout(r, 60));
+        const doc = this.state.doc;
+        if (this.state.workspace !== 'fabrication') break;
+        let r: Awaited<ReturnType<GeometryClient['variant']>>;
+        try {
+          r = await this.deps.client.variant(doc, w.partId, w.parameter, w.value, w.mark);
+        } catch {
+          r = { meshKey: null, mesh: null, analysis: null, failed: null };
+        }
+        // Modèle changé pendant le calcul : ce résultat ne vaut plus.
+        if (this.state.doc.parts !== doc.parts || this.state.doc.parameters !== doc.parameters) {
+          this.variantAgain = true;
+          break;
+        }
+        this.set({ printVariants: { ...this.state.printVariants, [w.key]: { mesh: r.mesh, meshKey: r.meshKey, analysis: r.analysis, ...(r.failed ? { failed: r.failed } : {}) } } });
+      }
+    } finally {
+      this.variantRunning = false;
+      if (this.variantAgain) {
+        this.variantAgain = false;
+        this.schedulePrintVariants();
+      }
+    }
+  }
+
+  /** Versions d'essai : calculées sur le nombre attendu (avancement affiché sous la série). */
+  printVariantProgress(partId: Id): { done: number; total: number } {
+    const wanted = this.wantedVariants().filter((w) => w.partId === partId);
+    return { done: wanted.filter((w) => this.state.printVariants[w.key]).length, total: wanted.length };
+  }
+
+  /** Version d'essai à exporter : paramètre, valeur et marquage de la série de la pièce. */
+  private exportVariant(partId: Id, value: number): NonNullable<ExportPlacement['variant']> {
+    const series = this.currentPlate().items.find((i) => i.partId === partId)?.series;
+    const mark = series ? this.markOf(partId, series, value) : undefined;
+    return { parameter: series?.parameter ?? '', value, ...(mark ? { mark } : {}) };
+  }
+
+  /** Imprime la pièce en série d'essais (ou l'arrête) ; au départ : ± 0,2 autour de la valeur actuelle. */
+  setPrintSeries(partId: Id, series: PrintSeries | null): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    this.updatePlate(
+      (p) => ({ ...p, items: p.items.map((i) => (i.partId !== partId ? i : series ? { ...i, series } : (({ series: _s, ...rest }) => rest)(i))) }),
+      series ? `Série d’essais de « ${part.name} »` : `Fin de la série d’essais de « ${part.name} »`,
+    );
+  }
+
+  /** Série d'essais par défaut : le premier paramètre, ± 0,2 par pas de 0,1 autour de sa valeur. */
+  defaultPrintSeries(): PrintSeries | null {
+    const params = this.state.doc.parameters ?? [];
+    const first = params[0];
+    if (!first) return null;
+    const center = resolveParameters(params).values.get(first.name.toLowerCase()) ?? 0;
+    return { parameter: first.name, mode: 'around', center, delta: 0.2, step: 0.1 };
+  }
+
+  /**
+   * Retient la valeur d'essai choisie : le paramètre prend cette valeur (les cotes qui en dépendent
+   * suivent) et la pièce revient à une impression simple. Une seule étape d'annulation.
+   */
+  keepSeriesValue(partId: Id, value: number): void {
+    const item = this.currentPlate().items.find((i) => i.partId === partId);
+    const series = item?.series;
+    if (!series) return;
+    const params = this.state.doc.parameters ?? [];
+    const index = params.findIndex((p) => p.name.toLowerCase() === series.parameter.toLowerCase());
+    if (index < 0) return this.explain(`Le paramètre « ${series.parameter} » n’existe plus.`);
+    const f = this.fabrication();
+    const plateId = this.currentPlate().id;
+    const plates = (f.print.plates ?? []).map((p) => (p.id !== plateId ? p : { ...p, items: p.items.map((i) => (i.partId === partId ? (({ series: _s, ...rest }) => rest)(i) : i)) }));
+    const fabrication = { ...f, print: { ...f.print, plates } };
+    const parameters = params.map((p, k) => (k === index ? { ...p, expression: String(value) } : p));
+    this.commit(applyParameters({ ...this.state.doc, parameters, fabrication }), `Paramètre « ${params[index]!.name} » = ${formatSeriesValue(value)}`);
   }
 
   private fabricationPick(pick: ModelPick | null): void {
@@ -4199,23 +4421,31 @@ export class AppController {
       if (pick?.kind === 'face') this.setFabricationPart(pick.partId.split(':')[1] ?? pick.partId);
       return;
     }
+    if (mode.kind !== 'pick-fab-face' && this.state.fabricationTab === 'print') {
+      // Plateau : un clic sur une pièce ouvre ses réglages, un clic dans le vide ceux du plateau.
+      return this.selectPrintItem(pick ? (pick.partId.split(':')[1] ?? pick.partId) : null);
+    }
     if (mode.kind !== 'pick-fab-face' || !pick || pick.kind !== 'face') return;
     const partId = pick.partId.split(':')[1] ?? pick.partId;
     if (partId !== mode.partId) return this.explain('Cliquez une face de la pièce choisie.');
     const part = findPart(this.state.doc, partId);
-    const face = this.state.display[partId]?.mesh?.faces[pick.index];
+    // Plateau : la face cliquée est celle du maillage affiché (une version d'essai a ses propres faces).
+    const copy = Number(pick.partId.split(':')[2] ?? 0);
+    const shown = this.state.fabricationTab === 'print' ? this.printLayout().placements.find((p) => p.partId === partId && p.copy === copy)?.mesh : undefined;
+    const face = (shown ?? this.state.display[partId]?.mesh)?.faces[pick.index];
     if (!part || !face) return;
     if (!face.plane) return this.explain('Choisissez une face plate.');
     const ref = pickFaceReference(face.tags, part);
     if (!ref) return;
-    const purpose = mode.purpose;
-    this.updateFabrication(
-      (f) =>
-        purpose === 'print'
-          ? { ...f, print: { ...f.print, items: f.print.items.map((i) => (i.partId === partId ? { ...i, downFace: ref } : i)) } }
-          : { ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? { ...i, face: ref } : i)) } },
-      purpose === 'print' ? `Poser « ${part.name} » sur une autre face` : `Contour de découpe de « ${part.name} »`,
-    );
+    if (mode.purpose === 'print') this.updatePrintItem(partId, { downFace: ref }, `Poser « ${part.name} » sur une autre face`);
+    else if (mode.purpose === 'mark') {
+      const series = this.currentPlate().items.find((i) => i.partId === partId)?.series;
+      if (series) this.setPrintSeries(partId, { ...series, mark: { height: series.mark?.height ?? 5, depth: series.mark?.depth ?? 0.4, face: ref } });
+    } else
+      this.updateFabrication(
+        (f) => ({ ...f, laser: { ...f.laser, items: f.laser.items.map((i) => (i.partId === partId ? { ...i, face: ref } : i)) } }),
+        `Contour de découpe de « ${part.name} »`,
+      );
     this.set({ mode: model });
   }
 
