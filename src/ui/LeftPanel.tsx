@@ -1047,6 +1047,7 @@ function HistorySection() {
                         onClick={() => c.toggleContextFrozen(f.id)}
                       />
                     ) : null}
+                    {f.type === 'sketch' ? <IconButton icon="swap" label={`Changer le support de « ${f.name} »`} small onClick={() => c.repairSketch(f.id)} /> : null}
                     {f.type === 'sketch' || f.type === 'image' ? (
                       <IconButton icon={f.visible ? 'eye' : 'eye-off'} label={f.visible ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
                     ) : null}

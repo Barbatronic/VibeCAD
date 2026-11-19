@@ -79,3 +79,34 @@ test('une référence de face perdue se répare en choisissant un nouveau suppor
   const top = await worldToScreen(page, 45, 22, 5);
   expect(top.x).toBeGreaterThan(0);
 });
+
+test('changer le support d’une esquisse valide depuis l’historique : nouvelle face, dessin conservé ; Échap ne change rien', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  const history = page.getByRole('list', { name: /Étapes de construction/ });
+  const supportOf = () => appState(page, (s) => s.doc.parts[0].features[2].params.support);
+  const before = await supportOf();
+  expect(before).toMatchObject({ kind: 'face', ref: { role: 'end' } });
+  // Annuler le choix du support : rien ne change.
+  await history.getByRole('button', { name: 'Changer le support de « Esquisse 2 »' }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('pick-support');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('model');
+  expect(await supportOf()).toEqual(before);
+  // Nouvelle face : la face avant de la plaque (y = 0), cliquée dans la vue.
+  await history.getByRole('button', { name: 'Changer le support de « Esquisse 2 »' }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('pick-support');
+  const front = await worldToScreen(page, 30, 0, 2.5);
+  await page.mouse.click(front.x, front.y);
+  await expect.poll(async () => (await session(page))?.sketch.support?.kind).toBe('face');
+  expect((await session(page))?.sketch.support.ref).not.toEqual(before.ref);
+  // Le dessin et ses cotes sont conservés.
+  expect((await session(page))?.sketch.constraints.length).toBe(3);
+  await finishSketch(page);
+  const after = await supportOf();
+  expect(after.kind).toBe('face');
+  expect(after.ref).not.toEqual(before.ref);
+  // Une seule action à annuler : l'ancien support revient.
+  await page.keyboard.press('Control+z');
+  await expect.poll(supportOf).toEqual(before);
+});

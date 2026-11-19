@@ -1465,11 +1465,20 @@ export class AppController {
     this.toast('info', 'Un solide importé n’a pas de paramètres modifiables : sa forme vient du fichier STEP.');
   }
 
-  /** Change le support d'une esquisse (réparation d'une référence perdue). */
+  /**
+   * Change le support d'une esquisse : référence perdue, ou face à remplacer après une modification
+   * en amont. Le dessin est conservé (mêmes coordonnées dans le repère du nouveau support).
+   */
   repairSketch(featureId: Id): void {
     const found = findFeature(this.state.doc, featureId);
-    if (!found || this.state.mode.kind !== 'model') return;
-    this.set({ mode: { kind: 'pick-support', partId: found.part.id, repairFeatureId: featureId }, selection: null, activePartId: found.part.id });
+    if (!found) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const { part, feature } = found;
+    if (this.refuseLocked(part.id)) return;
+    if (part.features.indexOf(feature) >= activeCount(part, this.state.rollback)) {
+      return this.explain(`« ${feature.name} » est après la barre de retour : descendez la barre de l’historique pour la recalculer avant de changer son support.`);
+    }
+    this.set({ mode: { kind: 'pick-support', partId: part.id, repairFeatureId: featureId }, selection: null, activePartId: part.id });
   }
 
   // =========================================================================
