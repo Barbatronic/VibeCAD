@@ -20,7 +20,9 @@ export interface ThreeMfItem {
   /** Couleur `#rrggbb`. */
   color: string;
   mesh: Pick<MeshData, 'positions' | 'indices'>;
-  /** Filament (1, 2, 3…) de chaque triangle de `mesh` ; absent : pièce d'une seule couleur. */
+  /** Filament (1, 2, 3…) de l'objet entier (emplacement de l'AMS) ; absent : celui par défaut. */
+  filament?: number;
+  /** Filament de chaque triangle de `mesh` (pièce peinte) ; absent : la pièce entière prend `filament`. */
   filaments?: Uint8Array;
 }
 
@@ -128,11 +130,51 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>
   <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel" />
 </Relationships>`;
 
+/**
+ * Filament de chaque objet, dans les réglages lus par les logiciels d'impression : PrusaSlicer
+ * (`Slic3r_PE_model.config`, repris par OrcaSlicer) et Bambu Studio / OrcaSlicer
+ * (`model_settings.config`). Une pièce d'une seule couleur prend ainsi son filament en entier,
+ * comme si on le choisissait dans la liste des objets. Null si aucun objet n'a de filament.
+ */
+export function objectFilamentConfigs(items: readonly ThreeMfItem[]): { prusa: string; bambu: string } | null {
+  if (!items.some((i) => i.filament !== undefined)) return null;
+  const prusa = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>'];
+  const bambu = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>'];
+  items.forEach((item, i) => {
+    const id = i + 2;
+    const name = escapeXml(item.name);
+    const extruder = item.filament ?? 1;
+    const triangles = weldMesh(item.mesh).triangles.length / 3;
+    prusa.push(`  <object id="${id}" instances_count="1">`);
+    prusa.push(`    <metadata type="object" key="name" value="${name}"/>`);
+    prusa.push(`    <metadata type="object" key="extruder" value="${extruder}"/>`);
+    prusa.push(`    <volume firstid="0" lastid="${Math.max(0, triangles - 1)}">`);
+    prusa.push(`      <metadata type="volume" key="name" value="${name}"/>`);
+    prusa.push('      <metadata type="volume" key="volume_type" value="ModelPart"/>');
+    prusa.push('    </volume>');
+    prusa.push('  </object>');
+    bambu.push(`  <object id="${id}">`);
+    bambu.push(`    <metadata key="name" value="${name}"/>`);
+    bambu.push(`    <metadata key="extruder" value="${extruder}"/>`);
+    bambu.push('  </object>');
+  });
+  prusa.push('</config>');
+  bambu.push('</config>');
+  return { prusa: prusa.join('\n'), bambu: bambu.join('\n') };
+}
+
 export async function meshesTo3mf(items: readonly ThreeMfItem[], meta: { title: string; application: string }): Promise<Uint8Array> {
   const enc = new TextEncoder();
+  const configs = objectFilamentConfigs(items);
   return createZip([
     { name: '[Content_Types].xml', data: enc.encode(CONTENT_TYPES) },
     { name: '_rels/.rels', data: enc.encode(RELS) },
     { name: '3D/3dmodel.model', data: enc.encode(build3mfModel(items, meta)) },
+    ...(configs
+      ? [
+          { name: 'Metadata/Slic3r_PE_model.config', data: enc.encode(configs.prusa) },
+          { name: 'Metadata/model_settings.config', data: enc.encode(configs.bambu) },
+        ]
+      : []),
   ]);
 }

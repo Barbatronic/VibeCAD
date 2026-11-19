@@ -94,4 +94,30 @@ describe('export 3MF', () => {
     // Compressé : bien plus petit que le XML.
     expect(bytes.length).toBeLessThan(files.get('3D/3dmodel.model')!.length / 3);
   });
+
+  it('une pièce d’une seule couleur prend son filament en entier ; une pièce peinte garde sa peinture', async () => {
+    const { doc, ids } = buildPlateDocument();
+    const svc = new GeometryService(kernel);
+    const id = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const moved = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 40, 0, 1];
+    const { bytes } = await svc.export3mf(documentForWorker(doc), [ids.partId], [
+      { partId: ids.partId, name: 'Uni', matrix: id, filament: 2 },
+      { partId: ids.partId, name: 'Peinte', matrix: moved, filament: 1, faceFilaments: [{ ref: { featureId: ids.extrude, role: 'end' }, filament: 3 }] },
+    ]);
+    const files = await readZip(bytes);
+    const objects = new TextDecoder().decode(files.get('3D/3dmodel.model')).split('<object ').slice(1);
+    // Pièce unie : aucun triangle peint. Pièce peinte : ses triangles portent leur filament.
+    expect(objects[0]).not.toContain('paint_color');
+    expect(objects[1]).toContain('paint_color="0C"');
+    expect(objects[1]).toContain('paint_color="4"');
+    // Filament de chaque objet, pour PrusaSlicer et pour Bambu Studio / OrcaSlicer (vérifié dans OrcaSlicer).
+    const prusa = new TextDecoder().decode(files.get('Metadata/Slic3r_PE_model.config'));
+    const bambu = new TextDecoder().decode(files.get('Metadata/model_settings.config'));
+    expect(prusa).toMatch(/<object id="2"[^]*?key="extruder" value="2"/);
+    expect(prusa).toMatch(/<object id="3"[^]*?key="extruder" value="1"/);
+    expect(bambu).toMatch(/<object id="2">\s*<metadata key="name" value="Uni"\/>\s*<metadata key="extruder" value="2"\/>/);
+    // Sans AMS (aucune matière imprimée) : pas de réglages de filament.
+    const plain = await readZip((await svc.export3mf(documentForWorker(doc), [ids.partId])).bytes);
+    expect(plain.has('Metadata/model_settings.config')).toBe(false);
+  });
 });

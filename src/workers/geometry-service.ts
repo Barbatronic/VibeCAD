@@ -425,6 +425,8 @@ export class GeometryService {
         const mesh = this.kernel.mesh(i.shape, meshOptionsFor(i.ev.analysis?.bbox ?? null, EXPORT_MESH));
         const filament = i.filament ?? 1;
         if (!multi) return { name: i.name, color: i.color, mesh };
+        // Une seule matière : le filament est donné à l'objet entier (pas de peinture triangle par triangle).
+        if (!i.faceFilaments?.length && !i.engraveFilaments?.length) return { name: i.name, color: i.color, mesh, filament };
         const filaments = new Uint8Array(mesh.indices.length / 3).fill(filament);
         // Faces peintes et gravures colorées : reconnues par leurs étiquettes, gardées par la copie placée sur le plateau.
         if (i.faceFilaments?.length || i.engraveFilaments?.length) {
@@ -434,7 +436,7 @@ export class GeometryService {
             if (hit !== null) filaments.fill(hit, f.start / 3, (f.start + f.count) / 3);
           });
         }
-        return { name: i.name, color: i.color, mesh, filaments };
+        return { name: i.name, color: i.color, mesh, filament, ...(filaments.some((f) => f !== filament) ? { filaments } : {}) };
       });
       const bytes = await meshesTo3mf(meshes, { title: this.asDocument(doc).name, application: `${APP_NAME} ${APP_VERSION}` });
       return { bytes, warnings };
