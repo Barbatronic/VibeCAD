@@ -163,3 +163,15 @@ export function renameParameterUses(doc: CadDocument, from: string, to: string):
   }));
   return { ...doc, parts, ...(parameters ? { parameters } : {}) };
 }
+
+/**
+ * Version du projet où le paramètre `name` vaut `value` (série d'essais) : les paramètres qui en
+ * dépendent, les champs et les cotes liés sont recalculés. Le projet est rendu tel quel si le
+ * paramètre n'existe pas.
+ */
+export function variantDocument(doc: CadDocument, name: string, value: number): CadDocument {
+  const params = doc.parameters ?? [];
+  const key = name.toLowerCase();
+  if (!params.some((p) => p.name.toLowerCase() === key)) return doc;
+  return applyParameters({ ...doc, parameters: params.map((p) => (p.name.toLowerCase() === key ? { ...p, expression: String(value) } : p)) });
+}

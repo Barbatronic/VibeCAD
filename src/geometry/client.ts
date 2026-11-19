@@ -21,6 +21,7 @@ import {
   type CollisionPlacement,
 } from './protocol';
 import type { FreecadLeaf } from '../io/freecad';
+import type { VariantMark } from '../features/series-mark';
 
 type RequestType = WorkerRequest['type'];
 type RequestBody<T extends RequestType> = Omit<Extract<WorkerRequest, { type: T }>, 'id'>;
@@ -232,6 +233,12 @@ export class GeometryClient {
   async exportFreecad(doc: CadDocument, partIds: Id[], leaves: FreecadLeaf[]): Promise<WorkerResultMap['exportFreecad']> {
     await this.syncResources(doc);
     return this.request('exportFreecad', { doc: documentForWorker(doc), partIds, leaves });
+  }
+
+  /** Version d'essai d'une pièce (série d'essais) : le paramètre `parameter` vaut `value`. */
+  async variant(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark): Promise<WorkerResultMap['variant']> {
+    await this.syncResources(doc);
+    return this.request('variant', { doc: documentForWorker(doc), partId, parameter, value, ...(mark ? { mark } : {}) });
   }
 
   async export3mf(doc: CadDocument, partIds: Id[], placements?: ExportPlacement[]): Promise<WorkerResultMap['export3mf']> {

@@ -127,8 +127,10 @@ export class RecomputeEngine {
    * Recalcule toutes les pièces du document. Les résultats restent valides jusqu'au prochain appel.
    * `onStep` est appelé après chaque étape (avancement : étapes faites, étapes au total).
    */
-  evaluateDocument(doc: CadDocument, onStep?: (done: number, total: number) => void): PartEvaluation[] {
-    const gen = ++this.generation;
+  evaluateDocument(doc: CadDocument, onStep?: (done: number, total: number) => void, opts: { aside?: boolean } = {}): PartEvaluation[] {
+    // À part (versions d'essai d'une pièce) : le calcul ne compte pas comme un recalcul du projet,
+    // les étapes du projet ouvert ne vieillissent pas et ne sont pas libérées.
+    const gen = opts.aside ? this.generation : ++this.generation;
     const total = doc.parts.reduce((n, p) => n + p.features.length, 0);
     let done = 0;
     this.onStep = onStep ? () => onStep(++done, total) : null;
@@ -142,7 +144,7 @@ export class RecomputeEngine {
       if (ev.shape && ev.shapeKey) finals.set(part.id, { shape: ev.shape, key: ev.shapeKey });
     }
     this.onStep = null;
-    this.evict(gen);
+    if (!opts.aside) this.evict(gen);
     return doc.parts.map((p) => byId.get(p.id)!);
   }
 

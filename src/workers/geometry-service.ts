@@ -7,6 +7,14 @@ import type { Collision, CollisionPlacement, SectionPart, SectionPlane } from '.
 import type { CadDocument, EdgeRef, Id, Part } from '../domain/model';
 import { add3, scale3, type Vec3 } from '../math/vec';
 import { foldLines } from '../features/sheet/fold';
+import { variantDocument } from '../features/parameters';
+import { markedDocument, type VariantMark } from '../features/series-mark';
+
+/** Version d'essai : le paramètre prend la valeur, puis la valeur est gravée si un marquage est demandé. */
+function seriesVersion(doc: CadDocument, partId: Id, parameter: string, value: number, mark?: VariantMark): CadDocument {
+  const v = variantDocument(doc, parameter, value);
+  return mark ? markedDocument(v, partId, mark) : v;
+}
 import { engraveSteps, faceMaterials } from '../domain/paint';
 import { DISPLAY_MESH, EXPORT_MESH } from '../domain/tolerances';
 import { RecomputeEngine, type PartEvaluation, type PartSnapshot } from '../features/engine';
@@ -27,6 +35,7 @@ import type {
   SketchResult,
   StepInspection,
   WorkerResourcePayload,
+  WorkerResultMap,
 } from '../geometry/protocol';
 
 export function meshOptionsFor(bbox: BoundingBox | null, quality: typeof DISPLAY_MESH | typeof EXPORT_MESH): MeshOptions {
@@ -221,12 +230,37 @@ export class GeometryService {
     const shapes = placements.flatMap((pl) => {
       const item = items.find((i) => i.part.id === pl.partId);
       if (!item) return [];
+      // Série d'essais : la version de la pièce pour cette valeur, calculée à part.
+      let source = item.shape;
+      if (pl.variant) {
+        const vdoc = seriesVersion(this.asDocument(doc), pl.partId, pl.variant.parameter, pl.variant.value, pl.variant.mark);
+        const ev = this.engine.evaluateDocument(vdoc, undefined, { aside: true }).find((e) => e.partId === pl.partId);
+        if (!ev?.shape) {
+          warnings.push(`« ${pl.name} » n’a pas de volume : elle n’est pas exportée.`);
+          return [];
+        }
+        source = ev.shape;
+      }
       // Les faces gardent leurs étiquettes (reprises par la peinture des faces, et par les exports).
-      const shape = this.kernel.transformed(item.shape, pl.matrix, { keep: true });
+      const shape = this.kernel.transformed(source, pl.matrix, { keep: true });
       placed.push(shape);
       return [{ name: pl.name, color: item.part.color, shape, ev: item.ev, filament: pl.filament, faceFilaments: pl.faceFilaments, engraveFilaments: pl.engraveFilaments, marks: engraveSteps(item.part) }];
     });
     return { warnings, placed, shapes };
+  }
+
+  /**
+   * Version d'essai d'une pièce : le projet où le paramètre prend cette valeur, calculé à part
+   * (le cache du projet ouvert est gardé tel quel).
+   */
+  variant(docIn: DocumentForWorker, partId: Id, parameter: string, value: number, mark?: VariantMark): WorkerResultMap['variant'] {
+    const doc = seriesVersion(this.asDocument(docIn), partId, parameter, value, mark);
+    const ev = this.engine.evaluateDocument(doc, undefined, { aside: true }).find((e) => e.partId === partId);
+    if (!ev) return { meshKey: null, mesh: null, analysis: null, failed: null };
+    const failed = ev.failedFeatureId ? (doc.parts.find((p) => p.id === partId)?.features.find((f) => f.id === ev.failedFeatureId)?.name ?? '?') : null;
+    if (!ev.shape || !ev.shapeKey) return { meshKey: null, mesh: null, analysis: ev.analysis, failed };
+    const options = meshOptionsFor(ev.analysis?.bbox ?? null, DISPLAY_MESH);
+    return { meshKey: `${ev.shapeKey}|${options.linearDeflection}`, mesh: this.engine.meshOf(ev, options), analysis: ev.analysis, failed };
   }
 
   exportStep(doc: DocumentForWorker, partIds: Id[], placements?: ExportPlacement[], tree?: StepTree): { text: string; warnings: string[] } {
