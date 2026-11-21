@@ -7,10 +7,11 @@ import type { Id, Part } from '../domain/model';
 import { pickFaceReference } from '../features/sketch/support';
 import type { MeshData } from '../geometry/kernel';
 import { signedDistanceToFrame, worldToFrame, type Frame3D } from '../math/frame';
-import { distance2, dot3 } from '../math/vec';
+import { ccwThrough, distance2, dot3 } from '../math/vec';
 import type { ProjectableCurve } from '../sketch/session';
 
 const round = (v: number) => Math.round(v * 1e4) / 1e4;
+
 
 /**
  * Arêtes de `part` reprenables dans l'esquisse `sketchId` ; `external` : `part` est une autre
@@ -42,9 +43,24 @@ export function projectableCurves(mesh: MeshData | null | undefined, frame: Fram
       key = `l|${round(p!.x)}|${round(p!.y)}|${round(q!.x)}|${round(q!.y)}`;
     } else if (edge.circle && Math.abs(Math.abs(dot3(edge.circle.axis, frame.normal)) - 1) < 1e-6) {
       const center = worldToFrame(frame, edge.circle.center);
-      curve = { kind: 'circle', center, radius: edge.circle.radius, ref, ...(external ? { partId: part.id } : {}) };
       depth = Math.abs(signedDistanceToFrame(frame, edge.circle.center));
-      key = `c|${round(center.x)}|${round(center.y)}|${round(edge.circle.radius)}`;
+      // Extrémités de l'arête (premier et dernier sommet de sa polyligne) : confondues pour un cercle complet.
+      const vertex = (k: number) => {
+        const i = 3 * k;
+        return worldToFrame(frame, { x: mesh.edgePositions[i]!, y: mesh.edgePositions[i + 1]!, z: mesh.edgePositions[i + 2]! });
+      };
+      const first = vertex(edge.start);
+      const last = vertex(edge.start + edge.count - 1);
+      if (edge.count < 2 || distance2(first, last) < Math.max(1e-6, edge.circle.radius * 1e-4)) {
+        curve = { kind: 'circle', center, radius: edge.circle.radius, ref, ...(external ? { partId: part.id } : {}) };
+        key = `c|${round(center.x)}|${round(center.y)}|${round(edge.circle.radius)}`;
+      } else {
+        // Arc : sens trigonométrique de `start` à `end`, celui qui passe par le milieu de l'arête.
+        const mid = vertex(edge.start + Math.floor(edge.count / 2));
+        const [start, end] = ccwThrough(center, first, last, mid) ? [first, last] : [last, first];
+        curve = { kind: 'arc', center, radius: edge.circle.radius, start, end, ref, ...(external ? { partId: part.id } : {}) };
+        key = `a|${round(center.x)}|${round(center.y)}|${round(edge.circle.radius)}|${round(start.x)}|${round(start.y)}|${round(end.x)}|${round(end.y)}`;
+      }
     } else continue;
     // Plusieurs arêtes se projettent au même endroit (dessus et dessous d'une plaque) : on garde
     // la plus proche du plan de l'esquisse.

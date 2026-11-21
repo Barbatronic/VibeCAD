@@ -59,3 +59,10 @@ export function clean3(a: Vec3, eps = 1e-12): Vec3 {
   const c = (v: number) => (Math.abs(v) < eps ? 0 : v);
   return { x: c(a.x), y: c(a.y), z: c(a.z) };
 }
+
+/** Vrai si, autour de `c`, le chemin trigonométrique de `a` à `b` passe par `m` (sens d'un arc). */
+export function ccwThrough(c: Vec2, a: Vec2, b: Vec2, m: Vec2): boolean {
+  const ang = (q: Vec2) => Math.atan2(q.y - c.y, q.x - c.x);
+  const turn = (x: number) => ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return turn(ang(m) - ang(a)) < turn(ang(b) - ang(a));
+}

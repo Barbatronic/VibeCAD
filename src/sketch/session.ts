@@ -161,7 +161,9 @@ export const TOOL_HELP: Record<SketchTool, string> = {
 /** Arête reprenable : de la pièce, d'une autre pièce (`partId`), ou d'une voisine dans l'assemblage (`context`). */
 export type ProjectableCurve =
   | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
-  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id; context?: AssemblyContext };
+  | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
+  /** Arc : de `start` à `end` dans le sens trigonométrique (comme un arc d'esquisse). */
+  | { kind: 'arc'; center: Vec2; radius: number; start: Vec2; end: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext };
 
 export interface SessionMessage {
   kind: 'info' | 'success' | 'error';
@@ -2117,11 +2119,20 @@ function constraintToolClick(s: SketchSession, p: Vec2, tool: ConstraintTool): S
 // ---------------------------------------------------------------------------
 // Projection d'arêtes de la pièce
 
+/** Distance d'un point à un arc (au cercle s'il est dans l'arc, sinon à l'extrémité la plus proche). */
+function distanceToArc(p: Vec2, c: { center: Vec2; radius: number; start: Vec2; end: Vec2 }): number {
+  const ang = (q: Vec2) => Math.atan2(q.y - c.center.y, q.x - c.center.x);
+  const turn = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const a0 = ang(c.start);
+  const inside = turn(ang(p) - a0) <= turn(ang(c.end) - a0);
+  return inside ? Math.abs(distance2(p, c.center) - c.radius) : Math.min(distance2(p, c.start), distance2(p, c.end));
+}
+
 function nearestProjectable(s: SketchSession, p: Vec2): number | null {
   let best: number | null = null;
   let bestD = tolerance(s);
   s.projectable.forEach((c, i) => {
-    const d = c.kind === 'line' ? distanceToSegment2(p, c.a, c.b) : Math.abs(distance2(p, c.center) - c.radius);
+    const d = c.kind === 'line' ? distanceToSegment2(p, c.a, c.b) : c.kind === 'circle' ? Math.abs(distance2(p, c.center) - c.radius) : distanceToArc(p, c);
     if (d <= bestD) {
       best = i;
       bestD = d;
@@ -2142,7 +2153,7 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
   const index = nearestProjectable(s, p);
   if (index === null) return { ...s, message: info('Cliquez sur une arête violette de la pièce pour la reprendre dans l’esquisse.') };
   const curve = s.projectable[index]!;
-  const existing = s.sketch.entities.find((e) => (e.type === 'line' || e.type === 'circle') && e.reference && (e.reference.partId ?? null) === (curve.partId ?? null) && sameEdgeRef(e.reference.edge, curve.ref));
+  const existing = s.sketch.entities.find((e) => (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference && (e.reference.partId ?? null) === (curve.partId ?? null) && sameEdgeRef(e.reference.edge, curve.ref));
   if (existing) return { ...s, selection: [existing.id], message: info('Cette arête est déjà reprise dans l’esquisse.') };
   let sketch: SketchParams;
   let id: string;
@@ -2150,6 +2161,10 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
     const r = addLine(s.sketch, curve.a, curve.b);
     sketch = r.sketch;
     id = r.lineId;
+  } else if (curve.kind === 'arc') {
+    const r = addArc(s.sketch, curve.center, curve.start, curve.end);
+    sketch = r.sketch;
+    id = r.arcId;
   } else {
     const r = addCircle(s.sketch, curve.center, curve.radius);
     sketch = r.sketch;
@@ -2157,9 +2172,9 @@ function projectClick(s: SketchSession, p: Vec2): SketchSession {
   }
   sketch = {
     ...sketch,
-    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId, ...(curve.context ? { context: curve.context } : {}) } : {}) } } : e)),
+    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId, ...(curve.context ? { context: curve.context } : {}) } : {}) } } : e)),
   };
-  const what = curve.kind === 'line' ? 'ses extrémités' : 'son centre';
+  const what = curve.kind === 'line' ? 'ses extrémités' : curve.kind === 'arc' ? 'son centre et ses extrémités' : 'son centre';
   const { session } = commit(s, sketch, {
     message: success(`Arête reprise (en violet) : elle suit la pièce. Utilisez ${what} pour coter ou contraindre votre dessin.`),
   });

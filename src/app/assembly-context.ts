@@ -196,7 +196,7 @@ export function syncContexts(
     const nextSupport = support.kind === 'face' && support.context ? { ...support, context: update(support.context) } : support;
     let entitiesChanged = false;
     const entities = f.params.entities.map((e) => {
-      if ((e.type !== 'line' && e.type !== 'circle') || !e.reference?.context) return e;
+      if ((e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') || !e.reference?.context) return e;
       const context = update(e.reference.context);
       if (context === e.reference.context) return e;
       entitiesChanged = true;

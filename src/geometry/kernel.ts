@@ -220,7 +220,8 @@ export type BlendResult =
 /** Géométrie d'une arête ; `mid` : son point au milieu (paramètre médian), pour la retrouver ailleurs. */
 export type EdgeCurve =
   | { kind: 'line'; start: Vec3; end: Vec3; mid?: Vec3 }
-  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3 }
+  /** Cercle ou arc de cercle : `start`/`end` (absents ou confondus : cercle complet). */
+  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3; start?: Vec3; end?: Vec3 }
   | { kind: 'other'; mid?: Vec3 };
 
 /**

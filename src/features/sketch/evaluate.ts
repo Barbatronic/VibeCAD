@@ -1,7 +1,7 @@
 import type { Id, SketchEntity, SketchFeature, SketchParams, SketchSupport } from '../../domain/model';
 import { issue, okStatus, type FeatureIssueCode, type FeatureStatus } from '../../domain/status';
 import { canonicalFrame, originPlaneFrame, worldToFrame, type Frame3D } from '../../math/frame';
-import { distance2, dot3, type Vec2 } from '../../math/vec';
+import { ccwThrough, distance2, dot3, type Vec2 } from '../../math/vec';
 import { extractProfiles, type ProfileRegion } from '../../sketch/profiles';
 import { solveSketch } from '../../sketch/solver';
 import type { EvaluationContext, FeatureEvaluator, FeatureOutcome } from '../evaluation';
@@ -40,7 +40,7 @@ export function resolveSupportFrame(support: SketchSupport, ctx: EvaluationConte
  * plan de l'esquisse. Une arête introuvable garde sa dernière position et est signalée.
  */
 export function updateReferences(params: SketchParams, frame: Frame3D, ctx: EvaluationContext): { params: SketchParams; lost: string[] } {
-  const refs = params.entities.filter((e) => (e.type === 'line' || e.type === 'circle') && e.reference);
+  const refs = params.entities.filter((e) => (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference);
   if (refs.length === 0) return { params, lost: [] };
   const moves = new Map<string, Vec2>();
   const radii = new Map<string, number>();
@@ -50,7 +50,7 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
     return p?.type === 'point' ? p : undefined;
   };
   for (const e of refs) {
-    if ((e.type !== 'line' && e.type !== 'circle') || !e.reference) continue;
+    if ((e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') || !e.reference) continue;
     const source = e.reference.partId ? ctx.externalShape(e.reference.partId, e.reference.context?.matrix) : ctx.shape;
     const curves = source ? ctx.kernel.edgeCurves(source, e.reference.edge) : [];
     if (e.type === 'line') {
@@ -71,6 +71,24 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
       else {
         moves.set(e.a, best.a);
         moves.set(e.b, best.b);
+      }
+    } else if (e.type === 'arc') {
+      // Arc : centre et extrémités, dans le sens trigonométrique qui passe par le milieu de l'arête.
+      const [center, start, end] = [pointAt(e.center), pointAt(e.start), pointAt(e.end)];
+      let best: { c: Vec2; s: Vec2; t: Vec2; d: number } | null = null;
+      for (const c of curves) {
+        if (c.kind !== 'circle' || !c.start || !c.end || !c.mid || Math.abs(Math.abs(dot3(c.axis, frame.normal)) - 1) > 1e-6) continue;
+        const cc = worldToFrame(frame, c.center);
+        const [p0, p1, pm] = [worldToFrame(frame, c.start), worldToFrame(frame, c.end), worldToFrame(frame, c.mid)];
+        const [s, t] = ccwThrough(cc, p0, p1, pm) ? [p0, p1] : [p1, p0];
+        const d = center && start && end ? distance2(center, cc) + distance2(start, s) + distance2(end, t) : 0;
+        if (!best || d < best.d) best = { c: cc, s, t, d };
+      }
+      if (!best) lost.push(e.id);
+      else {
+        moves.set(e.center, best.c);
+        moves.set(e.start, best.s);
+        moves.set(e.end, best.t);
       }
     } else {
       const center = pointAt(e.center);

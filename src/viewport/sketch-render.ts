@@ -336,7 +336,16 @@ export class SketchView {
     // Arêtes de la pièce que l'outil Projeter peut reprendre.
     (input.projectable ?? []).forEach((curve, i) => {
       const hovered = input.projectHover === i;
-      const segs = curve.kind === 'line' ? [[curve.a, curve.b] as Segment] : circleSegments(curve.center, curve.radius, 64);
+      const segs =
+        curve.kind === 'line'
+          ? [[curve.a, curve.b] as Segment]
+          : curve.kind === 'arc'
+            ? (() => {
+                const a0 = Math.atan2(curve.start.y - curve.center.y, curve.start.x - curve.center.x);
+                const a1 = Math.atan2(curve.end.y - curve.center.y, curve.end.x - curve.center.x);
+                return arcSegments(curve.center, curve.radius, a0, (((a1 - a0) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+              })()
+            : circleSegments(curve.center, curve.radius, 64);
       for (const seg of segs) (hovered ? strong : construction).add(seg, hovered ? cHover : cRef);
     });
 

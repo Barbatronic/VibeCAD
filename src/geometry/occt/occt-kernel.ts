@@ -1126,7 +1126,17 @@ export class OcctKernel implements GeometryKernel {
             const circ = scope.track(adaptor.Circle());
             const loc = scope.track(circ.Location());
             const d = scope.track(scope.track(circ.Axis()).Direction());
-            return { kind: 'circle', center: { x: loc.X(), y: loc.Y(), z: loc.Z() }, axis: { x: d.X(), y: d.Y(), z: d.Z() }, radius: circ.Radius(), mid };
+            const p0 = scope.track(adaptor.Value(adaptor.FirstParameter()));
+            const p1 = scope.track(adaptor.Value(adaptor.LastParameter()));
+            return {
+              kind: 'circle',
+              center: { x: loc.X(), y: loc.Y(), z: loc.Z() },
+              axis: { x: d.X(), y: d.Y(), z: d.Z() },
+              radius: circ.Radius(),
+              mid,
+              start: { x: p0.X(), y: p0.Y(), z: p0.Z() },
+              end: { x: p1.X(), y: p1.Y(), z: p1.Z() },
+            };
           }
           return { kind: 'other', mid };
         }),

@@ -6,10 +6,11 @@ import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
 import { documentForWorker } from '../../src/geometry/protocol';
 import { GeometryService } from '../../src/workers/geometry-service';
 import { projectableCurves } from '../../src/app/projection';
-import { addCircle, addConstraint, addLine, pointPosition } from '../../src/sketch/model';
+import { addArc, addCircle, addConstraint, addLine, pointPosition } from '../../src/sketch/model';
+import { featureDependencies } from '../../src/features/registry';
 import { solveSketch } from '../../src/sketch/solver';
 import { getKernel } from '../helpers/kernel';
-import { buildPlateDocument, topFrontEdge } from '../helpers/plate';
+import { buildPlateDocument, cornerEdge, topFrontEdge } from '../helpers/plate';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -111,5 +112,49 @@ describe('géométrie reprise de la pièce dans une esquisse', () => {
     expect(projectableCurves(before.mesh, frame, part, ids.sketch2).some((c) => c.kind === 'circle')).toBe(false);
     // Première étape, ou aucune étape avant : rien.
     expect(svc.meshBefore(documentForWorker(doc), ids.partId, ids.sketch1).mesh).toBeNull();
+  });
+
+  it('arc de la pièce (coin arrondi) : proposé comme un arc, repris, il suit le rayon du congé', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    // Congé vertical de 5 mm sur le coin (60, 30) : le dessus a un quart de cercle dans l'angle.
+    const fillet = makeFilletFeature(base, findPart(base, ids.partId)!, [cornerEdge(base, ids.sketch1, ids.extrude)], 5);
+    let doc = addFeature(base, ids.partId, fillet);
+    const sk = makeSketchFeature(doc, findPart(doc, ids.partId)!, { kind: 'face', ref: { featureId: ids.extrude, role: 'end' } });
+    doc = addFeature(doc, ids.partId, sk);
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const [res] = engine.evaluateDocument(doc);
+    const frame = res!.sketches.find((s) => s.featureId === sk.id)!.frame!;
+    const curves = projectableCurves(engine.meshOf(res!, MESH)!, frame, findPart(doc, ids.partId)!, sk.id);
+    const arcs = curves.filter((c) => c.kind === 'arc');
+    expect(arcs).toHaveLength(1);
+    const arc = arcs[0]!;
+    if (arc.kind !== 'arc') throw new Error('arc attendu');
+    expect(arc.radius).toBeCloseTo(5, 6);
+    expect(arc.center.x).toBeCloseTo(55, 4);
+    expect(arc.center.y).toBeCloseTo(25, 4);
+    // Le cercle du trou reste un cercle complet.
+    expect(curves.filter((c) => c.kind === 'circle')).toHaveLength(1);
+    // Quart de cercle parcouru dans le sens trigonométrique : de (60, 25) à (55, 30).
+    expect(arc.start.x).toBeCloseTo(60, 3);
+    expect(arc.start.y).toBeCloseTo(25, 3);
+    expect(arc.end.x).toBeCloseTo(55, 3);
+    expect(arc.end.y).toBeCloseTo(30, 3);
+    // Arc repris dans l'esquisse, puis congé porté à 8 mm : l'arc suit.
+    const r = addArc(sk.params, arc.center, arc.start, arc.end);
+    const params = { ...r.sketch, entities: r.sketch.entities.map((e) => (e.id === r.arcId && e.type === 'arc' ? { ...e, reference: { edge: arc.ref } } : e)) };
+    let d2 = updateFeature<SketchFeature>(doc, sk.id, (f) => ({ ...f, params }));
+    d2 = updateFeature(d2, fillet.id, (f) => (f.type === 'fillet' ? { ...f, params: { ...f.params, radius: 8 } } : f));
+    const [res2] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(d2);
+    expect(res2!.statuses.find((s) => s.featureId === sk.id)?.state).toBe('ok');
+    const solved = res2!.sketches.find((s) => s.featureId === sk.id)!.solved;
+    const at = (id: string) => pointPosition(solved, id)!;
+    expect(at(r.center).x).toBeCloseTo(52, 3);
+    expect(at(r.center).y).toBeCloseTo(22, 3);
+    expect(at(r.start).x).toBeCloseTo(60, 3);
+    expect(at(r.start).y).toBeCloseTo(22, 3);
+    expect(at(r.end).x).toBeCloseTo(52, 3);
+    expect(at(r.end).y).toBeCloseTo(30, 3);
+    // L'esquisse dépend bien du congé (l'arête reprise est bordée par sa face).
+    expect(featureDependencies(findPart(d2, ids.partId)!.features.find((f) => f.id === sk.id)!)).toContain(fillet.id);
   });
 });
