@@ -76,6 +76,21 @@ export function installKeyboard(controller: AppController): () => void {
       else controller.undo();
       return;
     }
+    // Copier / coller une esquisse (choisie dans l'historique ; collée dans la pièce active).
+    if (mod && (key === 'c' || key === 'v') && !e.shiftKey && s.mode.kind === 'model' && s.workspace === 'parts') {
+      const sel = s.selection;
+      const sketchSelected = sel?.kind === 'feature' && s.doc.parts.some((p) => p.features.some((f) => f.id === sel.featureId && f.type === 'sketch'));
+      if (key === 'c' && sketchSelected) {
+        e.preventDefault();
+        controller.copySketch();
+        return;
+      }
+      if (key === 'v' && s.sketchClipboard) {
+        e.preventDefault();
+        controller.pasteSketch();
+        return;
+      }
+    }
     if (mod || e.altKey) return;
 
     // Chiffres tapés pendant un tracé ou une cote alors qu'aucun champ n'a le focus : ils sont

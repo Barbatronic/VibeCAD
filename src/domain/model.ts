@@ -571,8 +571,9 @@ export type DraftFeature = FeatureBase<'draft', DraftParams>;
 export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 export type MoveFeature = FeatureBase<'move', MoveParams>;
 export type HoleFeature = FeatureBase<'hole', HoleParams>;
-export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams>;
-export type AxisFeature = FeatureBase<'axis', DatumAxisParams>;
+/** Plan et axe de construction : `visible` faux, masqués dans la vue 3D (absent : affichés). */
+export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams> & { visible?: boolean };
+export type AxisFeature = FeatureBase<'axis', DatumAxisParams> & { visible?: boolean };
 export type SheetFeature = FeatureBase<'sheet', SheetParams>;
 export type FlangeFeature = FeatureBase<'flange', FlangeParams>;
 export type FoldFeature = FeatureBase<'fold', FoldParams>;

@@ -215,6 +215,9 @@ function PickSupportPanel() {
     mode?.repairFeatureId ? s.doc.parts.flatMap((p) => p.features).find((f) => f.id === mode.repairFeatureId)?.name : null,
   );
   const hasSolid = useAppState((s) => (mode ? (s.display[mode.partId]?.result.analysis?.solidCount ?? 0) > 0 : false));
+  // Collage d'une esquisse : son nom, et si son support d'origine existe dans cette pièce.
+  const pasteName = useAppState((s) => (mode?.paste ? (s.sketchClipboard?.name ?? null) : null));
+  const sameSupport = useAppState(() => (mode?.paste ? c.pasteSupportFrame() !== null : false));
   // Plans de construction calculés, placés avant l'esquisse à réparer (tous pour une nouvelle esquisse).
   const datums = useAppState(
     (s) => {
@@ -236,13 +239,19 @@ function PickSupportPanel() {
     <>
       <div class="panel-title">
         <Icon name="sketch" />
-        <span>{repairName ? `Nouveau support pour « ${repairName} »` : 'Nouvelle esquisse'}</span>
+        <span>{repairName ? `Nouveau support pour « ${repairName} »` : pasteName ? `Coller « ${pasteName} »` : 'Nouvelle esquisse'}</span>
       </div>
       <p class="panel-intro">
         {repairName ? 'Plan ou face : le dessin et ses cotes sont conservés.' : hasSolid ? 'Un plan, ou une face plane de la pièce' : 'Un plan'}
       </p>
       <div class="panel-content">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {pasteName && sameSupport ? (
+            <button type="button" class="btn btn-primary plane-choice" onClick={() => c.pasteOnSameSupport()}>
+              <Icon name="copy" />
+              <strong>Même support que « {pasteName} »</strong>
+            </button>
+          ) : null}
           {planes.map((p) => (
             <button key={p.plane} type="button" class="btn plane-choice" onClick={() => c.pickPlane(p.plane)}>
               <Icon name={p.icon} />

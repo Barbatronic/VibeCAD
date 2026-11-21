@@ -1009,6 +1009,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           direction: oneOf(v, p, 'direction', pp, ['X', 'Y', 'Z'] as const),
           ...(edge && edge.kind === 'edge' ? { edge: edge.edge } : {}),
         },
+        ...(o.visible === false ? { visible: false } : {}),
       };
     }
     case 'plane':
@@ -1017,6 +1018,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         name,
         type,
         params: { base: readPlaneRef(v, p.base, `${pp}.base`), offset: num(v, p, 'offset', pp), angle: num(v, p, 'angle', pp), hinge: readPatternAxis(v, p.hinge, `${pp}.hinge`) },
+        ...(o.visible === false ? { visible: false } : {}),
       };
     case 'hole':
       return {

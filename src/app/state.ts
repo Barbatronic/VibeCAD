@@ -26,7 +26,7 @@ export interface ControlLawRun {
 }
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
-import type { CadDocument, Id, JointEnd } from '../domain/model';
+import type { CadDocument, Id, JointEnd, SketchParams } from '../domain/model';
 import type { MaterialSheet } from '../domain/material-sheets';
 import type { FastenerKind } from '../domain/fasteners';
 import type { FeatureDraft } from '../features/panel-types';
@@ -54,7 +54,8 @@ export interface MeasureInfo {
 
 export type Mode =
   | { kind: 'model' }
-  | { kind: 'pick-support'; partId: Id; repairFeatureId: Id | null }
+  /** `paste` : la nouvelle esquisse reprend le dessin copié (`sketchClipboard`). */
+  | { kind: 'pick-support'; partId: Id; repairFeatureId: Id | null; paste?: boolean }
   | { kind: 'sketch'; session: SketchSession }
   | { kind: 'feature'; draft: FeatureDraft }
   | { kind: 'measure'; picks: ModelPick[]; info: MeasureInfo | null; busy: boolean }
@@ -351,6 +352,12 @@ export interface AppState {
   edgeWidth: number;
   /** Vitesse du zoom à la molette (1 : normale), retenue sur l'appareil. */
   zoomSpeed: number;
+  /** Esquisses affichées dans la vue 3D (hors esquisse en cours, sélectionnée ou en erreur). */
+  showSketches: boolean;
+  /** Esquisse copiée (Ctrl+C), à coller dans la pièce active (Ctrl+V). */
+  sketchClipboard: { name: string; partId: Id; params: SketchParams } | null;
+  /** Plans et axes de construction affichés dans la vue 3D. */
+  showDatums: boolean;
   /** Choix des arêtes d'un congé ou d'un chanfrein : arêtes cachées montrées, cliquables (retenu sur l'appareil). */
   blendXray: boolean;
   dialog: Dialog | null;
@@ -464,6 +471,9 @@ export function initialState(): AppState {
     brush: null,
     edgeWidth: 1,
     zoomSpeed: 1,
+    showSketches: true,
+    sketchClipboard: null,
+    showDatums: true,
     blendXray: true,
     dialog: null,
     helpOpen: false,

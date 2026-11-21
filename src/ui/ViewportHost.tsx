@@ -619,7 +619,8 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
         if (f.type !== 'sketch') continue;
         const selected = s.selection?.kind === 'feature' && s.selection.featureId === f.id;
         const issue = result.statuses.find((st) => st.relatedFeatureId === f.id && st.highlightPoints?.length);
-        if (!(f as SketchFeature).visible && !selected && !issue) continue;
+        // Masquée (sur sa ligne, ou toutes les esquisses dans le menu Affichage) : visible seulement choisie ou en erreur.
+        if ((!(f as SketchFeature).visible || !s.showSketches) && !selected && !issue) continue;
         const sk = result.sketches.find((x) => x.featureId === f.id);
         if (!sk?.frame) continue;
         const highlightPoints = (issue?.highlightPoints ?? []).map((id) => pointPosition(sk.solved, id)).filter((v): v is Vec2 => !!v);
@@ -662,12 +663,16 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
     for (const part of s.doc.parts) {
       if (!partShown(s, part)) continue;
       const result = (s.mode.kind === 'feature' && s.mode.draft.partId === part.id ? s.preview?.parts[part.id] : undefined) ?? s.display[part.id]?.result;
+      // Plan ou axe masqué (sur sa ligne, ou tous dans le menu Affichage) : visible seulement modifié ou choisi.
+      const hidden = (id: string) => id !== editing && id !== selectedId && (!s.showDatums || (part.features.find((x) => x.id === id) as { visible?: boolean } | undefined)?.visible === false);
       for (const pl of result?.planes ?? []) {
+        if (hidden(pl.featureId)) continue;
         const f = part.features.find((x) => x.id === pl.featureId);
         const label = f?.name ?? (s.mode.kind === 'feature' && s.mode.draft.feature.id === pl.featureId ? s.mode.draft.feature.name : 'Plan');
         datumPlanes.push({ key: pl.featureId, frame: pl.frame, label, active: pl.featureId === editing || pl.featureId === selectedId });
       }
       for (const ax of result?.axes ?? []) {
+        if (hidden(ax.featureId)) continue;
         const f = part.features.find((x) => x.id === ax.featureId);
         const label = f?.name ?? (s.mode.kind === 'feature' && s.mode.draft.feature.id === ax.featureId ? s.mode.draft.feature.name : 'Axe');
         datumAxes.push({ key: ax.featureId, point: ax.point, dir: ax.dir, label, active: ax.featureId === editing || ax.featureId === selectedId });
@@ -904,6 +909,8 @@ function DisplayMenu() {
   const edgeWidth = useAppState((s) => s.edgeWidth);
   const zoomSpeed = useAppState((s) => s.zoomSpeed);
   const colorMode = useAppState((s) => s.colorMode);
+  const showSketches = useAppState((s) => s.showSketches);
+  const showDatums = useAppState((s) => s.showDatums);
   const inFabrication = useAppState((s) => s.workspace === 'fabrication');
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -968,6 +975,17 @@ function DisplayMenu() {
             </button>
           ))}
           {inFabrication ? <span class="menu-caption menu-note">Toujours les matières réelles dans l’atelier Fabrication.</span> : null}
+          <div class="menu-sep" role="separator" />
+          <span class="menu-caption">Afficher</span>
+          {([
+            ['sketches', 'Esquisses', showSketches, 'Toutes les esquisses de la vue (celle choisie dans l’historique reste visible)'],
+            ['datums', 'Plans et axes', showDatums, 'Tous les plans et axes de construction'],
+          ] as const).map(([what, label, on, help]) => (
+            <button key={what} type="button" role="menuitemcheckbox" aria-checked={on} class="menu-item" title={help} onClick={() => c.setShownInView(what, !on)}>
+              <Icon name={on ? 'check' : 'blank'} />
+              <span>{label}</span>
+            </button>
+          ))}
           <div class="menu-sep" role="separator" />
           <label class="field edge-width-field">
             <span class="field-label">
@@ -1108,7 +1126,7 @@ export function ViewportHost() {
       const frame = state.workspace === 'parts' ? (activeContext(state)?.matrix ?? IDENTITY_FRAME) : state.workspace === 'assembly' ? IDENTITY_FRAME : undefined;
       return { ...built, displayStyle: state.displayStyle, edgeWidth: state.edgeWidth, zoomSpeed: state.zoomSpeed, ...(frame ? { frame } : {}) };
     },
-    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.hoverJoint, state.sketchBase, state.versionView],
+    [state.simulationPart, state.simulationRun, state.topologyRun, state.simulationDisplay, state.simulationDeformed, state.simulationAnimate, state.activePartId, state.doc, state.display, state.mode, state.selection, state.preview, state.fitRequest, state.workspace, state.assemblySelection, state.assemblyHand, state.fabricationTab, state.printPlate, state.printPlateId, state.printItem, state.printVariants, state.brush, state.mode.kind === 'joint' ? state.hover : null, state.section, state.sectionParts, state.showCentroid, state.unfolded, state.imageVersion, state.pendingImage, state.level, state.collisionCheck, state.collisions, state.isolatedPartId, state.explode, state.displayStyle, state.edgeWidth, state.zoomSpeed, state.colorMode, state.assemblyContext, state.mechanismHover, state.mechanismRun, state.mechanismTime, state.scenarioId, state.scenarioLive, state.hoverPart, state.hoverJoint, state.sketchBase, state.showSketches, state.showDatums, state.versionView],
   );
   const kernel = state.kernel;
   const session = state.mode.kind === 'sketch' ? state.mode.session : null;

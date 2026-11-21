@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { FORMAT_ID, parseNativeFile, SCHEMA_VERSION, serializeDocument, type Migration } from '../../src/io/native-format';
 import { DEFAULT_FABRICATION } from '../../src/app/fabrication';
 import { partMaterialId } from '../../src/domain/part-material';
-import { setPartMaterial, makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, findPart, setPartMaterial, makeGearFeature, makeHoleFeature, makeAxisFeature, makeMirrorFeature, makeMoveFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
 import { solveSketch } from '../../src/sketch/solver';
 import { addText } from '../../src/sketch/model';
 import { buildPlateDocument, setDimension } from '../helpers/plate';
@@ -260,5 +260,20 @@ describe('scénarios de mouvement dans le fichier', () => {
     const parsed = parseNativeFile(serializeDocument(withScenario));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.doc.simulation?.scenarios).toEqual(withScenario.simulation.scenarios);
+  });
+});
+
+describe('plans et axes masqués dans le fichier', () => {
+  it('aller-retour : « visible: false » gardé, absent quand affiché (schéma respecté)', () => {
+    const { doc, ids } = buildPlateDocument();
+    const part = findPart(doc, ids.partId)!;
+    const plane = { ...makePlaneFeature(doc, part), visible: false };
+    const shown = makePlaneFeature(addFeature(doc, ids.partId, plane), findPart(addFeature(doc, ids.partId, plane), ids.partId)!);
+    const d = addFeature(addFeature(doc, ids.partId, plane), ids.partId, shown);
+    const text = serializeDocument(d);
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc.parts[0]!.features.slice(-2).map((f) => (f as { visible?: boolean }).visible)).toEqual([false, undefined]);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });
 });

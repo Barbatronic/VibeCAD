@@ -42,7 +42,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { Assembly, ControlLawSpec, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, ControlLawSpec, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -245,6 +245,8 @@ export class AppController {
     if (typeof edgeWidth === 'number' && edgeWidth >= 0.5 && edgeWidth <= 4) this.set({ edgeWidth });
     const zoomSpeed = await this.deps.projects?.getSetting<number>('zoomSpeed').catch(() => undefined);
     if (typeof zoomSpeed === 'number' && zoomSpeed >= 0.2 && zoomSpeed <= 4) this.set({ zoomSpeed });
+    const shown = await this.deps.projects?.getSetting<{ sketches?: boolean; datums?: boolean }>('shownInView').catch(() => undefined);
+    if (shown) this.set({ showSketches: shown.sketches !== false, showDatums: shown.datums !== false });
     if ((await this.deps.projects?.getSetting<boolean>('blendXray').catch(() => undefined)) === false) this.set({ blendXray: false });
     const grid = await this.deps.projects?.getSetting<boolean>('sketchGrid').catch(() => undefined);
     if (grid === false) this.set({ sketchGrid: false });
@@ -667,6 +669,12 @@ export class AppController {
   setDisplayStyle(displayStyle: DisplayStyle): void {
     this.set({ displayStyle });
     void this.deps.projects?.setSetting('displayStyle', displayStyle).catch(() => undefined);
+  }
+
+  /** Affiche ou masque toutes les esquisses, ou tous les plans et axes de construction (retenu sur l'appareil). */
+  setShownInView(what: 'sketches' | 'datums', on: boolean): void {
+    this.set(what === 'sketches' ? { showSketches: on } : { showDatums: on });
+    void this.deps.projects?.setSetting('shownInView', { sketches: this.state.showSketches, datums: this.state.showDatums }).catch(() => undefined);
   }
 
   /** Vitesse du zoom à la molette (0,2 à 4 ; 1 : normale), retenue sur l'appareil. */
@@ -1406,13 +1414,21 @@ export class AppController {
   }
 
   /** Afficher ou masquer une esquisse ou une image de référence. */
+  /** Affiche ou masque une esquisse, une image, un plan ou un axe de construction. */
   toggleSketchVisible(featureId: Id): void {
     const found = findFeature(this.state.doc, featureId);
-    if (!found || (found.feature.type !== 'sketch' && found.feature.type !== 'image')) return;
-    const visible = !found.feature.visible;
+    const f = found?.feature;
+    if (!found || !f || (f.type !== 'sketch' && f.type !== 'image' && f.type !== 'plane' && f.type !== 'axis')) return;
+    const visible = f.visible === false;
     this.commit(
-      updateFeature<SketchFeature | ImageFeature>(this.state.doc, featureId, (f) => ({ ...f, visible })),
-      visible ? `Afficher « ${found.feature.name} »` : `Masquer « ${found.feature.name} »`,
+      updateFeature<SketchFeature | ImageFeature | PlaneFeature | AxisFeature>(this.state.doc, featureId, (x) => {
+        if (x.type === 'plane' || x.type === 'axis') {
+          const { visible: _v, ...rest } = x;
+          return (visible ? rest : { ...rest, visible: false }) as typeof x;
+        }
+        return { ...x, visible };
+      }),
+      visible ? `Afficher « ${f.name} »` : `Masquer « ${f.name} »`,
     );
   }
 
@@ -1495,6 +1511,58 @@ export class AppController {
     this.set({ mode: { kind: 'pick-support', partId: this.state.activePartId, repairFeatureId: null }, selection: null });
   }
 
+  // ----- Copier / coller une esquisse
+
+  /** Copie une esquisse (celle choisie dans l'historique par défaut) : Ctrl+V la colle dans la pièce active. */
+  copySketch(featureId?: Id): void {
+    const sel = this.state.selection;
+    const id = featureId ?? (sel?.kind === 'feature' ? sel.featureId : null);
+    const found = id ? findFeature(this.state.doc, id) : null;
+    if (!found || found.feature.type !== 'sketch') return this.explain('Choisissez une esquisse dans l’historique pour la copier.');
+    this.set({ sketchClipboard: { name: found.feature.name, partId: found.part.id, params: found.feature.params } });
+    this.toast('info', `« ${found.feature.name} » copiée : Ctrl+V pour la coller dans la pièce active.`);
+  }
+
+  /** Colle l'esquisse copiée dans la pièce active : on choisit son plan ou sa face, puis on la termine. */
+  pasteSketch(): void {
+    const clip = this.state.sketchClipboard;
+    if (!clip) return this.explain('Aucune esquisse copiée : choisissez une esquisse dans l’historique, puis Ctrl+C.');
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    const avail = sketchAvailability(this.state);
+    if (!avail.ok) return this.explain(avail.reason);
+    if (this.refuseLocked(this.state.activePartId)) return;
+    this.set({ mode: { kind: 'pick-support', partId: this.state.activePartId, repairFeatureId: null, paste: true }, selection: null });
+    this.toast('info', `Choisissez le plan ou la face de la copie de « ${clip.name} ».`);
+  }
+
+  /**
+   * Repère du support de l'esquisse copiée dans la pièce où on la colle (null s'il n'y existe pas) :
+   * plan d'origine, plan de construction ou face de cette pièce, face d'une autre pièce du projet.
+   */
+  pasteSupportFrame(): Frame3D | null {
+    const mode = this.state.mode;
+    const clip = this.state.sketchClipboard;
+    if (mode.kind !== 'pick-support' || !mode.paste || !clip) return null;
+    const support = clip.params.support;
+    if (support.kind === 'plane') return originPlaneFrame(support.plane, support.offset);
+    if (support.kind === 'datum') return this.state.display[mode.partId]?.result.planes.find((p) => p.featureId === support.featureId)?.frame ?? null;
+    // Face : de la pièce d'origine (si on colle dans la même), ou d'une autre pièce désignée.
+    const facePart = support.partId ?? (clip.partId === mode.partId ? mode.partId : null);
+    if (!facePart || support.context) return null;
+    const mesh = this.state.display[facePart]?.mesh;
+    const face = mesh?.faces.find((f) => f.plane && f.tags.some((t) => sameFaceRef(t, support.ref)));
+    return face?.plane ? canonicalFrame(face.plane.origin, face.plane.normal) : null;
+  }
+
+  /** Colle l'esquisse copiée sur le même support que l'original. */
+  pasteOnSameSupport(): void {
+    const mode = this.state.mode;
+    const clip = this.state.sketchClipboard;
+    const frame = this.pasteSupportFrame();
+    if (mode.kind !== 'pick-support' || !clip || !frame) return;
+    this.beginSketchOn(mode.partId, clip.params.support, frame, null);
+  }
+
   cancelPickSupport(): void {
     if (this.state.mode.kind === 'pick-support') this.set({ mode: model });
   }
@@ -1563,9 +1631,20 @@ export class AppController {
       this.openSession(partId, repairFeatureId, false, frame, { ...found.feature.params, support }, true);
       return;
     }
-    const feature = makeSketchFeature(s.doc, part, support);
+    const base = makeSketchFeature(s.doc, part, support);
+    // Collage : le dessin copié, sur le support choisi. Dans une autre pièce, les arêtes reprises de
+    // la pièce d'origine n'ont plus de sens : elles restent comme traits de construction.
+    const clip = s.mode.kind === 'pick-support' && s.mode.paste ? s.sketchClipboard : null;
+    const params = clip
+      ? {
+          ...clip.params,
+          support,
+          entities: clip.partId === partId ? clip.params.entities : clip.params.entities.map((e): SketchEntity => (e.type !== 'point' && e.reference ? (({ reference: _r, ...rest }) => ({ ...rest, construction: true }) as SketchEntity)(e) : e)),
+        }
+      : base.params;
+    const feature = { ...base, params };
     this.newSketch = feature;
-    this.openSession(partId, feature.id, true, frame, feature.params);
+    this.openSession(partId, feature.id, true, frame, feature.params, !!clip);
   }
 
   /**

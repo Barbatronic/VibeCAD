@@ -2502,6 +2502,10 @@
                   "$ref": "#/$defs/patternAxis"
                 }
               }
+            },
+            "visible": {
+              "description": "Faux : masqué dans la vue 3D (absent : affiché).",
+              "type": "boolean"
             }
           }
         },
@@ -2555,6 +2559,10 @@
                   "$ref": "#/$defs/edgeRef"
                 }
               }
+            },
+            "visible": {
+              "description": "Faux : masqué dans la vue 3D (absent : affiché).",
+              "type": "boolean"
             }
           }
         },

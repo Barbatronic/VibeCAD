@@ -848,15 +848,18 @@ function HistorySection() {
   const draft = useAppState((s) => (s.mode.kind === 'feature' && s.mode.draft.isNew ? s.mode.draft.feature : null));
   const editingSketch = useAppState((s) => (s.mode.kind === 'sketch' ? s.mode.session.featureId : null));
   const rollback = useAppState((s) => s.rollback);
+  const clipboard = useAppState((s) => s.sketchClipboard?.name ?? null);
   const libraryName = useAppState((s) => {
     const cat = part?.component ? s.libraryCatalogs.find((k) => k.source === part.component!.library) : undefined;
     return cat?.status === 'ready' ? cat.index.name : null;
   });
   const [renaming, setRenaming] = useState<Id | null>(null);
+  const [featureMenu, setFeatureMenu] = useState<{ id: Id; x: number; y: number } | null>(null);
   const [foldHistory, toggleFoldHistory] = useFolded('history');
   const list = useRef<HTMLOListElement>(null);
   if (!part) return null;
   const statusOf = (id: Id) => statuses?.find((st) => st.featureId === id);
+  const menuFeature = featureMenu ? part.features.find((f) => f.id === featureMenu.id) : undefined;
   // Esquisse existante en cours de modification : l'historique est montré à son niveau (les étapes
   // suivantes, grisées, ne sont pas dans la vue).
   const editingIndex = editingSketch ? part.features.findIndex((f) => f.id === editingSketch) : -1;
@@ -957,6 +960,7 @@ function HistorySection() {
           <span class="section-sub" title={part.name}>{part.name}</span>
           {part.features.length > 1 && !partLocked(part) ? <span class="count">{part.features.length}</span> : null}
         </button>
+        {clipboard && !partLocked(part) ? <IconButton icon="import" small label={`Coller « ${clipboard} » dans « ${part.name} » (Ctrl+V)`} onClick={() => c.pasteSketch()} /> : null}
       </div>
       <div class="panel-body">
         {part.component ? (
@@ -1002,6 +1006,10 @@ function HistorySection() {
               <li key={f.id} data-step>
                 <div
                   class={`feature-row${selected || editingSketch === f.id ? ' is-selected' : ''}${status?.state === 'blocked' ? ' is-blocked' : ''}${after ? ' is-rolled-back' : ''}`}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setFeatureMenu({ id: f.id, x: e.clientX, y: e.clientY });
+                  }}
                 >
                   {renaming === f.id ? (
                     <InlineRename
@@ -1057,8 +1065,8 @@ function HistorySection() {
                         onClick={() => c.toggleContextFrozen(f.id)}
                       />
                     ) : null}
-                    {f.type === 'sketch' || f.type === 'image' ? (
-                      <IconButton icon={f.visible ? 'eye' : 'eye-off'} label={f.visible ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
+                    {f.type === 'sketch' || f.type === 'image' || f.type === 'plane' || f.type === 'axis' ? (
+                      <IconButton icon={f.visible !== false ? 'eye' : 'eye-off'} label={f.visible !== false ? `Masquer « ${f.name} »` : `Afficher « ${f.name} »`} small onClick={() => c.toggleSketchVisible(f.id)} />
                     ) : null}
                     <IconButton icon="trash" label={`Supprimer « ${f.name} »`} small onClick={() => c.deleteFeature(f.id)} />
                   </span>
@@ -1072,6 +1080,30 @@ function HistorySection() {
           {active === part.features.length || foldHistory ? draftRow : null}
           {active === part.features.length && part.features.length > 0 && !foldHistory ? rollbackMarker : null}
         </ol>
+        {featureMenu && menuFeature ? (
+          <PartMenu
+            key={featureMenu.id}
+            x={featureMenu.x}
+            y={featureMenu.y}
+            label={`Actions sur « ${menuFeature.name} »`}
+            onClose={() => setFeatureMenu(null)}
+            items={[
+              ...(menuFeature.type !== 'imported-solid' ? [{ icon: 'edit', label: 'Modifier', action: () => c.editFeature(menuFeature.id) }] : []),
+              { icon: 'rename', label: 'Renommer', shortcut: 'F2', action: () => setRenaming(menuFeature.id) },
+              ...(menuFeature.type === 'sketch'
+                ? [
+                    { icon: 'swap', label: 'Changer le support', action: () => c.repairSketch(menuFeature.id) },
+                    { sep: true, icon: 'copy', label: 'Copier', shortcut: 'Ctrl+C', action: () => c.copySketch(menuFeature.id) },
+                  ]
+                : []),
+              ...(clipboard ? [{ sep: menuFeature.type !== 'sketch', icon: 'import', label: `Coller « ${clipboard} »`, shortcut: 'Ctrl+V', action: () => c.pasteSketch() }] : []),
+              ...(menuFeature.type === 'sketch' || menuFeature.type === 'image' || menuFeature.type === 'plane' || menuFeature.type === 'axis'
+                ? [{ sep: true, icon: menuFeature.visible !== false ? 'eye-off' : 'eye', label: menuFeature.visible !== false ? 'Masquer' : 'Afficher', action: () => c.toggleSketchVisible(menuFeature.id) }]
+                : []),
+              { sep: true, icon: 'trash', label: 'Supprimer', action: () => c.deleteFeature(menuFeature.id) },
+            ]}
+          />
+        ) : null}
         </>
         )}
       </div>
