@@ -580,6 +580,15 @@ textarea {
   opacity: 0.5;
 }
 
+/* Esquisse, image, plan ou axe masqué dans la vue : ligne estompée (ses boutons restent nets). */
+.feature-row.is-hidden .feature-main {
+  opacity: 0.55;
+}
+
+.feature-row.is-hidden .name {
+  font-style: italic;
+}
+
 .status-rolled-back {
   background: var(--surface-3);
   color: var(--text-muted);

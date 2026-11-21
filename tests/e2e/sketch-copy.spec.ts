@@ -83,8 +83,12 @@ test('masquer et afficher les esquisses, les plans et les axes : une ligne, ou t
   await history.getByRole('button', { name: `Masquer « ${plane.name} »` }).click();
   await expect.poll(shown).toEqual({ sketches: 2, planes: 0 });
   expect(await appState(page, (s) => s.doc.parts[0].features.at(-1).visible)).toBe(false);
+  // La ligne du plan masqué est grisée dans l'historique.
+  await expect(history.locator('.feature-row.is-hidden')).toHaveCount(1);
+  await expect(history.locator('.feature-row.is-hidden')).toContainText(plane.name);
   await history.getByRole('button', { name: `Afficher « ${plane.name} »` }).click();
   await expect.poll(shown).toEqual({ sketches: 2, planes: 1 });
+  await expect(history.locator('.feature-row.is-hidden')).toHaveCount(0);
   // Tous d'un coup : menu Affichage.
   await page.click('#view-display');
   await page.getByRole('menuitemcheckbox', { name: 'Esquisses' }).click();

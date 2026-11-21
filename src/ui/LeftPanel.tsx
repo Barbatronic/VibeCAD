@@ -1005,7 +1005,7 @@ function HistorySection() {
             const row = (
               <li key={f.id} data-step>
                 <div
-                  class={`feature-row${selected || editingSketch === f.id ? ' is-selected' : ''}${status?.state === 'blocked' ? ' is-blocked' : ''}${after ? ' is-rolled-back' : ''}`}
+                  class={`feature-row${selected || editingSketch === f.id ? ' is-selected' : ''}${status?.state === 'blocked' ? ' is-blocked' : ''}${after ? ' is-rolled-back' : ''}${(f.type === 'sketch' || f.type === 'image' || f.type === 'plane' || f.type === 'axis') && f.visible === false ? ' is-hidden' : ''}`}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setFeatureMenu({ id: f.id, x: e.clientX, y: e.clientY });
