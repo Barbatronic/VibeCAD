@@ -266,7 +266,8 @@ export class SketchView {
       return { color: ids.some((x) => free.has(x)) ? cFree : cDone, strong: false };
     };
 
-    // Géométrie : traits pleins (volume), pointillés (construction), violet (repris de la pièce).
+    // Géométrie : traits pleins (volume), pointillés (construction), violet (repris de la pièce :
+    // pointillés s'il est de construction, plein s'il compte pour le volume).
     for (const e of sketch.entities) {
       if (e.type === 'point') continue;
       let segs: Segment[];
@@ -306,8 +307,11 @@ export class SketchView {
       }
       const highlighted = sel.has(e.id) || picks.has(e.id) || input.hover === e.id;
       if (e.reference) {
+        // Reprise de la pièce : violet, en pointillés tant qu'elle est de construction, en trait
+        // plein quand elle compte pour le volume.
         const color = highlighted ? style.color : cRef;
-        for (const seg of segs) (highlighted ? strong : normal).add(seg, color);
+        const usable = e.construction === false;
+        for (const seg of segs) (highlighted || usable ? (highlighted ? strong : normal) : construction).add(seg, color);
       } else if (e.construction) {
         for (const seg of segs) construction.add(seg, style.color);
       } else {

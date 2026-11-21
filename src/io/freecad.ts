@@ -14,7 +14,7 @@
  *
  * Voir docs/export-freecad.md.
  */
-import type { CadDocument, Feature, Id, Part, ProjectParameter, SketchConstraint, SketchParams } from '../domain/model';
+import { isConstructionCurve, type CadDocument, type Feature, type Id, type Part, type ProjectParameter, type SketchConstraint, type SketchParams } from '../domain/model';
 import { mirrorSources, patternSources } from '../domain/document';
 import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID } from '../domain/model';
 import { expressionNames } from '../domain/units';
@@ -246,7 +246,7 @@ function sketchCode(
   };
   const blocked: number[] = [];
   for (const e of s.entities) {
-    const construction = e.type !== 'point' && (!!e.construction || !!e.reference);
+    const construction = e.type !== 'point' && e.type !== 'text' && e.type !== 'stamp' && isConstructionCurve(e);
     if (e.type === 'line') {
       const a = pointPosition(s, e.a);
       const b = pointPosition(s, e.b);

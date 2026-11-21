@@ -1370,6 +1370,8 @@ function readSketchParams(v: Validator, p: Record<string, unknown>, path: string
     }
     const flags: { construction?: boolean; reference?: SketchReference } = {};
     if (o.construction === true) flags.construction = true;
+    // Élément repris de la pièce : `false` le fait compter pour le volume.
+    if (o.construction === false && o.reference !== undefined) flags.construction = false;
     if (o.reference !== undefined) {
       const r = obj(v, o.reference, `${ep}.reference`);
       const faces = r ? arr(v, obj(v, r.edge, `${ep}.reference.edge`) ?? {}, 'faces', `${ep}.reference.edge`) : [];

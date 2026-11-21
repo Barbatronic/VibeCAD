@@ -156,3 +156,35 @@ test('projeter une face d’une autre pièce : son contour est repris et suit ce
   const sk = await appState(page, (s) => s.doc.parts[1].features[0]);
   expect(sk.type).toBe('sketch');
 });
+
+test('arête reprise : « Utiliser pour le volume » (elle suit la pièce), puis « Détacher de la pièce » (trait ordinaire)', async ({ page }) => {
+  const { doc } = buildPlateDocument();
+  await load(page, serializeDocument(doc));
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const mesh = c.state.display[c.state.doc.parts[0].id].mesh;
+    c.sketchOnFace(c.state.doc.parts[0].id, mesh.faces.findIndex((f: any) => f.plane && f.plane.normal.z > 0.9), null);
+  });
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  // Contour extérieur du dessus repris (Maj+clic sur la face).
+  await clickTool(page, 'sk-project');
+  const inside = await sketchToScreen(page, 40, 20);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(inside.x, inside.y);
+  await page.keyboard.up('Shift');
+  const lines = async () => ((await session(page))?.sketch.entities ?? []).filter((e: any) => e.type === 'line');
+  await expect.poll(async () => (await lines()).length).toBe(4);
+  // Tout sélectionner (outil Sélection, Ctrl+A) : les arêtes reprises proposent leurs actions.
+  await clickTool(page, 'sk-select');
+  await page.evaluate(() => (window as any).vibecad.controller.updateSession((s: any) => ({ ...s, selection: s.sketch.entities.filter((e: any) => e.type === 'line').map((e: any) => e.id) })));
+  await page.getByRole('button', { name: 'Utiliser pour le volume' }).click();
+  await expect.poll(async () => (await lines()).every((e: any) => e.reference && e.construction === false)).toBe(true);
+  // Le contour est fermé : l'esquisse a un profil.
+  await expect(page.getByText(/Contour fermé/)).toBeVisible();
+  await page.getByRole('button', { name: 'Remettre en construction' }).click();
+  await expect.poll(async () => (await lines()).every((e: any) => e.reference && e.construction === undefined)).toBe(true);
+  await page.getByRole('button', { name: 'Détacher de la pièce' }).click();
+  await expect.poll(async () => (await lines()).every((e: any) => !e.reference && !e.construction)).toBe(true);
+  await finishSketch(page);
+});

@@ -67,7 +67,7 @@ function entityDetail(session: SketchSession, e: SketchEntity): string {
     const g = arcGeometry(sk, e);
     text = g ? `R ${formatLength(g.radius)}, ${formatAngle((g.sweep * 180) / Math.PI)}` : '';
   }
-  if (e.type !== 'point' && e.reference) text += ' — repris de la pièce';
+  if (e.type !== 'point' && e.reference) text += e.construction === false ? ' — repris de la pièce, pour le volume' : ' — repris de la pièce';
   else if (e.type !== 'point' && e.construction) text += ' — construction';
   return text;
 }

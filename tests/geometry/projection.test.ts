@@ -11,6 +11,7 @@ import { featureDependencies } from '../../src/features/registry';
 import { solveSketch } from '../../src/sketch/solver';
 import { getKernel } from '../helpers/kernel';
 import { buildPlateDocument, cornerEdge, setDimension, topFrontEdge } from '../helpers/plate';
+import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -217,5 +218,46 @@ describe('géométrie reprise de la pièce dans une esquisse', () => {
     const ends = [pointPosition(solved, spl.points[0]!)!, pointPosition(solved, spl.points[spl.points.length - 1]!)!];
     const before = [sp.points[0]!, sp.points[sp.points.length - 1]!];
     expect(Math.hypot(ends[0]!.x - ends[1]!.x, ends[0]!.y - ends[1]!.y)).toBeGreaterThan(Math.hypot(before[0]!.x - before[1]!.x, before[0]!.y - before[1]!.y) + 1);
+  });
+
+  it('arêtes reprises « pour le volume » : le contour de la face s’extrude, et suit la pièce ; en construction, aucun contour', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const sk = makeSketchFeature(base, findPart(base, ids.partId)!, { kind: 'face', ref: { featureId: ids.extrude, role: 'end' } });
+    let doc = addFeature(base, ids.partId, sk);
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const [res] = engine.evaluateDocument(doc);
+    const frame = res!.sketches.find((s) => s.featureId === sk.id)!.frame!;
+    const g = projectableGeometry(engine.meshOf(res!, MESH)!, frame, findPart(doc, ids.partId)!, sk.id);
+    // Contour extérieur de la face du dessus (les 4 bords), repris.
+    const top = g.faces.find((f) => f.outer.length === 4 && f.depth < 1e-6)!;
+    const withRefs = (usable: boolean) => {
+      let params = sk.params;
+      for (const i of top.outer) {
+        const c = g.curves[i]!;
+        if (c.kind !== 'line') throw new Error('segment attendu');
+        const r = addLine(params, c.a, c.b);
+        params = { ...r.sketch, entities: r.sketch.entities.map((e) => (e.id === r.lineId && e.type === 'line' ? { ...e, reference: { edge: c.ref }, ...(usable ? { construction: false } : {}) } : e)) };
+      }
+      // Les extrémités se touchent déjà (mêmes sommets de la pièce) : le contour est fermé.
+      return params;
+    };
+    const extruded = (usable: boolean) => {
+      let d = updateFeature<SketchFeature>(doc, sk.id, (f) => ({ ...f, params: withRefs(usable) }));
+      d = addFeature(d, ids.partId, makeExtrudeFeature(d, findPart(d, ids.partId)!, sk.id, 3));
+      const [r] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(d);
+      return { r: r!, d };
+    };
+    const before = res!.analysis!.volume;
+    // En construction (par défaut) : pas de contour, l'extrusion échoue.
+    expect(extruded(false).r.statuses.at(-1)?.state).toBe('error');
+    // Pour le volume : la plaque gagne 60 × 30 × 3 mm au-dessus.
+    const ok = extruded(true);
+    expect(ok.r.statuses.at(-1)?.state).toBe('ok');
+    expect(ok.r.analysis!.volume).toBeCloseTo(before + 60 * 30 * 3, 0);
+    // Conservé dans le fichier.
+    const parsed = parseNativeFile(serializeDocument(ok.d));
+    const lines = parsed.ok ? (parsed.doc.parts[0]!.features.find((f) => f.id === sk.id) as SketchFeature).params.entities.filter((e) => e.type === 'line') : [];
+    expect(lines.map((e) => e.type === 'line' && e.construction)).toEqual([false, false, false, false]);
+    doc = ok.d;
   });
 });

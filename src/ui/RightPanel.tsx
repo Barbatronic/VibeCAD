@@ -1,11 +1,11 @@
 import { useMemo } from 'preact/hooks';
-import type { Part, SketchSupport } from '../domain/model';
+import { isConstructionCurve, type Part, type SketchSupport } from '../domain/model';
 import { describeSupportPlane } from '../features/sketch/definition';
 import { describeFaceRef } from '../features/sketch/support';
 import { definitionOf } from '../features/registry';
 import { findLine, findPoint } from '../sketch/model';
 import { extractProfiles } from '../sketch/profiles';
-import { deleteSelection, editDimension, setTool, type SketchSession } from '../sketch/session';
+import { deleteSelection, detachProjected, editDimension, selectedProjected, setTool, setProjectedInProfile, type SketchSession } from '../sketch/session';
 import { ISSUE_MESSAGES } from '../domain/status';
 import { useAppState, useController } from './context';
 import { AssemblyRightPanel } from './AssemblyUi';
@@ -37,6 +37,7 @@ function SketchPanel({ session }: { session: SketchSession }) {
   const selectedDims = session.selection.map((id) => session.sketch.constraints.find((k) => k.id === id)).filter((k) => k && 'value' in k);
   const selectedLines = session.selection.filter((id) => findLine(session.sketch, id));
   const selectedPoints = session.selection.filter((id) => id === 'origin' || findPoint(session.sketch, id));
+  const projected = selectedProjected(session);
   const message = session.message;
   const expert = useAppState((s) => allows(s.level, 'sketch-lists'));
   return (
@@ -119,6 +120,27 @@ function SketchPanel({ session }: { session: SketchSession }) {
               </Button>
               <Button small icon="vertical" onClick={() => c.updateSession((s) => setTool(s, 'vertical'))}>
                 Vertical
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {projected.length > 0 ? (
+          <div class="field">
+            <span class="field-label">
+              {projected.length > 1 ? `${projected.length} arêtes reprises de la pièce` : 'Arête reprise de la pièce'}
+            </span>
+            <div class="segmented">
+              {projected.some((e) => e.type !== 'point' && isConstructionCurve(e)) ? (
+                <Button small icon="check" hint="Le trait compte pour le volume (contour à extruder) et suit toujours la pièce" onClick={() => c.updateSession((s) => setProjectedInProfile(s, true))}>
+                  Utiliser pour le volume
+                </Button>
+              ) : (
+                <Button small icon="construction" hint="Le trait redevient un repère (pointillés), ignoré pour le volume" onClick={() => c.updateSession((s) => setProjectedInProfile(s, false))}>
+                  Remettre en construction
+                </Button>
+              )}
+              <Button small icon="close" hint="Le trait devient un trait ordinaire de l’esquisse, libre, qui ne suit plus la pièce" onClick={() => c.updateSession(detachProjected)}>
+                Détacher de la pièce
               </Button>
             </div>
           </div>

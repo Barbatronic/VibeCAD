@@ -678,7 +678,10 @@ export interface SketchReference {
 interface CurveFlags {
   /** Élément de construction : visible et utilisable pour coter, mais ignoré pour le volume. */
   construction?: boolean;
-  /** Élément repris de la pièce (fixe, toujours de construction). */
+  /**
+   * Élément repris de la pièce (fixe, il suit la pièce). De construction par défaut ;
+   * `construction: false` le fait compter pour le volume (contour à extruder).
+   */
   reference?: SketchReference;
 }
 
@@ -902,8 +905,9 @@ export function constraintReferences(c: SketchConstraint): string[] {
 }
 
 /** Une courbe d'esquisse ne compte pas dans le contour du volume (construction ou reprise). */
+/** Courbe ignorée pour le volume : de construction, ou reprise de la pièce sans `construction: false`. */
 export function isConstructionCurve(e: SketchCurve): boolean {
-  return !!e.construction || !!e.reference;
+  return e.reference ? e.construction !== false : !!e.construction;
 }
 
 export function isDimension(c: SketchConstraint): c is DimensionConstraint {

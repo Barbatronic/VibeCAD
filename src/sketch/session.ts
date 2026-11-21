@@ -6,7 +6,7 @@
  */
 import { sameEdgeRef } from '../domain/document';
 import type { AssemblyContext, EdgeRef, Id, SketchConstraint, SketchEntity, SketchParams, SketchStamp } from '../domain/model';
-import { isSketchAxis, ORIGIN_POINT_ID, VIRTUAL_SKETCH_IDS } from '../domain/model';
+import { isConstructionCurve, isSketchAxis, ORIGIN_POINT_ID, VIRTUAL_SKETCH_IDS } from '../domain/model';
 import { TOLERANCES } from '../domain/tolerances';
 import { expressionNames, formatAngle, formatLength, parseAngle, parseLength, readNumber, type ParseResult } from '../domain/units';
 import type { Frame3D } from '../math/frame';
@@ -424,12 +424,12 @@ export function setTool(s: SketchSession, tool: SketchTool): SketchSession {
 export function toggleConstruction(s: SketchSession): SketchSession {
   const curves = s.selection.filter((id) => {
     const e = s.sketch.entities.find((x) => x.id === id);
-    return e && e.type !== 'point' && !e.reference;
+    return e && e.type !== 'point';
   });
   if (curves.length > 0) {
     const allConstruction = curves.every((id) => {
       const e = s.sketch.entities.find((x) => x.id === id);
-      return e && e.type !== 'point' && e.construction;
+      return e && e.type !== 'point' && isConstructionCurve(e);
     });
     const next = setConstruction(s.sketch, curves, !allConstruction);
     const { session } = commit(s, next, {
@@ -453,14 +453,61 @@ export function toggleConstruction(s: SketchSession): SketchSession {
   };
 }
 
+/** Arêtes reprises de la pièce parmi la sélection. */
+export function selectedProjected(s: SketchSession): SketchEntity[] {
+  return s.sketch.entities.filter((e) => s.selection.includes(e.id) && e.type !== 'point' && !!e.reference);
+}
+
+/**
+ * Arêtes reprises sélectionnées : comptent pour le volume (`true`, elles suivent toujours la
+ * pièce) ou redeviennent de construction (`false`).
+ */
+export function setProjectedInProfile(s: SketchSession, on: boolean): SketchSession {
+  const ids = selectedProjected(s).map((e) => e.id);
+  if (ids.length === 0) return { ...s, message: info('Sélectionnez une arête reprise de la pièce (en violet).') };
+  const { session } = commit(s, setConstruction(s.sketch, ids, !on), {
+    message: success(
+      on
+        ? `${ids.length > 1 ? 'Arêtes reprises' : 'Arête reprise'} utilisée${ids.length > 1 ? 's' : ''} pour le volume (trait plein) : ${ids.length > 1 ? 'elles suivent' : 'elle suit'} toujours la pièce.`
+        : `${ids.length > 1 ? 'Arêtes reprises remises' : 'Arête reprise remise'} en construction (pointillés).`,
+    ),
+  });
+  return session;
+}
+
+/**
+ * Détache de la pièce les arêtes reprises sélectionnées : elles deviennent des traits ordinaires
+ * de l'esquisse (libres, à contraindre), qui ne suivent plus la pièce et comptent pour le volume.
+ */
+export function detachProjected(s: SketchSession): SketchSession {
+  const ids = new Set(selectedProjected(s).map((e) => e.id));
+  if (ids.size === 0) return { ...s, message: info('Sélectionnez une arête reprise de la pièce (en violet).') };
+  const sketch = {
+    ...s.sketch,
+    entities: s.sketch.entities.map((e): SketchEntity => {
+      if (!ids.has(e.id) || e.type === 'point') return e;
+      const { reference: _r, construction: _c, ...rest } = e as SketchEntity & { reference?: unknown; construction?: boolean };
+      return rest as SketchEntity;
+    }),
+  };
+  const { session } = commit(s, sketch, {
+    message: success(`${ids.size > 1 ? `${ids.size} arêtes détachées` : 'Arête détachée'} de la pièce : traits ordinaires, libres, à contraindre ; ${ids.size > 1 ? 'elles ne suivent' : 'elle ne suit'} plus la pièce.`),
+  });
+  return session;
+}
+
 function setConstruction(sketch: SketchParams, ids: readonly string[], on: boolean): SketchParams {
   const set = new Set(ids);
   return {
     ...sketch,
     entities: sketch.entities.map((e): SketchEntity => {
-      if (!set.has(e.id) || e.type === 'point' || e.reference) return e;
+      if (!set.has(e.id) || e.type === 'point') return e;
       const copy = { ...e };
-      if (on) copy.construction = true;
+      // Élément repris de la pièce : de construction par défaut, `false` pour compter dans le volume.
+      if (e.reference) {
+        if (on) delete copy.construction;
+        else copy.construction = false;
+      } else if (on) copy.construction = true;
       else delete copy.construction;
       return copy;
     }),
