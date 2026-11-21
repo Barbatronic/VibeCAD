@@ -101,3 +101,58 @@ test('masquer et afficher les esquisses, les plans et les axes : une ligne, ou t
   await history.locator('.feature-main', { hasText: 'Esquisse 2' }).click({ position: { x: 40, y: 12 } });
   await expect.poll(shown).toEqual({ sketches: 1, planes: 0 });
 });
+
+test('projeter une face : un clic reprend tout son contour (trou compris), Maj+clic seulement le contour extérieur', async ({ page }) => {
+  const { doc } = buildPlateDocument();
+  await load(page, serializeDocument(doc));
+  // Nouvelle esquisse sur le dessus de la plaque.
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const mesh = c.state.display[c.state.doc.parts[0].id].mesh;
+    c.sketchOnFace(c.state.doc.parts[0].id, mesh.faces.findIndex((f: any) => f.plane && f.plane.normal.z > 0.9), null);
+  });
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  await clickTool(page, 'sk-project');
+  const refs = async () => ((await session(page))?.sketch.entities ?? []).filter((e: any) => e.type !== 'point' && e.reference).map((e: any) => e.type).sort();
+  // Survol d'un point de la face, loin des arêtes : la face est visée.
+  const inside = await sketchToScreen(page, 40, 20);
+  await page.mouse.move(inside.x, inside.y);
+  await expect.poll(async () => (await session(page))?.projectFaceHover).not.toBeNull();
+  // Clic : les 4 bords et le trou.
+  await page.mouse.click(inside.x, inside.y);
+  await expect.poll(refs).toEqual(['circle', 'line', 'line', 'line', 'line']);
+  // Annuler, puis Maj+clic : le contour extérieur seul.
+  await page.keyboard.press('Control+z');
+  await expect.poll(refs).toEqual([]);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(inside.x, inside.y);
+  await page.keyboard.up('Shift');
+  await expect.poll(refs).toEqual(['line', 'line', 'line', 'line']);
+  await finishSketch(page);
+});
+
+test('projeter une face d’une autre pièce : son contour est repris et suit cette pièce', async ({ page }) => {
+  const { doc: base } = buildPlateDocument();
+  const doc = addPart(base, 'Pièce 2').doc;
+  await load(page, serializeDocument(doc));
+  const [p1, p2] = await appState(page, (s) => s.doc.parts.map((p: any) => p.id));
+  // Esquisse dans la pièce 2, sur le plan XY : le dessous de la plaque (pièce 1) y est posé.
+  await page.evaluate((id) => (window as any).vibecad.controller.setActivePart(id), p2);
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  await clickTool(page, 'sk-project');
+  const inside = await sketchToScreen(page, 40, 20);
+  await page.mouse.move(inside.x, inside.y);
+  await expect.poll(async () => (await session(page))?.projectFaceHover).not.toBeNull();
+  await page.mouse.click(inside.x, inside.y);
+  // Les 4 bords et le trou de la plaque, repris de la pièce 1.
+  const refs = async () => ((await session(page))?.sketch.entities ?? []).filter((e: any) => e.type !== 'point' && e.reference);
+  await expect.poll(async () => (await refs()).map((e: any) => e.type).sort()).toEqual(['circle', 'line', 'line', 'line', 'line']);
+  expect((await refs()).every((e: any) => e.reference.partId === p1)).toBe(true);
+  await finishSketch(page);
+  // La pièce 2 dépend maintenant de la pièce 1.
+  const sk = await appState(page, (s) => s.doc.parts[1].features[0]);
+  expect(sk.type).toBe('sketch');
+});

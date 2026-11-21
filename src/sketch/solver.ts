@@ -154,6 +154,8 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
     if (e.type === 'line' && e.reference) fixedPoints.add(e.a).add(e.b);
     if (e.type === 'circle' && e.reference) fixedPoints.add(e.center);
     if (e.type === 'arc' && e.reference) fixedPoints.add(e.center).add(e.start).add(e.end);
+    if (e.type === 'ellipse' && e.reference) fixedPoints.add(e.center).add(e.major);
+    if (e.type === 'spline' && e.reference) for (const id of [...e.points, ...Object.values(e.handles ?? {})]) fixedPoints.add(id);
   }
   for (const e of sketch.entities) {
     if (e.type !== 'point') continue;
@@ -174,9 +176,14 @@ function buildSystem(sketch: SketchParams, constraints: readonly SketchConstrain
   for (const e of sketch.entities) {
     if (e.type === 'ellipse') {
       const c = points.get(e.center);
-      const r: RadiusRef = { kind: 'var', i: values.length };
-      values.push(e.minorRadius);
-      variables.push({ entityId: e.id, component: 'r' });
+      // Ellipse reprise de la pièce : son petit rayon est fixe.
+      let r: RadiusRef;
+      if (e.reference) r = { kind: 'const', r: e.minorRadius };
+      else {
+        r = { kind: 'var', i: values.length };
+        values.push(e.minorRadius);
+        variables.push({ entityId: e.id, component: 'r' });
+      }
       if (c) ellipses.set(e.id, { c, r });
     } else if (e.type === 'circle') {
       const c = points.get(e.center);

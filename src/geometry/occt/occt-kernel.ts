@@ -120,6 +120,9 @@ function isWasmException(err: unknown): boolean {
   return !!ctor && err instanceof ctor;
 }
 
+/** Nombre d'intervalles le long d'une arête courbe lue pour être reprise en spline. */
+const EDGE_SAMPLES = 64;
+
 export class OcctKernel implements GeometryKernel {
   private fileCounter = 0;
   /**
@@ -1117,6 +1120,14 @@ export class OcctKernel implements GeometryKernel {
           const type = adaptor.GetType();
           const pm = scope.track(adaptor.Value((adaptor.FirstParameter() + adaptor.LastParameter()) / 2));
           const mid = { x: pm.X(), y: pm.Y(), z: pm.Z() };
+          // Points le long de l'arête (courbes reprises en spline : arcs vus de biais, courbes libres).
+          const samples = (n: number) => {
+            const [t0, t1] = [adaptor.FirstParameter(), adaptor.LastParameter()];
+            return Array.from({ length: n + 1 }, (_v, i) => {
+              const q = scope.track(adaptor.Value(t0 + ((t1 - t0) * i) / n));
+              return { x: q.X(), y: q.Y(), z: q.Z() };
+            });
+          };
           if (type === oc.GeomAbs_CurveType.GeomAbs_Line) {
             const p0 = scope.track(adaptor.Value(adaptor.FirstParameter()));
             const p1 = scope.track(adaptor.Value(adaptor.LastParameter()));
@@ -1136,9 +1147,10 @@ export class OcctKernel implements GeometryKernel {
               mid,
               start: { x: p0.X(), y: p0.Y(), z: p0.Z() },
               end: { x: p1.X(), y: p1.Y(), z: p1.Z() },
+              samples: samples(EDGE_SAMPLES),
             };
           }
-          return { kind: 'other', mid };
+          return { kind: 'other', mid, samples: samples(EDGE_SAMPLES) };
         }),
       ),
     );

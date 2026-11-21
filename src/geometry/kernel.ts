@@ -220,9 +220,12 @@ export type BlendResult =
 /** Géométrie d'une arête ; `mid` : son point au milieu (paramètre médian), pour la retrouver ailleurs. */
 export type EdgeCurve =
   | { kind: 'line'; start: Vec3; end: Vec3; mid?: Vec3 }
-  /** Cercle ou arc de cercle : `start`/`end` (absents ou confondus : cercle complet). */
-  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3; start?: Vec3; end?: Vec3 }
-  | { kind: 'other'; mid?: Vec3 };
+  /**
+   * Cercle ou arc de cercle : `start`/`end` (absents ou confondus : cercle complet). `samples` : points
+   * régulièrement répartis le long de l'arête (de son début à sa fin), pour une courbe reprise en spline.
+   */
+  | { kind: 'circle'; center: Vec3; axis: Vec3; radius: number; mid?: Vec3; start?: Vec3; end?: Vec3; samples?: Vec3[] }
+  | { kind: 'other'; mid?: Vec3; samples?: Vec3[] };
 
 /**
  * Élément d'une mesure : une face ou une arête d'une forme, un point (centre d'un cercle) ou un

@@ -75,6 +75,8 @@ function sessionRender(session: SketchSession, highlight: Vec2[]): SketchRenderI
     snap: session.snap,
     projectable: session.tool === 'project' ? session.projectable : [],
     projectHover: session.projectHover,
+    // Face survolée avec Projeter : toutes ses arêtes en surbrillance.
+    projectFaceCurves: session.tool === 'project' && session.projectFaceHover !== null ? (session.projectableFaces[session.projectFaceHover]?.curves ?? []) : [],
   };
 }
 

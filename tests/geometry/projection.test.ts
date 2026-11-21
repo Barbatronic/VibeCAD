@@ -1,16 +1,16 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, findPart, makeExtrudeFeature, makeFilletFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
+import { addFeature, findPart, makeExtrudeFeature, makeFilletFeature, makePlaneFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
 import { ORIGIN_POINT_ID, type SketchFeature, type SketchParams } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel, MeshData } from '../../src/geometry/kernel';
 import { documentForWorker } from '../../src/geometry/protocol';
 import { GeometryService } from '../../src/workers/geometry-service';
-import { projectableCurves } from '../../src/app/projection';
-import { addArc, addCircle, addConstraint, addLine, pointPosition } from '../../src/sketch/model';
+import { projectableCurves, projectableGeometry } from '../../src/app/projection';
+import { addArc, addCircle, addConstraint, addEllipse, addLine, addSpline, pointPosition } from '../../src/sketch/model';
 import { featureDependencies } from '../../src/features/registry';
 import { solveSketch } from '../../src/sketch/solver';
 import { getKernel } from '../helpers/kernel';
-import { buildPlateDocument, cornerEdge, topFrontEdge } from '../helpers/plate';
+import { buildPlateDocument, cornerEdge, setDimension, topFrontEdge } from '../helpers/plate';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -156,5 +156,66 @@ describe('géométrie reprise de la pièce dans une esquisse', () => {
     expect(at(r.end).y).toBeCloseTo(30, 3);
     // L'esquisse dépend bien du congé (l'arête reprise est bordée par sa face).
     expect(featureDependencies(findPart(d2, ids.partId)!.features.find((f) => f.id === sk.id)!)).toContain(fillet.id);
+  });
+
+  it('plan incliné de 30° : le trou devient une ellipse, le coin arrondi une spline, la face donne tout son contour', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const fillet = makeFilletFeature(base, findPart(base, ids.partId)!, [cornerEdge(base, ids.sketch1, ids.extrude)], 5);
+    let doc = addFeature(base, ids.partId, fillet);
+    const plane = makePlaneFeature(doc, findPart(doc, ids.partId)!);
+    doc = addFeature(doc, ids.partId, { ...plane, params: { base: { kind: 'plane', plane: 'XY' }, offset: 20, angle: 30, hinge: { kind: 'axis', axis: 'X' } } });
+    const sk = makeSketchFeature(doc, findPart(doc, ids.partId)!, { kind: 'datum', featureId: plane.id });
+    doc = addFeature(doc, ids.partId, sk);
+    const engine = new RecomputeEngine(kernel, { get: () => undefined });
+    const [res] = engine.evaluateDocument(doc);
+    const frame = res!.sketches.find((s) => s.featureId === sk.id)!.frame!;
+    const part = findPart(doc, ids.partId)!;
+    const g = projectableGeometry(engine.meshOf(res!, MESH)!, frame, part, sk.id);
+    // Le trou Ø 6 (axe Z) vu sur un plan incliné de 30° : ellipse de grand rayon 3, petit rayon 3 × cos 30°.
+    // Bords haut et bas du trou : deux ellipses (décalées par l'inclinaison), de mêmes rayons.
+    const ellipses = g.curves.filter((c) => c.kind === 'ellipse');
+    expect(ellipses).toHaveLength(2);
+    const top0 = g.faces.find((f) => f.curves.some((i) => g.curves[i]!.kind === 'ellipse') && f.curves.some((i) => g.curves[i]!.kind === 'spline'))!;
+    const el = g.curves[top0.curves.find((i) => g.curves[i]!.kind === 'ellipse')!]!;
+    if (el.kind !== 'ellipse') throw new Error('ellipse attendue');
+    expect(Math.hypot(el.major.x - el.center.x, el.major.y - el.center.y)).toBeCloseTo(3, 4);
+    expect(el.minorRadius).toBeCloseTo(3 * Math.cos(Math.PI / 6), 4);
+    // Le quart de cercle du coin, vu de biais : une spline ouverte.
+    const splines = g.curves.filter((c) => c.kind === 'spline');
+    expect(splines.length).toBeGreaterThanOrEqual(1);
+    expect(splines.every((c) => c.kind === 'spline' && !c.closed && c.points.length === 16)).toBe(true);
+    // La face du dessus (la plus proche du plan) : tout son contour, et sans le trou pour le contour extérieur.
+    const top = g.faces.find((f) => f.curves.some((i) => g.curves[i]!.kind === 'ellipse') && f.curves.some((i) => g.curves[i]!.kind === 'spline'))!;
+    expect(top).toBeTruthy();
+    expect(top.curves.length).toBe(top.outer.length + 1);
+    expect(top.outer.some((i) => g.curves[i]!.kind === 'ellipse')).toBe(false);
+    expect(top.skipped).toBe(0);
+
+    // Ellipse et spline reprises, puis trou Ø 8 et congé de 8 mm : elles suivent.
+    const sp = splines[0]!;
+    if (sp.kind !== 'spline') throw new Error('spline attendue');
+    const e1 = addEllipse(sk.params, el.center, el.major, el.minorRadius);
+    const s1 = addSpline(e1.sketch, sp.points, false);
+    const params = {
+      ...s1.sketch,
+      entities: s1.sketch.entities.map((e) => (e.id === e1.ellipseId && e.type === 'ellipse' ? { ...e, reference: { edge: el.ref } } : e.id === s1.splineId && e.type === 'spline' ? { ...e, reference: { edge: sp.ref } } : e)),
+    };
+    let d2 = updateFeature<SketchFeature>(doc, sk.id, (f) => ({ ...f, params }));
+    d2 = setDimension(d2, ids.sketch2, (findPart(d2, ids.partId)!.features.find((f) => f.id === ids.sketch2) as SketchFeature).params.constraints.find((c) => c.type === 'diameter')!.id, 8);
+    d2 = updateFeature(d2, fillet.id, (f) => (f.type === 'fillet' ? { ...f, params: { ...f.params, radius: 8 } } : f));
+    const [res2] = new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(d2);
+    expect(res2!.statuses.find((s) => s.featureId === sk.id)?.state).toBe('ok');
+    const solved = res2!.sketches.find((s) => s.featureId === sk.id)!.solved;
+    const ell = solved.entities.find((e) => e.id === e1.ellipseId);
+    expect(ell?.type === 'ellipse' && ell.minorRadius).toBeCloseTo(4 * Math.cos(Math.PI / 6), 4);
+    const major = pointPosition(solved, (ell as { major: string }).major)!;
+    const center = pointPosition(solved, (ell as { center: string }).center)!;
+    expect(Math.hypot(major.x - center.x, major.y - center.y)).toBeCloseTo(4, 4);
+    // La spline a suivi le congé plus grand : ses extrémités se sont écartées du coin.
+    const spl = solved.entities.find((e) => e.id === s1.splineId);
+    if (spl?.type !== 'spline') throw new Error('spline attendue');
+    const ends = [pointPosition(solved, spl.points[0]!)!, pointPosition(solved, spl.points[spl.points.length - 1]!)!];
+    const before = [sp.points[0]!, sp.points[sp.points.length - 1]!];
+    expect(Math.hypot(ends[0]!.x - ends[1]!.x, ends[0]!.y - ends[1]!.y)).toBeGreaterThan(Math.hypot(before[0]!.x - before[1]!.x, before[0]!.y - before[1]!.y) + 1);
   });
 });

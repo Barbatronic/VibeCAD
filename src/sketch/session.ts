@@ -140,7 +140,7 @@ export const TOOL_HELP: Record<SketchTool, string> = {
   stamp: 'Tampon : cliquez où le poser',
   trim: 'Couper : cliquez la partie à retirer',
   offset: 'Décalage : trait d’un contour fermé, puis distance (clic ou clavier)',
-  project: 'Projeter : cliquez une arête de la pièce',
+  project: 'Projeter : cliquez une arête de la pièce, ou une face pour tout son contour (Maj : contour extérieur seul)',
   dimension: 'Cote : un élément (longueur, diamètre) ou deux (distance, angle)',
   coincident: 'Coïncidence : deux points, ou un point et une courbe',
   horizontal: 'Horizontal : un segment',
@@ -163,7 +163,24 @@ export type ProjectableCurve =
   | { kind: 'line'; a: Vec2; b: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
   | { kind: 'circle'; center: Vec2; radius: number; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
   /** Arc : de `start` à `end` dans le sens trigonométrique (comme un arc d'esquisse). */
-  | { kind: 'arc'; center: Vec2; radius: number; start: Vec2; end: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext };
+  | { kind: 'arc'; center: Vec2; radius: number; start: Vec2; end: Vec2; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
+  /** Cercle vu de biais : ellipse (`major` : bout du grand axe). */
+  | { kind: 'ellipse'; center: Vec2; major: Vec2; minorRadius: number; ref: EdgeRef; partId?: Id; context?: AssemblyContext }
+  /** Arc vu de biais, courbe libre : spline passant par des points de l'arête. */
+  | { kind: 'spline'; points: Vec2[]; closed: boolean; ref: EdgeRef; partId?: Id; context?: AssemblyContext };
+
+/**
+ * Face de la pièce que Projeter peut reprendre d'un clic : ses triangles projetés (pour savoir
+ * si elle est sous la souris), son éloignement du plan, ses arêtes (rangs dans `projectable`) et
+ * celles de son contour extérieur (Maj+clic) ; `skipped` : arêtes vues par la tranche, non reprises.
+ */
+export interface ProjectableFace {
+  triangles: number[];
+  depth: number;
+  curves: number[];
+  outer: number[];
+  skipped: number;
+}
 
 export interface SessionMessage {
   kind: 'info' | 'success' | 'error';
@@ -265,6 +282,9 @@ export interface SketchSession {
   /** Arêtes de la pièce que l'outil Projeter peut reprendre, et celle survolée. */
   projectable: ProjectableCurve[];
   projectHover: number | null;
+  /** Faces de la pièce reprenables d'un clic, et celle survolée (aucune arête sous la souris). */
+  projectableFaces: ProjectableFace[];
+  projectFaceHover: number | null;
   input: DrawInput | null;
   cursor: Vec2 | null;
   snap: SnapResult | null;
@@ -298,6 +318,7 @@ export function createSession(args: {
   frame: Frame3D;
   sketch: SketchParams;
   projectable?: ProjectableCurve[];
+  projectableFaces?: ProjectableFace[];
 }): SketchSession {
   const res = solveSketch(args.sketch);
   return {
@@ -321,6 +342,8 @@ export function createSession(args: {
     construction: false,
     projectable: args.projectable ?? [],
     projectHover: null,
+    projectableFaces: args.projectableFaces ?? [],
+    projectFaceHover: null,
     input: null,
     cursor: null,
     snap: null,
@@ -386,7 +409,7 @@ export function isConstraintTool(tool: SketchTool): tool is ConstraintTool {
 }
 
 export function setTool(s: SketchSession, tool: SketchTool): SketchSession {
-  let next = resetDraw({ ...s, tool, editor: null, drag: null, box: null, projectHover: null, message: info(TOOL_HELP[tool]) });
+  let next = resetDraw({ ...s, tool, editor: null, drag: null, box: null, projectHover: null, projectFaceHover: null, message: info(TOOL_HELP[tool]) });
   if (isConstraintTool(tool)) {
     const applied = applyConstraintToSelection(next, tool);
     if (applied) next = applied.done ? { ...applied.session, tool: 'select' } : applied.session;
@@ -481,8 +504,8 @@ export function pointerMove(s: SketchSession, p: Vec2, opts: { alt?: boolean } =
   if (s.drag) return dragTo(s, p, !!opts.alt);
   if (s.box) return { ...s, cursor: p, box: { ...s.box, current: p } };
   if (s.tool === 'project') {
-    const projectHover = nearestProjectable(s, p);
-    return projectHover === s.projectHover && s.cursor === p ? s : { ...s, cursor: p, projectHover, hover: null, snap: null };
+    const h = projectHoverAt(s, p);
+    return h.projectHover === s.projectHover && h.projectFaceHover === s.projectFaceHover && s.cursor === p ? s : { ...s, cursor: p, ...h, hover: null, snap: null };
   }
   const drawing = s.tool === 'point' || s.tool === 'line' || s.tool === 'rectangle' || s.tool === 'centerRectangle' || s.tool === 'polygon' || s.tool === 'circle' || s.tool === 'arc' || s.tool === 'arc3' || s.tool === 'slot' || s.tool === 'ellipse' || s.tool === 'spline' || s.tool === 'text' || s.tool === 'stamp';
   const snap = drawing ? computeSnap(s, p, !!opts.alt) : null;
@@ -536,7 +559,7 @@ export function pointerDown(s: SketchSession, p: Vec2, opts: { shift?: boolean; 
     case 'stamp':
       return stampClick(s, computeSnap(s, p, !!opts.alt));
     case 'project':
-      return projectClick(s, p);
+      return projectClick(s, p, !!opts.shift);
     case 'trim':
       return trimClick(s, p);
     case 'offset':
@@ -2128,11 +2151,48 @@ function distanceToArc(p: Vec2, c: { center: Vec2; radius: number; start: Vec2; 
   return inside ? Math.abs(distance2(p, c.center) - c.radius) : Math.min(distance2(p, c.start), distance2(p, c.end));
 }
 
+/** Points d'une ellipse (pour l'affichage et la distance). */
+export function ellipsePoints(c: { center: Vec2; major: Vec2; minorRadius: number }, n = 64): Vec2[] {
+  const ux = c.major.x - c.center.x;
+  const uy = c.major.y - c.center.y;
+  const a = Math.hypot(ux, uy) || 1;
+  const [cx, cy] = [ux / a, uy / a];
+  return Array.from({ length: n + 1 }, (_v, i) => {
+    const t = (2 * Math.PI * i) / n;
+    const x = a * Math.cos(t);
+    const y = c.minorRadius * Math.sin(t);
+    return { x: c.center.x + x * cx - y * cy, y: c.center.y + x * cy + y * cx };
+  });
+}
+
+/** Distance d'un point à une polyligne. */
+function distanceToPolyline(p: Vec2, pts: readonly Vec2[], closed: boolean): number {
+  let d = Infinity;
+  const n = closed ? pts.length : pts.length - 1;
+  for (let i = 0; i < n; i++) d = Math.min(d, distanceToSegment2(p, pts[i]!, pts[(i + 1) % pts.length]!));
+  return d;
+}
+
+function distanceToProjectable(p: Vec2, c: ProjectableCurve): number {
+  switch (c.kind) {
+    case 'line':
+      return distanceToSegment2(p, c.a, c.b);
+    case 'circle':
+      return Math.abs(distance2(p, c.center) - c.radius);
+    case 'arc':
+      return distanceToArc(p, c);
+    case 'ellipse':
+      return distanceToPolyline(p, ellipsePoints(c), false);
+    case 'spline':
+      return distanceToPolyline(p, c.points, c.closed);
+  }
+}
+
 function nearestProjectable(s: SketchSession, p: Vec2): number | null {
   let best: number | null = null;
   let bestD = tolerance(s);
   s.projectable.forEach((c, i) => {
-    const d = c.kind === 'line' ? distanceToSegment2(p, c.a, c.b) : c.kind === 'circle' ? Math.abs(distance2(p, c.center) - c.radius) : distanceToArc(p, c);
+    const d = distanceToProjectable(p, c);
     if (d <= bestD) {
       best = i;
       bestD = d;
@@ -2141,44 +2201,99 @@ function nearestProjectable(s: SketchSession, p: Vec2): number | null {
   return best;
 }
 
-/** Remplace les arêtes projetables (la pièce a été recalculée). */
-export function setProjectable(s: SketchSession, projectable: ProjectableCurve[]): SketchSession {
-  if (JSON.stringify(projectable) === JSON.stringify(s.projectable)) return s;
-  const next = { ...s, projectable };
-  // L'arête survolée est recalculée à la position du curseur (pas d'effacement intempestif).
-  return { ...next, projectHover: s.tool === 'project' && s.cursor ? nearestProjectable(next, s.cursor) : null };
+/** Face sous le point (la plus proche du plan de l'esquisse si plusieurs se superposent), ou null. */
+function faceAt(s: SketchSession, p: Vec2): number | null {
+  let best: number | null = null;
+  let bestDepth = Infinity;
+  s.projectableFaces.forEach((f, i) => {
+    if (f.depth >= bestDepth) return;
+    const t = f.triangles;
+    for (let k = 0; k + 5 < t.length; k += 6) {
+      const [ax, ay, bx, by, cx, cy] = [t[k]!, t[k + 1]!, t[k + 2]!, t[k + 3]!, t[k + 4]!, t[k + 5]!];
+      const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+      if (Math.abs(d) < 1e-12) continue;
+      const w0 = ((by - cy) * (p.x - cx) + (cx - bx) * (p.y - cy)) / d;
+      const w1 = ((cy - ay) * (p.x - cx) + (ax - cx) * (p.y - cy)) / d;
+      if (w0 >= 0 && w1 >= 0 && w0 + w1 <= 1) {
+        best = i;
+        bestDepth = f.depth;
+        return;
+      }
+    }
+  });
+  return best;
 }
 
-function projectClick(s: SketchSession, p: Vec2): SketchSession {
-  const index = nearestProjectable(s, p);
-  if (index === null) return { ...s, message: info('Cliquez sur une arête violette de la pièce pour la reprendre dans l’esquisse.') };
-  const curve = s.projectable[index]!;
-  const existing = s.sketch.entities.find((e) => (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference && (e.reference.partId ?? null) === (curve.partId ?? null) && sameEdgeRef(e.reference.edge, curve.ref));
-  if (existing) return { ...s, selection: [existing.id], message: info('Cette arête est déjà reprise dans l’esquisse.') };
-  let sketch: SketchParams;
+/** Survol avec l'outil Projeter : une arête (prioritaire), sinon une face. */
+function projectHoverAt(s: SketchSession, p: Vec2): { projectHover: number | null; projectFaceHover: number | null } {
+  const projectHover = nearestProjectable(s, p);
+  return { projectHover, projectFaceHover: projectHover === null ? faceAt(s, p) : null };
+}
+
+/** Remplace les arêtes et faces projetables (la pièce a été recalculée). */
+export function setProjectable(s: SketchSession, projectable: ProjectableCurve[], faces: ProjectableFace[] = []): SketchSession {
+  if (JSON.stringify(projectable) === JSON.stringify(s.projectable) && JSON.stringify(faces) === JSON.stringify(s.projectableFaces)) return s;
+  const next = { ...s, projectable, projectableFaces: faces };
+  // L'élément survolé est recalculé à la position du curseur (pas d'effacement intempestif).
+  return { ...next, ...(s.tool === 'project' && s.cursor ? projectHoverAt(next, s.cursor) : { projectHover: null, projectFaceHover: null }) };
+}
+
+/** Courbe de l'esquisse déjà reprise depuis cette arête, s'il y en a une. */
+function alreadyProjected(sketch: SketchParams, curve: ProjectableCurve): SketchEntity | undefined {
+  return sketch.entities.find((e) => e.type !== 'point' && e.type !== 'text' && e.type !== 'stamp' && e.reference && (e.reference.partId ?? null) === (curve.partId ?? null) && sameEdgeRef(e.reference.edge, curve.ref));
+}
+
+/** Ajoute à l'esquisse la courbe reprise de la pièce (avec sa référence). */
+function addProjected(sketch: SketchParams, curve: ProjectableCurve): SketchParams {
+  let next: SketchParams;
   let id: string;
   if (curve.kind === 'line') {
-    const r = addLine(s.sketch, curve.a, curve.b);
-    sketch = r.sketch;
-    id = r.lineId;
+    const r = addLine(sketch, curve.a, curve.b);
+    [next, id] = [r.sketch, r.lineId];
   } else if (curve.kind === 'arc') {
-    const r = addArc(s.sketch, curve.center, curve.start, curve.end);
-    sketch = r.sketch;
-    id = r.arcId;
+    const r = addArc(sketch, curve.center, curve.start, curve.end);
+    [next, id] = [r.sketch, r.arcId];
+  } else if (curve.kind === 'ellipse') {
+    const r = addEllipse(sketch, curve.center, curve.major, curve.minorRadius);
+    [next, id] = [r.sketch, r.ellipseId];
+  } else if (curve.kind === 'spline') {
+    const r = addSpline(sketch, curve.points, curve.closed);
+    [next, id] = [r.sketch, r.splineId];
   } else {
-    const r = addCircle(s.sketch, curve.center, curve.radius);
-    sketch = r.sketch;
-    id = r.circleId;
+    const r = addCircle(sketch, curve.center, curve.radius);
+    [next, id] = [r.sketch, r.circleId];
   }
-  sketch = {
-    ...sketch,
-    entities: sketch.entities.map((e): SketchEntity => (e.id === id && (e.type === 'line' || e.type === 'circle' || e.type === 'arc') ? { ...e, reference: { edge: curve.ref, ...(curve.partId ? { partId: curve.partId, ...(curve.context ? { context: curve.context } : {}) } : {}) } } : e)),
-  };
-  const what = curve.kind === 'line' ? 'ses extrémités' : curve.kind === 'arc' ? 'son centre et ses extrémités' : 'son centre';
-  const { session } = commit(s, sketch, {
+  const reference = { edge: curve.ref, ...(curve.partId ? { partId: curve.partId, ...(curve.context ? { context: curve.context } : {}) } : {}) };
+  return { ...next, entities: next.entities.map((e): SketchEntity => (e.id === id && e.type !== 'point' ? ({ ...e, reference } as SketchEntity) : e)) };
+}
+
+function projectClick(s: SketchSession, p: Vec2, outerOnly = false): SketchSession {
+  const index = nearestProjectable(s, p);
+  if (index === null) {
+    // Clic sur une face : toutes ses arêtes (Maj : seulement son contour extérieur).
+    const fi = faceAt(s, p);
+    if (fi === null) return { ...s, message: info('Cliquez une arête violette, ou une face pour reprendre tout son contour (Maj : contour extérieur seul).') };
+    const face = s.projectableFaces[fi]!;
+    const wanted = (outerOnly ? face.outer : face.curves).map((i) => s.projectable[i]!).filter(Boolean);
+    const fresh = wanted.filter((c) => !alreadyProjected(s.sketch, c));
+    if (fresh.length === 0) return { ...s, message: info('Ces arêtes sont déjà reprises dans l’esquisse.') };
+    const sketch = fresh.reduce(addProjected, s.sketch);
+    const skipped = outerOnly ? 0 : face.skipped;
+    const { session } = commit(s, sketch, {
+      message: success(
+        `${outerOnly ? 'Contour extérieur repris' : 'Face reprise'} : ${fresh.length} arête${fresh.length > 1 ? 's' : ''} (en violet), qui suivent la pièce.${skipped ? ` ${skipped} arête${skipped > 1 ? 's' : ''} vue${skipped > 1 ? 's' : ''} par la tranche non reprise${skipped > 1 ? 's' : ''}.` : ''}`,
+      ),
+    });
+    return { ...session, projectHover: null, projectFaceHover: null };
+  }
+  const curve = s.projectable[index]!;
+  const existing = alreadyProjected(s.sketch, curve);
+  if (existing) return { ...s, selection: [existing.id], message: info('Cette arête est déjà reprise dans l’esquisse.') };
+  const what = curve.kind === 'line' ? 'ses extrémités' : curve.kind === 'arc' ? 'son centre et ses extrémités' : curve.kind === 'spline' ? 'ses points' : 'son centre';
+  const { session } = commit(s, addProjected(s.sketch, curve), {
     message: success(`Arête reprise (en violet) : elle suit la pièce. Utilisez ${what} pour coter ou contraindre votre dessin.`),
   });
-  return { ...session, projectHover: null };
+  return { ...session, projectHover: null, projectFaceHover: null };
 }
 
 // ---------------------------------------------------------------------------

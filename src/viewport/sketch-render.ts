@@ -16,7 +16,7 @@ import { arcGeometry, arcPointAt, ellipseOf, findArc, findCircle, findLine, ghos
 import { sampleBeziers, sampleEllipse } from '../sketch/curves';
 import { outlineContours } from '../sketch/stamp';
 import { contourPolyline } from '../sketch/text';
-import type { ProjectableCurve, SessionPreview } from '../sketch/session';
+import { ellipsePoints, type ProjectableCurve, type SessionPreview } from '../sketch/session';
 import type { SnapResult } from '../sketch/snapping';
 import type { ViewportPalette } from './colors';
 import { frameMatrix } from './grid';
@@ -38,6 +38,8 @@ export interface SketchRenderInput {
   /** Arêtes de la pièce projetables dans l'esquisse (outil Projeter) et celle survolée. */
   projectable?: readonly ProjectableCurve[];
   projectHover?: number | null;
+  /** Arêtes de la face survolée avec Projeter (rangs dans `projectable`). */
+  projectFaceCurves?: readonly number[];
 }
 
 /** Symboles des contraintes géométriques (texte court + nom lisible). */
@@ -335,7 +337,7 @@ export class SketchView {
 
     // Arêtes de la pièce que l'outil Projeter peut reprendre.
     (input.projectable ?? []).forEach((curve, i) => {
-      const hovered = input.projectHover === i;
+      const hovered = input.projectHover === i || (input.projectFaceCurves ?? []).includes(i);
       const segs =
         curve.kind === 'line'
           ? [[curve.a, curve.b] as Segment]
@@ -345,7 +347,12 @@ export class SketchView {
                 const a1 = Math.atan2(curve.end.y - curve.center.y, curve.end.x - curve.center.x);
                 return arcSegments(curve.center, curve.radius, a0, (((a1 - a0) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
               })()
-            : circleSegments(curve.center, curve.radius, 64);
+            : curve.kind === 'ellipse' || curve.kind === 'spline'
+              ? (() => {
+                  const pts = curve.kind === 'ellipse' ? ellipsePoints(curve) : curve.closed ? [...curve.points, curve.points[0]!] : curve.points;
+                  return pts.slice(1).map((q, k) => [pts[k]!, q] as Segment);
+                })()
+              : circleSegments(curve.center, curve.radius, 64);
       for (const seg of segs) (hovered ? strong : construction).add(seg, hovered ? cHover : cRef);
     });
 
@@ -444,6 +451,8 @@ export class SketchView {
         if (e.type === 'line' && e.reference) refPoints.add(e.a).add(e.b);
         if (e.type === 'circle' && e.reference) refPoints.add(e.center);
         if (e.type === 'arc' && e.reference) refPoints.add(e.center).add(e.start).add(e.end);
+        if (e.type === 'ellipse' && e.reference) refPoints.add(e.center).add(e.major);
+        if (e.type === 'spline' && e.reference) for (const id of e.points) refPoints.add(id);
       }
       // Points confondus (coin d'un rectangle : une extrémité par segment) : le dernier tracé
       // recouvre les autres. Le point survolé puis le point choisi passent donc en dernier, sinon un

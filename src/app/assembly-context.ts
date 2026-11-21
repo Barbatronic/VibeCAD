@@ -4,6 +4,7 @@
  * références en contexte viennent de la position de référence (toutes les liaisons à zéro) : une
  * esquisse posée sur une pièce voisine ne bouge pas quand on anime le mécanisme.
  */
+import { isProjectable } from '../sketch/projected';
 import type { Assembly, AssemblyContext, CadDocument, Feature, Id } from '../domain/model';
 import { identity4, invertRigid4, multiply4, transformDirection4, transformPoint4, type Mat4 } from '../math/mat4';
 import type { Frame3D } from '../math/frame';
@@ -196,7 +197,7 @@ export function syncContexts(
     const nextSupport = support.kind === 'face' && support.context ? { ...support, context: update(support.context) } : support;
     let entitiesChanged = false;
     const entities = f.params.entities.map((e) => {
-      if ((e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') || !e.reference?.context) return e;
+      if (!isProjectable(e) || !e.reference?.context) return e;
       const context = update(e.reference.context);
       if (context === e.reference.context) return e;
       entitiesChanged = true;

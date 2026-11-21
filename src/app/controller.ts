@@ -66,7 +66,7 @@ import { isQuotaError, requestPersistentStorage, type ProjectStore } from '../pe
 import { ensureWritable, pickFile, pickFolder, pickFileWithHandle, readFileBytes, readGrayImage, renderSvgGray, safeFileName, saveFile, type SaveTarget } from '../persistence/files';
 import { importSvgShape } from '../io/svg-import';
 import type { StampShape } from '../sketch/stamp';
-import { chooseStamp, createSession, selectedStamp, setStampOptions, setPixelSize, setProjectable, setTool, type ProjectableCurve, type SketchSession } from '../sketch/session';
+import { chooseStamp, createSession, selectedStamp, setStampOptions, setPixelSize, setProjectable, setTool, type ProjectableCurve, type ProjectableFace, type SketchSession } from '../sketch/session';
 import type { AdviceAction } from './advice';
 import type { SectionPlane } from '../geometry/protocol';
 import type { MeshData } from '../geometry/kernel';
@@ -77,7 +77,7 @@ import { applyUpdate } from './offline';
 import { eulerXYZ, invertRigid4, multiply4, rotationX4, rotationY4, rotationZ4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
 import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, instanceMatrix, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
 import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
-import { projectableCurves } from './projection';
+import { projectableGeometry, type ProjectableGeometry } from './projection';
 import { externalParts } from '../features/sketch/definition';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
@@ -1001,7 +1001,8 @@ export class AppController {
       // Esquisse ouverte : les arêtes projetables suivent la pièce recalculée.
       const mode = this.state.mode;
       if (mode.kind === 'sketch') {
-        const session = setProjectable(mode.session, this.projectables(mode.session.partId, mode.session.frame, mode.session.featureId));
+        const g = this.projectables(mode.session.partId, mode.session.frame, mode.session.featureId);
+        const session = setProjectable(mode.session, g.curves, g.faces);
         if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
         if (!mode.session.isNew) void this.refreshMeshBefore(mode.session.partId, mode.session.featureId);
       }
@@ -1651,14 +1652,25 @@ export class AppController {
    * Arêtes reprenables par « Projeter » : celles de la pièce (avant l'esquisse) et celles des autres
    * pièces visibles du projet, sauf celles qui dépendent de cette pièce (boucle).
    */
-  private projectables(partId: Id, frame: Frame3D, featureId: Id): ProjectableCurve[] {
+  private projectables(partId: Id, frame: Frame3D, featureId: Id): ProjectableGeometry {
     const s = this.state;
     const part = findPart(s.doc, partId);
-    if (!part) return [];
+    if (!part) return { curves: [], faces: [] };
+    // Plusieurs pièces : arêtes mises bout à bout, rangs des arêtes de chaque face décalés d'autant.
+    const merge = (parts: ProjectableGeometry[]): ProjectableGeometry => {
+      const curves: ProjectableCurve[] = [];
+      const faces: ProjectableFace[] = [];
+      for (const g of parts) {
+        const offset = curves.length;
+        curves.push(...g.curves);
+        faces.push(...g.faces.map((f) => ({ ...f, curves: f.curves.map((i) => i + offset), outer: f.outer.map((i) => i + offset) })));
+      }
+      return { curves, faces };
+    };
     // La pièce telle qu'elle est juste avant l'esquisse (sinon, en attendant, la pièce affichée).
     const before = s.sketchBase;
     const ownMesh = before && before.partId === partId && before.featureId === featureId && before.features === part.features ? before.mesh : s.display[partId]?.mesh;
-    const own = projectableCurves(ownMesh, frame, part, featureId);
+    const own = projectableGeometry(ownMesh, frame, part, featureId);
     // Conception dans l'assemblage : les arêtes des voisines, à leur place (repère de l'esquisse
     // exprimé dans celui de la voisine), reprises avec le contexte.
     const ctx = activeContext(s);
@@ -1669,16 +1681,18 @@ export class AppController {
         if (!p || p.id === partId || !p.visible || (s.isolatedPartId && p.id !== s.isolatedPartId) || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
         const local = frameInFrame(invertRigid4(leaf.reference), frame);
         const context = contextOf(ctx.instanceId, leaf);
-        return projectableCurves(s.display[p.id]?.mesh, local, p, featureId, true).map((c) => ({ ...c, context }));
+        const g = projectableGeometry(s.display[p.id]?.mesh, local, p, featureId, true);
+        return [{ ...g, curves: g.curves.map((c) => ({ ...c, context })) }];
       });
-      return [...own, ...neighbours];
+      return merge([own, ...neighbours]);
     }
     // Pièce isolée : les autres sont cachées, leurs arêtes ne sont pas proposées.
     const others = s.doc.parts
       .filter((p) => p.id !== partId && p.visible && (!s.isolatedPartId || p.id === s.isolatedPartId) && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
-      .flatMap((p) => projectableCurves(s.display[p.id]?.mesh, frame, p, featureId, true));
-    return [...own, ...others];
+      .map((p) => projectableGeometry(s.display[p.id]?.mesh, frame, p, featureId, true));
+    return merge([own, ...others]);
   }
+
 
   /**
    * Demande au worker la pièce juste avant l'esquisse (une esquisse existante) : des étapes
@@ -1701,14 +1715,15 @@ export class AppController {
     // L'esquisse a été refermée entre-temps : rien à montrer.
     if (mode.kind !== 'sketch' || mode.session.partId !== partId || mode.session.featureId !== featureId) return;
     this.set({ sketchBase: { partId, featureId, features: part.features, mesh: r.mesh, meshKey: r.meshKey } });
-    const session = setProjectable(mode.session, this.projectables(partId, mode.session.frame, featureId));
+    const g = this.projectables(partId, mode.session.frame, featureId);
+    const session = setProjectable(mode.session, g.curves, g.faces);
     if (session !== mode.session) this.set({ mode: { kind: 'sketch', session } });
   }
 
   private openSession(partId: Id, featureId: Id, isNew: boolean, frame: Frame3D, params: SketchFeature['params'], supportChanged = false): void {
     this.realizeContext(partId);
-    const projectable = this.projectables(partId, frame, featureId);
-    let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable });
+    const geometry = this.projectables(partId, frame, featureId);
+    let session = createSession({ featureId, partId, isNew, frame, sketch: params, projectable: geometry.curves, projectableFaces: geometry.faces });
     if (!this.state.sketchGrid) session = { ...session, snapToGrid: false };
     if (supportChanged) session = { ...session, dirty: true };
     const px = this.viewport?.pixelSize();

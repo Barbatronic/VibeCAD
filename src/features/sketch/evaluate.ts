@@ -2,6 +2,7 @@ import type { Id, SketchEntity, SketchFeature, SketchParams, SketchSupport } fro
 import { issue, okStatus, type FeatureIssueCode, type FeatureStatus } from '../../domain/status';
 import { canonicalFrame, originPlaneFrame, worldToFrame, type Frame3D } from '../../math/frame';
 import { ccwThrough, distance2, dot3, type Vec2 } from '../../math/vec';
+import { isProjectable, projectCircle, splineThrough } from '../../sketch/projected';
 import { extractProfiles, type ProfileRegion } from '../../sketch/profiles';
 import { solveSketch } from '../../sketch/solver';
 import type { EvaluationContext, FeatureEvaluator, FeatureOutcome } from '../evaluation';
@@ -40,7 +41,7 @@ export function resolveSupportFrame(support: SketchSupport, ctx: EvaluationConte
  * plan de l'esquisse. Une arête introuvable garde sa dernière position et est signalée.
  */
 export function updateReferences(params: SketchParams, frame: Frame3D, ctx: EvaluationContext): { params: SketchParams; lost: string[] } {
-  const refs = params.entities.filter((e) => (e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference);
+  const refs = params.entities.filter((e) => isProjectable(e) && e.reference);
   if (refs.length === 0) return { params, lost: [] };
   const moves = new Map<string, Vec2>();
   const radii = new Map<string, number>();
@@ -50,7 +51,7 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
     return p?.type === 'point' ? p : undefined;
   };
   for (const e of refs) {
-    if ((e.type !== 'line' && e.type !== 'circle' && e.type !== 'arc') || !e.reference) continue;
+    if (!isProjectable(e) || !e.reference) continue;
     const source = e.reference.partId ? ctx.externalShape(e.reference.partId, e.reference.context?.matrix) : ctx.shape;
     const curves = source ? ctx.kernel.edgeCurves(source, e.reference.edge) : [];
     if (e.type === 'line') {
@@ -72,6 +73,40 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
         moves.set(e.a, best.a);
         moves.set(e.b, best.b);
       }
+    } else if (e.type === 'ellipse') {
+      // Cercle vu de biais : centre, bout du grand axe (du même côté qu'avant) et petit rayon.
+      const [center, major] = [pointAt(e.center), pointAt(e.major)];
+      let best: { c: Vec2; m: Vec2; r: number; d: number } | null = null;
+      for (const c of curves) {
+        if (c.kind !== 'circle') continue;
+        const p = projectCircle(frame, c.center, c.axis, c.radius);
+        if (!p || p.kind !== 'ellipse') continue;
+        const opposite = { x: 2 * p.center.x - p.major.x, y: 2 * p.center.y - p.major.y };
+        const m = major && distance2(major, opposite) < distance2(major, p.major) ? opposite : p.major;
+        const d = center && major ? distance2(center, p.center) + distance2(major, m) : 0;
+        if (!best || d < best.d) best = { c: p.center, m, r: p.minorRadius, d };
+      }
+      if (!best) lost.push(e.id);
+      else {
+        moves.set(e.center, best.c);
+        moves.set(e.major, best.m);
+        radii.set(e.id, best.r);
+      }
+    } else if (e.type === 'spline') {
+      // Arc vu de biais, courbe libre : mêmes points de passage, replacés le long de l'arête.
+      const old = e.points.map(pointAt);
+      let best: { pts: Vec2[]; d: number } | null = null;
+      for (const c of curves) {
+        if (c.kind === 'line' || !c.samples) continue;
+        const sp = splineThrough(c.samples, frame, e.points.length);
+        if (!sp || sp.closed !== e.closed) continue;
+        for (const pts of [sp.points, [...sp.points].reverse()]) {
+          const d = old.every(Boolean) ? pts.reduce((acc, q, i) => acc + distance2(q, old[i]!), 0) : 0;
+          if (!best || d < best.d) best = { pts, d };
+        }
+      }
+      if (!best) lost.push(e.id);
+      else e.points.forEach((id, i) => moves.set(id, best!.pts[i]!));
     } else if (e.type === 'arc') {
       // Arc : centre et extrémités, dans le sens trigonométrique qui passe par le milieu de l'arête.
       const [center, start, end] = [pointAt(e.center), pointAt(e.start), pointAt(e.end)];
@@ -114,6 +149,10 @@ export function updateReferences(params: SketchParams, frame: Frame3D, ctx: Eval
     if (e.type === 'circle') {
       const r = radii.get(e.id);
       return r !== undefined ? { ...e, radius: r } : e;
+    }
+    if (e.type === 'ellipse') {
+      const r = radii.get(e.id);
+      return r !== undefined ? { ...e, minorRadius: r } : e;
     }
     return e;
   });

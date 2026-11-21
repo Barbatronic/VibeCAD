@@ -1,3 +1,4 @@
+import { isProjectable } from '../../sketch/projected';
 import type { Feature, Id, SketchFeature } from '../../domain/model';
 import { formatLength } from '../../domain/units';
 import { countCurves } from '../../sketch/model';
@@ -19,7 +20,7 @@ export const sketchDefinition: FeatureDefinition<SketchFeature> = {
     const ids = new Set<string>(s.kind === 'face' && !s.partId ? [s.ref.featureId] : s.kind === 'datum' ? [s.featureId] : []);
     // Arêtes reprises de la pièce : l'esquisse dépend des étapes qui ont créé leurs faces.
     for (const e of feature.params.entities) {
-      if ((e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference && !e.reference.partId) for (const f of e.reference.edge.faces) ids.add(f.featureId);
+      if (isProjectable(e) && e.reference && !e.reference.partId) for (const f of e.reference.edge.faces) ids.add(f.featureId);
     }
     return Array.from(ids);
   },
@@ -64,6 +65,6 @@ export function externalParts(feature: Feature): Id[] {
   const ids = new Set<Id>();
   const s = feature.params.support;
   if (s.kind === 'face' && s.partId) ids.add(s.partId);
-  for (const e of feature.params.entities) if ((e.type === 'line' || e.type === 'circle' || e.type === 'arc') && e.reference?.partId) ids.add(e.reference.partId);
+  for (const e of feature.params.entities) if (isProjectable(e) && e.reference?.partId) ids.add(e.reference.partId);
   return Array.from(ids);
 }
