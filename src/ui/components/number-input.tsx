@@ -101,6 +101,7 @@ export function NumberInput(props: NumberInputProps) {
   const suggestions = useContext(InputSuggestions);
   const field = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement | null>(null);
+  const pendingCaret = useRef<number | null>(null);
   const [caret, setCaret] = useState<number | null>(null);
   /** Liste ouverte par le bouton ƒ (sinon : seulement pendant qu'on tape un nom). */
   const [forced, setForced] = useState(false);
@@ -137,11 +138,18 @@ export function NumberInput(props: NumberInputProps) {
     setClosedFor(name);
     const pos = before.length + name.length;
     setCaret(pos);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(pos, pos);
-    });
+    // Curseur placé après le nom dès que le champ l'affiche (pas à l'image suivante : une touche
+    // tapée juste après serait perdue ou mal placée).
+    pendingCaret.current = pos;
+    el?.focus();
   };
+  useLayoutEffect(() => {
+    const el = input.current;
+    const pos = pendingCaret.current;
+    if (pos === null || !el || el.value !== props.value) return;
+    pendingCaret.current = null;
+    el.setSelectionRange(pos, pos);
+  });
 
   const stepBy = (direction: 1 | -1, step: number) => {
     const p = latest.current;
