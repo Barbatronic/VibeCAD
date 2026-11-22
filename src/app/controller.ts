@@ -6,6 +6,8 @@
 import { emptyHistory, recordAction, redoAction, undoAction } from '../commands/history';
 import {
   addFeature,
+  makeMirrorFeature,
+  updatePart,
   addInstance,
   addJoint,
   addFastener,
@@ -42,7 +44,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { Assembly, ControlLawSpec, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, ControlLawSpec, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -76,7 +78,7 @@ import type { TutorialId } from '../tutorials';
 import { applyUpdate } from './offline';
 import { eulerXYZ, invertRigid4, multiply4, rotationX4, rotationY4, rotationZ4, transformDirection4, transformPoint4, translation4, type Mat4 } from '../math/mat4';
 import { assemblyStepTree, clampToLimits, couplingPhase, endPart, flattenAssembly, instanceMatrix, isSphereLcs, type PlacedLeaf, type SolveOptions, JOINT_ISSUE_MESSAGES, jointFreedoms, lcsFromPick, rayAxisParam, rayPlane, solveAssembly, type AssemblyPlacement } from './assembly';
-import { cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
+import { add3, cross3, dot3, normalize3, scale3, sub3, type Vec3 } from '../math/vec';
 import { projectableGeometry, type ProjectableGeometry } from './projection';
 import { externalParts } from '../features/sketch/definition';
 import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
@@ -1334,6 +1336,23 @@ export class AppController {
   }
 
   /** Copie indépendante : une nouvelle pièce, avec son propre historique, qui devient la pièce active. */
+  /**
+   * Variante symétrique : une nouvelle pièce, reflet de celle-ci par rapport au plan YZ (à changer
+   * dans son étape Symétrie), qui suit ses modifications (pièce gauche / pièce droite).
+   */
+  mirrorVariant(partId: Id): void {
+    const part = findPart(this.state.doc, partId);
+    if (!part) return;
+    if (this.state.mode.kind !== 'model') return this.explain('Terminez d’abord l’opération en cours.');
+    if ((this.state.display[partId]?.result.analysis?.solidCount ?? 0) === 0) return this.explain(`« ${part.name} » n’a pas encore de volume à refléter.`);
+    const added = addPart(this.state.doc, `${part.name} (symétrique)`);
+    let doc = updatePart(added.doc, added.partId, (p) => ({ ...p, color: part.color, ...(part.make ? { make: part.make } : {}) }));
+    const mirror = makeMirrorFeature(doc, findPart(doc, added.partId)!, { kind: 'otherPart', partId }, { kind: 'plane', plane: 'YZ' });
+    doc = addFeature(doc, added.partId, { ...mirror, name: 'Variante symétrique' });
+    this.commit(this.keepOpenLevel(doc), `Variante symétrique de « ${part.name} »`, { activePartId: added.partId, selection: null });
+    this.toast('info', `« ${part.name} (symétrique) » ajoutée : elle suit les modifications de « ${part.name} ». Le plan du miroir se change dans son étape « Variante symétrique ».`);
+  }
+
   copyPart(partId: Id): void {
     const part = findPart(this.state.doc, partId);
     if (!part) return;
@@ -1886,6 +1905,7 @@ export class AppController {
     if (feature.type === 'mirror') return this.pickMirrorPlane(pick, feature);
     if (feature.type === 'split') return this.pickSplitPlane(pick, feature);
     if (feature.type === 'plane') return this.pickDatumPlane(pick, feature);
+    if (feature.type === 'revolve' && draft.fields.pick === 'axis') return this.pickRevolveAxis(pick, feature);
     if (feature.type === 'axis') return this.pickDatumAxis(pick, feature);
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
     if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
@@ -2024,6 +2044,22 @@ export class AppController {
    * Clic dans la vue pendant l'édition d'un plan de construction : une face plane devient le plan
    * de départ, une arête droite la charnière autour de laquelle il s'incline.
    */
+  /** Clic dans la vue pendant une révolution (« Autre axe ») : l'arête cliquée devient l'axe. */
+  private pickRevolveAxis(pick: ModelPick, feature: RevolveFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez une arête de la pièce en cours de modification.');
+    if (pick.kind !== 'edge') return this.explain('Cliquez une arête : un trait droit, ou le bord rond d’un trou (son axe).');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    const curve = mesh.edges[pick.index]?.curve;
+    if (curve !== 'line' && curve !== 'circle') return this.explain('Cette arête est courbe : choisissez un trait droit ou le bord rond d’un trou.');
+    const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+    if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
+    this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, axis: { kind: 'axis', axis: { kind: 'edge', edge: r.ref } } } } });
+  }
+
   private pickDatumPlane(pick: ModelPick, feature: PlaneFeature): void {
     const mode = this.state.mode;
     if (mode.kind !== 'feature') return;
@@ -2031,20 +2067,59 @@ export class AppController {
     const mesh = this.displayedMesh(pick.partId);
     const part = findPart(this.state.doc, pick.partId);
     if (!mesh || !part) return;
+    const slot = mode.draft.fields.pick ?? '';
+    const construction = feature.params.mode ?? 'offset';
+    // Élément suivant à choisir (les points s'enchaînent), sinon fin du choix.
+    const next = (params: PlaneFeature['params']): string => {
+      if (construction === 'threePoints') {
+        const missing = [0, 1, 2].find((i) => !params.points?.[i]);
+        return missing === undefined ? '' : `p${missing}`;
+      }
+      if (construction === 'edgePoint' && !params.points?.[0]) return 'p0';
+      return '';
+    };
+    const apply = (params: PlaneFeature['params']) => this.setDraftField('pick', next(params), { feature: { ...feature, params } });
+    const hasBase = construction === 'offset' || construction === 'midplane' || construction === 'parallelPoint';
     if (pick.kind === 'face') {
+      // Sans choix en cours : la face devient le plan de départ (s'il y en a un).
+      if (slot !== 'face2' && !(slot === 'face' || (slot === '' && hasBase))) return this.explain(slot ? 'Cliquez une arête.' : 'Choisissez d’abord ce que vous désignez (« Choisir… »).');
       const face = mesh.faces[pick.index];
       if (!face) return;
       if (!face.plane) return this.explain('Cette face est courbe : choisissez une face plane.');
       const ref = pickFaceReference(face.tags, part);
       if (!ref) return;
-      this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, base: { kind: 'face', ref } } } });
-      return;
+      return apply(slot === 'face2' ? { ...feature.params, second: { kind: 'face', ref } } : { ...feature.params, base: { kind: 'face', ref } });
     }
-    if (mesh.edges[pick.index]?.curve !== 'line') return this.explain('Pour incliner le plan, choisissez une arête droite (la charnière).');
+    const edge = mesh.edges[pick.index];
     const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
     if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
+    if (/^p[0-2]$/.test(slot)) {
+      // Point : le bout, le milieu ou le centre de l'arête le plus proche du clic.
+      const candidates: { at: 'start' | 'end' | 'mid' | 'center'; p: Vec3 }[] = [];
+      if (edge?.line) candidates.push({ at: 'start', p: edge.line.start }, { at: 'end', p: edge.line.end }, { at: 'mid', p: scale3(add3(edge.line.start, edge.line.end), 0.5) });
+      else if (edge) {
+        const v = (k: number) => ({ x: mesh.edgePositions[3 * k]!, y: mesh.edgePositions[3 * k + 1]!, z: mesh.edgePositions[3 * k + 2]! });
+        const [a, b] = [v(edge.start), v(edge.start + edge.count - 1)];
+        if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) > 1e-6) candidates.push({ at: 'start', p: a }, { at: 'end', p: b });
+        candidates.push({ at: 'mid', p: v(edge.start + Math.floor(edge.count / 2)) });
+        if (edge.circle) candidates.push({ at: 'center', p: edge.circle.center });
+      }
+      const best = candidates.sort((u, w) => Math.hypot(u.p.x - pick.point.x, u.p.y - pick.point.y, u.p.z - pick.point.z) - Math.hypot(w.p.x - pick.point.x, w.p.y - pick.point.y, w.p.z - pick.point.z))[0];
+      if (!best) return;
+      const points = [...(feature.params.points ?? [])];
+      points[Number(slot.slice(1))] = { kind: 'edge', edge: r.ref, at: best.at };
+      return apply({ ...feature.params, points });
+    }
+    if (slot === 'edgeRef') {
+      if (construction === 'tangent' && edge?.curve !== 'circle') return this.explain('Choisissez le bord rond d’un cylindre ou d’un trou.');
+      if (construction === 'edgePoint' && edge?.curve !== 'line') return this.explain('Choisissez une arête droite.');
+      return apply({ ...feature.params, edge: r.ref });
+    }
+    if (construction !== 'offset') return this.explain('Choisissez d’abord ce que vous désignez (« Choisir… »).');
+    if (edge?.curve !== 'line') return this.explain('Pour incliner le plan, choisissez une arête droite (la charnière).');
     this.setDraftField('pick', '', { feature: { ...feature, params: { ...feature.params, hinge: { kind: 'edge', edge: r.ref } } } });
   }
+
 
   /** Clic dans la vue pendant l'édition d'un axe de construction : l'arête cliquée (droite, ou bord d'un trou) le définit. */
   private pickDatumAxis(pick: ModelPick, feature: AxisFeature): void {

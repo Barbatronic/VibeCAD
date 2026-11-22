@@ -607,8 +607,9 @@ export class OcctKernel implements GeometryKernel {
   private revolveRegion(scope: Scope, request: RevolveRequest, region: ProfileRegion): OcctShape {
     const oc = this.oc;
     const { face, edges } = this.buildFace(scope, region, request.frame, 0);
-    const origin = frameToWorld(request.frame, request.axisOrigin, 0);
-    const tip = frameToWorld(request.frame, { x: request.axisOrigin.x + request.axisDirection.x, y: request.axisOrigin.y + request.axisDirection.y }, 0);
+    const h = request.axisHeight ?? 0;
+    const origin = frameToWorld(request.frame, request.axisOrigin, h);
+    const tip = frameToWorld(request.frame, { x: request.axisOrigin.x + request.axisDirection.x, y: request.axisOrigin.y + request.axisDirection.y }, h);
     const ax1 = scope.track(new oc.gp_Ax1(this.pnt(scope, origin), this.dir(scope, sub3(tip, origin))));
     const full = Math.abs(request.angle) >= Math.PI * 2 - 1e-9;
     const revol = scope.track(full ? new oc.BRepPrimAPI_MakeRevol(face, ax1, true) : new oc.BRepPrimAPI_MakeRevol(face, ax1, request.angle, true));

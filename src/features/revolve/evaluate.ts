@@ -2,7 +2,9 @@ import type { RevolveFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
 import { TOLERANCES } from '../../domain/tolerances';
 import type { KernelShape } from '../../geometry/kernel';
-import { cross2, normalize2, sub2, type Vec2 } from '../../math/vec';
+import { signedDistanceToFrame, worldToFrame } from '../../math/frame';
+import { cross2, dot3, normalize2, sub2, type Vec2 } from '../../math/vec';
+import { resolvePatternAxis } from '../pattern/evaluate';
 import { findLine, pointPosition } from '../../sketch/model';
 import { sampleBeziers, sampleEllipse } from '../../sketch/curves';
 import type { ProfileRegion } from '../../sketch/profiles';
@@ -42,7 +44,23 @@ export const evaluateRevolve: FeatureEvaluator<RevolveFeature> = (feature, ctx) 
   // Axe dans le repère de l'esquisse.
   let origin: Vec2 = { x: 0, y: 0 };
   let dir: Vec2 = feature.params.axis.kind === 'sketch-x' ? { x: 1, y: 0 } : { x: 0, y: 1 };
-  if (feature.params.axis.kind === 'line') {
+  let height = 0;
+  const custom = feature.params.axis;
+  if (custom.kind === 'axis') {
+    // Axe du repère, de construction ou d'arête : parallèle au plan de l'esquisse, éventuellement écarté.
+    const line = resolvePatternAxis(ctx.kernel, ctx.shape, custom.axis, ctx.axes);
+    if ('error' in line) {
+      const related = custom.axis.kind === 'edge' ? custom.axis.edge.faces[0].featureId : custom.axis.kind === 'datum' ? custom.axis.featureId : undefined;
+      return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: 'L’axe de rotation choisi n’existe plus : choisissez-en un autre.', ...(related ? { relatedFeatureId: related } : {}) }) };
+    }
+    const f = resolved.frame;
+    if (Math.abs(dot3(line.dir, f.normal)) > 1e-6) {
+      return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: 'L’axe de rotation doit être parallèle au plan de l’esquisse.' }) };
+    }
+    origin = worldToFrame(f, line.point);
+    dir = normalize2({ x: dot3(line.dir, f.xAxis), y: dot3(line.dir, f.yAxis) });
+    height = signedDistanceToFrame(f, line.point);
+  } else if (feature.params.axis.kind === 'line') {
     const sketch = ctx.sketches.get(feature.params.sketchId)?.evaluation.solved;
     const line = sketch && findLine(sketch, feature.params.axis.lineId);
     const a = line && pointPosition(sketch, line.a);
@@ -53,16 +71,17 @@ export const evaluateRevolve: FeatureEvaluator<RevolveFeature> = (feature, ctx) 
     origin = a;
     dir = normalize2(sub2(b, a));
   }
-  // Le profil doit rester d'un seul côté de l'axe (il peut le toucher).
+  // Le profil doit rester d'un seul côté de l'axe (il peut le toucher). Un axe écarté du plan ne
+  // peut pas le traverser.
   const tol = TOLERANCES.linear * 10;
   const sides = resolved.regions.flatMap((r) => regionPoints(r, dir)).map((p) => cross2(dir, sub2(p, origin)));
   const max = Math.max(...sides);
   const min = Math.min(...sides);
-  if ((max > tol && min < -tol) || (max <= tol && min >= -tol)) {
+  if (Math.abs(height) <= tol && ((max > tol && min < -tol) || (max <= tol && min >= -tol))) {
     return { status: issue(feature.id, 'error', 'REVOLVE_CROSSES_AXIS', { relatedFeatureId: feature.params.sketchId }) };
   }
   const angle = ((Math.min(feature.params.angle, 360) * Math.PI) / 180) * (feature.params.reversed ? -1 : 1);
-  const tool = ctx.kernel.makeRevolution({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, axisOrigin: origin, axisDirection: dir, angle });
+  const tool = ctx.kernel.makeRevolution({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, axisOrigin: origin, axisDirection: dir, ...(Math.abs(height) > tol ? { axisHeight: height } : {}), angle });
   const op = feature.params.operation;
   // Creuser ou garder la partie commune demande une pièce déjà en volume.
   if (op !== 'add' && (!ctx.shape || !ctx.shapeAnalysis)) {

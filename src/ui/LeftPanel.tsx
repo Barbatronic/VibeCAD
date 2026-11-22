@@ -687,6 +687,7 @@ function PartsSection() {
               : []),
             ...(canEnsemble ? [{ icon: 'copy', label: 'Dupliquer (copie liée)', action: () => c.duplicatePart(menuPart.id) }] : []),
             { icon: 'part', label: 'Copier (pièce indépendante)', action: () => c.copyPart(menuPart.id) },
+            { icon: 'mirror', label: 'Variante symétrique (suit l’original)', action: () => c.mirrorVariant(menuPart.id) },
             ...folders
               .filter((f) => f.id !== groupOf(menuPart))
               .map((f, i) => ({ sep: i === 0, icon: 'folder', label: `Ranger dans « ${f.name} »`, action: () => dropPart(menuPart.id, f.id) })),

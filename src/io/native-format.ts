@@ -926,8 +926,8 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
       };
     case 'revolve': {
       const a = obj(v, p.axis, `${pp}.axis`) ?? {};
-      const kind = oneOf(v, a, 'kind', `${pp}.axis`, ['sketch-x', 'sketch-y', 'line'] as const);
-      const axis = kind === 'line' ? { kind, lineId: str(v, a, 'lineId', `${pp}.axis`) } : { kind };
+      const kind = oneOf(v, a, 'kind', `${pp}.axis`, ['sketch-x', 'sketch-y', 'line', 'axis'] as const);
+      const axis = kind === 'line' ? { kind, lineId: str(v, a, 'lineId', `${pp}.axis`) } : kind === 'axis' ? { kind, axis: readPatternAxis(v, a.axis, `${pp}.axis.axis`) } : { kind };
       return {
         id,
         name,
@@ -1017,7 +1017,26 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         id,
         name,
         type,
-        params: { base: readPlaneRef(v, p.base, `${pp}.base`), offset: num(v, p, 'offset', pp), angle: num(v, p, 'angle', pp), hinge: readPatternAxis(v, p.hinge, `${pp}.hinge`) },
+        params: {
+          base: readPlaneRef(v, p.base, `${pp}.base`),
+          offset: num(v, p, 'offset', pp),
+          angle: num(v, p, 'angle', pp),
+          hinge: readPatternAxis(v, p.hinge, `${pp}.hinge`),
+          ...(p.mode !== undefined ? { mode: oneOf(v, p, 'mode', pp, ['offset', 'midplane', 'threePoints', 'normalToEdge', 'tangent', 'parallelPoint', 'edgePoint'] as const) } : {}),
+          ...(p.second !== undefined ? { second: readPlaneRef(v, p.second, `${pp}.second`) } : {}),
+          ...(p.points !== undefined
+            ? {
+                points: arr(v, p, 'points', pp).map((x, i) => {
+                  const ip = `${pp}.points[${i}]`;
+                  const o = obj(v, x, ip) ?? {};
+                  if (o.kind === 'origin') return { kind: 'origin' as const };
+                  return { kind: 'edge' as const, edge: readEdgeRefIn(v, o.edge, `${ip}.edge`), at: oneOf(v, o, 'at', ip, ['start', 'end', 'mid', 'center'] as const) };
+                }),
+              }
+            : {}),
+          ...(p.edge !== undefined ? { edge: readEdgeRefIn(v, p.edge, `${pp}.edge`) } : {}),
+          ...(p.along !== undefined ? { along: num(v, p, 'along', pp, { min: 0, max: 1 }) } : {}),
+        },
         ...(o.visible === false ? { visible: false } : {}),
       };
     case 'hole':
@@ -1121,14 +1140,16 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
     }
     case 'mirror': {
       const src = obj(v, p.source, `${pp}.source`) ?? {};
-      const srcKind = oneOf(v, src, 'kind', `${pp}.source`, ['part', 'feature'] as const);
+      const srcKind = oneOf(v, src, 'kind', `${pp}.source`, ['part', 'feature', 'otherPart'] as const);
       return {
         id,
         name,
         type,
         params: {
           source:
-            srcKind === 'part'
+            srcKind === 'otherPart'
+              ? { kind: 'otherPart', partId: str(v, src, 'partId', `${pp}.source`) }
+              : srcKind === 'part'
               ? { kind: 'part' }
               : {
                   kind: 'feature',
@@ -1285,6 +1306,14 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
       };
     }
   }
+}
+
+/** Arête désignée par ses deux faces. */
+function readEdgeRefIn(v: Validator, x: unknown, path: string): EdgeRef {
+  const o = obj(v, x, path) ?? {};
+  const faces = arr(v, o, 'faces', path);
+  if (faces.length !== 2) v.error(`${path}.faces`, 'deux faces attendues');
+  return { faces: [readFaceRef(v, faces[0], `${path}.faces[0]`), readFaceRef(v, faces[1], `${path}.faces[1]`)] };
 }
 
 /** Plan désigné : plan d'origine, face plane ou plan de construction. */

@@ -6,7 +6,9 @@ import type { FeatureDefinition, ParamIssue } from '../definition';
 export function describeAxis(axis: RevolveAxis): string {
   if (axis.kind === 'sketch-x') return 'l’axe X de l’esquisse';
   if (axis.kind === 'sketch-y') return 'l’axe Y de l’esquisse';
-  return `le segment ${axis.lineId}`;
+  if (axis.kind === 'line') return 'un segment de l’esquisse';
+  const a = axis.axis;
+  return a.kind === 'axis' ? `l’axe ${a.axis} du repère` : a.kind === 'datum' ? 'un axe de construction' : 'une arête de la pièce';
 }
 
 export function validateRevolveAngle(value: number): string | null {
@@ -22,7 +24,11 @@ export const revolveDefinition: FeatureDefinition<RevolveFeature> = {
   explanation: 'Révolution : faire tourner le dessin autour d’un axe pour créer une pièce ronde (comme au tour).',
   icon: 'revolve',
   affectsSolid: true,
-  dependencies: (feature) => [feature.params.sketchId],
+  dependencies: (feature) => {
+    const a = feature.params.axis;
+    const extra = a.kind === 'axis' ? (a.axis.kind === 'edge' ? a.axis.edge.faces.map((f) => f.featureId) : a.axis.kind === 'datum' ? [a.axis.featureId] : []) : [];
+    return Array.from(new Set([feature.params.sketchId, ...extra]));
+  },
   validate(feature) {
     const issues: ParamIssue[] = [];
     const a = validateRevolveAngle(feature.params.angle);

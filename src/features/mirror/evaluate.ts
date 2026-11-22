@@ -9,8 +9,9 @@ import { mirrorSources } from '../../domain/document';
 export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) => {
   const paramIssues = mirrorDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
-  if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
   const p = feature.params;
+  if (p.source.kind === 'otherPart') return mirrorOtherPart(feature, p.source.partId, ctx);
+  if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
   // Plan de symétrie.
   const found = resolvePlaneRef(p.plane, ctx);
   if (!found.ok) return { status: issue(feature.id, 'error', 'MIRROR_PLANE_LOST', { relatedFeatureId: found.relatedFeatureId }) };
@@ -56,3 +57,30 @@ export const evaluateMirror: FeatureEvaluator<MirrorFeature> = (feature, ctx) =>
   else if (analysis.solidCount > ctx.shapeAnalysis.solidCount) status = issue(feature.id, 'warning', 'DISJOINT_SOLID');
   return { status, shape, analysis };
 };
+
+/**
+ * Variante symétrique : le reflet d'une autre pièce du projet (sa forme finale), ajouté à cette
+ * pièce (seul, si elle est encore vide). Il suit les modifications de l'original.
+ */
+function mirrorOtherPart(feature: MirrorFeature, partId: string, ctx: Parameters<typeof evaluateMirror>[1]): ReturnType<typeof evaluateMirror> {
+  const source = ctx.externalShape(partId);
+  if (!source) return { status: issue(feature.id, 'error', 'PATTERN_SOURCE_MISSING') };
+  const found = resolvePlaneRef(feature.params.plane, ctx);
+  if (!found.ok) return { status: issue(feature.id, 'error', 'MIRROR_PLANE_LOST', { relatedFeatureId: found.relatedFeatureId }) };
+  const kernel = ctx.kernel;
+  const copy = kernel.mirrored(source, found.frame.origin, found.frame.normal, { featureId: feature.id, whole: true });
+  let shape: KernelShape = copy;
+  if (ctx.shape) {
+    try {
+      shape = kernel.fuse(ctx.shape, copy);
+    } finally {
+      kernel.dispose(copy);
+    }
+  }
+  const analysis = kernel.analyze(shape);
+  if (!analysis.valid || analysis.solidCount === 0) {
+    kernel.dispose(shape);
+    return { status: issue(feature.id, 'error', 'INVALID_SOLID') };
+  }
+  return { status: okStatus(feature.id), shape, analysis };
+}

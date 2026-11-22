@@ -4,6 +4,7 @@ import type { MirrorFeature, PlaneName } from '../../domain/model';
 import { Segmented } from '../../ui/components/controls';
 import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
+import { useAppState } from '../../ui/context';
 
 type PlaneChoice = PlaneName | 'face' | 'datum';
 
@@ -28,6 +29,32 @@ export function MirrorPanel(props: FeaturePanelProps<MirrorFeature>) {
       return withParams(x, { source: { kind: 'feature', featureId: featureId!, ...(extra.length ? { extraFeatureIds: extra } : {}) } });
     });
   const plane: PlaneChoice = picking || p.plane.kind === 'face' ? 'face' : p.plane.kind === 'datum' ? 'datum' : p.plane.plane;
+  const otherName = useAppState((st) => (p.source.kind === 'otherPart' ? (st.doc.parts.find((x) => x.id === (p.source as { partId: string }).partId)?.name ?? '?') : null));
+  if (p.source.kind === 'otherPart') {
+    // Variante symétrique : le reflet d'une autre pièce, par rapport à un plan d'origine ou de construction.
+    return (
+      <>
+        <div class="field">
+          <span class="field-label">Variante symétrique de</span>
+          <strong>« {otherName} »</strong>
+          <span class="field-help">Elle suit les modifications de cette pièce.</span>
+        </div>
+        <Segmented<PlaneName | 'datum'>
+          label="Plan de symétrie (le miroir)"
+          value={p.plane.kind === 'datum' ? 'datum' : p.plane.kind === 'plane' ? p.plane.plane : 'YZ'}
+          options={[
+            { value: 'YZ', label: 'YZ', title: 'Plan YZ : reflet de gauche à droite (selon X)' },
+            { value: 'XZ', label: 'XZ', title: 'Plan XZ : reflet d’avant en arrière (selon Y)' },
+            { value: 'XY', label: 'XY', title: 'Plan XY : reflet de haut en bas (selon Z)' },
+            ...(datums.length ? [{ value: 'datum', label: 'Plan…', title: 'Un plan de construction de cette pièce' } as const] : []),
+          ]}
+          onChange={(v) => update((x) => withParams(x, { plane: v === 'datum' ? { kind: 'datum', featureId: datums[datums.length - 1]!.id } : { kind: 'plane', plane: v } }))}
+        />
+        {p.plane.kind === 'datum' ? <DatumPlaneSelect planes={datums} value={p.plane.featureId} onChange={(featureId) => update((x) => withParams(x, { plane: { kind: 'datum', featureId } }))} /> : null}
+        <PreviewStatus status={props.status} kind="modify" />
+      </>
+    );
+  }
   return (
     <>
       <Segmented<'part' | 'feature'>

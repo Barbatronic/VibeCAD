@@ -61,6 +61,8 @@ export function describeSupportPlane(plane: keyof typeof PLANE_LABELS): string {
 
 /** Autres pièces dont une esquisse dépend (face d'appui, arêtes reprises). */
 export function externalParts(feature: Feature): Id[] {
+  // Variante symétrique : la pièce reflétée.
+  if (feature.type === 'mirror' && feature.params.source.kind === 'otherPart') return [feature.params.source.partId];
   if (feature.type !== 'sketch') return [];
   const ids = new Set<Id>();
   const s = feature.params.support;

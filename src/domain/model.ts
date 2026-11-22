@@ -933,7 +933,12 @@ export interface SketchParams {
 export type ExtentDirection = 'default' | 'reversed' | 'symmetric' | 'twoSides';
 
 /** Axe de révolution : un axe du repère de l'esquisse, ou l'un de ses segments (souvent de construction). */
-export type RevolveAxis = { kind: 'sketch-x' } | { kind: 'sketch-y' } | { kind: 'line'; lineId: string };
+/**
+ * Axe d'une révolution : un axe de son esquisse, un de ses segments, ou (`axis`) un axe du repère,
+ * un axe de construction ou une arête de la pièce (droite, ou l'axe d'un bord rond). Cet axe doit
+ * être parallèle au plan de l'esquisse (il peut en être écarté).
+ */
+export type RevolveAxis = { kind: 'sketch-x' } | { kind: 'sketch-y' } | { kind: 'line'; lineId: string } | { kind: 'axis'; axis: PatternAxis };
 
 /** Révolution d'un profil fermé autour d'un axe de son esquisse ; `angle` en degrés (0 < angle ≤ 360). */
 export interface RevolveParams {
@@ -1000,11 +1005,32 @@ export interface DatumAxisParams {
   edge?: EdgeRef;
 }
 
+/** Point désigné pour un plan de construction : l'origine, ou un bout, le milieu ou le centre d'une arête. */
+export type DatumPoint = { kind: 'origin' } | { kind: 'edge'; edge: EdgeRef; at: 'start' | 'end' | 'mid' | 'center' };
+
+/**
+ * Façon de construire un plan (absent : `offset`) :
+ * - `offset` : `base` décalé, incliné de `angle` autour de `hinge` ;
+ * - `midplane` : entre `base` et `second` (plan médian s'ils sont parallèles, bissecteur sinon) ;
+ * - `threePoints` : par les trois `points` ;
+ * - `normalToEdge` : perpendiculaire à `edge`, au point `along` (0 : début, 1 : fin) ;
+ * - `tangent` : tangent au cylindre dont `edge` est le bord rond, à `angle` autour de son axe ;
+ * - `parallelPoint` : parallèle à `base`, passant par `points[0]` ;
+ * - `edgePoint` : contenant l'arête droite `edge` et passant par `points[0]`.
+ * Dans tous les cas, `offset` décale ensuite le plan le long de sa normale.
+ */
+export type DatumPlaneMode = 'offset' | 'midplane' | 'threePoints' | 'normalToEdge' | 'tangent' | 'parallelPoint' | 'edgePoint';
+
 export interface DatumPlaneParams {
+  mode?: DatumPlaneMode;
   base: MirrorPlane;
   offset: number;
   angle: number;
   hinge: PatternAxis;
+  second?: MirrorPlane;
+  points?: DatumPoint[];
+  edge?: EdgeRef;
+  along?: number;
 }
 
 /**
@@ -1014,9 +1040,10 @@ export interface DatumPlaneParams {
 export interface MirrorParams {
   /**
    * Toute la pièce, ou des étapes : `featureId` puis `extraFeatureIds` (autres étapes reflétées
-   * avec la première, appliquées dans l'ordre de l'historique).
+   * avec la première, appliquées dans l'ordre de l'historique), ou (`otherPart`) une autre pièce du
+   * projet : la variante symétrique, qui suit les modifications de l'original.
    */
-  source: { kind: 'part' } | { kind: 'feature'; featureId: Id; extraFeatureIds?: Id[] };
+  source: { kind: 'part' } | { kind: 'feature'; featureId: Id; extraFeatureIds?: Id[] } | { kind: 'otherPart'; partId: Id };
   plane: MirrorPlane;
 }
 

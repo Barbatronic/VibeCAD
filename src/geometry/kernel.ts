@@ -44,6 +44,8 @@ export interface RevolveRequest {
   /** Axe dans le repère de l'esquisse : un point et une direction. */
   axisOrigin: Vec2;
   axisDirection: Vec2;
+  /** Hauteur de l'axe au-dessus du plan de l'esquisse (axe parallèle au plan, écarté de lui). */
+  axisHeight?: number;
   /** Angle en radians (signe : sens de rotation autour de l'axe). */
   angle: number;
 }

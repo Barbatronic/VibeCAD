@@ -21,10 +21,12 @@ export const mirrorDefinition: FeatureDefinition<MirrorFeature> = {
   validate(feature) {
     const issues: ParamIssue[] = [];
     if (feature.params.source.kind === 'feature' && !feature.params.source.featureId) issues.push({ field: 'source', message: 'Choisissez l’étape à copier.' });
+    if (feature.params.source.kind === 'otherPart' && !feature.params.source.partId) issues.push({ field: 'source', message: 'Choisissez la pièce à refléter.' });
     return issues;
   },
   summary(feature) {
     const n = mirrorSources(feature.params).length;
+    if (feature.params.source.kind === 'otherPart') return `variante symétrique d’une autre pièce, par rapport à ${describeMirrorPlane(feature.params.plane)}`;
     const what = feature.params.source.kind === 'part' ? 'toute la pièce' : n > 1 ? `${n} étapes` : 'une étape';
     return `${what}, par rapport à ${describeMirrorPlane(feature.params.plane)}`;
   },

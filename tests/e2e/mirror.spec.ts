@@ -64,3 +64,17 @@ test('symétrie de plusieurs étapes à la fois : les deux trous reflétés en u
   expect(source.extraFeatureIds).toHaveLength(1);
   await page.screenshot({ path: 'tests/output/e2e-symetrie-plusieurs.png' });
 });
+
+test('variante symétrique d’une pièce (clic droit dans la liste) : nouvelle pièce, reflet de l’original, qui le suit', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  await expectVolume(page, PLATE);
+  await page.locator('.part-row', { hasText: 'Pièce 1' }).first().click({ button: 'right', position: { x: 60, y: 12 } });
+  await page.getByRole('menuitem', { name: /Variante symétrique/ }).click();
+  await expect.poll(() => appState(page, (s) => s.doc.parts.map((p: any) => p.name))).toEqual(['Pièce 1', 'Pièce 1 (symétrique)']);
+  const variant = () => appState(page, (s) => s.display[s.doc.parts[1].id]?.result.analysis);
+  await expect.poll(async () => Math.round((await variant())?.volume ?? 0)).toBe(Math.round(PLATE));
+  await expect.poll(async () => Math.round((await variant())?.bbox.min.x ?? 0)).toBe(-60);
+  // Le plan du miroir se change dans l'étape de la variante.
+  await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('Variante symétrique');
+});

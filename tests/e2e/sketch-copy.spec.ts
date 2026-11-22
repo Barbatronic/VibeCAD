@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addFeature, addPart, findPart, makeFilletFeature, makePlaneFeature } from '../../src/domain/document';
+import { addFeature, addPart, findPart, makeFilletFeature, makePlaneFeature, makeSketchFeature } from '../../src/domain/document';
+import { addRectangle } from '../../src/sketch/model';
+import { solveSketch } from '../../src/sketch/solver';
 import { serializeDocument } from '../../src/io/native-format';
 import { buildPlateDocument, cornerEdge } from '../helpers/plate';
-import { appState, clickTool, finishSketch, openApp, session, sketchToScreen } from './helpers';
+import { appState, clickTool, finishSketch, openApp, session, sketchToScreen, worldToScreen as worldToScreenE2E } from './helpers';
 
 async function load(page: Page, text: string) {
   await openApp(page);
@@ -187,4 +189,93 @@ test('arête reprise : « Utiliser pour le volume » (elle suit la pièce), puis
   await page.getByRole('button', { name: 'Détacher de la pièce' }).click();
   await expect.poll(async () => (await lines()).every((e: any) => !e.reference && !e.construction)).toBe(true);
   await finishSketch(page);
+});
+
+test('esquisse : croix du curseur sans la grille, curseur en croix (pas de main), état des boutons d’aimantation visible', async ({ page }) => {
+  const { doc } = buildPlateDocument();
+  await load(page, serializeDocument(doc));
+  // Survol de la pièce avant l'esquisse : la main s'affiche hors esquisse.
+  const box = (await page.locator('.vp-canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  const cursor = () => page.evaluate(() => (document.querySelector('.vp-canvas') as HTMLElement).style.cursor);
+  await expect.poll(cursor).toBe('crosshair');
+  await clickTool(page, 'sk-line');
+  // Aimantation à la grille coupée : la croix reste au point libre.
+  const grid = page.getByRole('button', { name: /Aimantation à la grille/ });
+  const magnet = page.getByRole('button', { name: /Accrochage aux objets/ });
+  const look = (b: typeof grid) => b.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const on = await look(grid);
+  await grid.click();
+  await expect(grid).toHaveAttribute('aria-pressed', 'false');
+  expect(await look(grid)).not.toBe(on);
+  await expect(magnet).toHaveAttribute('aria-pressed', 'true');
+  expect(await look(magnet)).toBe(on);
+  await magnet.click();
+  const at = await sketchToScreen(page, 33.3, 17.7);
+  await page.mouse.move(at.x, at.y);
+  await expect.poll(async () => (await session(page))?.snap?.kind).toBe('free');
+  await expect.poll(cursor).toBe('crosshair');
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.input.session?.snap?.kind)).toBe('free');
+});
+
+test('outil d’esquisse : un second clic sur l’outil actif le désactive (retour à la sélection)', async ({ page }) => {
+  const { doc } = buildPlateDocument();
+  await load(page, serializeDocument(doc));
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await clickTool(page, 'sk-line');
+  const tool = () => appState(page, (s) => s.mode.session?.tool);
+  await expect.poll(tool).toBe('line');
+  await page.locator('#sk-line').click();
+  await expect.poll(tool).toBe('select');
+  await page.locator('#sk-line').click();
+  await expect.poll(tool).toBe('line');
+});
+
+test('projeter : une pièce masquée (œil) n’est pas proposée', async ({ page }) => {
+  const { doc: base } = buildPlateDocument();
+  const doc = addPart(base, 'Pièce 2').doc;
+  await load(page, serializeDocument(doc));
+  const [p1, p2] = await appState(page, (s) => s.doc.parts.map((p: any) => p.id));
+  const fromP1 = async () => ((await session(page))?.projectable ?? []).filter((c: any) => c.partId === p1).length;
+  await page.evaluate((id) => (window as any).vibecad.controller.setActivePart(id), p2);
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await clickTool(page, 'sk-project');
+  await expect.poll(fromP1).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Annuler', exact: true }).click();
+  // Pièce 1 masquée : plus rien d'elle à projeter.
+  await page.evaluate((id) => (window as any).vibecad.controller.togglePartVisible(id), p1);
+  await page.evaluate(() => (window as any).vibecad.controller.startSketch());
+  await page.getByRole('button', { name: /Plan XY/ }).click();
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('sketch');
+  // Plus rien à projeter (l'outil ne s'active d'ailleurs pas).
+  await expect.poll(async () => ((await session(page))?.projectable ?? []).length).toBe(0);
+  expect(await fromP1()).toBe(0);
+});
+
+test('révolution autour d’une arête de la pièce (« Autre axe… » puis clic dans la vue)', async ({ page }) => {
+  // Plaque, puis esquisse sur le plan XZ (y = 0) : carré 10 × 10 au-dessus de l'arête avant du dessus (z = 5).
+  const { doc: base, ids } = buildPlateDocument();
+  const sk = makeSketchFeature(base, findPart(base, ids.partId)!, { kind: 'plane', plane: 'XZ', offset: 0 });
+  const r = addRectangle(sk.params, { x: 20, y: 10 }, { x: 30, y: 20 });
+  const doc = addFeature(base, ids.partId, { ...sk, params: solveSketch(r.sketch).sketch });
+  await load(page, serializeDocument(doc));
+  const sketchId = sk.id;
+  await page.evaluate((id) => (window as any).vibecad.controller.select({ kind: 'feature', partId: (window as any).vibecad.controller.state.doc.parts[0].id, featureId: id }), sketchId);
+  await clickTool(page, 'tool-revolve');
+  await expect.poll(() => appState(page, (s) => s.mode.kind)).toBe('feature');
+  await page.locator('#draft-axis').selectOption('axis');
+  await expect.poll(() => appState(page, (s) => s.mode.draft?.fields.pick)).toBe('axis');
+  const at = await worldToScreenE2E(page, 45, 0, 5);
+  await page.mouse.click(at.x, at.y);
+  await expect.poll(() => appState(page, (s) => s.mode.draft?.feature.params.axis.axis?.kind)).toBe('edge');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  // Anneau autour de l'arête (axe X à z = 5, y = 0) : le solide monte jusqu'à z = 5 + 15.
+  await expect.poll(() => appState(page, (s) => Math.round(s.display[s.doc.parts[0].id].result.analysis.bbox.max.z))).toBe(20);
+  await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('une arête de la pièce');
 });

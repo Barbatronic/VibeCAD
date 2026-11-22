@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
+import { addFeature, createDocument, findPart, makeAxisFeature, makePrimitiveFeature, makeRevolveFeature, makeSketchFeature, updateFeature } from '../../src/domain/document';
+import { edgeRefFromPick } from '../../src/app/edges';
 import type { CadDocument, Id, RevolveFeature, SketchParams, VolumeOperation } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -112,5 +113,51 @@ describe('révolution', () => {
     delete json.document.parts[0].features[1].params.operation;
     const parsed = parseNativeFile(JSON.stringify(json));
     expect(parsed.ok && (parsed.doc.parts[0]!.features[1] as RevolveFeature).params.operation).toBe('add');
+  });
+
+  it('autre axe : axe du repère, axe de construction écarté du plan, arête de la pièce ; axe perpendiculaire refusé', () => {
+    // Rectangle 10 × 20 entre x = 10 et 20 sur le plan XY : tourné autour de l'axe Y du repère (dans le plan).
+    const base = revolveDoc();
+    const withAxis = (doc: CadDocument, axis: RevolveFeature['params']['axis']) =>
+      updateFeature<RevolveFeature>(doc, base.revolveId, (f) => ({ ...f, params: { ...f.params, axis } }));
+    const run = (doc: CadDocument) => new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(doc)[0]!;
+    const aroundY = run(withAxis(base.doc, { kind: 'axis', axis: { kind: 'axis', axis: 'Y' } }));
+    expect(aroundY.statuses.at(-1)?.state).toBe('ok');
+    expect(aroundY.analysis!.volume).toBeCloseTo(ringVolume(360), 0);
+
+    // Axe de construction parallèle à Y mais au-dessus du plan (z = 30) : chaque point du rectangle
+    // décrit un cercle autour de cet axe, de rayon √(x² + 30²) ; le solide monte jusqu'à 30 + √(20² + 30²).
+    const axisFeature = { ...makeAxisFeature(base.doc, findPart(base.doc, base.partId)!), params: { kind: 'line' as const, position: { x: 0, y: 0, z: 30 }, direction: 'Y' as const } };
+    let d = addFeature(base.doc, base.partId, axisFeature);
+    // L'axe doit précéder la révolution dans l'historique.
+    d = { ...d, parts: d.parts.map((p) => ({ ...p, features: [p.features[0]!, p.features.at(-1)!, p.features[1]!] })) };
+    const offset = run(withAxis(d, { kind: 'axis', axis: { kind: 'datum', featureId: axisFeature.id } }));
+    expect(offset.statuses.at(-1)?.state).toBe('ok');
+    expect(offset.analysis!.volume).toBeCloseTo(Math.PI * (Math.hypot(20, 30) ** 2 - Math.hypot(10, 30) ** 2) * 20, 0);
+    expect(offset.analysis!.bbox!.max.z).toBeCloseTo(30 + Math.hypot(20, 30), 3);
+
+    // Axe perpendiculaire au plan de l'esquisse (Z) : refusé.
+    const z = run(withAxis(base.doc, { kind: 'axis', axis: { kind: 'axis', axis: 'Z' } }));
+    expect(z.statuses.at(-1)).toMatchObject({ state: 'error', code: 'INVALID_PARAMETER' });
+    expect(z.statuses.at(-1)?.message).toMatch(/parallèle au plan/);
+
+    // Arête de la pièce : le bord gauche d'un pavé posé à côté (x = −5, le long de Y, z = 0).
+    let e = base.doc;
+    const box = makePrimitiveFeature(e, findPart(e, base.partId)!);
+    e = addFeature(e, base.partId, { ...box, params: { ...box.params, position: { x: -15, y: -40, z: 0 }, width: 10, depth: 10, height: 10 } });
+    e = { ...e, parts: e.parts.map((p) => ({ ...p, features: [p.features[0]!, p.features.at(-1)!, p.features[1]!] })) };
+    const ev = new RecomputeEngine(kernel, { get: () => undefined });
+    const [res] = ev.evaluateDocument(e);
+    const mesh = ev.meshOf(res!, { linearDeflection: 0.05, angularDeflection: 0.3 })!;
+    const index = mesh.edges.findIndex((x) => x.line && Math.abs(x.line.start.x + 5) < 1e-6 && Math.abs(x.line.end.x + 5) < 1e-6 && Math.abs(x.line.start.z) < 1e-6 && Math.abs(x.line.end.z) < 1e-6);
+    const ref = edgeRefFromPick(mesh, index, findPart(e, base.partId)!, null);
+    if (ref.kind !== 'ref') throw new Error('arête introuvable');
+    const around = run(withAxis(e, { kind: 'axis', axis: { kind: 'edge', edge: ref.ref } }));
+    // Anneau autour de x = −5 (rayons 15 et 25), à côté du pavé (avertissement : deux morceaux séparés).
+    expect(around.statuses.at(-1)).toMatchObject({ state: 'warning', code: 'DISJOINT_SOLID' });
+    expect(around.analysis!.volume).toBeCloseTo(Math.PI * (25 * 25 - 15 * 15) * 20 + 1000, 0);
+    // Aller-retour du fichier.
+    const parsed = parseNativeFile(serializeDocument(withAxis(e, { kind: 'axis', axis: { kind: 'edge', edge: ref.ref } })));
+    expect(parsed.ok && (parsed.doc.parts[0]!.features.at(-1) as RevolveFeature).params.axis).toEqual({ kind: 'axis', axis: { kind: 'edge', edge: ref.ref } });
   });
 });

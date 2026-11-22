@@ -1446,13 +1446,18 @@
                       "enum": [
                         "sketch-x",
                         "sketch-y",
-                        "line"
+                        "line",
+                        "axis"
                       ]
                     },
                     "lineId": {
                       "type": "string"
+                    },
+                    "axis": {
+                      "$ref": "#/$defs/patternAxis"
                     }
-                  }
+                  },
+                  "description": "Axe de rotation : axe X ou Y de l'esquisse, un de ses segments (line), ou (axis) un axe du repère, un axe de construction ou une arête de la pièce, parallèle au plan de l'esquisse."
                 },
                 "angle": {
                   "type": "number",
@@ -1600,6 +1605,22 @@
                           }
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "partId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "otherPart"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Variante symétrique : le reflet d'une autre pièce du projet, qui suit ses modifications."
                     }
                   ]
                 },
@@ -2423,7 +2444,7 @@
             },
             "params": {
               "type": "object",
-              "description": "Plan de construction : base (plan d'origine, face plane ou autre plan de construction) décalée de offset (mm) le long de sa normale, puis inclinée de angle (°) autour de hinge (axe X/Y/Z par l'origine ou arête droite). Ne modifie pas la pièce.",
+              "description": "Plan de construction : base (plan d'origine, face plane ou autre plan de construction) décalée de offset (mm) le long de sa normale, puis inclinée de angle (°) autour de hinge (axe X/Y/Z par l'origine ou arête droite). Ne modifie pas la pièce. Autres constructions (mode) : milieu entre base et second, trois points, perpendiculaire à une arête (edge, along), tangent au cylindre d'un bord rond (edge, angle), parallèle à base par un point, arête et point ; offset décale toujours le plan obtenu.",
               "required": [
                 "base",
                 "offset",
@@ -2500,6 +2521,128 @@
                 },
                 "hinge": {
                   "$ref": "#/$defs/patternAxis"
+                },
+                "mode": {
+                  "enum": [
+                    "offset",
+                    "midplane",
+                    "threePoints",
+                    "normalToEdge",
+                    "tangent",
+                    "parallelPoint",
+                    "edgePoint"
+                  ]
+                },
+                "second": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "plane"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "plane"
+                        },
+                        "plane": {
+                          "enum": [
+                            "XY",
+                            "XZ",
+                            "YZ"
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "ref"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "face"
+                        },
+                        "ref": {
+                          "$ref": "#/$defs/faceRef"
+                        },
+                        "partId": {
+                          "$ref": "#/$defs/id",
+                          "description": "Face d'une autre pièce du projet (sa forme finale)."
+                        },
+                        "context": {
+                          "$ref": "#/$defs/assemblyContext"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "featureId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "datum"
+                        },
+                        "featureId": {
+                          "$ref": "#/$defs/id"
+                        }
+                      },
+                      "description": "Plan de construction (étape « plane » placée avant)"
+                    }
+                  ]
+                },
+                "points": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "kind"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "const": "origin"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "edge",
+                          "at"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "const": "edge"
+                          },
+                          "edge": {
+                            "$ref": "#/$defs/edgeRef"
+                          },
+                          "at": {
+                            "enum": [
+                              "start",
+                              "end",
+                              "mid",
+                              "center"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "edge": {
+                  "$ref": "#/$defs/edgeRef"
+                },
+                "along": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
                 }
               }
             },

@@ -97,7 +97,8 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
     case 'pocket':
       return f.params.direction !== 'twoSides';
     case 'revolve':
-      return f.params.operation !== 'common';
+      // Axe hors de l'esquisse : pas de référence simple dans FreeCAD, la forme est reprise figée.
+      return f.params.operation !== 'common' && f.params.axis.kind !== 'axis';
     case 'primitive':
       // Pas d'équivalent PartDesign simple pour la pyramide et la rampe : reprises comme formes figées.
       return f.params.operation !== 'common' && f.params.shape !== 'pyramid' && f.params.shape !== 'wedge';
@@ -108,7 +109,8 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
     case 'pattern':
       return !f.params.second && patternSources(f.params).every((id) => inBody.has(id));
     case 'mirror':
-      return f.params.source.kind === 'part' || mirrorSources(f.params).every((id) => inBody.has(id));
+      // Variante symétrique d'une autre pièce : reprise comme forme figée.
+      return f.params.source.kind === 'part' || (f.params.source.kind === 'feature' && mirrorSources(f.params).every((id) => inBody.has(id)));
     default:
       return false;
   }
@@ -570,6 +572,7 @@ export function freecadScript(input: FreecadInput): string {
           const sk = sketchVar(f.params.sketchId);
           if (!sk) break;
           const a = f.params.axis;
+          if (a.kind === 'axis') break;
           const ref = a.kind === 'sketch-x' ? '"H_Axis"' : a.kind === 'sketch-y' ? '"V_Axis"' : `"Edge%d" % (${(sketchIndexGeo(p, f.params.sketchId, a.lineId) ?? 0) + 1})`;
           lines.push(`${v} = ${body}.newObject(${py(f.params.operation === 'cut' ? 'PartDesign::Groove' : 'PartDesign::Revolution')}, "Revolution")`, label, `${v}.Profile = ${sk}`, `${v}.ReferenceAxis = (${sk}, [${ref}])`, `${v}.Angle = ${num(f.params.angle)}`);
           if (f.params.reversed) lines.push(`${v}.Reversed = True`);

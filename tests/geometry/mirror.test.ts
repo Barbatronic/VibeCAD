@@ -1,7 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { addFeature, createDocument, findPart, makeExtrudeFeature, makeMirrorFeature, makePocketFeature, makeSketchFeature } from '../../src/domain/document';
+import { addFeature, addPart, createDocument, findPart, makeExtrudeFeature, makeMirrorFeature, makePocketFeature, makeSketchFeature } from '../../src/domain/document';
 import type { CadDocument, Id, MirrorParams, SketchFeature } from '../../src/domain/model';
 import { RecomputeEngine } from '../../src/features/engine';
 import type { GeometryKernel } from '../../src/geometry/kernel';
@@ -9,7 +9,7 @@ import { parseNativeFile, serializeDocument } from '../../src/io/native-format';
 import { addCircle, addRectangle } from '../../src/sketch/model';
 import { solveSketch } from '../../src/sketch/solver';
 import { getKernel } from '../helpers/kernel';
-import { buildPlateDocument } from '../helpers/plate';
+import { buildPlateDocument, setDimension } from '../helpers/plate';
 
 let kernel: GeometryKernel;
 beforeAll(async () => {
@@ -134,6 +134,30 @@ describe('symétrie', () => {
     const text = serializeDocument(mirrored, '2026-11-19T12:00:00.000Z');
     const parsed = parseNativeFile(text);
     expect(parsed.ok && parsed.doc).toEqual(mirrored);
+    const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
+    expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('variante symétrique d’une autre pièce : reflet complet, qui suit l’original (et se calcule après lui)', () => {
+    const { doc: base, ids } = buildPlateDocument();
+    const added = addPart(base, 'Plaque (symétrique)');
+    let doc = addFeature(added.doc, added.partId, { ...makeMirrorFeature(added.doc, findPart(added.doc, added.partId)!, { kind: 'otherPart', partId: ids.partId }, { kind: 'plane', plane: 'YZ' }), name: 'Variante symétrique' });
+    // La variante en premier dans la liste : elle est quand même calculée après l'original.
+    doc = { ...doc, parts: [doc.parts[1]!, doc.parts[0]!] };
+    const evalAll = (d: CadDocument) => new RecomputeEngine(kernel, { get: () => undefined }).evaluateDocument(d);
+    const [variant, original] = evalAll(doc);
+    expect(variant!.statuses.at(-1)?.state).toBe('ok');
+    expect(variant!.analysis!.volume).toBeCloseTo(original!.analysis!.volume, 3);
+    expect(variant!.analysis!.bbox!.min.x).toBeCloseTo(-60, 6);
+    expect(variant!.analysis!.bbox!.max.x).toBeCloseTo(0, 6);
+    // Plaque élargie à 80 mm : la variante suit.
+    const wider = setDimension(doc, ids.sketch1, ids.widthConstraint, 80);
+    const [v2] = evalAll(wider);
+    expect(v2!.analysis!.bbox!.min.x).toBeCloseTo(-80, 6);
+    // Aller-retour du fichier et schéma.
+    const text = serializeDocument(doc, '2026-11-22T12:00:00.000Z');
+    const parsed = parseNativeFile(text);
+    expect(parsed.ok && parsed.doc).toEqual(doc);
     const validate = new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync('docs/vibecad.schema.json', 'utf8')));
     expect(validate(JSON.parse(text)), JSON.stringify(validate.errors)).toBe(true);
   });
