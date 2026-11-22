@@ -1,7 +1,7 @@
 /** Panneau du perçage normalisé : type de trou, taille de vis, profondeur, logement de tête. */
 import { INSERTS, METRIC_SIZES, type MetricSize } from '../../domain/fasteners';
 import type { HoleFeature, HoleFit, HoleKind } from '../../domain/model';
-import { formatLength, formatNumber, parseLength, readNumber } from '../../domain/units';
+import { formatLength, formatNumber, parseLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -23,6 +23,7 @@ export function HolePanel(props: FeaturePanelProps<HoleFeature>) {
   };
   const lengthField = (field: 'depth' | 'headDiameter' | 'headDepth' | 'diameter' | 'clearance', label: string, help?: string) => (
     <LengthField
+      min={field === 'clearance' ? -1 : MIN_POSITIVE}
       id={`draft-${field}`}
       label={label}
       value={draft.fields[field] ?? ''}

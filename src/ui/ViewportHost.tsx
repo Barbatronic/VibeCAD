@@ -49,7 +49,7 @@ import { useAppState, useController } from './context';
 import { IconButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { MascotBubble } from './Mascot';
-import { formatNumber } from '../domain/units';
+import { formatNumber, MIN_POSITIVE } from '../domain/units';
 import { Icon } from './icons';
 import { allows } from '../app/levels';
 import { dot3, sub3, type Vec3 } from '../math/vec';
@@ -827,6 +827,7 @@ function DrawInputBox({ session }: { session: SketchSession }) {
             }}
             value={input.values[i] ?? ''}
             unit={label === 'Angle' ? '°' : 'mm'}
+            {...(label === 'Angle' ? {} : { min: label === 'Côtés' ? 3 : MIN_POSITIVE })}
             ariaLabel={label === 'Angle' ? 'Angle en degrés' : `${label} en millimètres`}
             {...(current[i] !== undefined ? { fallback: current[i], placeholder: formatNumber(current[i]!) } : {})}
             onInput={(text) => c.updateSession((s) => setInputValue(s, i, text))}

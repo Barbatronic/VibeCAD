@@ -1,6 +1,6 @@
 /** Panneau du profilé aluminium : système, section, longueur, axe et position. */
 import type { BeamFeature, BeamSize, BeamSystem } from '../../domain/model';
-import { readNumber } from '../../domain/units';
+import { readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -54,6 +54,7 @@ export function BeamPanel(props: FeaturePanelProps<BeamFeature>) {
         <span class="field-help">{beamRange(p.system).help}</span>
       </label>
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-length"
         label="Longueur"
         value={draft.fields.length ?? ''}

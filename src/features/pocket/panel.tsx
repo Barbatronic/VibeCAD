@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'une poche (enlèvement de matière). */
 import type { PocketFeature } from '../../domain/model';
-import { formatLength, parseLength } from '../../domain/units';
+import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -31,6 +31,7 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
         null
       ) : (
         <LengthField
+          min={MIN_POSITIVE}
           id="draft-distance"
           label={f.params.direction === 'twoSides' ? 'Profondeur dans la matière' : 'Profondeur de la poche'}
           value={draft.fields.distance ?? ''}
@@ -77,6 +78,7 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
           />
           {f.params.extent2.kind === 'distance' ? (
             <LengthField
+              min={MIN_POSITIVE}
               id="draft-distance2"
               label="Profondeur de l’autre côté"
               value={draft.fields.distance2 ?? ''}

@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'un chanfrein. */
 import type { ChamferFeature, ChamferParams } from '../../domain/model';
-import { formatLength, parseLength, readNumber } from '../../domain/units';
+import { formatLength, parseLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { EdgeSelectionField } from '../../ui/components/edge-fields';
 import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
@@ -47,6 +47,7 @@ export function ChamferPanel(props: FeaturePanelProps<ChamferFeature>) {
         }}
       />
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-size"
         label={shape === 'equal' ? 'Longueur du chanfrein' : 'Première longueur'}
         value={draft.fields.size ?? ''}
@@ -63,6 +64,7 @@ export function ChamferPanel(props: FeaturePanelProps<ChamferFeature>) {
       />
       {shape === 'twoDistances' ? (
         <LengthField
+          min={MIN_POSITIVE}
           id="draft-distance2"
           label="Seconde longueur"
           value={draft.fields.distance2 ?? ''}
@@ -79,6 +81,7 @@ export function ChamferPanel(props: FeaturePanelProps<ChamferFeature>) {
       ) : null}
       {shape === 'distanceAngle' ? (
         <LengthField
+          min={MIN_POSITIVE}
           id="draft-angle"
           label="Angle"
           unit="°"

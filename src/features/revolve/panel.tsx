@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'une révolution. */
 import type { RevolveAxis, RevolveFeature, SketchFeature } from '../../domain/model';
-import { formatLength, readNumber } from '../../domain/units';
+import { formatLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField } from '../../ui/components/controls';
 import { AxisField, datumAxesBefore, OperationField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import { pointPosition } from '../../sketch/model';
@@ -76,7 +76,7 @@ export function RevolvePanel(props: FeaturePanelProps<RevolveFeature>) {
         label="Angle de rotation"
         unit="°"
         step={15}
-        min={0}
+        min={MIN_POSITIVE}
         value={draft.fields.angle ?? ''}
         error={draft.errors.angle ?? null}
         autoFocus

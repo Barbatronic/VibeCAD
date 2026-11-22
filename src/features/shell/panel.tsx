@@ -1,6 +1,6 @@
 /** Panneau d'une coque : faces à ouvrir (cliquées dans la vue 3D) et épaisseur de la paroi. */
 import type { ShellFeature } from '../../domain/model';
-import { parseLength } from '../../domain/units';
+import { parseLength, MIN_POSITIVE } from '../../domain/units';
 import { Button, Callout, LengthField } from '../../ui/components/controls';
 import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -27,6 +27,7 @@ export function ShellPanel(props: FeaturePanelProps<ShellFeature>) {
         </div>
       </div>
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-thickness"
         label="Épaisseur de la paroi"
         value={draft.fields.thickness ?? ''}

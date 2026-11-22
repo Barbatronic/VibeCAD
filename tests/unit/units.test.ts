@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatLength, parseLength, stepNumberText } from '../../src/domain/units';
+import { formatLength, MIN_POSITIVE, parseLength, stepNumberText } from '../../src/domain/units';
 
 describe('saisie et affichage des longueurs', () => {
   it('accepte la virgule et le point décimal, avec ou sans unité', () => {
@@ -43,10 +43,21 @@ describe('saisie et affichage des longueurs', () => {
     // Saisie vide : on part de la dimension en cours de tracé.
     expect(stepNumberText('', 1, 1, { fallback: 42.37 })).toBe('43,37');
     expect(stepNumberText('', 1, 1)).toBeNull();
-    // Sous le minimum, la valeur ne bouge pas ; 0 est atteignable quand il est permis.
-    expect(stepNumberText('1', -1, 1)).toBeNull();
-    expect(stepNumberText('1', -1, 1, { min: 0 })).toBe('0');
+    // Sans minimum : zéro puis les négatifs sont atteignables (décalages, positions, angles).
+    expect(stepNumberText('1', -1, 1)).toBe('0');
+    expect(stepNumberText('0', -1, 1)).toBe('-1');
+    expect(stepNumberText('-4', -1, 5)).toBe('-9');
     expect(stepNumberText('0,3', -1, 0.1)).toBe('0,2');
-    expect(stepNumberText('9999,5', 1, 1)).toBeNull();
+    // Champ positif : la plus petite valeur positive n'est pas un multiple du pas, la valeur ne bouge pas.
+    expect(stepNumberText('1', -1, 1, { min: MIN_POSITIVE })).toBeNull();
+    expect(stepNumberText('1', -1, 0.1, { min: MIN_POSITIVE })).toBe('0,9');
+    // Limite multiple du pas : la valeur s'y arrête (0,5 − 1 → 0).
+    expect(stepNumberText('1', -1, 1, { min: 0 })).toBe('0');
+    expect(stepNumberText('0,5', -1, 1, { min: 0 })).toBe('0');
+    expect(stepNumberText('0', -1, 1, { min: 0 })).toBeNull();
+    expect(stepNumberText('4', -1, 1, { min: 3 })).toBe('3');
+    expect(stepNumberText('95', 1, 10, { min: 0, max: 100 })).toBe('100');
+    expect(stepNumberText('100', 1, 10, { min: 0, max: 100 })).toBeNull();
+    expect(stepNumberText('9999,5', 1, 0.7)).toBeNull();
   });
 });

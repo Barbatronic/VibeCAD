@@ -579,7 +579,7 @@ function SeriesEditor(props: { partId: string; name: string; series: PrintSeries
         <div class="limits-row three">
           {field('Valeur', series.center, 'center', { unit: 'mm' })}
           {field('± écart', series.delta, 'delta', { unit: 'mm', min: 0 })}
-          {field('Pas', series.step, 'step', { unit: 'mm', min: 0 })}
+          {field('Pas', series.step, 'step', { unit: 'mm', min: 0.001 })}
         </div>
       ) : series.mode === 'range' ? (
         <div class="limits-row three">

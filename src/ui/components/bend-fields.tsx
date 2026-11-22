@@ -48,6 +48,7 @@ export function BendFields<F extends FlangeFeature | FoldFeature>(props: Feature
         onChange={(direction) => update((x) => withParams(x, { direction } as Partial<F['params']>))}
       />
       <LengthField
+        min={0}
         id="draft-radius"
         label="Rayon intérieur"
         value={draft.fields.radius ?? ''}

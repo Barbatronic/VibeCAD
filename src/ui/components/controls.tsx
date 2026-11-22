@@ -132,7 +132,9 @@ export function LengthField(props: {
   selectOnFocus?: boolean;
   unit?: string;
   step?: number;
+  /** Limites des flèches et de la molette (absentes : pas de limite basse). */
   min?: number;
+  max?: number;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -155,6 +157,7 @@ export function LengthField(props: {
         unit={props.unit ?? 'mm'}
         {...(props.step !== undefined ? { step: props.step } : {})}
         {...(props.min !== undefined ? { min: props.min } : {})}
+        {...(props.max !== undefined ? { max: props.max } : {})}
         invalid={!!props.error}
         describedBy={[props.error ? errorId : '', props.help ? helpId : ''].filter(Boolean).join(' ') || undefined}
         onInput={props.onInput}

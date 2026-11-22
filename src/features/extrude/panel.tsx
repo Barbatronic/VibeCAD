@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'une extrusion. */
 import type { ExtrudeFeature } from '../../domain/model';
-import { formatLength, parseLength } from '../../domain/units';
+import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
@@ -41,6 +41,7 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
       ) : (
         <>
           <LengthField
+            min={MIN_POSITIVE}
             id="draft-distance"
             label={f.params.direction === 'twoSides' ? 'Longueur côté normale' : 'Longueur d’extrusion (épaisseur)'}
             value={draft.fields.distance ?? ''}
@@ -66,6 +67,7 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
           />
           {f.params.direction === 'twoSides' ? (
             <LengthField
+              min={MIN_POSITIVE}
               id="draft-distance2"
               label="Longueur du côté opposé"
               value={draft.fields.distance2 ?? ''}

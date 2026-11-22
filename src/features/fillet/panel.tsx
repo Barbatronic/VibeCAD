@@ -1,6 +1,6 @@
 /** Panneau des paramètres d'un congé. */
 import type { FilletFeature } from '../../domain/model';
-import { parseLength } from '../../domain/units';
+import { parseLength, MIN_POSITIVE } from '../../domain/units';
 import { LengthField } from '../../ui/components/controls';
 import { EdgeSelectionField } from '../../ui/components/edge-fields';
 import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
@@ -20,6 +20,7 @@ export function FilletPanel(props: FeaturePanelProps<FilletFeature>) {
         onRemove={(i) => update((x) => withParams(x, { edges: x.params.edges.filter((_e, k) => k !== i) }))}
       />
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-size"
         label="Rayon du congé"
         value={draft.fields.size ?? ''}

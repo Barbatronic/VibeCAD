@@ -36,6 +36,7 @@ export function SplitPanel(props: FeaturePanelProps<SplitFeature>) {
   };
   const numberField = (field: 'offset' | 'gap', label: string, help?: string) => (
     <LengthField
+      {...(field === 'gap' ? { min: 0.5 } : {})}
       id={`draft-${field}`}
       label={label}
       value={draft.fields[field] ?? ''}

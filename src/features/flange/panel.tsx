@@ -1,6 +1,6 @@
 /** Panneau « Bord plié » : bords choisis dans la vue, longueur du rebord, pli. */
 import type { FlangeFeature } from '../../domain/model';
-import { parseLength } from '../../domain/units';
+import { parseLength, MIN_POSITIVE } from '../../domain/units';
 import { BendFields } from '../../ui/components/bend-fields';
 import { LengthField } from '../../ui/components/controls';
 import { EdgeSelectionField } from '../../ui/components/edge-fields';
@@ -14,6 +14,7 @@ export function FlangePanel(props: FeaturePanelProps<FlangeFeature>) {
     <>
       <EdgeSelectionField edges={f.params.edges} verb="plier" onClear={() => update((x) => withParams(x, { edges: [] }))} />
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-length"
         label="Longueur du rebord"
         value={draft.fields.length ?? ''}

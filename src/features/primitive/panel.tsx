@@ -1,6 +1,6 @@
 /** Panneau d'une forme toute faite (boîte, cylindre, boule, anneau). */
 import type { PrimitiveFeature, PrimitiveShape } from '../../domain/model';
-import { formatLength, parseLength, readNumber } from '../../domain/units';
+import { formatLength, parseLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField } from '../../ui/components/controls';
 import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
@@ -19,6 +19,7 @@ export function PrimitivePanel(props: FeaturePanelProps<PrimitiveFeature>) {
   const hasSolid = props.part.features.some((x) => x.type !== 'sketch');
   const dimension = (field: PrimitiveField, autoFocus: boolean) => (
     <LengthField
+      min={field === 'topDiameter' ? 0 : MIN_POSITIVE}
       key={field}
       id={`draft-${field}`}
       label={primitiveFieldLabel(p.shape, field)}
@@ -77,6 +78,7 @@ export function PrimitivePanel(props: FeaturePanelProps<PrimitiveFeature>) {
       {p.operation === 'cut' && !hasSolid ? <p class="field-help">Rien à creuser : la pièce n’a pas de volume.</p> : null}
       {POLYGON_SHAPES.includes(p.shape) ? (
         <LengthField
+          min={3}
           id="draft-sides"
           label="Nombre de côtés"
           value={draft.fields.sides ?? String(primitiveSides(p))}

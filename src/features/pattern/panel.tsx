@@ -1,7 +1,7 @@
 /** Panneau des paramètres d'une répétition. */
 import { PATTERN_SOURCE_TYPES, patternSources } from '../../domain/document';
 import type { PatternFeature } from '../../domain/model';
-import { parseLength, readNumber } from '../../domain/units';
+import { parseLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { AxisField, datumAxesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -48,6 +48,7 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
   );
   const spacingField = (name: 'spacing' | 'spacing2', apply: (n: number) => PatternFeature) => (
     <LengthField
+      min={MIN_POSITIVE}
       id={`draft-${name}`}
       label="Espacement"
       value={draft.fields[name] ?? ''}
@@ -108,7 +109,7 @@ export function PatternPanel(props: FeaturePanelProps<PatternFeature>) {
             label="Angle total"
             unit="°"
             step={15}
-            min={0}
+            min={MIN_POSITIVE}
             value={draft.fields.angle ?? ''}
             error={draft.errors.angle ?? null}
             onInput={(text) => {

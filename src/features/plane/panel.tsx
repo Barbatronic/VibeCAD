@@ -47,6 +47,7 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       id={`draft-${field}`}
       label={label}
       unit={unit}
+      {...(field === 'along' ? { min: 0, max: 100 } : {})}
       value={draft.fields[field] ?? ''}
       error={draft.errors[field] ?? null}
       help=""

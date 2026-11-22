@@ -83,8 +83,14 @@ export function readNumber(input: string): number | null {
   return r.ok ? r.value : null;
 }
 
+/** Plus petite valeur positive atteignable par les flèches (longueurs, épaisseurs, angles > 0). */
+export const MIN_POSITIVE = TOLERANCES.minLength;
+
 export interface StepRules {
-  /** Valeur la plus basse atteignable par les flèches (par défaut : la plus petite cote). */
+  /**
+   * Valeur la plus basse atteignable par les flèches et la molette. Absente : aucune limite basse
+   * (zéro et négatifs atteignables) ; les champs qui n'acceptent que du positif la donnent.
+   */
   min?: number;
   max?: number;
   /** Valeur de départ quand la saisie est vide ou invalide (ex. la dimension en cours de tracé). */
@@ -100,10 +106,13 @@ export function stepNumberText(text: string, direction: 1 | -1, step: number, ru
   if (current === undefined) return null;
   const factor = 10 ** INPUT_DECIMALS;
   let next = Math.round((current + direction * step) * factor) / factor;
-  const min = rules.min ?? TOLERANCES.minLength;
+  const min = rules.min ?? -TOLERANCES.maxLength;
   const max = rules.max ?? TOLERANCES.maxLength;
-  // Hors limites : la valeur ne bouge pas (1 mm − 1 ne devient pas 0,01 mm par surprise).
-  if (next < min || next > max) next = current;
+  // Hors limites : la valeur s'arrête sur la limite si c'est un multiple du pas (0,5 − 1 → 0), sinon
+  // elle ne bouge pas (1 mm − 1 ne devient pas 0,01 mm par surprise).
+  const onStep = (limit: number) => Math.abs(limit / step - Math.round(limit / step)) < 1e-9;
+  if (next < min) next = onStep(min) && current > min ? min : current;
+  else if (next > max) next = onStep(max) && current < max ? max : current;
   if (next === current && readNumber(text) !== null) return null;
   return formatNumber(next, INPUT_DECIMALS);
 }

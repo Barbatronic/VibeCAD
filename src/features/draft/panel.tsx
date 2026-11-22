@@ -1,6 +1,6 @@
 /** Panneau d'une dépouille : faces à incliner (cliquées dans la vue 3D), angle et plan neutre. */
 import type { DraftFeature, PlaneName } from '../../domain/model';
-import { readNumber } from '../../domain/units';
+import { readNumber, MIN_POSITIVE } from '../../domain/units';
 import { Button, Callout, LengthField, Segmented } from '../../ui/components/controls';
 import { DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -39,6 +39,7 @@ export function DraftPanel(props: FeaturePanelProps<DraftFeature>) {
         </div>
       </div>
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-angle"
         label="Angle"
         unit="°"

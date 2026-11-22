@@ -1,7 +1,7 @@
 /** Panneau du générateur : roue dentée, crémaillère ou poulie crantée. */
 import { GEAR_NAMES, gearName, isDefaultGearName } from '../../domain/document';
 import type { BeltProfile, GearFeature, GearKind } from '../../domain/model';
-import { formatNumber, readNumber } from '../../domain/units';
+import { formatNumber, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField } from '../../ui/components/controls';
 import { OperationField, PreviewStatus, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
@@ -38,7 +38,7 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
       error={draft.errors[field] ?? null}
       {...(opts.unit ? { unit: opts.unit } : {})}
       {...(opts.step ? { step: opts.step } : {})}
-      {...(opts.min !== undefined ? { min: opts.min } : {})}
+      min={opts.min ?? MIN_POSITIVE}
       {...(opts.help ? { help: opts.help } : {})}
       {...(opts.autoFocus ? { autoFocus: true } : {})}
       onInput={(text) => {
@@ -113,14 +113,14 @@ export function GearPanel(props: FeaturePanelProps<GearFeature>) {
       ) : (
         <>
           {numberField('module', { unit: 'mm', step: 0.5, min: 0.2, help: `Taille des dents : pas = π × module. Modules courants : ${COMMON_MODULES.map((m) => n(m)).join(' ; ')}.`, autoFocus: true })}
-          {expert ? numberField('pressureAngle', { unit: '°', step: 0.5, help: '20° presque toujours. Deux pièces qui engrènent doivent avoir le même.' }) : null}
+          {expert ? numberField('pressureAngle', { unit: '°', step: 0.5, min: 14.5, help: '20° presque toujours. Deux pièces qui engrènent doivent avoir le même.' }) : null}
         </>
       )}
       {numberField('teeth', { unit: 'dents', step: 1, min: p.kind === 'rack' ? 1 : 6, ...(belt ? { label: 'Dents de la poulie 1' } : {}) })}
       {belt ? numberField('teeth2', { unit: 'dents', step: 1, min: 8 }) : null}
       {belt ? numberField('centerDistance', { unit: 'mm', step: 1 }) : null}
       {numberField('thickness', { unit: 'mm', step: 1, ...(belt ? { label: 'Largeur de la courroie (Z)' } : {}) })}
-      {p.kind === 'rack' ? numberField('rackHeight', { unit: 'mm', step: 1 }) : belt ? null : numberField('bore', { unit: 'mm', step: 0.5, help: 'Axe NEMA 17 : 5 mm · tige M8 : 8 mm' })}
+      {p.kind === 'rack' ? numberField('rackHeight', { unit: 'mm', step: 1 }) : belt ? null : numberField('bore', { unit: 'mm', step: 0.5, min: 0, help: 'Axe NEMA 17 : 5 mm · tige M8 : 8 mm' })}
       {p.kind === 'pulley' ? (
         <label class="checkbox-row">
           <input id="draft-flanges" type="checkbox" checked={p.flanges} onChange={() => update((x) => withParams(x, { flanges: !p.flanges }))} />

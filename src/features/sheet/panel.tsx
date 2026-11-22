@@ -1,7 +1,7 @@
 /** Panneau « Tôle » : contour, matériau, épaisseur, rayon des plis. */
 import type { SheetFeature } from '../../domain/model';
 import { defaultBendRadius, minBendRadius, SHEET_MATERIALS, sheetMaterial } from '../../domain/sheet-metal';
-import { formatLength, parseLength } from '../../domain/units';
+import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
 import { Callout, LengthField, Segmented } from '../../ui/components/controls';
 import { PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
@@ -40,6 +40,7 @@ export function SheetPanel(props: FeaturePanelProps<SheetFeature>) {
         </select>
       </div>
       <LengthField
+        min={MIN_POSITIVE}
         id="draft-thickness"
         label="Épaisseur"
         value={draft.fields.thickness ?? ''}
@@ -56,6 +57,7 @@ export function SheetPanel(props: FeaturePanelProps<SheetFeature>) {
         onEscape={props.cancel}
       />
       <LengthField
+        min={0}
         id="draft-radius"
         label="Rayon des plis"
         value={draft.fields.radius ?? ''}

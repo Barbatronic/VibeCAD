@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { calibratedWidth, perspectiveSettings } from '../../app/images';
 import type { ImageParams, StepResource } from '../../domain/model';
-import { formatLength, parseLength } from '../../domain/units';
+import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
 import type { Vec2 } from '../../math/vec';
 import { decodedImage, imageSource } from '../image-cache';
 import { Button, Callout, LengthField } from './controls';
@@ -205,6 +205,7 @@ export function ImageCalibrationDialog(props: { mode: 'scale' | 'perspective'; r
       </p>
       <div class="limits-row">
         <LengthField
+          min={MIN_POSITIVE}
           id="calib-a"
           label={mode === 'scale' ? 'Distance réelle entre les 2 points' : 'Largeur du rectangle (coins 1 → 2)'}
           value={a}
@@ -212,7 +213,7 @@ export function ImageCalibrationDialog(props: { mode: 'scale' | 'perspective'; r
           onInput={setA}
           onEnter={apply}
         />
-        {mode === 'perspective' ? <LengthField id="calib-b" label="Hauteur du rectangle (coins 2 → 3)" value={b} error={b && !valB.ok ? valB.error : null} onInput={setB} onEnter={apply} /> : null}
+        {mode === 'perspective' ? <LengthField id="calib-b" min={MIN_POSITIVE} label="Hauteur du rectangle (coins 2 → 3)" value={b} error={b && !valB.ok ? valB.error : null} onInput={setB} onEnter={apply} /> : null}
       </div>
       {mode === 'perspective' ? <p class="field-help">A4 : {formatLength(210)} × {formatLength(297)}</p> : null}
     </Modal>
