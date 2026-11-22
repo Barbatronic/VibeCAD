@@ -13,7 +13,7 @@ test('perçage : un trou lamé M4 au centre d’un cercle dessiné sur la face d
   await page.mouse.dblclick(top.x, top.y);
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 45, 15);
   await page.keyboard.type('2');
   await page.keyboard.press('Enter');

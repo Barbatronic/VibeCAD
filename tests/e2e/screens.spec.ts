@@ -3,7 +3,7 @@
  * Lancer : npx playwright test tests/e2e/screens.spec.ts --project=chromium
  */
 import { expect, test } from '@playwright/test';
-import { menuItem, appState, buildPlateViaUi, clickSketch, openApp, openFileMenu, session, worldToScreen } from './helpers';
+import { menuItem, appState, buildPlateViaUi, clickSketch, openApp, openFileMenu, session, worldToScreen, clickTool } from './helpers';
 
 const OUT = 'tests/output/screens';
 
@@ -26,11 +26,11 @@ test('captures des principaux écrans', async ({ page }) => {
   await page.mouse.dblclick(top.x, top.y);
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 40, 15);
   await page.keyboard.type('8');
   await page.keyboard.press('Enter');
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   const c = await page.evaluate(() => {
     const s = (window as any).vibecad.store.get().mode.session;
     const circle = s.sketch.entities.filter((e: any) => e.type === 'circle').pop();

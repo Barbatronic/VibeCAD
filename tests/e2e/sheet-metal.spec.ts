@@ -35,7 +35,7 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('plane');
   await page.waitForTimeout(450);
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 40, -5);
   await clickSketch(page, 40, 35);
   await page.keyboard.press('Escape');
@@ -56,7 +56,7 @@ test('tôlerie : tôle, bords pliés choisis à la souris, pli sur un trait, lim
   await page.mouse.dblclick(raised.x, raised.y);
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   const plane = await page.evaluate(() => (window as any).vibecad.store.get().mode.session.sketch);
   expect(plane).toBeTruthy();
   const target = await worldToScreen(page, 42.5, 15, 10);

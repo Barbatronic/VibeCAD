@@ -1,13 +1,13 @@
 import { writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, volumes } from './helpers';
+import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, volumes, clickTool } from './helpers';
 
 async function openSketch(page: import('@playwright/test').Page) {
   await page.click('#tool-sketch');
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
   await page.waitForTimeout(450);
-  await page.click('#sk-stamp');
+  await clickTool(page, 'sk-stamp');
   await expect.poll(async () => (await session(page))?.tool).toBe('stamp');
 }
 

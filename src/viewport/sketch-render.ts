@@ -502,13 +502,14 @@ export class SketchView {
       for (const [i, l] of preview.labels.entries()) this.label(`preview:${i}`, l.text, previewLabelAt(l, px), 'vp-tag vp-tag-preview');
     }
 
-    // Repère d'accrochage : forme + texte
+    // Repère d'accrochage : forme + texte. Point libre (aucun accrochage) ou grille : une croix
+    // au point qui sera posé.
     const snap = input.snap;
-    if (snap && snap.kind !== 'free') {
+    if (snap) {
       const s = snap.point;
       const cSnap = new Color(p.sketchSelected);
       const r = 7 * px;
-      if (snap.kind === 'grid') {
+      if (snap.kind === 'grid' || snap.kind === 'free') {
         strong.add([{ x: s.x - r * 0.6, y: s.y }, { x: s.x + r * 0.6, y: s.y }], cDim);
         strong.add([{ x: s.x, y: s.y - r * 0.6 }, { x: s.x, y: s.y + r * 0.6 }], cDim);
       } else if (snap.kind === 'center' || snap.kind === 'origin') {

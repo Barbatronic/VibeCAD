@@ -36,7 +36,7 @@ test('références entre pièces : esquisse de la pièce 2 sur une face de la pi
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.reference?.partId).length).toBe(1);
 
   // Rectangle 10 × 10, extrudé de 5 : la pièce 2 commence sur le dessus de la pièce 1.
-  await page.click('#sk-rectangle');
+  await clickTool(page, 'sk-rectangle');
   await clickSketch(page, 5, 5);
   await clickSketch(page, 15, 15);
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'line' && !e.reference).length).toBe(4);

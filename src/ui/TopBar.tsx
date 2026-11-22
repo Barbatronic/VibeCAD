@@ -397,7 +397,8 @@ function SketchTools() {
     ...(t.key ? { shortcut: t.key } : {}),
     pressed: s.tool === t.tool,
     main: !!t.main,
-    onClick: () => c.updateSession((x) => setTool(x, t.tool)),
+    // Second clic sur l'outil actif : il se désactive (retour à la sélection).
+    onClick: () => c.updateSession((x) => setTool(x, x.tool === t.tool && t.tool !== 'select' ? 'select' : t.tool)),
   });
   const edit = ([
     { ...sketchTool({ tool: 'trim', icon: 'trim', key: 'T', main: true }) },

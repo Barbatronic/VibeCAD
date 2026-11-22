@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, PLATE_VOLUME, session } from './helpers';
+import { appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, PLATE_VOLUME, session, clickTool } from './helpers';
 
 async function partPointOnScreen(page: Page, p: { x: number; y: number; z: number }) {
   const box = (await page.locator('.vp-canvas').boundingBox())!;
@@ -30,7 +30,7 @@ test('extrusion jusqu’à une face : un plot monte jusqu’au haut d’une tour
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 25, 8);
   await page.keyboard.type('6');
   await page.keyboard.press('Enter');

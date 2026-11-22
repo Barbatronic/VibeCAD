@@ -45,7 +45,7 @@ test('conception dans l’assemblage : esquisse du bloc posée sur la plaque voi
   expect(support.partId).toBe(await appState(page, (s) => s.doc.parts[0].id));
   expect(support.context.matrix.slice(12, 15)).toEqual([-40, 0, -20]);
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, -10, 25);
   await page.keyboard.type('8');
   await page.keyboard.press('Enter');

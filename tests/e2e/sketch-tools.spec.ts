@@ -30,7 +30,7 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.reference).length).toBe(2);
 
   // Cercle Ø 10 accroché au centre du trou repris : il est entièrement contraint.
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 15, 15);
   await page.keyboard.type('10');
   await page.keyboard.press('Enter');
@@ -39,12 +39,12 @@ test('projeter le bord du trou, cercle concentrique, cote d’angle sur une arê
   // Segment de construction (touche G), puis cote d'angle avec le bord avant repris.
   await page.keyboard.press('g');
   await expect.poll(async () => (await session(page))?.construction).toBe(true);
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 40, 6);
   await clickSketch(page, 52, 14);
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.construction).length).toBe(1);
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   await clickSketch(page, 46, 10);
   await expect(page.getByRole('dialog', { name: 'Nouvelle cote' })).toBeVisible();
   await clickSketch(page, 25, 0);
@@ -77,13 +77,13 @@ test('les axes X et Y servent de référence : cote d’un cercle depuis l’axe
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
   await page.waitForTimeout(450);
 
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 20, 10);
   await clickSketch(page, 24, 10);
   await page.keyboard.press('Escape');
 
   // Cote : l'axe Y (loin de l'origine), puis le cercle.
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   await moveSketch(page, 0, 15);
   await expect.poll(async () => (await session(page))?.hover?.id).toBe('axis-y');
   await clickSketch(page, 0, 15);
@@ -99,7 +99,7 @@ test('les axes X et Y servent de référence : cote d’un cercle depuis l’axe
 
   // Segment incliné rendu parallèle à l'axe X.
   await page.keyboard.press('Escape');
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 5, -10);
   await clickSketch(page, 25, -4);
   await page.keyboard.press('Escape');
@@ -127,7 +127,7 @@ test('un clic sur un axe y relie le point : le repère l’annonce et le dessin 
     .toEqual(['axis-x', 'axis-y']);
 
   // Le lien tient : une cote de largeur garde le coin sur l'axe X.
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   await clickSketch(page, 15, 0);
   await page.getByRole('dialog', { name: 'Nouvelle cote' }).getByRole('textbox').first().fill('40');
   await page.getByRole('dialog', { name: 'Nouvelle cote' }).getByRole('textbox').first().press('Enter');

@@ -77,7 +77,7 @@ export async function finishSketch(page: Page): Promise<void> {
 
 /** Ajoute une cote entre deux points d'esquisse avec l'outil Cote. */
 export async function dimensionBetween(page: Page, a: { x: number; y: number }, b: { x: number; y: number }, kind: 'Horizontale' | 'Verticale' | 'Alignée', value: string): Promise<void> {
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   await clickSketch(page, a.x, a.y);
   await clickSketch(page, b.x, b.y);
   const editor = page.getByRole('dialog', { name: 'Nouvelle cote' });
@@ -121,7 +121,7 @@ export async function buildPlateViaUi(page: Page): Promise<void> {
   await page.waitForTimeout(450);
 
   // 4. Cercle de diamètre 6, puis placé par deux cotes depuis l'origine.
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 13, 17);
   await page.keyboard.type('6');
   await page.keyboard.press('Enter');
@@ -155,6 +155,8 @@ export async function buildPlateViaUi(page: Page): Promise<void> {
  */
 export async function clickTool(page: Page, id: string): Promise<void> {
   const button = page.locator(`#${id}`);
+  // Outil d'esquisse déjà actif : un second clic le désactiverait ; « choisir l'outil » ne fait rien.
+  if (id.startsWith('sk-') && (await appState(page, (s) => (s.mode.kind === 'sketch' ? `sk-${s.mode.session.tool}` : null))) === id) return;
   // La barre se recompacte quand son contenu change : un outil sorti peut passer dans le menu de
   // son secteur entre le test de visibilité et le clic. On réessaie alors par le menu.
   for (let attempt = 0; attempt < 3; attempt++) {

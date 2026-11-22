@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickSketch, finishSketch, moveSketch, openApp, session } from './helpers';
+import { clickSketch, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 test('arbre : pastille orange tant que l’esquisse n’est pas entièrement contrainte', async ({ page }) => {
   await openApp(page);
@@ -50,7 +50,7 @@ test('arbre : pastille rouge sur une étape en erreur', async ({ page }) => {
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await page.waitForTimeout(450);
   // Contour ouvert : un seul segment, puis extrusion impossible.
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 0.05, 0.05);
   await moveSketch(page, 20, 0);
   await clickSketch(page, 20, 0);

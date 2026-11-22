@@ -9,7 +9,7 @@ test('contour en « D » avec un arc tracé à la souris, puis extrusion au volu
   await page.waitForTimeout(450);
 
   // Segment du bas (0,0) → (30,0).
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 0.05, 0.05);
   await clickSketch(page, 30, 0);
   await page.keyboard.press('Escape');
@@ -32,7 +32,7 @@ test('contour en « D » avec un arc tracé à la souris, puis extrusion au volu
   await expect.poll(async () => (await session(page))?.sketch.entities.filter((e: any) => e.type === 'arc').length).toBe(1);
 
   // Segments du haut et de gauche, qui referment le contour.
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 30, 20);
   await clickSketch(page, 0, 20);
   await clickSketch(page, 0.05, 0.05);
@@ -54,7 +54,7 @@ test('arc par 3 points (Maj+A) : départ, arrivée, passage, puis extrusion au v
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
   await page.waitForTimeout(450);
 
-  await page.click('#sk-line');
+  await clickTool(page, 'sk-line');
   await clickSketch(page, 0.05, 0.05);
   await clickSketch(page, 30, 0);
   await page.keyboard.press('Escape');

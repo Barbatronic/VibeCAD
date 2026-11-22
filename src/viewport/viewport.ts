@@ -578,9 +578,16 @@ export class Viewport {
   // -------------------------------------------------------------------------
   // État affiché
 
+  /** Curseur hors poignée ou pièce survolée : la croix en esquisse, la flèche ailleurs. */
+  private baseCursor(): string {
+    return this.input.mode === 'sketch' ? 'crosshair' : '';
+  }
+
   setInput(input: ViewportInput): void {
     const prevMode = this.input.mode;
     this.input = input;
+    // Entrée ou sortie d'esquisse : le curseur suit tout de suite (pas de main restée d'un survol).
+    if (prevMode !== input.mode) this.renderer.domElement.style.cursor = this.baseCursor();
     this.rig.controls.zoomSpeed = input.zoomSpeed ?? 1;
     if (!this.gizmoDrag) this.placeGizmo();
     this.syncParts(input.parts);
@@ -1522,7 +1529,7 @@ export class Viewport {
       this.raycaster.setFromCamera(this.ndc(e), this.rig.camera);
       const handle = this.gizmo.pick(this.raycaster);
       if (this.gizmo.highlight(handle)) this.requestRender();
-      canvas.style.cursor = handle ? 'grab' : '';
+      canvas.style.cursor = handle ? 'grab' : this.baseCursor();
     });
     const finish = (e: PointerEvent) => {
       const drag = this.gizmoDrag;
@@ -1530,7 +1537,7 @@ export class Viewport {
       const value = valueOf(e) ?? 0;
       this.gizmoDrag = null;
       this.rig.controls.enabled = true;
-      canvas.style.cursor = '';
+      canvas.style.cursor = this.baseCursor();
       this.events.onGizmo?.({ phase: 'end', handle: drag.handle, value, shift: e.shiftKey });
       this.placeGizmo();
     };
@@ -1596,7 +1603,7 @@ export class Viewport {
       if (!drag) return;
       this.assemblyDrag = null;
       this.rig.controls.enabled = true;
-      this.renderer.domElement.style.cursor = '';
+      this.renderer.domElement.style.cursor = this.baseCursor();
       this.events.onAssemblyDrag?.({ phase: 'end', key: drag.key, ray: this.worldRay(e), shift: e.shiftKey });
     };
     window.addEventListener('pointermove', (e) => {
@@ -1826,10 +1833,12 @@ export class Viewport {
       }
       if (canvas.title) {
         canvas.title = '';
-        canvas.style.cursor = '';
+        canvas.style.cursor = this.baseCursor();
       }
     }
     if (this.input.mode === 'sketch') {
+      // Esquisse : toujours la croix (une main laissée par un survol d'avant masquerait le repère d'accrochage).
+      if (this.renderer.domElement.style.cursor !== 'crosshair') this.renderer.domElement.style.cursor = 'crosshair';
       if (e.pointerType === 'touch') {
         const pending = this.touchPending;
         if (!pending || pending.id !== e.pointerId || this.multiTouch) return;
@@ -2108,7 +2117,7 @@ export class Viewport {
       }
     }
     // Outil Main : une pièce qu'on peut attraper montre la main.
-    this.renderer.domElement.style.cursor = pick ? (this.input.dragTargets?.includes(pick.partId) ? 'grab' : 'pointer') : '';
+    this.renderer.domElement.style.cursor = pick ? (this.input.dragTargets?.includes(pick.partId) ? 'grab' : 'pointer') : this.baseCursor();
     this.events.onHover(pick);
     this.requestRender();
   }

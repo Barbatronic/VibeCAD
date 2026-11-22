@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session } from './helpers';
+import { clickSketch, expectVolume, finishSketch, moveSketch, openApp, session, clickTool } from './helpers';
 
 async function sketchOnXY(page: import('@playwright/test').Page) {
   await page.click('#tool-sketch');
@@ -31,7 +31,7 @@ test('deux côtés : extrusion 4 + 2 mm, puis poche de 1 mm d’un côté et tra
 
   // Cercle Ø 6 sur le même plan (au milieu de la pièce) : 1 mm dans la matière, traversante de l'autre côté.
   await sketchOnXY(page);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 5, 5);
   await page.keyboard.type('6');
   await page.keyboard.press('Enter');

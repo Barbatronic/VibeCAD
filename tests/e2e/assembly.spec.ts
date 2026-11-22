@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { readZip } from '../../src/io/zip';
-import { openExport, appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, session } from './helpers';
+import { openExport, appState, buildPlateViaUi, clickSketch, expectVolume, finishSketch, openApp, session, clickTool } from './helpers';
 
 /**
  * Point écran d'une arête circulaire (centre à la hauteur z) d'une pièce insérée : le plus haut à
@@ -50,7 +50,7 @@ test('assemblage : goupille en pivot dans le trou de la plaque, curseur, glissi�
   await page.getByRole('button', { name: /Plan XY/ }).click();
   await expect.poll(async () => (await session(page))?.tool).toBe('rectangle');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 0.05, 0.05);
   await page.keyboard.type('6');
   await page.keyboard.press('Enter');

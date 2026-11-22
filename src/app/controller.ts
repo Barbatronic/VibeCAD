@@ -113,7 +113,7 @@ import { createId, nextLocalId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
 import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
-import { EMPTY_VERSION_VIEW, isDirty, type AppState, type ControlLawRun, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
+import { EMPTY_VERSION_VIEW, isDirty, partShown, type AppState, type ControlLawRun, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -1675,10 +1675,12 @@ export class AppController {
     // exprimé dans celui de la voisine), reprises avec le contexte.
     const ctx = activeContext(s);
     if (ctx && ctx.partId === partId) {
+      // Exemplaires masqués dans l'assemblage (eux-mêmes ou leur bloc) : pas proposés, comme dans la vue.
+      const hiddenCopies = new Set([...(s.doc.assembly?.instances ?? []), ...(s.doc.subassemblies ?? []).flatMap((x) => x.instances)].filter((i) => i.hidden).map((i) => i.id));
       const neighbours = ctx.leaves.flatMap((leaf) => {
         const p = findPart(s.doc, leaf.partId);
-        // Pièce isolée : les voisines sont cachées, leurs arêtes ne sont pas proposées.
-        if (!p || p.id === partId || !p.visible || (s.isolatedPartId && p.id !== s.isolatedPartId) || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
+        // Pièce masquée ou isolement d'une autre : les voisines cachées ne sont pas proposées.
+        if (!p || p.id === partId || !partShown(s, p) || hiddenCopies.has(leaf.instanceId) || leaf.member.some((id) => hiddenCopies.has(id)) || leaf.moved || s.display[p.id]?.stale || partDependsOn(s.doc, p.id, partId)) return [];
         const local = frameInFrame(invertRigid4(leaf.reference), frame);
         const context = contextOf(ctx.instanceId, leaf);
         const g = projectableGeometry(s.display[p.id]?.mesh, local, p, featureId, true);
@@ -1688,7 +1690,7 @@ export class AppController {
     }
     // Pièce isolée : les autres sont cachées, leurs arêtes ne sont pas proposées.
     const others = s.doc.parts
-      .filter((p) => p.id !== partId && p.visible && (!s.isolatedPartId || p.id === s.isolatedPartId) && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
+      .filter((p) => p.id !== partId && partShown(s, p) && !s.display[p.id]?.stale && !partDependsOn(s.doc, p.id, partId))
       .map((p) => projectableGeometry(s.display[p.id]?.mesh, frame, p, featureId, true));
     return merge([own, ...others]);
   }

@@ -92,11 +92,11 @@ test('esquisse cotée, aperçu, parcours guidé, erreur expliquée', async ({ br
   await page.mouse.dblclick(top.x, top.y);
   await expect.poll(async () => (await session(page))?.sketch.support.kind).toBe('face');
   await page.waitForTimeout(450);
-  await page.click('#sk-circle');
+  await clickTool(page, 'sk-circle');
   await clickSketch(page, 40, 15);
   await page.keyboard.type('8');
   await page.keyboard.press('Enter');
-  await page.click('#sk-dimension');
+  await clickTool(page, 'sk-dimension');
   const c = await page.evaluate(() => {
     const s = (window as any).vibecad.store.get().mode.session;
     const circle = s.sketch.entities.filter((e: any) => e.type === 'circle').pop();
