@@ -998,7 +998,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
     }
     case 'axis': {
       const pos = obj(v, p.position, `${pp}.position`) ?? {};
-      const kind = oneOf(v, p, 'kind', pp, ['line', 'edge'] as const);
+      const kind = oneOf(v, p, 'kind', pp, ['line', 'edge', 'sketch'] as const);
       const edge = p.edge !== undefined ? readPatternAxis(v, { kind: 'edge', edge: p.edge }, `${pp}`) : null;
       return {
         id,
@@ -1009,6 +1009,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           position: { x: num(v, pos, 'x', `${pp}.position`), y: num(v, pos, 'y', `${pp}.position`), z: num(v, pos, 'z', `${pp}.position`) },
           direction: oneOf(v, p, 'direction', pp, ['X', 'Y', 'Z'] as const),
           ...(edge && edge.kind === 'edge' ? { edge: edge.edge } : {}),
+          ...(p.sketch !== undefined ? { sketch: readSketchElementRef(v, p.sketch, `${pp}.sketch`) } : {}),
         },
         ...(o.visible === false ? { visible: false } : {}),
       };
@@ -1023,7 +1024,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           offset: num(v, p, 'offset', pp),
           angle: num(v, p, 'angle', pp),
           hinge: readPatternAxis(v, p.hinge, `${pp}.hinge`),
-          ...(p.mode !== undefined ? { mode: oneOf(v, p, 'mode', pp, ['offset', 'midplane', 'threePoints', 'normalToEdge', 'tangent', 'parallelPoint', 'edgePoint'] as const) } : {}),
+          ...(p.mode !== undefined ? { mode: oneOf(v, p, 'mode', pp, ['offset', 'midplane', 'threePoints', 'normalToEdge', 'tangent', 'parallelPoint', 'edgePoint', 'sketchLine'] as const) } : {}),
           ...(p.second !== undefined ? { second: readPlaneRef(v, p.second, `${pp}.second`) } : {}),
           ...(p.points !== undefined
             ? {
@@ -1031,12 +1032,14 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
                   const ip = `${pp}.points[${i}]`;
                   const o = obj(v, x, ip) ?? {};
                   if (o.kind === 'origin') return { kind: 'origin' as const };
+                  if (o.kind === 'sketch') return { kind: 'sketch' as const, ...readSketchElementRef(v, o, ip) };
                   return { kind: 'edge' as const, edge: readEdgeRefIn(v, o.edge, `${ip}.edge`), at: oneOf(v, o, 'at', ip, ['start', 'end', 'mid', 'center'] as const) };
                 }),
               }
             : {}),
           ...(p.edge !== undefined ? { edge: readEdgeRefIn(v, p.edge, `${pp}.edge`) } : {}),
           ...(p.along !== undefined ? { along: num(v, p, 'along', pp, { min: 0, max: 1 }) } : {}),
+          ...(p.sketchElement !== undefined ? { sketchElement: readSketchElementRef(v, p.sketchElement, `${pp}.sketchElement`) } : {}),
         },
         ...(o.visible === false ? { visible: false } : {}),
       };
@@ -1307,6 +1310,12 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
       };
     }
   }
+}
+
+/** Élément d'esquisse désigné par un plan ou un axe de construction. */
+function readSketchElementRef(v: Validator, raw: unknown, path: string): { sketchId: string; entityId: string } {
+  const o = obj(v, raw, path) ?? {};
+  return { sketchId: str(v, o, 'sketchId', path), entityId: str(v, o, 'entityId', path) };
 }
 
 /** Arête désignée par ses deux faces. */

@@ -2450,7 +2450,7 @@
             },
             "params": {
               "type": "object",
-              "description": "Plan de construction : base (plan d'origine, face plane ou autre plan de construction) décalée de offset (mm) le long de sa normale, puis inclinée de angle (°) autour de hinge (axe X/Y/Z par l'origine ou arête droite). Ne modifie pas la pièce. Autres constructions (mode) : milieu entre base et second, trois points, perpendiculaire à une arête (edge, along), tangent au cylindre d'un bord rond (edge, angle), parallèle à base par un point, arête et point ; offset décale toujours le plan obtenu.",
+              "description": "Plan de construction : base (plan d'origine, face plane ou autre plan de construction) décalée de offset (mm) le long de sa normale, puis inclinée de angle (°) autour de hinge (axe X/Y/Z par l'origine ou arête droite). Ne modifie pas la pièce. Autres constructions (mode) : milieu entre base et second, trois points, perpendiculaire à une arête (edge, along), tangent au cylindre d'un bord rond (edge, angle), parallèle à base par un point, arête et point ; offset décale toujours le plan obtenu. sketchLine : plan contenant le segment d'esquisse sketchElement, perpendiculaire à l'esquisse. sketchElement remplace edge quand il est présent (segment, ou cercle/arc d'esquisse) ; un point peut être un point d'esquisse (kind = sketch).",
               "required": [
                 "base",
                 "offset",
@@ -2536,7 +2536,8 @@
                     "normalToEdge",
                     "tangent",
                     "parallelPoint",
-                    "edgePoint"
+                    "edgePoint",
+                    "sketchLine"
                   ]
                 },
                 "second": {
@@ -2638,6 +2639,26 @@
                             ]
                           }
                         }
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "sketchId",
+                          "entityId"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "const": "sketch"
+                          },
+                          "sketchId": {
+                            "$ref": "#/$defs/id"
+                          },
+                          "entityId": {
+                            "type": "string"
+                          }
+                        },
+                        "description": "Point d'esquisse, ou centre d'un cercle ou d'un arc d'esquisse."
                       }
                     ]
                   }
@@ -2649,6 +2670,9 @@
                   "type": "number",
                   "minimum": 0,
                   "maximum": 1
+                },
+                "sketchElement": {
+                  "$ref": "#/$defs/sketchElementRef"
                 }
               }
             },
@@ -2665,7 +2689,7 @@
             },
             "params": {
               "type": "object",
-              "description": "Axe de construction : droite passant par position, parallèle à direction (kind = line), ou reprise de l'arête edge (kind = edge : droite de l'arête, ou axe d'un bord circulaire). Ne modifie pas la pièce.",
+              "description": "Axe de construction : droite passant par position, parallèle à direction (kind = line), ou reprise de l'arête edge (kind = edge : droite de l'arête, ou axe d'un bord circulaire). kind = sketch : élément d'esquisse sketch (segment : sa droite ; cercle, arc ou point : axe perpendiculaire à l'esquisse par le centre). Ne modifie pas la pièce.",
               "required": [
                 "kind",
                 "position",
@@ -2675,7 +2699,8 @@
                 "kind": {
                   "enum": [
                     "line",
-                    "edge"
+                    "edge",
+                    "sketch"
                   ]
                 },
                 "position": {
@@ -2706,6 +2731,9 @@
                 },
                 "edge": {
                   "$ref": "#/$defs/edgeRef"
+                },
+                "sketch": {
+                  "$ref": "#/$defs/sketchElementRef"
                 }
               }
             },
@@ -4252,6 +4280,22 @@
               }
             }
           }
+        }
+      }
+    },
+    "sketchElementRef": {
+      "type": "object",
+      "description": "Élément d'une esquisse (point, segment, cercle ou arc) désigné par l'esquisse et l'identifiant de l'élément.",
+      "required": [
+        "sketchId",
+        "entityId"
+      ],
+      "properties": {
+        "sketchId": {
+          "$ref": "#/$defs/id"
+        },
+        "entityId": {
+          "type": "string"
         }
       }
     }

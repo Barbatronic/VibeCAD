@@ -6,6 +6,8 @@ import type { EvaluationContext, FeatureEvaluator } from '../evaluation';
 import { resolvePatternAxis } from '../pattern/evaluate';
 import { planeDefinition } from './definition';
 import { planeDependency, resolvePlaneRef } from './resolve';
+import { placeSketchElement } from '../sketch/elements';
+import type { EdgeCurve } from '../../geometry/kernel';
 
 /** Rotation d'un vecteur autour de la direction unitaire `k` (formule de Rodrigues). */
 function rotateVector(v: Vec3, k: Vec3, angle: number): Vec3 {
@@ -28,8 +30,12 @@ type Lost = { lost: Id | null };
 type Solved = { frame: Frame3D } | Lost | { invalid: string };
 
 /** Point désigné : l'origine, ou un bout, le milieu ou le centre d'une arête de la pièce. */
-export function resolveDatumPoint(pt: DatumPoint, ctx: Pick<EvaluationContext, 'kernel' | 'shape'>): Vec3 | null {
+export function resolveDatumPoint(pt: DatumPoint, ctx: Pick<EvaluationContext, 'kernel' | 'shape' | 'sketches'>): Vec3 | null {
   if (pt.kind === 'origin') return { x: 0, y: 0, z: 0 };
+  if (pt.kind === 'sketch') {
+    const el = placeSketchElement(pt, ctx);
+    return el?.kind === 'point' ? el.point : el?.kind === 'circle' ? el.center : null;
+  }
   if (!ctx.shape) return null;
   const c = ctx.kernel.edgeCurves(ctx.shape, pt.edge)[0];
   if (!c) return null;
@@ -63,7 +69,7 @@ function solvePlane(p: PlaneFeature['params'], ctx: Parameters<FeatureEvaluator<
   const point = (i: number): Vec3 | Lost => {
     const pt = p.points?.[i];
     if (!pt) return { lost: null };
-    return resolveDatumPoint(pt, ctx) ?? { lost: pt.kind === 'edge' ? pt.edge.faces[0].featureId : null };
+    return resolveDatumPoint(pt, ctx) ?? { lost: pt.kind === 'edge' ? pt.edge.faces[0].featureId : pt.kind === 'sketch' ? pt.sketchId : null };
   };
   const isLost = (x: Vec3 | Lost): x is Lost => 'lost' in x;
   if (mode === 'offset') {
@@ -113,9 +119,26 @@ function solvePlane(p: PlaneFeature['params'], ctx: Parameters<FeatureEvaluator<
     if (len(n) < 1e-9) return { invalid: 'Les trois points sont alignés (ou confondus) : ils ne définissent pas un plan.' };
     return { frame: frameFrom(pa!, n, sub3(pb!, pa!)) };
   }
-  if (!p.edge || !ctx.shape) return { invalid: 'Choisissez une arête.' };
-  const c = ctx.kernel.edgeCurves(ctx.shape, p.edge)[0];
-  if (!c) return { lost: edgeFeature(p.edge) };
+  // Arête de la pièce, ou élément d'esquisse (segment, cercle, arc) qui la remplace.
+  let c: EdgeCurve | undefined;
+  if (p.sketchElement) {
+    const el = placeSketchElement(p.sketchElement, ctx);
+    if (!el || el.kind === 'point') return el ? { invalid: 'Choisissez un segment, un cercle ou un arc de l’esquisse.' } : { lost: p.sketchElement.sketchId };
+    if (mode === 'sketchLine') {
+      // Plan contenant le segment, perpendiculaire à l'esquisse.
+      if (el.kind !== 'line') return { invalid: 'Choisissez un segment de l’esquisse.' };
+      const dir = sub3(el.end, el.start);
+      const n = cross3(dir, el.frame.normal);
+      if (len(n) < 1e-9) return { invalid: 'Ce segment est de longueur nulle.' };
+      return { frame: frameFrom(el.start, n, dir) };
+    }
+    c = el.kind === 'line' ? { kind: 'line', start: el.start, end: el.end } : { kind: 'circle', center: el.center, axis: el.axis, radius: el.radius };
+  } else {
+    if (mode === 'sketchLine') return { invalid: 'Choisissez un segment de l’esquisse.' };
+    if (!p.edge || !ctx.shape) return { invalid: 'Choisissez une arête.' };
+    c = ctx.kernel.edgeCurves(ctx.shape, p.edge)[0];
+    if (!c) return { lost: edgeFeature(p.edge) };
+  }
   if (mode === 'normalToEdge') {
     const t = Math.min(1, Math.max(0, p.along ?? 0));
     if (c.kind === 'line') {

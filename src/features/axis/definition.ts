@@ -9,6 +9,8 @@ export function axisIssues(p: AxisFeature['params']): ParamIssue[] {
     for (const k of ['x', 'y', 'z'] as const) {
       if (!Number.isFinite(p.position[k]) || Math.abs(p.position[k]) > 100000) issues.push({ field: k, message: 'La position doit être un nombre de millimètres (au plus 100 000).' });
     }
+  } else if (p.kind === 'sketch') {
+    if (!p.sketch) issues.push({ field: 'sketch', message: 'Choisissez un élément d’esquisse.' });
   } else if (!p.edge) issues.push({ field: 'edge', message: 'Cliquez une arête droite ou le bord d’un trou dans la vue 3D.' });
   return issues;
 }
@@ -17,14 +19,20 @@ export const axisDefinition: FeatureDefinition<AxisFeature> = {
   type: 'axis',
   label: 'Axe',
   namePrefix: 'Axe',
-  explanation: 'Axe de construction : une droite (par un point, ou l’axe d’un trou) autour de laquelle répéter une étape ou incliner un plan.',
+  explanation: 'Axe de construction : une droite (par un point, l’axe d’un trou, un segment ou un cercle d’esquisse) autour de laquelle répéter une étape, faire tourner une révolution ou incliner un plan.',
   icon: 'datum-axis',
   affectsSolid: false,
-  dependencies: (feature) => (feature.params.kind === 'edge' && feature.params.edge ? Array.from(new Set(feature.params.edge.faces.map((f) => f.featureId))) : []),
+  dependencies: (feature) =>
+    feature.params.kind === 'edge' && feature.params.edge
+      ? Array.from(new Set(feature.params.edge.faces.map((f) => f.featureId)))
+      : feature.params.kind === 'sketch' && feature.params.sketch
+        ? [feature.params.sketch.sketchId]
+        : [],
   validate: (feature) => axisIssues(feature.params),
   summary(feature) {
     const p = feature.params;
     if (p.kind === 'edge') return 'repris d’une arête';
+    if (p.kind === 'sketch') return 'repris d’une esquisse';
     const at = p.position;
     return `selon ${p.direction}, par (${formatNumber(at.x, 2)} ; ${formatNumber(at.y, 2)} ; ${formatLength(at.z)})`;
   },

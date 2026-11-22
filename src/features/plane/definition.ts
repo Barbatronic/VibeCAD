@@ -35,8 +35,9 @@ export const planeDefinition: FeatureDefinition<PlaneFeature> = {
     const hinge = mode === 'offset' && p.angle !== 0 ? (p.hinge.kind === 'edge' ? p.hinge.edge.faces.map((x) => x.featureId) : p.hinge.kind === 'datum' ? [p.hinge.featureId] : []) : [];
     const base = mode === 'offset' || mode === 'midplane' || mode === 'parallelPoint' ? planeDependency(p.base) : [];
     const second = mode === 'midplane' && p.second ? planeDependency(p.second) : [];
-    const points = mode === 'threePoints' || mode === 'parallelPoint' || mode === 'edgePoint' ? (p.points ?? []).flatMap((x) => (x.kind === 'edge' ? x.edge.faces.map((f) => f.featureId) : [])) : [];
-    const edge = (mode === 'normalToEdge' || mode === 'tangent' || mode === 'edgePoint') && p.edge ? p.edge.faces.map((f) => f.featureId) : [];
+    const points = mode === 'threePoints' || mode === 'parallelPoint' || mode === 'edgePoint' ? (p.points ?? []).flatMap((x) => (x.kind === 'edge' ? x.edge.faces.map((f) => f.featureId) : x.kind === 'sketch' ? [x.sketchId] : [])) : [];
+    const usesEdge = mode === 'normalToEdge' || mode === 'tangent' || mode === 'edgePoint' || mode === 'sketchLine';
+    const edge = !usesEdge ? [] : p.sketchElement ? [p.sketchElement.sketchId] : p.edge ? p.edge.faces.map((f) => f.featureId) : [];
     return Array.from(new Set([...base, ...second, ...hinge, ...points, ...edge]));
   },
   validate: (feature) => planeIssues(feature.params),
@@ -50,6 +51,7 @@ export const planeDefinition: FeatureDefinition<PlaneFeature> = {
     if (mode === 'tangent') return `tangent à un cylindre, à ${formatNumber(p.angle, 2)}°${shift}`;
     if (mode === 'parallelPoint') return `parallèle à ${describeBasePlane(p.base)} par un point${shift}`;
     if (mode === 'edgePoint') return `par une arête et un point${shift}`;
+    if (mode === 'sketchLine') return `par une ligne d’esquisse, perpendiculaire à l’esquisse${shift}`;
     const parts = [describeBasePlane(p.base)];
     if (p.offset !== 0) parts.push(`décalé de ${formatLength(p.offset)}`);
     if (p.angle !== 0) parts.push(`incliné de ${formatNumber(p.angle, 2)}° autour de ${describeHinge(p.hinge)}`);

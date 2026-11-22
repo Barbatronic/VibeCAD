@@ -6,7 +6,7 @@
 import type { DatumPlaneMode, DatumPoint, MirrorPlane, PlaneFeature, PlaneName } from '../../domain/model';
 import { readNumber } from '../../domain/units';
 import { Button, Callout, LengthField, Segmented } from '../../ui/components/controls';
-import { AxisField, datumAxesBefore, DatumPlaneSelect, datumPlanesBefore, PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { AxisField, datumAxesBefore, DatumPlaneSelect, datumPlanesBefore, PreviewStatus, SketchElementSelect, sketchElementsBefore, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 import { planeIssues } from './definition';
 
@@ -20,18 +20,20 @@ export const PLANE_MODES: { value: DatumPlaneMode; label: string; help: string }
   { value: 'tangent', label: 'Tangent à un cylindre', help: 'Choisi par son bord rond, à un angle autour de son axe' },
   { value: 'parallelPoint', label: 'Parallèle, par un point', help: 'Parallèle à un plan ou une face, passant par un point' },
   { value: 'edgePoint', label: 'Par une arête et un point', help: 'Contient une arête droite et passe par un point' },
+  { value: 'sketchLine', label: 'Par une ligne d’esquisse', help: 'Contient un segment d’esquisse, perpendiculaire à l’esquisse' },
 ];
 
 /** Premier élément à choisir dans la vue pour une façon de construire (rien : déjà complet). */
 function firstPick(mode: DatumPlaneMode, p: PlaneFeature['params']): string {
   if (mode === 'threePoints') return (p.points?.length ?? 0) < 3 ? `p${p.points?.length ?? 0}` : '';
   if (mode === 'parallelPoint') return p.points?.[0] ? '' : 'p0';
-  if (mode === 'normalToEdge' || mode === 'tangent' || mode === 'edgePoint') return p.edge ? (mode === 'edgePoint' && !p.points?.[0] ? 'p0' : '') : 'edgeRef';
+  if (mode === 'sketchLine') return '';
+  if (mode === 'normalToEdge' || mode === 'tangent' || mode === 'edgePoint') return p.edge || p.sketchElement ? (mode === 'edgePoint' && !p.points?.[0] ? 'p0' : '') : 'edgeRef';
   if (mode === 'midplane') return p.second ? '' : 'face2';
   return '';
 }
 
-const POINT_NAMES: Record<Exclude<DatumPoint, { kind: 'origin' }>['at'], string> = { start: 'début d’arête', end: 'fin d’arête', mid: 'milieu d’arête', center: 'centre d’un bord rond' };
+const POINT_NAMES: Record<Extract<DatumPoint, { kind: 'edge' }>['at'], string> = { start: 'début d’arête', end: 'fin d’arête', mid: 'milieu d’arête', center: 'centre d’un bord rond' };
 
 export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
   const { draft, update, setField } = props;
@@ -94,19 +96,22 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       </>
     );
   };
-  /** Point n° `i` : choisi dans la vue (bout, milieu ou centre d'arête), ou l'origine. */
+  const sketchPoints = sketchElementsBefore(props.part, f.id, ['point']);
+  /** Point n° `i` : choisi dans la vue (bout, milieu ou centre d'arête), l'origine, ou un point d'esquisse. */
   const pointSlot = (i: number, label: string) => {
     const pt = p.points?.[i];
     const picking = pick === `p${i}`;
-    const setOrigin = () => {
+    const setPoint = (point: DatumPoint) => {
       const points = [...(p.points ?? [])];
-      points[i] = { kind: 'origin' };
+      points[i] = point;
       setField('pick', firstPick(mode, { ...p, points }), { feature: withParams(f, { points }) });
     };
+    const setOrigin = () => setPoint({ kind: 'origin' });
+    const firstSketchPoint = sketchPoints[0];
     return (
       <div class="field" key={`p${i}`}>
         <span class="field-label">{label}</span>
-        <span class="field-help">{picking ? 'Cliquez une arête : le bout, le milieu ou le centre le plus proche' : !pt ? 'À choisir' : pt.kind === 'origin' ? 'Origine' : POINT_NAMES[pt.at]}</span>
+        <span class="field-help">{picking ? 'Cliquez une arête : le bout, le milieu ou le centre le plus proche' : !pt ? 'À choisir' : pt.kind === 'origin' ? 'Origine' : pt.kind === 'sketch' ? 'Point d’esquisse' : POINT_NAMES[pt.at]}</span>
         <div class="segmented">
           <Button small icon="target" onClick={() => setField('pick', picking ? '' : `p${i}`, { feature: f })}>
             {picking ? 'Cliquez dans la vue…' : 'Choisir…'}
@@ -114,19 +119,40 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
           <Button small icon="point" onClick={setOrigin}>
             Origine
           </Button>
+          {firstSketchPoint ? (
+            <Button small icon="sketch" onClick={() => setPoint({ kind: 'sketch', sketchId: firstSketchPoint.sketchId, entityId: firstSketchPoint.entityId })}>
+              Esquisse…
+            </Button>
+          ) : null}
         </div>
+        {pt?.kind === 'sketch' ? (
+          <SketchElementSelect id={`draft-sketch-point-${i}`} label="Point d’esquisse" options={sketchPoints} value={pt} onChange={(ref) => setPoint({ kind: 'sketch', ...ref })} />
+        ) : null}
       </div>
     );
   };
-  const edgeSlot = (label: string, help: string) => {
+  /** Arête de la pièce cliquée dans la vue, ou élément d'esquisse (`kind` : segments ou cercles et arcs). */
+  const edgeSlot = (label: string, help: string, kind: 'line' | 'circle' | 'any') => {
     const picking = pick === 'edgeRef';
+    const options = sketchElementsBefore(props.part, f.id, kind === 'any' ? ['line', 'circle'] : [kind]);
+    const first = options[0];
     return (
       <div class="field">
         <span class="field-label">{label}</span>
-        <span class="field-help">{picking ? help : p.edge ? 'Arête choisie' : 'À choisir'}</span>
-        <Button small icon="target" onClick={() => setField('pick', picking ? '' : 'edgeRef', { feature: f })}>
-          {picking ? 'Cliquez dans la vue…' : 'Choisir…'}
-        </Button>
+        <span class="field-help">{picking ? help : p.sketchElement ? 'Élément d’esquisse' : p.edge ? 'Arête choisie' : 'À choisir'}</span>
+        <div class="segmented">
+          <Button small icon="target" onClick={() => setField('pick', picking ? '' : 'edgeRef', { feature: f })}>
+            {picking ? 'Cliquez dans la vue…' : 'Choisir…'}
+          </Button>
+          {first ? (
+            <Button small icon="sketch" onClick={() => setField('pick', mode === 'edgePoint' && !p.points?.[0] ? 'p0' : '', { feature: withParams(f, { sketchElement: p.sketchElement ?? { sketchId: first.sketchId, entityId: first.entityId } }) })}>
+              Esquisse…
+            </Button>
+          ) : null}
+        </div>
+        {p.sketchElement && !picking ? (
+          <SketchElementSelect id="draft-sketch-element" label="Élément d’esquisse" options={options} value={p.sketchElement} onChange={(sketchElement) => update((x) => withParams(x, { sketchElement }))} />
+        ) : null}
       </div>
     );
   };
@@ -141,8 +167,10 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
           onChange={(e) => {
             const next = (e.target as HTMLSelectElement).value as DatumPlaneMode;
             // Autre construction : le décalage repart de 0 (celui par défaut d'un plan décalé n'a pas de sens ici).
-            const params = { ...p, mode: next, offset: next === 'offset' ? p.offset : 0 };
-            const feature = withParams(f, { mode: next, offset: params.offset });
+            const firstLine = next === 'sketchLine' && !p.sketchElement ? sketchElementsBefore(props.part, f.id, ['line'])[0] : undefined;
+            const sketchElement = firstLine ? { sketchId: firstLine.sketchId, entityId: firstLine.entityId } : p.sketchElement;
+            const params = { ...p, mode: next, offset: next === 'offset' ? p.offset : 0, sketchElement };
+            const feature = withParams(f, { mode: next, offset: params.offset, sketchElement });
             setField('offset', String(params.offset).replace('.', ','), { feature });
             setField('pick', firstPick(next, params), { feature });
           }}
@@ -182,13 +210,13 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       {mode === 'threePoints' ? [pointSlot(0, 'Point 1'), pointSlot(1, 'Point 2'), pointSlot(2, 'Point 3')] : null}
       {mode === 'normalToEdge' ? (
         <>
-          {edgeSlot('Arête', 'Cliquez une arête (droite ou courbe)')}
+          {edgeSlot('Arête', 'Cliquez une arête (droite ou courbe)', 'any')}
           {numberField('along', 'Position sur l’arête', '%', (v) => v / 100)}
         </>
       ) : null}
       {mode === 'tangent' ? (
         <>
-          {edgeSlot('Bord rond du cylindre', 'Cliquez le bord rond d’un cylindre ou d’un trou')}
+          {edgeSlot('Bord rond du cylindre', 'Cliquez le bord rond d’un cylindre ou d’un trou', 'circle')}
           {numberField('angle', 'Angle autour de l’axe', '°')}
         </>
       ) : null}
@@ -200,9 +228,12 @@ export function PlanePanel(props: FeaturePanelProps<PlaneFeature>) {
       ) : null}
       {mode === 'edgePoint' ? (
         <>
-          {edgeSlot('Arête droite', 'Cliquez une arête droite')}
+          {edgeSlot('Arête droite', 'Cliquez une arête droite', 'line')}
           {pointSlot(0, 'Passant par')}
         </>
+      ) : null}
+      {mode === 'sketchLine' ? (
+        <SketchElementSelect id="draft-sketch-element" label="Segment d’esquisse" options={sketchElementsBefore(props.part, f.id, ['line'])} value={p.sketchElement} onChange={(sketchElement) => update((x) => withParams(x, { sketchElement }))} />
       ) : null}
       {mode !== 'offset' ? numberField('offset', 'Décalage', 'mm') : null}
       <PreviewStatus status={props.status} kind="modify" />

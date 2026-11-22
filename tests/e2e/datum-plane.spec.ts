@@ -106,3 +106,33 @@ test('plan par trois points (origine, puis deux bouts d’arête cliqués), puis
   // Plan par trois points : y = 0 (pas de décalage hérité du plan décalé par défaut).
   expect(Math.abs((await appState(page, (s) => s.display[s.doc.parts[0].id].result.planes[0].frame.origin.y)))).toBeCloseTo(0, 4);
 });
+
+test('axe et plan repris d’éléments d’esquisse : axe du trou, plan par un segment du rectangle', async ({ page }) => {
+  await openApp(page);
+  await buildPlateViaUi(page);
+  const result = () => appState(page, (s) => s.display[s.doc.parts[0].id].result);
+
+  // Axe : centre du cercle de l'esquisse du trou, perpendiculaire à l'esquisse (le dessus).
+  await clickTool(page, 'tool-axis');
+  await page.getByRole('button', { name: 'Esquisse…' }).click();
+  const element = page.locator('#draft-sketch-element');
+  const circle = await element.locator('option', { hasText: 'Cercle' }).first().getAttribute('value');
+  await element.selectOption(circle!);
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('repris d’une esquisse');
+  await expect.poll(async () => Math.abs((await result()).axes.at(-1)?.dir.z ?? 0)).toBeCloseTo(1, 4);
+  const axis = (await result()).axes.at(-1)!;
+  expect(axis.point.z).toBeCloseTo(5, 3);
+  expect(Math.hypot(axis.point.x - 15, axis.point.y - 15)).toBeCloseTo(0, 3);
+
+  // Plan : contient le premier segment du rectangle, perpendiculaire à l'esquisse (vertical).
+  await clickTool(page, 'tool-plane');
+  await page.getByLabel('Construction du plan').selectOption('sketchLine');
+  await expect(element.locator('option:checked')).toContainText('Segment');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expect(page.getByRole('list', { name: /Étapes de construction/ })).toContainText('par une ligne d’esquisse');
+  const frame = (await result()).planes.at(-1)!.frame;
+  expect(Math.abs(frame.normal.z)).toBeCloseTo(0, 4);
+});

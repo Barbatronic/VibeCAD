@@ -2113,7 +2113,7 @@ export class AppController {
     if (slot === 'edgeRef') {
       if (construction === 'tangent' && edge?.curve !== 'circle') return this.explain('Choisissez le bord rond d’un cylindre ou d’un trou.');
       if (construction === 'edgePoint' && edge?.curve !== 'line') return this.explain('Choisissez une arête droite.');
-      return apply({ ...feature.params, edge: r.ref });
+      return apply({ ...feature.params, edge: r.ref, sketchElement: undefined });
     }
     if (construction !== 'offset') return this.explain('Choisissez d’abord ce que vous désignez (« Choisir… »).');
     if (edge?.curve !== 'line') return this.explain('Pour incliner le plan, choisissez une arête droite (la charnière).');

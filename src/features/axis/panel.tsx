@@ -1,8 +1,8 @@
-/** Panneau d'un axe de construction : par un point le long de X, Y ou Z, ou repris d'une arête. */
+/** Panneau d'un axe de construction : par un point le long de X, Y ou Z, repris d'une arête ou d'un élément d'esquisse. */
 import type { AxisFeature } from '../../domain/model';
 import { readNumber } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
-import { PreviewStatus, withParams } from '../../ui/components/feature-fields';
+import { PreviewStatus, SketchElementSelect, sketchElementsBefore, withParams } from '../../ui/components/feature-fields';
 import type { FeaturePanelProps } from '../panel-types';
 
 export function AxisPanel(props: FeaturePanelProps<AxisFeature>) {
@@ -27,14 +27,21 @@ export function AxisPanel(props: FeaturePanelProps<AxisFeature>) {
   );
   return (
     <>
-      <Segmented<'line' | 'edge'>
+      <Segmented<'line' | 'edge' | 'sketch'>
         label="Axe"
         value={p.kind}
         options={[
           { value: 'line', label: 'Par un point', title: 'Une droite parallèle à X, Y ou Z, passant par le point donné' },
           { value: 'edge', label: 'Arête…', title: 'Une arête droite, ou l’axe du bord d’un trou, cliqué dans la vue 3D' },
+          { value: 'sketch', label: 'Esquisse…', title: 'Un segment d’esquisse, ou l’axe d’un cercle, d’un arc ou d’un point (perpendiculaire à l’esquisse)' },
         ]}
-        onChange={(kind) => update((x) => withParams(x, { kind }))}
+        onChange={(kind) =>
+          update((x) => {
+            if (kind !== 'sketch' || x.params.sketch) return withParams(x, { kind });
+            const first = sketchElementsBefore(props.part, x.id, ['line', 'circle'])[0];
+            return withParams(x, { kind, ...(first ? { sketch: { sketchId: first.sketchId, entityId: first.entityId } } : {}) });
+          })
+        }
       />
       {p.kind === 'line' ? (
         <>
@@ -52,6 +59,17 @@ export function AxisPanel(props: FeaturePanelProps<AxisFeature>) {
             <span class="field-label">Point de passage (mm)</span>
             <div class="limits-row three">{(['x', 'y', 'z'] as const).map(coordinate)}</div>
           </div>
+        </>
+      ) : p.kind === 'sketch' ? (
+        <>
+          <SketchElementSelect
+            id="draft-sketch-element"
+            label="Élément d’esquisse"
+            options={sketchElementsBefore(props.part, f.id, ['line', 'circle', 'point'])}
+            value={p.sketch}
+            onChange={(sketch) => update((x) => withParams(x, { sketch }))}
+          />
+          <span class="field-help">Segment : l’axe le suit. Cercle, arc ou point : axe perpendiculaire à l’esquisse, passant par le centre.</span>
         </>
       ) : p.edge ? (
         <span class="field-help">Arête choisie</span>

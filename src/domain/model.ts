@@ -1004,14 +1004,20 @@ export type MirrorPlane = { kind: 'plane'; plane: PlaneName } | { kind: 'face'; 
  * bord d'un trou). Il ne change pas la pièce : il sert d'axe de répétition ou de charnière.
  */
 export interface DatumAxisParams {
-  kind: 'line' | 'edge';
+  /** `sketch` : le long d'un segment d'esquisse, ou perpendiculaire à l'esquisse par le centre d'un cercle, d'un arc ou par un point. */
+  kind: 'line' | 'edge' | 'sketch';
   position: { x: number; y: number; z: number };
   direction: 'X' | 'Y' | 'Z';
   edge?: EdgeRef;
+  sketch?: { sketchId: Id; entityId: string };
 }
 
 /** Point désigné pour un plan de construction : l'origine, ou un bout, le milieu ou le centre d'une arête. */
-export type DatumPoint = { kind: 'origin' } | { kind: 'edge'; edge: EdgeRef; at: 'start' | 'end' | 'mid' | 'center' };
+export type DatumPoint =
+  | { kind: 'origin' }
+  | { kind: 'edge'; edge: EdgeRef; at: 'start' | 'end' | 'mid' | 'center' }
+  /** Point d'une esquisse de la pièce (placée avant). */
+  | { kind: 'sketch'; sketchId: Id; entityId: string };
 
 /**
  * Façon de construire un plan (absent : `offset`) :
@@ -1021,10 +1027,13 @@ export type DatumPoint = { kind: 'origin' } | { kind: 'edge'; edge: EdgeRef; at:
  * - `normalToEdge` : perpendiculaire à `edge`, au point `along` (0 : début, 1 : fin) ;
  * - `tangent` : tangent au cylindre dont `edge` est le bord rond, à `angle` autour de son axe ;
  * - `parallelPoint` : parallèle à `base`, passant par `points[0]` ;
- * - `edgePoint` : contenant l'arête droite `edge` et passant par `points[0]`.
+ * - `edgePoint` : contenant l'arête droite `edge` et passant par `points[0]` ;
+ * - `sketchLine` : contenant le segment d'esquisse `sketchElement`, perpendiculaire à l'esquisse.
+ * `sketchElement` remplace `edge` quand il est donné : un segment d'esquisse (perpendiculaire à
+ * une arête, arête et point) ou un cercle / arc d'esquisse (tangent à un cylindre).
  * Dans tous les cas, `offset` décale ensuite le plan le long de sa normale.
  */
-export type DatumPlaneMode = 'offset' | 'midplane' | 'threePoints' | 'normalToEdge' | 'tangent' | 'parallelPoint' | 'edgePoint';
+export type DatumPlaneMode = 'offset' | 'midplane' | 'threePoints' | 'normalToEdge' | 'tangent' | 'parallelPoint' | 'edgePoint' | 'sketchLine';
 
 export interface DatumPlaneParams {
   mode?: DatumPlaneMode;
@@ -1035,6 +1044,7 @@ export interface DatumPlaneParams {
   second?: MirrorPlane;
   points?: DatumPoint[];
   edge?: EdgeRef;
+  sketchElement?: { sketchId: Id; entityId: string };
   along?: number;
 }
 

@@ -1,5 +1,8 @@
 /** Champs communs aux panneaux des fonctions volumiques (esquisse utilisée, sens, aperçu). */
-import type { AxisFeature, ExtentDirection, Feature, Id, Part, PatternAxis, PlaneFeature, VolumeOperation } from '../../domain/model';
+import type { AxisFeature, ExtentDirection, Feature, Id, Part, PatternAxis, PlaneFeature, SketchFeature, VolumeOperation } from '../../domain/model';
+import { ORIGIN_POINT_ID } from '../../domain/model';
+import { formatLength } from '../../domain/units';
+import { pointPosition } from '../../sketch/model';
 import type { FeatureStatus } from '../../domain/status';
 import type { SketchOption } from '../../features/panel-types';
 import { useAppState } from '../context';
@@ -148,5 +151,77 @@ export function AxisField(props: { label: string; axis: PatternAxis; picking: bo
         </label>
       ) : null}
     </>
+  );
+}
+
+/** Élément d'esquisse utilisable par un plan ou un axe de construction. */
+export type SketchElementKind = 'point' | 'line' | 'circle';
+export interface SketchElementOption {
+  sketchId: Id;
+  entityId: string;
+  label: string;
+}
+
+/**
+ * Éléments des esquisses placées avant l'étape `featureId`, des sortes demandées (`circle` : cercles
+ * et arcs), nommés comme dans l'esquisse : « Esquisse 2 › Segment 3, 40 mm ».
+ */
+export function sketchElementsBefore(part: Part, featureId: Id, kinds: readonly SketchElementKind[]): SketchElementOption[] {
+  const own = part.features.findIndex((x) => x.id === featureId);
+  const sketches = part.features.filter((x, i): x is SketchFeature => x.type === 'sketch' && (own < 0 || i < own));
+  const out: SketchElementOption[] = [];
+  for (const sk of sketches) {
+    const at = (id: string) => pointPosition(sk.params, id);
+    const count = { point: 0, line: 0, construction: 0, circle: 0, arc: 0 };
+    // Points confondus (bouts de segments qui se touchent) : un seul dans la liste.
+    const seen: { x: number; y: number }[] = [];
+    for (const e of sk.params.entities) {
+      let label: string | null = null;
+      if (e.type === 'point' && kinds.includes('point')) {
+        if (seen.some((q) => Math.hypot(q.x - e.x, q.y - e.y) < 1e-6)) continue;
+        seen.push(e);
+        label = e.id === ORIGIN_POINT_ID ? 'Origine de l’esquisse' : `Point ${++count.point} (${formatLength(e.x)} ; ${formatLength(e.y)})`;
+      } else if (e.type === 'line' && kinds.includes('line')) {
+        const n = e.construction ? ++count.construction : ++count.line;
+        const [a, b] = [at(e.a), at(e.b)];
+        label = `${e.construction ? 'Trait de construction' : 'Segment'} ${n}${a && b ? `, ${formatLength(Math.hypot(b.x - a.x, b.y - a.y))}` : ''}`;
+      } else if (e.type === 'circle' && (kinds.includes('circle') || kinds.includes('point'))) {
+        label = `${kinds.includes('circle') ? 'Cercle' : 'Centre du cercle'} ${++count.circle}, Ø ${formatLength(2 * e.radius)}`;
+      } else if (e.type === 'arc' && (kinds.includes('circle') || kinds.includes('point'))) {
+        const [c, s0] = [at(e.center), at(e.start)];
+        label = `${kinds.includes('circle') ? 'Arc' : 'Centre de l’arc'} ${++count.arc}${c && s0 ? `, R ${formatLength(Math.hypot(s0.x - c.x, s0.y - c.y))}` : ''}`;
+      }
+      if (label) out.push({ sketchId: sk.id, entityId: e.id, label: `${sk.name} › ${label}` });
+    }
+  }
+  return out;
+}
+
+/** Choix d'un élément d'esquisse (liste de `sketchElementsBefore`). */
+export function SketchElementSelect(props: { id: string; label: string; options: SketchElementOption[]; value: { sketchId: Id; entityId: string } | undefined; onChange: (ref: { sketchId: Id; entityId: string }) => void }) {
+  const key = (o: { sketchId: Id; entityId: string }) => `${o.sketchId}|${o.entityId}`;
+  const value = props.value ? key(props.value) : '';
+  return (
+    <label class="field">
+      <span class="field-label">{props.label}</span>
+      <select
+        id={props.id}
+        class="select"
+        value={value}
+        onChange={(e) => {
+          const o = props.options.find((x) => key(x) === (e.target as HTMLSelectElement).value);
+          if (o) props.onChange({ sketchId: o.sketchId, entityId: o.entityId });
+        }}
+      >
+        {!value ? <option value="">À choisir</option> : null}
+        {props.value && !props.options.some((o) => key(o) === value) ? <option value={value}>Élément introuvable</option> : null}
+        {props.options.map((o) => (
+          <option key={key(o)} value={key(o)}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {!props.options.length ? <span class="field-help">Aucune esquisse avant cette étape n’a d’élément utilisable</span> : null}
+    </label>
   );
 }
