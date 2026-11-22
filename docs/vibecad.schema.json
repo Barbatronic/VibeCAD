@@ -1474,6 +1474,12 @@
                     "cut",
                     "common"
                   ]
+                },
+                "startAngle": {
+                  "type": "number",
+                  "minimum": -360,
+                  "maximum": 360,
+                  "description": "Décalage de départ (°) : la révolution part de cet angle autour de l'axe."
                 }
               }
             }

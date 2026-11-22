@@ -98,7 +98,8 @@ function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
       return f.params.direction !== 'twoSides';
     case 'revolve':
       // Axe hors de l'esquisse : pas de référence simple dans FreeCAD, la forme est reprise figée.
-      return f.params.operation !== 'common' && f.params.axis.kind !== 'axis';
+      // Décalage de départ : pas d'équivalent dans la révolution de FreeCAD, forme reprise figée.
+      return f.params.operation !== 'common' && f.params.axis.kind !== 'axis' && !(f.params.startAngle ?? 0);
     case 'primitive':
       // Pas d'équivalent PartDesign simple pour la pyramide et la rampe : reprises comme formes figées.
       return f.params.operation !== 'common' && f.params.shape !== 'pyramid' && f.params.shape !== 'wedge';

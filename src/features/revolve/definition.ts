@@ -33,19 +33,22 @@ export const revolveDefinition: FeatureDefinition<RevolveFeature> = {
     const issues: ParamIssue[] = [];
     const a = validateRevolveAngle(feature.params.angle);
     if (a) issues.push({ field: 'angle', message: a });
+    const s = feature.params.startAngle ?? 0;
+    if (!Number.isFinite(s) || Math.abs(s) > 360) issues.push({ field: 'startAngle', message: 'L’angle de départ doit être compris entre −360° et 360°.' });
     if (!feature.params.sketchId) issues.push({ field: 'sketchId', message: 'Choisissez une esquisse.' });
     return issues;
   },
   summary(feature) {
     const angle = feature.params.angle >= 360 ? 'tour complet' : formatAngle(feature.params.angle);
     const op = feature.params.operation === 'cut' ? ' (creusée)' : feature.params.operation === 'common' ? ' (partie commune)' : '';
-    return `${angle} autour de ${describeAxis(feature.params.axis)}${op}`;
+    const start = feature.params.startAngle ? `, à partir de ${formatAngle(feature.params.startAngle)}` : '';
+    return `${angle} autour de ${describeAxis(feature.params.axis)}${start}${op}`;
   },
   tool: {
     input: 'sketch',
     requiresSolid: false,
     previewKind: 'add',
     create: (doc, part, input) => makeRevolveFeature(doc, part, input.kind === 'sketch' ? input.sketchId : '', { kind: 'sketch-y' }),
-    initialFields: (feature) => ({ angle: String(feature.params.angle).replace('.', ',') }),
+    initialFields: (feature) => ({ angle: String(feature.params.angle).replace('.', ','), startAngle: String(feature.params.startAngle ?? 0).replace('.', ',') }),
   },
 };

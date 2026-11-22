@@ -945,6 +945,11 @@ export interface RevolveParams {
   sketchId: Id;
   axis: RevolveAxis;
   angle: number;
+  /**
+   * Décalage de départ (degrés) : la révolution part de cet angle autour de l'axe au lieu du plan
+   * de l'esquisse (dans le sens de rotation). Absent : 0.
+   */
+  startAngle?: number;
   /** Tourne dans l'autre sens (utile pour une révolution partielle). */
   reversed: boolean;
   /** Ajouter le volume tourné, le creuser (gorge, cône de perçage…) ou garder la partie commune. */

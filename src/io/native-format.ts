@@ -936,6 +936,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           sketchId: str(v, p, 'sketchId', pp),
           axis,
           angle: num(v, p, 'angle', pp, { min: 0, max: 360 }),
+          ...(p.startAngle !== undefined ? { startAngle: num(v, p, 'startAngle', pp, { min: -360, max: 360 }) } : {}),
           reversed: p.reversed === true,
           // Fichiers antérieurs : une révolution ajoutait toujours de la matière.
           operation: p.operation === undefined ? 'add' : oneOf(v, p, 'operation', pp, ['add', 'cut', 'common'] as const),

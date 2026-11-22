@@ -2,8 +2,9 @@ import type { RevolveFeature } from '../../domain/model';
 import { issue, okStatus } from '../../domain/status';
 import { TOLERANCES } from '../../domain/tolerances';
 import type { KernelShape } from '../../geometry/kernel';
-import { signedDistanceToFrame, worldToFrame } from '../../math/frame';
-import { cross2, dot3, normalize2, sub2, type Vec2 } from '../../math/vec';
+import { frameToWorld, signedDistanceToFrame, worldToFrame } from '../../math/frame';
+import { frameFromAxis, frameMatrix4, invertRigid4, multiply4, rotationZ4 } from '../../math/mat4';
+import { cross2, dot3, normalize2, normalize3, sub2, sub3, type Vec2 } from '../../math/vec';
 import { resolvePatternAxis } from '../pattern/evaluate';
 import { findLine, pointPosition } from '../../sketch/model';
 import { sampleBeziers, sampleEllipse } from '../../sketch/curves';
@@ -81,7 +82,18 @@ export const evaluateRevolve: FeatureEvaluator<RevolveFeature> = (feature, ctx) 
     return { status: issue(feature.id, 'error', 'REVOLVE_CROSSES_AXIS', { relatedFeatureId: feature.params.sketchId }) };
   }
   const angle = ((Math.min(feature.params.angle, 360) * Math.PI) / 180) * (feature.params.reversed ? -1 : 1);
-  const tool = ctx.kernel.makeRevolution({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, axisOrigin: origin, axisDirection: dir, ...(Math.abs(height) > tol ? { axisHeight: height } : {}), angle });
+  let tool = ctx.kernel.makeRevolution({ featureId: feature.id, regions: resolved.regions, frame: resolved.frame, axisOrigin: origin, axisDirection: dir, ...(Math.abs(height) > tol ? { axisHeight: height } : {}), angle });
+  // Décalage de départ : le volume tourné est pivoté autour de l'axe (dans le sens de rotation), faces gardées.
+  const start = (((feature.params.startAngle ?? 0) * Math.PI) / 180) * (feature.params.reversed ? -1 : 1);
+  if (Math.abs(start) > 1e-12) {
+    const f = resolved.frame;
+    const p3 = frameToWorld(f, origin, height);
+    const d3 = normalize3(sub3(frameToWorld(f, { x: origin.x + dir.x, y: origin.y + dir.y }, height), p3));
+    const around = frameMatrix4(frameFromAxis(p3, d3));
+    const turned = ctx.kernel.transformed(tool, multiply4(multiply4(around, rotationZ4(start)), invertRigid4(around)), { keep: true });
+    ctx.kernel.dispose(tool);
+    tool = turned;
+  }
   const op = feature.params.operation;
   // Creuser ou garder la partie commune demande une pièce déjà en volume.
   if (op !== 'add' && (!ctx.shape || !ctx.shapeAnalysis)) {

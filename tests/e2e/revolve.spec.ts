@@ -33,6 +33,17 @@ test('révolution : un rectangle tourné autour de l’axe Y donne un anneau, pu
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
   await expectVolume(page, (Math.PI * (400 - 100) * 20) / 2);
   expect(await appState(page, (s) => s.doc.parts[0].features[1].params.angle)).toBe(180);
+
+  // Angle de départ : le demi-anneau part de 90° (même volume, l'autre moitié de l'espace).
+  const maxX = () => appState(page, (s) => s.display[s.doc.parts[0].id].result.analysis.bbox.max.x);
+  const before = await maxX();
+  await history.locator('.feature-main', { hasText: 'Révolution 1' }).dblclick();
+  await page.locator('#draft-start-angle').fill('90');
+  await expect(page.getByText('Aperçu à jour')).toBeVisible();
+  await page.getByRole('button', { name: 'Valider', exact: true }).click();
+  await expectVolume(page, (Math.PI * (400 - 100) * 20) / 2);
+  await expect(history).toContainText('à partir de 90');
+  await expect.poll(maxX).not.toBeCloseTo(before, 1);
 });
 
 test('révolution en poche : une gorge creusée dans un bloc, aperçu en rouge', async ({ page }) => {

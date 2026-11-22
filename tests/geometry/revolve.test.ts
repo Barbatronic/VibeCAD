@@ -160,4 +160,32 @@ describe('révolution', () => {
     const parsed = parseNativeFile(serializeDocument(withAxis(e, { kind: 'axis', axis: { kind: 'edge', edge: ref.ref } })));
     expect(parsed.ok && (parsed.doc.parts[0]!.features.at(-1) as RevolveFeature).params.axis).toEqual({ kind: 'axis', axis: { kind: 'edge', edge: ref.ref } });
   });
+
+  it('angle de départ : un quart de tour décalé de 90° change de quadrant, même volume, faces gardées', () => {
+    const base = revolveDoc(90);
+    const run = (startAngle: number, reversed = false) => {
+      const d = updateFeature<RevolveFeature>(base.doc, base.revolveId, (f) => ({ ...f, params: { ...f.params, startAngle, reversed } }));
+      const engine = new RecomputeEngine(kernel, { get: () => undefined });
+      const [r] = engine.evaluateDocument(d);
+      return { r: r!, engine, d };
+    };
+    const from0 = run(0).r;
+    const from90 = run(90);
+    expect(from90.r.statuses.at(-1)?.state).toBe('ok');
+    expect(from90.r.analysis!.volume).toBeCloseTo(from0.analysis!.volume, 3);
+    // Sans décalage, le quart de tour touche le côté +X (le profil y est) ; décalé de 90°, il est passé de l'autre côté.
+    expect(from0.analysis!.bbox!.max.x).toBeCloseTo(20, 4);
+    expect(from90.r.analysis!.bbox!.max.x).toBeLessThan(1e-3);
+    expect(from90.r.analysis!.bbox!.min.x).toBeCloseTo(-20, 4);
+    // Les faces gardent leurs étiquettes (début, fin, côtés) : une esquisse peut s'y poser.
+    const mesh = from90.engine.meshOf(from90.r, { linearDeflection: 0.05, angularDeflection: 0.3 })!;
+    expect(mesh.faces.some((f) => f.tags.some((t) => t.featureId === base.revolveId && t.role === 'start'))).toBe(true);
+    // Sens inverse : le décalage suit le sens de rotation (symétrique du cas précédent par rapport au plan de l'esquisse).
+    const rev = run(90, true).r;
+    expect(rev.analysis!.bbox!.min.x).toBeCloseTo(-20, 4);
+    expect(rev.analysis!.bbox!.max.z * from90.r.analysis!.bbox!.min.z).toBeLessThanOrEqual(1e-6);
+    // Aller-retour du fichier.
+    const parsed = parseNativeFile(serializeDocument(from90.d));
+    expect(parsed.ok && (parsed.doc.parts[0]!.features.at(-1) as RevolveFeature).params.startAngle).toBe(90);
+  });
 });
