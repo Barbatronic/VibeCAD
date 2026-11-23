@@ -4101,6 +4101,30 @@ export class AppController {
     this.set({ timelineBake: { ...base, status: 'done', frames } });
   }
 
+  /** Assemblage placé à l'instant `t` de la timeline : pose pré-calculée, sinon calculée. */
+  scenarioPoseAt(t: number): Assembly | null {
+    const scenario = this.currentScenario();
+    const assembly = this.state.doc.assembly;
+    if (!scenario || !assembly) return null;
+    const bake = this.validBake();
+    const baked = bake ? bakedPose(bake, t) : null;
+    if (baked) return baked.settled;
+    const display = this.state.display;
+    const r = solveScenario(assembly, scenario, (id) => display[id]?.mesh, this.solveOptions(), timelineValues(scenario, t));
+    return { ...r.assembly, joints: r.assembly.joints.map((j) => ({ ...j, ...(r.placement.solvedValues.get(j.id) ?? {}) })) };
+  }
+
+  /** Vue 3D (rendus hors écran de l'export vidéo). */
+  currentViewport(): Viewport | null {
+    return this.viewport;
+  }
+
+  /** Enregistre la vidéo du scénario ouvert. */
+  async saveScenarioVideo(blob: Blob): Promise<void> {
+    const scenario = this.currentScenario();
+    await this.download(blob, `${this.state.doc.name} - ${scenario?.name ?? 'scénario'}`, 'mp4', 'vidéo du scénario téléchargée.');
+  }
+
   /** Les poses pré-calculées sont-elles à refaire (timeline animée, calcul absent ou périmé) ? */
   timelineBakeStale(): boolean {
     return isAnimated(this.currentScenario()) && !this.validBake();
@@ -4815,8 +4839,8 @@ export class AppController {
     await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
   }
 
-  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf' | 'h', message: string): Promise<void> {
-    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF', h: 'En-tête C' };
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf' | 'h' | 'mp4', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF', h: 'En-tête C', mp4: 'Vidéo MP4' };
     try {
       const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
       if (target) this.toast('success', `« ${target.name} » — ${message}`);

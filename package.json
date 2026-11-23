@@ -26,6 +26,7 @@
     "library:build": "LIBRARY_OUT=../VibeCAD-Components vitest run tests/library && LIBRARY_OUT=../VibeCAD-Components playwright test library-previews --project=chromium && node ../VibeCAD-Components/tools/build-index.mjs"
   },
   "dependencies": {
+    "mp4-muxer": "5.2.2",
     "preact": "10.29.8",
     "replicad-opencascadejs": "1.1.0",
     "three": "0.186.1"

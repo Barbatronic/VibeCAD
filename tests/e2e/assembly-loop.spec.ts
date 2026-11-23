@@ -265,3 +265,70 @@ test('timeline du scénario : clés de la manivelle, poses calculées d’avance
   await page.keyboard.press('Control+z');
   await expect.poll(keys).toEqual([[0, 70], [2, 160]]);
 });
+
+/** Boîtes d'un fichier MP4 : codec de la piste vidéo et nombre d'images (table stsz). */
+function mp4Info(bytes: Buffer): { codec: string | null; frames: number; hasMoov: boolean } {
+  const find = (tag: string) => bytes.indexOf(Buffer.from(tag, 'latin1'));
+  const stsz = find('stsz');
+  const codec = ['avc1', 'vp09', 'av01'].find((c) => find(c) >= 0) ?? null;
+  return { codec, frames: stsz >= 0 ? bytes.readUInt32BE(stsz + 12) : 0, hasMoov: find('moov') >= 0 };
+}
+
+test('rendu et vidéo du scénario : éclairage studio, export MP4 image par image', async ({ page }) => {
+  test.setTimeout(120_000);
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.click('#sim-scenarios');
+  await page.getByRole('button', { name: 'Nouveau scénario' }).first().click();
+  const roles = page.getByRole('list', { name: 'Rôle des liaisons dans le scénario' });
+  await roles.getByRole('group', { name: 'Rôle de Liaison 1' }).getByRole('button', { name: 'Pilote' }).click();
+  await roles.getByRole('group', { name: 'Rôle de Liaison 3' }).getByRole('button', { name: 'Relevé' }).click();
+  // Timeline d'une seconde : 70° → 160°.
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    c.setTimelineDuration(1);
+    c.keyScenarioDrivers();
+    c.setScenarioTime(1);
+  });
+  await page.getByLabel('Liaison 1 : réglage exact').fill('160');
+  await expect.poll(() => appState(page, (s) => s.timelineBake && s.timelineBake.status), { timeout: 20_000 }).toBe('done');
+  // Style « Rendu » dans la vue : éclairage studio chargé, ombres actives.
+  await page.click('#view-display');
+  await page.getByRole('menuitemradio', { name: 'Rendu' }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.renderer.shadowMap.enabled)).toBe(true);
+  await page.screenshot({ path: 'tests/output/e2e-rendu-vue.png' });
+  // Une image rendue hors écran (comme dans la vidéo), en 1280 × 720.
+  const png = await page.evaluate(async () => {
+    const v = (window as any).vibecad.controller.viewport;
+    const input = v.currentInput;
+    const b = v.modelBounds();
+    const fit = { ...b, sphere: false };
+    await v.beginCapture({ width: 1280, height: 720, studio: true, background: { top: '#f4f6f9', bottom: '#dfe5ec' }, fit });
+    const url = v.captureFrame(0).toDataURL('image/png');
+    v.endCapture();
+    v.setInput(input);
+    return url;
+  });
+  writeFileSync('tests/output/e2e-rendu-image.png', Buffer.from(png.split(',')[1]!, 'base64'));
+  // Export : 1 s à 30 images/s, un tour de caméra → 31 images.
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  await timeline.locator('#tl-video').click();
+  const dialog = page.getByRole('dialog', { name: 'Export vidéo' });
+  await dialog.getByRole('button', { name: 'Un tour' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 90_000 }), dialog.getByRole('button', { name: 'Exporter' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.mp4$/);
+  const dir = mkdtempSync(join(tmpdir(), 'video-'));
+  await download.saveAs(join(dir, 'scenario.mp4'));
+  const info = mp4Info(readFileSync(join(dir, 'scenario.mp4')));
+  expect(info.hasMoov).toBe(true);
+  expect(info.codec).not.toBeNull();
+  expect(info.frames).toBe(31);
+  // La vue a repris sa taille et son affichage.
+  const size = await page.evaluate(() => {
+    const v = (window as any).vibecad.controller.viewport;
+    return { canvas: v.renderer.domElement.width, css: v.size.width, ratio: v.renderer.getPixelRatio() };
+  });
+  expect(size.canvas).toBe(Math.floor(size.css * size.ratio));
+});

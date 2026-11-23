@@ -13,6 +13,7 @@ import { useAppState, useController } from './context';
 import { IconButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
+import type { VideoOptions } from './video-export';
 
 const unitOf = (dof: MotionDof) => (dof === 'angle' ? '°' : 'mm');
 const show = (v: number, dof: MotionDof) => `${formatNumber(v, dof === 'angle' ? 1 : 2)} ${unitOf(dof)}`;
@@ -178,6 +179,7 @@ function TimelineView(props: { scenario: MotionScenario; joints: AssemblyJoint[]
           </div>
         ) : null}
         <span class="spacer" />
+        <VideoExport duration={duration} loop={!!timeline.loop} disabled={!animated} />
         {progress !== null ? (
           <span class="tl-progress" role="status">
             <progress max={100} value={progress} aria-label="Calcul des poses" /> {progress} %
@@ -339,4 +341,147 @@ function rulerTicks(duration: number): number[] {
   const out: number[] = [];
   for (let t = 0; t <= duration + 1e-9; t += step) out.push(Math.round(t * 1000) / 1000);
   return out;
+}
+
+const SIZES = [
+  { label: '1280 × 720', width: 1280, height: 720 },
+  { label: '1920 × 1080', width: 1920, height: 1080 },
+  { label: '3840 × 2160 (4K)', width: 3840, height: 2160 },
+  { label: '1080 × 1080 (carré)', width: 1080, height: 1080 },
+  { label: '1080 × 1920 (vertical)', width: 1080, height: 1920 },
+];
+
+/** Export vidéo (MP4) de la timeline : taille, images par seconde, passages, caméra, éclairage, fond. */
+function VideoExport(props: { duration: number; loop: boolean; disabled: boolean }) {
+  const c = useController();
+  const [open, setOpen] = useState(false);
+  const [size, setSize] = useState(1);
+  const [opts, setOpts] = useState<Omit<VideoOptions, 'width' | 'height' | 'loops'> & { loops: number | null }>({ fps: 30, loops: null, orbit: false, studio: true, fit: true, background: 'view' });
+  const [run, setRun] = useState<{ progress: number; error?: string } | null>(null);
+  const cancel = useRef(false);
+  const loops = opts.loops ?? (props.loop ? 2 : 1);
+  const seconds = (props.duration * loops).toFixed(1).replace('.', ',');
+  const start = async () => {
+    cancel.current = false;
+    setRun({ progress: 0 });
+    c.stopScenarioPlay();
+    try {
+      const { renderScenarioVideo } = await import('./video-export');
+      const { width, height } = SIZES[size]!;
+      const blob = await renderScenarioVideo(c, { ...opts, loops, width, height }, (p) => setRun({ progress: p }), () => cancel.current);
+      setRun(null);
+      if (blob) {
+        setOpen(false);
+        await c.saveScenarioVideo(blob);
+      }
+    } catch (err) {
+      setRun({ progress: 0, error: (err as Error).message });
+    }
+  };
+  const set = (patch: Partial<typeof opts>) => setOpts({ ...opts, ...patch });
+  return (
+    <div class="tl-video">
+      <button type="button" id="tl-video" class="btn btn-small" aria-expanded={open} disabled={props.disabled} title="Exporter la timeline en vidéo (MP4)" onClick={() => setOpen(!open)}>
+        <Icon name="export" />
+        Vidéo
+      </button>
+      {open ? (
+        <div class="tl-video-panel" role="dialog" aria-label="Export vidéo">
+          <label class="field">
+            <span class="field-label">Taille</span>
+            <select id="video-size" class="select" value={size} disabled={!!run && !run.error} onChange={(e) => setSize(Number((e.target as HTMLSelectElement).value))}>
+              {SIZES.map((x, k) => (
+                <option key={k} value={k}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div class="tl-video-row">
+            <span class="field-label">Images/s</span>
+            <span class="segmented small" role="group" aria-label="Images par seconde">
+              {([30, 60] as const).map((f) => (
+                <button key={f} type="button" aria-pressed={opts.fps === f} onClick={() => set({ fps: f })}>
+                  {f}
+                </button>
+              ))}
+            </span>
+          </div>
+          <label class="tl-video-row">
+            <span class="field-label">Passages</span>
+            <NumberInput value={String(loops)} unit="×" step={1} min={1} max={50} ariaLabel="Nombre de passages de la timeline" onInput={(t) => { const v = readNumber(t); if (v !== null && v >= 1 && v <= 50) set({ loops: Math.round(v) }); }} />
+          </label>
+          <div class="tl-video-row">
+            <span class="field-label">Caméra</span>
+            <span class="segmented small" role="group" aria-label="Caméra">
+              <button type="button" aria-pressed={!opts.orbit} onClick={() => set({ orbit: false })}>
+                Fixe
+              </button>
+              <button type="button" aria-pressed={opts.orbit} title="Un tour complet autour du mécanisme" onClick={() => set({ orbit: true })}>
+                Un tour
+              </button>
+            </span>
+          </div>
+          <div class="tl-video-row">
+            <span class="field-label">Cadrage</span>
+            <span class="segmented small" role="group" aria-label="Cadrage">
+              <button type="button" aria-pressed={opts.fit} title="Le mécanisme remplit l’image, sur tout son mouvement" onClick={() => set({ fit: true })}>
+                Mécanisme
+              </button>
+              <button type="button" aria-pressed={!opts.fit} title="Comme la vue" onClick={() => set({ fit: false })}>
+                Vue
+              </button>
+            </span>
+          </div>
+          <div class="tl-video-row">
+            <span class="field-label">Éclairage</span>
+            <span class="segmented small" role="group" aria-label="Éclairage">
+              <button type="button" aria-pressed={opts.studio} title="Reflets, ombres au sol, ombrage des creux" onClick={() => set({ studio: true })}>
+                Rendu
+              </button>
+              <button type="button" aria-pressed={!opts.studio} title="Comme la vue" onClick={() => set({ studio: false })}>
+                Vue
+              </button>
+            </span>
+          </div>
+          <div class="tl-video-row">
+            <span class="field-label">Fond</span>
+            <span class="segmented small" role="group" aria-label="Fond">
+              {(
+                [
+                  ['view', 'Vue'],
+                  ['white', 'Blanc'],
+                  ['black', 'Noir'],
+                ] as const
+              ).map(([k, label]) => (
+                <button key={k} type="button" aria-pressed={opts.background === k} onClick={() => set({ background: k })}>
+                  {label}
+                </button>
+              ))}
+            </span>
+          </div>
+          <p class="field-help">
+            {SIZES[size]!.label.split(' (')[0]} · {seconds} s
+          </p>
+          {run?.error ? (
+            <p class="field-error" role="alert">
+              {run.error}
+            </p>
+          ) : null}
+          {run && !run.error ? (
+            <div class="tl-video-progress" role="status">
+              <progress max={100} value={Math.round(run.progress * 100)} aria-label="Export de la vidéo" /> {Math.round(run.progress * 100)} %
+              <button type="button" class="btn btn-small" onClick={() => (cancel.current = true)}>
+                Annuler
+              </button>
+            </div>
+          ) : (
+            <button type="button" id="video-export" class="btn btn-primary btn-small" onClick={() => void start()}>
+              Exporter
+            </button>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
