@@ -203,3 +203,65 @@ test('loi de pilotage : calculée sur le quadrilatère, en-tête C compilé, la 
   const j3 = await appState(page, (s) => s.doc.assembly.joints[2].id);
   await expect.poll(async () => Math.abs(Number((await page.locator(`#sensor-${j3}-angle`).textContent())!.replace(/[^\d,.-]/g, '').replace(',', '.')) - target)).toBeLessThan(0.2);
 });
+
+test('timeline du scénario : clés de la manivelle, poses calculées d’avance, lecture', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  await page.getByRole('tab', { name: 'Simulation' }).click();
+  await page.click('#sim-scenarios');
+  await page.getByRole('button', { name: 'Nouveau scénario' }).first().click();
+  const roles = page.getByRole('list', { name: 'Rôle des liaisons dans le scénario' });
+  await roles.getByRole('group', { name: 'Rôle de Liaison 1' }).getByRole('button', { name: 'Pilote' }).click();
+  await roles.getByRole('group', { name: 'Rôle de Liaison 3' }).getByRole('button', { name: 'Relevé' }).click();
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  await expect(timeline).toBeVisible();
+  // Clé à 0 s (réglage actuel), puis à 2 s : le curseur y est amené sur la règle, le réglage exact pose la clé.
+  await page.click('#tl-key-all');
+  const ruler = await timeline.locator('.tl-ruler').boundingBox();
+  await page.mouse.click(ruler!.x + ruler!.width / 2, ruler!.y + ruler!.height / 2);
+  await expect.poll(() => appState(page, (s) => s.scenarioTime)).toBeCloseTo(2, 1);
+  await page.evaluate(() => (window as any).vibecad.controller.setScenarioTime(2));
+  await page.getByLabel('Liaison 1 : réglage exact').fill('160');
+  const keys = () => appState(page, (s) => s.doc.simulation.scenarios[0].timeline.keys.map((k: any) => [k.t, k.value]));
+  await expect.poll(keys).toEqual([[0, 70], [2, 160]]);
+  await expect(timeline.getByRole('button', { name: /^Clé de Liaison 1/ })).toHaveCount(2);
+  // Poses calculées d'avance : une image par instant, relevé du balancier en courbe.
+  await expect.poll(() => appState(page, (s) => s.timelineBake && s.timelineBake.status), { timeout: 20_000 }).toBe('done');
+  const bake = await appState(page, (s) => ({ n: s.timelineBake.frames.length, total: s.timelineBake.total, blocked: s.timelineBake.frames.filter((f: any) => f.blocked).length }));
+  expect(bake.n).toBe(bake.total);
+  expect(bake.blocked).toBe(0);
+  await expect(timeline.locator('.tl-sensor .tl-curve polyline')).toHaveCount(1);
+  // Instant montré : la manivelle est entre ses deux clés, le balancier suit.
+  const j1 = await appState(page, (s) => s.doc.assembly.joints[0].id);
+  const crankAt = (t: number) =>
+    page.evaluate(
+      ({ t, j1 }) => {
+        const c = (window as any).vibecad.controller;
+        c.setScenarioTime(t);
+        return c.scenarioState().settled.joints.find((j: any) => j.id === j1).angle;
+      },
+      { t, j1 },
+    );
+  expect(await crankAt(0)).toBeCloseTo(70, 3);
+  expect(await crankAt(1)).toBeCloseTo(115, 3);
+  expect(await crankAt(3)).toBeCloseTo(160, 3);
+  await expect(page.getByLabel('Liaison 1 : réglage exact')).toHaveValue('160');
+  await page.screenshot({ path: 'tests/output/e2e-scenario-timeline.png' });
+  // Lecture en boucle : le temps avance, repart du début, Espace met en pause.
+  await page.click('#tl-loop');
+  await expect.poll(() => appState(page, (s) => s.doc.simulation.scenarios[0].timeline.loop)).toBe(true);
+  await page.evaluate(() => (window as any).vibecad.controller.setScenarioTime(3.6));
+  await page.click('#tl-play');
+  await expect.poll(() => appState(page, (s) => s.scenarioPlaying)).toBe(true);
+  await expect.poll(() => appState(page, (s) => s.scenarioTime), { timeout: 3000 }).toBeLessThan(1);
+  await page.keyboard.press('Space');
+  await expect.poll(() => appState(page, (s) => s.scenarioPlaying)).toBe(false);
+  // Clé choisie : supprimée au clavier ; l'annulation la rend.
+  await timeline.getByRole('button', { name: /^Clé de Liaison 1 à 2 s/ }).click();
+  await expect(timeline.getByRole('group', { name: 'Clé choisie' })).toBeVisible();
+  await page.keyboard.press('Delete');
+  await expect.poll(keys).toEqual([[0, 70]]);
+  await page.keyboard.press('Control+z');
+  await expect.poll(keys).toEqual([[0, 70], [2, 160]]);
+});

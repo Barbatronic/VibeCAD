@@ -882,6 +882,18 @@ const PATHS: Record<string, JSX.Element> = {
   ),
   /** Lecture (animer). */
   play: <path d="M8 5.5v13l10.5-6.5z" />,
+  /** Timeline : pause, retour au début, lecture en boucle, image clé. */
+  pause: <path d="M8.5 5.5v13M15.5 5.5v13" />,
+  'skip-start': <path d="M6.5 5.5v13M18 5.5v13L8.5 12z" />,
+  loop: (
+    <>
+      <path d="M4.5 11V9.5a3 3 0 0 1 3-3h11" />
+      <path d="M15.5 3.5l3 3-3 3" />
+      <path d="M19.5 13v1.5a3 3 0 0 1-3 3h-11" />
+      <path d="M8.5 20.5l-3-3 3-3" />
+    </>
+  ),
+  key: <path d="M12 4.5l7.5 7.5-7.5 7.5L4.5 12z" />,
   /** Visserie : vis à tête cylindrique, vue de côté. */
   screw: (
     <>

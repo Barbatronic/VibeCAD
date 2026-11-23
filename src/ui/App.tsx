@@ -3,7 +3,7 @@ import { formatNumber } from '../domain/units';
 import { resolveParameters } from '../features/parameters';
 import { InputSuggestions, type InputSuggestion } from './components/number-input';
 import { Dialogs, Toasts } from './Dialogs';
-import { DrawingBoard, HelpDrawer, LaserBoard, Tutorial } from './lazy';
+import { DrawingBoard, HelpDrawer, LaserBoard, SimulationTimeline, Tutorial } from './lazy';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { StatusBar } from './StatusBar';
@@ -20,6 +20,7 @@ export function App() {
   const rightHidden = useAppState((s) => s.rightPanelHidden);
   const modeKind = useAppState((s) => s.mode.kind);
   const laserOn = useAppState((s) => s.workspace === 'fabrication');
+  const simulationOn = useAppState((s) => s.workspace === 'simulation');
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const helpOpen = useAppState((s) => s.helpOpen);
   const parameters = useAppState((s) => s.doc.parameters);
@@ -47,6 +48,7 @@ export function App() {
             {/* Chargés à leur première utilisation (voir lazy.tsx). */}
             {laserOn ? <LaserBoard /> : null}
             {laserOn ? <DrawingBoard /> : null}
+            {simulationOn ? <SimulationTimeline /> : null}
             {tutorialOn ? <Tutorial /> : null}
           </div>
           <RightPanel />

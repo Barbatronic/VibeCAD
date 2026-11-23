@@ -292,6 +292,30 @@ export interface MotionScenario {
   sensors: { jointId: Id; dof: MotionDof }[];
   /** Loi de pilotage : réglages de la loi inverse (positions voulues → commandes). */
   law?: ControlLawSpec;
+  /** Timeline : mouvement des pilotantes dans le temps (images clés). */
+  timeline?: ScenarioTimeline;
+}
+
+/**
+ * Timeline d'un scénario : des images clés par pilotante (instant `t` en s, `value` en degrés ou
+ * mm). Entre deux clés, la valeur passe de l'une à l'autre selon `ease` de la première (adoucie
+ * par défaut : départ et arrivée sans à-coup) ; avant la première et après la dernière, elle est
+ * tenue. Une pilotante sans clé reste à son réglage.
+ */
+export interface ScenarioTimeline {
+  /** Durée (s). */
+  duration: number;
+  keys: TimelineKey[];
+  /** Lecture en boucle. */
+  loop?: boolean;
+}
+
+export interface TimelineKey {
+  jointId: Id;
+  dof: MotionDof;
+  t: number;
+  value: number;
+  ease?: 'linear' | 'smooth';
 }
 
 /**

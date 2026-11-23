@@ -6431,3 +6431,278 @@ button.versions-conflict-name:hover {
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+
+/* ------------------------------------------------------------------ Timeline d'un scénario de mouvement */
+
+/* Posée en bas de la vue, entre les panneaux flottants. */
+.scenario-timeline {
+  --tl-label-w: 168px;
+  position: absolute;
+  z-index: 5;
+  left: calc(var(--vp-inset-l) + 10px);
+  right: calc(var(--vp-inset-r) + 10px);
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  max-height: 42%;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 12px;
+  background: var(--glass-bg, var(--surface));
+  -webkit-backdrop-filter: var(--glass-filter, none);
+  backdrop-filter: var(--glass-filter, none);
+  box-shadow: var(--shadow-2);
+  font-size: 12.5px;
+  user-select: none;
+}
+
+.tl-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tl-bar .spacer {
+  flex: 1;
+}
+
+.tl-bar .btn-small {
+  min-height: 28px;
+  gap: 4px;
+}
+
+.tl-bar .btn-small .icon,
+.tl-bar .btn-small svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tl-time {
+  min-width: 92px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-key-edit,
+.tl-duration,
+.tl-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tl-key-edit {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.tl-key-name {
+  max-width: 140px;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-key-edit .input-with-unit,
+.tl-duration .input-with-unit {
+  width: 92px;
+}
+
+.tl-duration > span,
+.tl-progress {
+  color: var(--text-muted);
+}
+
+.tl-progress progress {
+  width: 80px;
+}
+
+.tl-grid {
+  display: grid;
+  grid-template-columns: var(--tl-label-w) minmax(0, 1fr);
+  min-height: 0;
+  overflow: auto;
+  padding: 0 10px 6px 0;
+}
+
+.tl-ruler {
+  position: relative;
+  height: 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: ew-resize;
+}
+
+.tl-tick {
+  position: absolute;
+  bottom: 0;
+  padding-left: 3px;
+  border-left: 1px solid var(--border-strong);
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-blocked {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--danger-soft);
+  border-bottom: 2px solid var(--danger);
+}
+
+.tl-rows {
+  position: relative;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: var(--tl-label-w) minmax(0, 1fr);
+}
+
+.tl-row {
+  display: contents;
+}
+
+.tl-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px 0 10px;
+}
+
+.tl-label .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-sensor .tl-label .name {
+  color: var(--text-muted);
+}
+
+.tl-reading {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tl-lane {
+  position: relative;
+  height: 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  cursor: ew-resize;
+}
+
+.tl-driver .tl-lane {
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+}
+
+.tl-curve {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tl-curve polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.6;
+}
+
+.tl-sensor .tl-curve polyline {
+  stroke: var(--text-muted);
+  opacity: 0.9;
+}
+
+.tl-key {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--accent);
+  border-radius: 2px;
+  background: var(--surface);
+  transform: translate(-50%, -50%) rotate(45deg);
+  cursor: grab;
+}
+
+.tl-key.is-linear {
+  border-radius: 0;
+}
+
+.tl-key:hover {
+  background: var(--accent-soft);
+}
+
+.tl-key.is-selected {
+  background: var(--accent);
+}
+
+.tl-key:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Calque des pistes : curseur de lecture (et mesure de la largeur des pistes). */
+.tl-lanes-overlay {
+  position: absolute;
+  top: -21px;
+  bottom: 0;
+  left: var(--tl-label-w);
+  right: 0;
+  pointer-events: none;
+}
+
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 0;
+  border-left: 1.5px solid var(--danger);
+}
+
+.tl-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  border: 5px solid transparent;
+  border-top: 7px solid var(--danger);
+  border-bottom: none;
+}
+
+.tl-empty {
+  margin: 0;
+  padding: 0 10px 8px calc(var(--tl-label-w) + 0px);
+  color: var(--text-faint);
+}
+
+@media (max-width: 980px) {
+  .scenario-timeline {
+    --tl-label-w: 120px;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+  }
+}
+
+.tl-label.tl-head {
+  height: 20px;
+  border-bottom: 1px solid var(--border);
+}

@@ -44,7 +44,7 @@ import {
 } from '../domain/document';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { Assembly, ControlLawSpec, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, ControlLawSpec, ScenarioTimeline, TimelineKey, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -109,13 +109,14 @@ import { addClosedPolyline } from '../sketch/model';
 import { libraryMaterials, fetchLibrary, libraryBaseUrl, type LibraryCatalog } from './library';
 import { copyPartsInto } from '../domain/part-copy';
 import { computeMechanism, computeMotion, coursePosition, defaultMechanismStudy, dofRange, drivableJoints, jointDofs, MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, solveScenario, withValue } from './mechanism';
+import { bakedPose, emptyTimeline, frameTimes, isAnimated, moveKey, putKey, removeKey, timelineValues, trackKey, trackKeys, valueAt, withDuration, type ScenarioView } from './scenario-timeline';
 import { axisValues, checkPoints, cIdentifier, forwardOrder, invertLaw, lawCsv, lawHeader, lawPoint, type LawLabel } from './control-law';
 import { massOf, partMaterial, partMaterialId } from '../domain/part-material';
 import { createId, nextLocalId } from '../domain/ids';
 import { engraveSteps, paintFace } from '../domain/paint';
 import { assignSheet, catalogueText, engraveColors, importSheetsFor, pruneSheets, setEngraveColor, setPaint, sheetOf, STARTER_MATERIALS, readCatalogue, removeSheet, sheetProblems, toSheet, updateSheet, type MaterialSheet } from '../domain/material-sheets';
 import { activeContext, CONTEXT_PREFIX, contextOf, frameInFrame, syncContexts } from './assembly-context';
-import { EMPTY_VERSION_VIEW, isDirty, partShown, type AppState, type ControlLawRun, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
+import { EMPTY_VERSION_VIEW, isDirty, partShown, type AppState, type ControlLawRun, type TimelineBake, type TimelineFrame, type ColorMode, type Dialog, type ExportFormat, type Workspace, type FabricationTab, type Mode, type PartDisplay, type Selection, type ThemeChoice, type Toast } from './state';
 
 export interface ControllerDeps {
   client: GeometryClient;
@@ -3872,7 +3873,9 @@ export class AppController {
   }
 
   openScenario(id: Id): void {
-    if (this.state.scenarioId !== id) this.set({ scenarioId: id, scenarioLive: {} });
+    if (this.state.scenarioId === id) return;
+    this.stopScenarioPlay();
+    this.set({ scenarioId: id, scenarioLive: {}, scenarioTime: 0 });
   }
 
   renameScenario(id: Id, name: string): void {
@@ -3901,11 +3904,24 @@ export class AppController {
     );
   }
 
-  /** Curseur d'une pilotante : `live` pendant le glissement (sans étape d'annulation), puis enregistré. */
+  /**
+   * Curseur d'une pilotante : `live` pendant le glissement (sans étape d'annulation), puis
+   * enregistré. Une pilotante menée par la timeline reçoit une clé à l'instant montré.
+   */
   setScenarioDriver(jointId: Id, dof: MotionDof, value: number, live = false): void {
     const key = `${jointId}:${dof}`;
     if (live) return this.set({ scenarioLive: { ...this.state.scenarioLive, [key]: value } });
+    const scenario = this.currentScenario();
+    if (scenario && trackKeys(scenario.timeline, { jointId, dof }).length > 0) {
+      return this.updateScenario((s) => ({ ...s, timeline: putKey(s.timeline ?? emptyTimeline(), { jointId, dof, t: this.state.scenarioTime, value }) }), 'Clé de la timeline');
+    }
     this.updateScenario((s) => ({ ...s, drivers: s.drivers.map((d) => (d.jointId === jointId && d.dof === dof ? { ...d, value } : d)) }), 'Réglage d’une liaison pilotante');
+  }
+
+  /** Réglage montré d'une pilotante : en cours de glissement, sinon celui de la timeline à l'instant montré, sinon le sien. */
+  scenarioDriverValue(d: { jointId: Id; dof: MotionDof; value: number }): number {
+    const scenario = this.currentScenario();
+    return this.state.scenarioLive[trackKey(d)] ?? valueAt(trackKeys(scenario?.timeline, d), this.state.scenarioTime) ?? d.value;
   }
 
   /** Dernier état calculé du scénario (mêmes entrées : même résultat, sans recalcul). */
@@ -3913,31 +3929,181 @@ export class AppController {
     assembly: Assembly;
     scenario: MotionScenario;
     live: Record<string, number>;
+    time: number;
     display: AppState['display'];
-    result: ReturnType<typeof solveScenario> & { settled: Assembly };
+    bake: TimelineBake | null;
+    result: ScenarioView;
   } | null = null;
 
   /**
-   * État du scénario ouvert : assemblage placé, relevés des pilotées, blocage, et `settled`
-   * (l'assemblage aux réglages trouvés, montré dans la vue). Un seul calcul par réglage, partagé
-   * par le panneau et la vue ; pendant un glissement, le calcul repart des réglages trouvés au pas
-   * précédent (comme le glisser d'une liaison dans l'assemblage) : la boucle se referme en quelques
-   * itérations au lieu de repartir de la position enregistrée.
+   * État du scénario ouvert : relevés des pilotées, blocage, et `settled` (l'assemblage aux
+   * réglages trouvés, montré dans la vue). Un seul calcul par réglage, partagé par le panneau et la
+   * vue ; pendant un glissement, le calcul repart des réglages trouvés au pas précédent (comme le
+   * glisser d'une liaison dans l'assemblage) : la boucle se referme en quelques itérations au lieu
+   * de repartir de la position enregistrée. Timeline : les poses pré-calculées, sinon un calcul
+   * aux réglages de l'instant montré.
    */
-  scenarioState(): (ReturnType<typeof solveScenario> & { settled: Assembly }) | null {
+  scenarioState(): ScenarioView | null {
     const scenario = this.currentScenario();
     const assembly = this.state.doc.assembly;
     if (!scenario || !assembly) return null;
-    const { scenarioLive: live, display } = this.state;
+    const { scenarioLive: live, display, scenarioTime: time } = this.state;
+    const animated = isAnimated(scenario);
+    const bake = animated ? this.validBake() : null;
     const prev = this.scenarioCache;
-    if (prev && prev.assembly === assembly && prev.scenario === scenario && prev.live === live && prev.display === display) return prev.result;
+    if (prev && prev.assembly === assembly && prev.scenario === scenario && prev.live === live && prev.display === display && prev.bake === bake && (!animated || prev.time === time)) return prev.result;
+    const remember = (result: ScenarioView) => {
+      this.scenarioCache = { assembly, scenario, live, time, display, bake, result };
+      return result;
+    };
+    // Pose pré-calculée (entre les deux images voisines), hors glissement d'un curseur.
+    if (bake && Object.keys(live).length === 0) {
+      const frame = bakedPose(bake, time);
+      if (frame) return remember(frame);
+    }
     // Départ : les réglages trouvés au pas précédent, tant que l'assemblage et le scénario sont les mêmes.
     const warm = prev && prev.assembly === assembly && prev.scenario.id === scenario.id && !prev.result.blocked ? prev.result.settled : assembly;
-    const r = solveScenario(warm, scenario, (id) => display[id]?.mesh, this.solveOptions(), live);
+    const values = animated ? { ...timelineValues(scenario, time), ...live } : live;
+    const r = solveScenario(warm, scenario, (id) => display[id]?.mesh, this.solveOptions(), values);
     const settled = { ...r.assembly, joints: r.assembly.joints.map((j) => ({ ...j, ...(r.placement.solvedValues.get(j.id) ?? {}) })) };
-    const result = { ...r, settled };
-    this.scenarioCache = { assembly, scenario, live, display, result };
-    return result;
+    return remember({ readings: r.readings, blocked: r.blocked, settled });
+  }
+
+  // ----- Timeline du scénario : images clés des pilotantes, lecture, poses pré-calculées
+
+  /** Timeline du scénario ouvert (vide s'il n'en a pas). */
+  timeline(): ScenarioTimeline {
+    return this.currentScenario()?.timeline ?? emptyTimeline();
+  }
+
+  private updateTimeline(change: (t: ScenarioTimeline) => ScenarioTimeline, label: string): void {
+    this.updateScenario((s) => ({ ...s, timeline: change(s.timeline ?? emptyTimeline()) }), label);
+  }
+
+  /** Montre l'instant `t` (s) de la timeline. */
+  setScenarioTime(t: number): void {
+    const time = Math.min(this.timeline().duration, Math.max(0, t));
+    if (time !== this.state.scenarioTime || Object.keys(this.state.scenarioLive).length) this.set({ scenarioTime: time, scenarioLive: {} });
+  }
+
+  private scenarioFrame = 0;
+
+  stopScenarioPlay(): void {
+    if (this.scenarioFrame) cancelAnimationFrame(this.scenarioFrame);
+    this.scenarioFrame = 0;
+    if (this.state.scenarioPlaying) this.set({ scenarioPlaying: false });
+  }
+
+  /** Lit la timeline en temps réel depuis l'instant montré (du début s'il est à la fin), en boucle si demandé. */
+  toggleScenarioPlay(): void {
+    if (this.state.scenarioPlaying) return this.stopScenarioPlay();
+    const scenario = this.currentScenario();
+    if (!scenario) return;
+    const { duration } = this.timeline();
+    let origin = performance.now() - (this.state.scenarioTime >= duration - 1e-6 ? 0 : this.state.scenarioTime) * 1000;
+    this.set({ scenarioPlaying: true });
+    const step = () => {
+      const s = this.state;
+      if (!s.scenarioPlaying || s.workspace !== 'simulation' || this.simulationPartId() !== SCENARIO_STUDY || this.currentScenario()?.id !== scenario.id) return this.stopScenarioPlay();
+      const tl = this.timeline();
+      let t = (performance.now() - origin) / 1000;
+      if (t >= tl.duration) {
+        if (!tl.loop) {
+          this.setScenarioTime(tl.duration);
+          return this.stopScenarioPlay();
+        }
+        origin += Math.floor(t / tl.duration) * tl.duration * 1000;
+        t = (performance.now() - origin) / 1000;
+      }
+      this.setScenarioTime(t);
+      this.scenarioFrame = requestAnimationFrame(step);
+    };
+    this.scenarioFrame = requestAnimationFrame(step);
+  }
+
+  setTimelineLoop(loop: boolean): void {
+    this.updateTimeline(({ loop: _l, ...t }) => (loop ? { ...t, loop: true } : t), loop ? 'Lecture en boucle' : 'Lecture sans boucle');
+  }
+
+  setTimelineDuration(duration: number): void {
+    if (!(duration > 0)) return;
+    this.updateTimeline((t) => withDuration(t, duration), 'Durée de la timeline');
+    if (this.state.scenarioTime > duration) this.set({ scenarioTime: duration });
+  }
+
+  /** Pose une clé à l'instant montré : sur une pilotante (`track`), ou sur toutes, à leur réglage montré. */
+  keyScenarioDrivers(track?: { jointId: Id; dof: MotionDof }): void {
+    const scenario = this.currentScenario();
+    if (!scenario) return;
+    const drivers = scenario.drivers.filter((d) => !track || (d.jointId === track.jointId && d.dof === track.dof));
+    if (drivers.length === 0) return;
+    const t = this.state.scenarioTime;
+    this.updateTimeline((tl) => drivers.reduce((acc, d) => putKey(acc, { jointId: d.jointId, dof: d.dof, t, value: this.scenarioDriverValue(d) }), tl), drivers.length > 1 ? 'Clés de la timeline' : 'Clé de la timeline');
+  }
+
+  removeTimelineKey(key: Pick<TimelineKey, 'jointId' | 'dof' | 't'>): void {
+    this.updateTimeline((t) => removeKey(t, key), 'Supprimer une clé');
+  }
+
+  /** Change l'instant, la valeur ou le passage d'une clé. */
+  editTimelineKey(key: Pick<TimelineKey, 'jointId' | 'dof' | 't'>, patch: Partial<Pick<TimelineKey, 't' | 'value' | 'ease'>>): void {
+    this.updateTimeline((t) => moveKey(t, key, patch), patch.t !== undefined ? 'Déplacer une clé' : 'Modifier une clé');
+  }
+
+  /** Clé des poses pré-calculées : ce qui les détermine dans le scénario. */
+  private bakeKey(scenario: MotionScenario): string {
+    return JSON.stringify([scenario.id, scenario.timeline?.duration, scenario.timeline?.keys, scenario.drivers, scenario.sensors]);
+  }
+
+  /** Poses pré-calculées du scénario ouvert, si elles valent encore (calcul terminé ou en cours). */
+  private validBake(): TimelineBake | null {
+    const bake = this.state.timelineBake;
+    const scenario = this.currentScenario();
+    if (!bake || !scenario || bake.scenarioId !== scenario.id) return null;
+    return bake.key === this.bakeKey(scenario) && bake.assembly === this.state.doc.assembly && bake.display === this.state.display ? bake : null;
+  }
+
+  private bakeSeq = 0;
+
+  /**
+   * Pré-calcule les poses de la timeline (si elles ne sont pas à jour) : une image par instant
+   * régulier, chaque calcul repartant de l'image précédente. Par morceaux, pour ne pas figer
+   * l'interface ; un nouveau calcul arrête le précédent.
+   */
+  async bakeTimeline(): Promise<void> {
+    const scenario = this.currentScenario();
+    const assembly = this.state.doc.assembly;
+    if (!scenario || !assembly || !isAnimated(scenario) || this.validBake()) return;
+    const seq = ++this.bakeSeq;
+    const display = this.state.display;
+    const options = this.solveOptions();
+    const { duration } = scenario.timeline!;
+    const times = frameTimes(duration);
+    const base = { scenarioId: scenario.id, key: this.bakeKey(scenario), assembly, display, duration, total: times.length };
+    const frames: TimelineFrame[] = [];
+    this.set({ timelineBake: { ...base, status: 'running', frames: [] } });
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
+    let warm: Assembly = assembly;
+    let t0 = performance.now();
+    for (const t of times) {
+      const r = solveScenario(warm, scenario, (id) => display[id]?.mesh, options, timelineValues(scenario, t));
+      const settled = { ...r.assembly, joints: r.assembly.joints.map((j) => ({ ...j, ...(r.placement.solvedValues.get(j.id) ?? {}) })) };
+      frames.push({ t, settled, readings: r.readings, blocked: r.blocked });
+      if (!r.blocked) warm = settled;
+      if (performance.now() - t0 > 30) {
+        this.set({ timelineBake: { ...base, status: 'running', frames: [...frames] } });
+        await pause();
+        if (seq !== this.bakeSeq) return;
+        t0 = performance.now();
+      }
+    }
+    if (seq !== this.bakeSeq) return;
+    this.set({ timelineBake: { ...base, status: 'done', frames } });
+  }
+
+  /** Les poses pré-calculées sont-elles à refaire (timeline animée, calcul absent ou périmé) ? */
+  timelineBakeStale(): boolean {
+    return isAnimated(this.currentScenario()) && !this.validBake();
   }
 
   updateStudy(partId: Id, change: (s: SimulationStudy) => SimulationStudy, label: string): void {

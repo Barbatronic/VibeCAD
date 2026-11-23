@@ -7,6 +7,7 @@ import { COARSE_VOLUME_ERROR, DIRECTION_LABELS, PART_MATERIAL, studyMaterialId, 
 import { ASSEMBLY_STUDY, type LoadDirection, type SimulationStudy } from '../domain/model';
 import { drivableJoints, MECHANISM_STUDY, SCENARIO_STUDY } from '../app/mechanism';
 import { ScenarioList, ScenarioPanel } from './ScenarioUi';
+import { ScenarioTimeline } from './ScenarioTimeline';
 import { MechanismPanel } from './MechanismUi';
 import { formatNumber, readNumber } from '../domain/units';
 import { SIM_MATERIALS, simMaterial } from '../sim/materials';
@@ -577,4 +578,11 @@ function TopologySection({ partId, missing }: { partId: string; missing: string 
       ) : null}
     </section>
   );
+}
+
+/** Sous la vue : la timeline du scénario ouvert (étude « Scénarios de mouvement »). */
+export function SimulationTimeline() {
+  const c = useController();
+  const on = useAppState(() => c.simulationPartId() === SCENARIO_STUDY);
+  return on ? <ScenarioTimeline /> : null;
 }

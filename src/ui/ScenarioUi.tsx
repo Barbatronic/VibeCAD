@@ -79,7 +79,9 @@ export function ScenarioPanel() {
   const c = useController();
   const scenario = useAppState(() => c.currentScenario());
   const joints = useAppState((s) => s.doc.assembly?.joints ?? []);
-  const live = useAppState((s) => s.scenarioLive);
+  // Réglages montrés : glissement en cours, ou timeline à l'instant montré.
+  useAppState((s) => s.scenarioLive);
+  useAppState((s) => s.scenarioTime);
   // Relevés recalculés à chaque réglage (le placement est celui de la vue).
   const state = useAppState(() => c.scenarioState(), (a, b) => JSON.stringify(a?.readings) === JSON.stringify(b?.readings) && a?.blocked === b?.blocked);
   if (!scenario) {
@@ -124,7 +126,7 @@ export function ScenarioPanel() {
           const joint = joints.find((j) => j.id === d.jointId);
           if (!joint) return null;
           const [lo, hi] = dofRange(joint, d.dof);
-          const value = live[`${d.jointId}:${d.dof}`] ?? d.value;
+          const value = c.scenarioDriverValue(d);
           return (
             <div key={`${d.jointId}:${d.dof}`} class="field scenario-driver" {...hoverProps(d.jointId)}>
               <label class="field-label" for={`drv-${d.jointId}-${d.dof}`}>
@@ -143,7 +145,7 @@ export function ScenarioPanel() {
                 onChange={(e) => c.setScenarioDriver(d.jointId, d.dof, Number((e.target as HTMLInputElement).value))}
               />
               <NumberInput
-                value={formatNumber(d.value, 2)}
+                value={formatNumber(value, 2)}
                 unit={unitOf(d.dof)}
                 min={-100000}
                 ariaLabel={`${joint.name} : réglage exact`}

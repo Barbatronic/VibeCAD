@@ -24,9 +24,32 @@ export interface ControlLawRun {
   /** Écart maximal vérifié, par position voulue (null : aucun point de contrôle). */
   maxError?: number[] | null;
 }
+
+/**
+ * Poses pré-calculées de la timeline d'un scénario (non enregistrées) : une image par instant
+ * régulier, l'assemblage aux réglages trouvés, les relevés des pilotées et le blocage.
+ */
+export interface TimelineBake {
+  scenarioId: Id;
+  /** Timeline, rôles et assemblage du calcul : les images ne valent plus s'ils ont changé. */
+  key: string;
+  assembly: unknown;
+  display: unknown;
+  status: 'running' | 'done';
+  duration: number;
+  total: number;
+  frames: TimelineFrame[];
+}
+
+export interface TimelineFrame {
+  t: number;
+  settled: Assembly;
+  readings: { jointId: Id; dof: MotionDof; value: number | null }[];
+  blocked: boolean;
+}
 import { emptyHistory, type UndoHistory } from '../commands/history';
 import { createDocument } from '../domain/document';
-import type { CadDocument, Id, JointEnd, SketchParams } from '../domain/model';
+import type { Assembly, CadDocument, Id, JointEnd, MotionDof, SketchParams } from '../domain/model';
 import type { MaterialSheet } from '../domain/material-sheets';
 import type { FastenerKind } from '../domain/fasteners';
 import type { FeatureDraft } from '../features/panel-types';
@@ -305,6 +328,10 @@ export interface AppState {
   /** Scénario de mouvement ouvert, et réglages des pilotantes pendant le glissement d'un curseur. */
   scenarioId: Id | null;
   scenarioLive: Record<string, number>;
+  /** Timeline du scénario : instant montré (s), lecture en cours, poses pré-calculées. */
+  scenarioTime: number;
+  scenarioPlaying: boolean;
+  timelineBake: TimelineBake | null;
   /** Loi de pilotage du scénario ouvert : calcul en cours (avancement) ou résultat. */
   controlLaw: ControlLawRun | null;
   simulationRun: SimulationRun | null;
@@ -445,6 +472,9 @@ export function initialState(): AppState {
     simulationPart: null,
     scenarioId: null,
     scenarioLive: {},
+    scenarioTime: 0,
+    scenarioPlaying: false,
+    timelineBake: null,
     controlLaw: null,
     simulationRun: null,
     simulationDisplay: 'stress',

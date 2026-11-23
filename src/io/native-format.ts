@@ -606,6 +606,29 @@ function readScenarios(v: Validator, raw: unknown, path: string): MotionScenario
             })(),
           }
         : {}),
+      ...(so.timeline !== undefined
+        ? {
+            timeline: (() => {
+              const tp = `${sp}.timeline`;
+              const to = obj(v, so.timeline, tp) ?? {};
+              return {
+                duration: num(v, to, 'duration', tp, { min: 0.1 }),
+                keys: arr(v, to, 'keys', tp).map((d, k) => {
+                  const dp = `${tp}.keys[${k}]`;
+                  const o = obj(v, d, dp) ?? {};
+                  return {
+                    jointId: str(v, o, 'jointId', dp),
+                    dof: dof(o, dp),
+                    t: num(v, o, 't', dp, { min: 0 }),
+                    value: num(v, o, 'value', dp),
+                    ...(o.ease !== undefined ? { ease: oneOf(v, o, 'ease', dp, ['linear', 'smooth'] as const) } : {}),
+                  };
+                }),
+                ...(to.loop !== undefined ? { loop: bool(v, to, 'loop', tp) } : {}),
+              };
+            })(),
+          }
+        : {}),
     };
   });
 }

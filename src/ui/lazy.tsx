@@ -38,6 +38,7 @@ export const FabricationRightPanel = lazyComponent(() => fabrication().then((m) 
 export const SimulationTools = lazyComponent(() => simulation().then((m) => m.SimulationTools));
 export const SimulationSection = lazyComponent(() => simulation().then((m) => m.SimulationSection));
 export const SimulationRightPanel = lazyComponent(() => simulation().then((m) => m.SimulationRightPanel));
+export const SimulationTimeline = lazyComponent(() => simulation().then((m) => m.SimulationTimeline));
 export const VersionsTools = lazyComponent(() => versions().then((m) => m.VersionsTools));
 export const VersionsSection = lazyComponent(() => versions().then((m) => m.VersionsSection));
 export const VersionsRightPanel = lazyComponent(() => versions().then((m) => m.VersionsRightPanel));
