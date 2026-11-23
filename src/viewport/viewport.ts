@@ -19,6 +19,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  OrthographicCamera,
   PerspectiveCamera,
   PlaneGeometry,
   Plane,
@@ -53,6 +54,7 @@ import { SketchView, type SketchRenderInput } from './sketch-render';
 import { gridStepFor } from '../sketch/snapping';
 import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
 import { AXIS_VECTORS, Gizmo, type GizmoHandle } from './gizmo';
+import type { Studio, StudioBackground } from './studio';
 
 /** Durée d'un aller-retour de la déformée animée (ms). */
 const RESULT_PERIOD_MS = 1600;
@@ -265,6 +267,8 @@ export class Viewport {
   private readonly grid: PlaneGrid;
   private readonly axes: AxesView;
   private readonly headlight = new DirectionalLight(0xffffff, 2.1);
+  private readonly hemisphere = new HemisphereLight(0xffffff, 0x8899aa, 1.25);
+  private readonly ambient = new AmbientLight(0xffffff, 0.25);
   private readonly partsGroup = new Group();
   private readonly overlayGroup = new Group();
   private readonly gizmo = new Gizmo();
@@ -317,6 +321,12 @@ export class Viewport {
   private cubeDown: ViewCubePiece | null = null;
   private readonly resizeObserver: ResizeObserver;
   private disposed = false;
+  /** Éclairage « Rendu » (chargé à sa première utilisation) et son état dans la scène. */
+  private studio: Studio | null = null;
+  private studioLoading: Promise<Studio> | null = null;
+  private studioAttached = false;
+  /** Rendu hors écran en cours (export vidéo) : la boucle de rendu et le redimensionnement attendent. */
+  private capture: { width: number; height: number; studio: boolean; background: StudioBackground; hidden: Object3D[]; camera: PerspectiveCamera | OrthographicCamera } | null = null;
 
   constructor(
     private readonly container: HTMLElement,
@@ -343,8 +353,7 @@ export class Viewport {
     this.axes = new AxesView(this.palette);
     this.sessionView = new SketchView(this.palette);
 
-    this.scene.add(new HemisphereLight(0xffffff, 0x8899aa, 1.25));
-    this.scene.add(new AmbientLight(0xffffff, 0.25));
+    this.scene.add(this.hemisphere, this.ambient);
     this.scene.add(this.headlight, this.headlight.target);
     this.scene.add(this.grid.group, this.axes.group, this.partsGroup, this.planesGroup, this.overlayGroup, this.sessionView.group, this.gizmo.group);
     this.buildOriginPlanes();
@@ -368,6 +377,7 @@ export class Viewport {
   private loop = (): void => {
     if (this.disposed) return;
     this.frameHandle = requestAnimationFrame(this.loop);
+    if (this.capture) return;
     const now = performance.now();
     const animating = this.rig.tick(now);
     this.stepResultAnimation(now);
@@ -451,7 +461,15 @@ export class Viewport {
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
     const query = timer && !timer.pending ? gl.createQuery() : null;
     if (timer && query) gl.beginQuery(timer.ext.TIME_ELAPSED_EXT, query);
-    this.renderer.render(this.scene, camera);
+    const studio = this.useStudio(this.input.displayStyle === 'render');
+    if (studio) {
+      // Rendu : la grille laisse la place au sol qui reçoit les ombres.
+      const grid = this.grid.group.visible;
+      this.grid.group.visible = false;
+      const size = this.renderer.getDrawingBufferSize(new Vector2());
+      studio.render(camera, this.partsBounds(), size.x, size.y, { top: this.palette.background, bottom: this.palette.backgroundBottom });
+      this.grid.group.visible = grid;
+    } else this.renderer.render(this.scene, camera);
     if (timer && query) {
       gl.endQuery(timer.ext.TIME_ELAPSED_EXT);
       timer.pending = query;
@@ -501,6 +519,7 @@ export class Viewport {
   }
 
   private resize(): void {
+    if (this.capture) return;
     const rect = this.container.getBoundingClientRect();
     this.width = Math.max(1, Math.floor(rect.width));
     this.height = Math.max(1, Math.floor(rect.height));
@@ -1352,6 +1371,165 @@ export class Viewport {
   }
 
   // -------------------------------------------------------------------------
+  // ----- Éclairage « Rendu »
+
+  /** Éclairage studio voulu : chargé à la demande (null tant qu'il ne l'est pas), mis ou retiré de la scène. */
+  private useStudio(on: boolean): Studio | null {
+    if (on && !this.studio) {
+      void this.loadStudio().then(() => this.requestRender());
+      return null;
+    }
+    if (this.studio && on !== this.studioAttached) this.attachStudio(on);
+    return on ? this.studio : null;
+  }
+
+  /** Éclairage studio mis en place (ou retiré) ; l'éclairage habituel s'efface devant l'environnement. */
+  private attachStudio(on: boolean): void {
+    this.studio?.attach(on);
+    this.studioAttached = on;
+    this.hemisphere.intensity = on ? 0.4 : 1.25;
+    this.ambient.intensity = on ? 0 : 0.25;
+    this.headlight.intensity = on ? 0.6 : 2.1;
+  }
+
+  /** Boîte des pièces visibles, telles que placées par la dernière entrée. */
+  modelBounds(): { min: Vec3; max: Vec3 } | null {
+    const box = this.partsBounds();
+    return box ? { min: { x: box.min.x, y: box.min.y, z: box.min.z }, max: { x: box.max.x, y: box.max.y, z: box.max.z } } : null;
+  }
+
+  private loadStudio(): Promise<Studio> {
+    this.studioLoading ??= import('./studio').then((m) => {
+      if (!this.studio) this.studio = new m.Studio(this.renderer, this.scene, this.rig.camera);
+      return this.studio;
+    });
+    return this.studioLoading;
+  }
+
+  // ----- Rendu hors écran (export vidéo)
+
+  /**
+   * Prépare des rendus de `width` × `height` pixels, cadrés comme la vue (caméra copiée, sans le
+   * décalage des panneaux), sans grille, axes, repères, sélection ni cube. La vue à l'écran est
+   * figée jusqu'à `endCapture`.
+   */
+  async beginCapture(options: { width: number; height: number; studio: boolean; background: StudioBackground; fit?: { min: Vec3; max: Vec3; sphere: boolean } | null }): Promise<void> {
+    await this.loadStudio();
+    const source = this.rig.camera;
+    const camera = source.clone();
+    camera.clearViewOffset();
+    const aspect = options.width / options.height;
+    if ((camera as PerspectiveCamera).isPerspectiveCamera) (camera as PerspectiveCamera).aspect = aspect;
+    else {
+      const o = camera as OrthographicCamera;
+      const half = (o.top - o.bottom) / 2 / o.zoom;
+      Object.assign(o, { top: half, bottom: -half, left: -half * aspect, right: half * aspect, zoom: 1 });
+    }
+    camera.updateProjectionMatrix();
+    camera.userData.orbit = { position: source.position.clone(), up: source.up.clone(), target: this.rig.target.clone() };
+    const hidden = [this.grid.group, this.axes.group, this.planesGroup, this.overlayGroup, this.sessionView.group, this.gizmo.group, ...[...this.sketchViews.values()].map((v) => v.view.group)].filter((g) => g.visible);
+    for (const g of hidden) g.visible = false;
+    this.capture = { ...options, hidden, camera };
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(options.width, options.height, false);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, options.width, options.height);
+    for (const part of this.parts.values()) part.setResolution(options.width, options.height);
+    this.attachStudio(options.studio);
+    if (options.fit) this.fitCaptureCamera(camera, options.fit, options.width / options.height);
+  }
+
+  /**
+   * Cadre la caméra de capture dans la direction de la vue. `sphere` : sur la sphère qui contient
+   * la boîte (le mécanisme reste dans l'image quand la caméra tourne autour) ; sinon au plus près
+   * de la boîte vue de face.
+   */
+  private fitCaptureCamera(camera: PerspectiveCamera | OrthographicCamera, fit: { min: Vec3; max: Vec3; sphere: boolean }, aspect: number): void {
+    const o = camera.userData.orbit as { position: Vector3; up: Vector3; target: Vector3 };
+    const box = new Box3(new Vector3(fit.min.x, fit.min.y, fit.min.z), new Vector3(fit.max.x, fit.max.y, fit.max.z));
+    let center = box.getCenter(new Vector3());
+    const dir = o.position.clone().sub(o.target).normalize();
+    const right = new Vector3().crossVectors(o.up, dir).normalize();
+    const up = new Vector3().crossVectors(dir, right);
+    const margin = 1.1;
+    // Coins de la boîte dans le repère de la caméra (x à droite, y en haut, z vers la caméra).
+    const sphereR = box.getSize(new Vector3()).length() / 2;
+    let corners: Vector3[];
+    if (fit.sphere) corners = [new Vector3(-sphereR, -sphereR, sphereR), new Vector3(sphereR, sphereR, -sphereR)];
+    else {
+      corners = [];
+      for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+        const d = new Vector3(x, y, z).sub(center);
+        corners.push(new Vector3(d.dot(right), d.dot(up), d.dot(dir)));
+      }
+      // Recentré sur l'image de la boîte.
+      const xs = corners.map((c) => c.x);
+      const ys = corners.map((c) => c.y);
+      const sx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const sy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      center = center.clone().addScaledVector(right, sx).addScaledVector(up, sy);
+      for (const c of corners) {
+        c.x -= sx;
+        c.y -= sy;
+      }
+    }
+    if ((camera as PerspectiveCamera).isPerspectiveCamera) {
+      const p = camera as PerspectiveCamera;
+      const tanV = Math.tan(MathUtils.degToRad(p.fov / 2));
+      const tanH = tanV * aspect;
+      const distance = Math.max(...corners.map((c) => c.z + Math.max(Math.abs(c.x) / tanH, Math.abs(c.y) / tanV))) * margin;
+      o.position.copy(center).addScaledVector(dir, distance);
+      p.near = Math.max(distance - sphereR * 2, distance / 1000);
+      p.far = distance + sphereR * 4;
+    } else {
+      const c = camera as OrthographicCamera;
+      const halfV = Math.max(...corners.map((k) => Math.max(Math.abs(k.y), Math.abs(k.x) / aspect))) * margin;
+      Object.assign(c, { top: halfV, bottom: -halfV, left: -halfV * aspect, right: halfV * aspect, zoom: 1 });
+      o.position.copy(center).addScaledVector(dir, o.position.distanceTo(o.target));
+    }
+    o.target.copy(center);
+    camera.updateProjectionMatrix();
+  }
+
+  /** Rendu d'une image (la scène telle que la dernière entrée l'a placée), caméra tournée de `orbit` degrés autour de la verticale. Renvoie le canevas. */
+  captureFrame(orbit = 0): HTMLCanvasElement {
+    const cap = this.capture;
+    if (!cap) throw new Error('Capture non commencée.');
+    const { camera } = cap;
+    const o = camera.userData.orbit as { position: Vector3; up: Vector3; target: Vector3 };
+    const turn = new Matrix4().makeRotationZ(MathUtils.degToRad(orbit));
+    camera.position.copy(o.position).sub(o.target).applyMatrix4(turn).add(o.target);
+    camera.up.copy(o.up).applyMatrix4(turn);
+    camera.lookAt(o.target);
+    camera.updateMatrixWorld();
+    this.headlight.position.copy(camera.position);
+    this.headlight.target.position.copy(o.target);
+    for (const g of cap.hidden) g.visible = false;
+    if (cap.studio) this.studio!.render(camera, this.partsBounds(), cap.width, cap.height, cap.background);
+    else {
+      this.studio!.setBackground(cap.background);
+      this.renderer.render(this.scene, camera);
+      this.scene.background = null;
+    }
+    return this.renderer.domElement;
+  }
+
+  /** Fin des rendus hors écran : la vue reprend sa taille et son affichage. */
+  endCapture(): void {
+    const cap = this.capture;
+    if (!cap) return;
+    for (const g of cap.hidden) g.visible = true;
+    this.capture = null;
+    this.attachStudio(false);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.resize();
+  }
+
+  /** Dernière entrée reçue (pour la rétablir après un rendu hors écran). */
+  get currentInput(): ViewportInput {
+    return this.input;
+  }
+
   // Commandes de vue
 
   setStandardView(view: StandardView): void {
@@ -2149,6 +2327,7 @@ export class Viewport {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.frameHandle);
+    this.studio?.dispose();
     this.resizeObserver.disconnect();
     for (const p of this.parts.values()) p.dispose();
     this.tool?.object.dispose();

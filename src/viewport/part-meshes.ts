@@ -33,9 +33,9 @@ import type { ViewportPalette } from './colors';
  * - `wireframe` : arêtes seules, toutes visibles ;
  * - `monochrome` : faces blanches et arêtes noires (impression, daltonisme).
  */
-export type DisplayStyle = 'shaded-edges' | 'shaded' | 'hidden-lines' | 'transparent' | 'wireframe' | 'monochrome';
+export type DisplayStyle = 'shaded-edges' | 'shaded' | 'render' | 'hidden-lines' | 'transparent' | 'wireframe' | 'monochrome';
 
-export const DISPLAY_STYLES: DisplayStyle[] = ['shaded-edges', 'shaded', 'hidden-lines', 'transparent', 'wireframe', 'monochrome'];
+export const DISPLAY_STYLES: DisplayStyle[] = ['shaded-edges', 'shaded', 'render', 'hidden-lines', 'transparent', 'wireframe', 'monochrome'];
 
 /** `ghost` : autre pièce pendant une opération ou une esquisse, très transparente et ignorée par les clics. */
 export type PartAppearance = 'normal' | 'stale' | 'preview' | 'tool-add' | 'tool-cut' | 'dimmed' | 'ghost';
@@ -142,7 +142,8 @@ export class PartObject {
     geometry.setIndex(new BufferAttribute(data.indices, 1));
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
-    const shaded = styled === 'shaded-edges' || styled === 'shaded';
+    const shaded = styled === 'shaded-edges' || styled === 'shaded' || styled === 'render';
+    this.studio = styled === 'render';
     let material: Material | Material[] = shaded ? this.faceMaterial(color, appearance, palette) : this.styledFaceMaterial(color, styled, palette);
     if (faceColors && shaded && appearance === 'normal') {
       // Un matériau par couleur, et un groupe de triangles par face.
@@ -157,7 +158,9 @@ export class PartObject {
     edgeGeometry.setPositions(data.edgePositions);
     this.edges = new LineSegments2(edgeGeometry, this.edgeMaterial(appearance, palette, styled, edgeWidth));
     this.edges.userData = { partId, kind: 'part-edges' };
-    if (styled === 'shaded') this.edges.visible = false;
+    if (styled === 'shaded' || styled === 'render') this.edges.visible = false;
+    // Rendu : les pièces portent leur ombre (sur le sol et entre elles).
+    this.faces.castShadow = this.faces.receiveShadow = this.studio;
     if (appearance === 'tool-add' || appearance === 'tool-cut') {
       this.faces.renderOrder = 10;
       this.edges.renderOrder = 11;
@@ -224,9 +227,14 @@ export class PartObject {
     }
   }
 
+  /** Style « Rendu » : éclairage d'environnement, le métal peut vraiment réfléchir. */
+  private studio = false;
+
   private faceMaterial(color: string, appearance: PartAppearance, palette: ViewportPalette): Material {
     // Sans carte d'environnement, un métal très réfléchissant paraîtrait noir : reflet modéré.
-    const surface = { matte: { roughness: 0.85, metalness: 0 }, satin: { roughness: 0.62, metalness: 0.04 }, glossy: { roughness: 0.28, metalness: 0.02 }, metal: { roughness: 0.4, metalness: 0.3 } }[this.finish ?? 'satin'];
+    const surface = this.studio
+      ? { matte: { roughness: 0.8, metalness: 0 }, satin: { roughness: 0.5, metalness: 0 }, glossy: { roughness: 0.22, metalness: 0 }, metal: { roughness: 0.32, metalness: 0.9 } }[this.finish ?? 'satin']
+      : { matte: { roughness: 0.85, metalness: 0 }, satin: { roughness: 0.62, metalness: 0.04 }, glossy: { roughness: 0.28, metalness: 0.02 }, metal: { roughness: 0.4, metalness: 0.3 } }[this.finish ?? 'satin'];
     const base = { ...surface, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
     switch (appearance) {
       case 'stale':

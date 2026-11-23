@@ -899,6 +899,7 @@ function SectionPanel() {
 const DISPLAY_LABELS: Record<DisplayStyle, { label: string; help: string }> = {
   'shaded-edges': { label: 'Ombré avec arêtes', help: 'L’affichage habituel' },
   shaded: { label: 'Ombré sans arêtes', help: 'Rendu lisse, pour présenter' },
+  render: { label: 'Rendu', help: 'Éclairage studio : reflets, ombres au sol, ombrage des creux' },
   'hidden-lines': { label: 'Arêtes cachées en pointillés', help: 'Comme un dessin technique : on voit les trous et ce qui est derrière' },
   transparent: { label: 'Transparent', help: 'Voir à travers la matière : l’intérieur, les poches, les perçages' },
   wireframe: { label: 'Fil de fer', help: 'Les arêtes seules, toutes visibles' },
