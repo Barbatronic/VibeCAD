@@ -89,29 +89,32 @@ export function RevolvePanel(props: FeaturePanelProps<RevolveFeature>) {
         onEnter={props.confirm}
         onEscape={props.cancel}
       />
-      <LengthField
-        id="draft-start-angle"
-        label="Angle de départ"
-        unit="°"
-        step={15}
-        value={draft.fields.startAngle ?? '0'}
-        error={draft.errors.startAngle ?? null}
-        help="Décalage du début de la révolution autour de l’axe, dans le sens de rotation"
-        selectOnFocus
-        onInput={(text) => {
-          const v = readNumber(text);
-          const err = v === null ? 'L’angle de départ doit être un nombre de degrés.' : Math.abs(v) > 360 ? 'L’angle de départ doit être compris entre −360° et 360°.' : null;
-          setField('startAngle', text, err ? { error: err } : { feature: withParams(f, { startAngle: v! }) });
-        }}
-        onEnter={props.confirm}
-        onEscape={props.cancel}
-      />
       <label class="checkbox-row">
         <input type="checkbox" checked={f.params.reversed} onChange={() => update((x) => withParams(x, { reversed: !x.params.reversed }))} />
         <span>Tourner dans l’autre sens</span>
       </label>
       <OperationField value={f.params.operation} what="La révolution" onChange={(operation) => update((x) => withParams(x, { operation }))} />
       <PreviewStatus status={props.status} kind={f.params.operation === 'cut' ? 'cut' : f.params.operation === 'common' ? 'modify' : 'add'} />
+      <details class="advanced" open={!!f.params.startAngle || !!draft.errors.startAngle}>
+        <summary>Réglages avancés</summary>
+        <LengthField
+          id="draft-start-angle"
+          label="Angle de départ"
+          unit="°"
+          step={15}
+          value={draft.fields.startAngle ?? '0'}
+          error={draft.errors.startAngle ?? null}
+          help="Décalage du début de la révolution autour de l’axe, dans le sens de rotation"
+          selectOnFocus
+          onInput={(text) => {
+            const v = readNumber(text);
+            const err = v === null ? 'L’angle de départ doit être un nombre de degrés.' : Math.abs(v) > 360 ? 'L’angle de départ doit être compris entre −360° et 360°.' : null;
+            setField('startAngle', text, err ? { error: err } : { feature: withParams(f, { startAngle: v! }) });
+          }}
+          onEnter={props.confirm}
+          onEscape={props.cancel}
+        />
+      </details>
     </>
   );
 }

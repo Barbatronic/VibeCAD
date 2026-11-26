@@ -38,6 +38,7 @@ test('révolution : un rectangle tourné autour de l’axe Y donne un anneau, pu
   const maxX = () => appState(page, (s) => s.display[s.doc.parts[0].id].result.analysis.bbox.max.x);
   const before = await maxX();
   await history.locator('.feature-main', { hasText: 'Révolution 1' }).dblclick();
+  await page.locator('.advanced summary', { hasText: 'Réglages avancés' }).click();
   await page.locator('#draft-start-angle').fill('90');
   await expect(page.getByText('Aperçu à jour')).toBeVisible();
   await page.getByRole('button', { name: 'Valider', exact: true }).click();
