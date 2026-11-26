@@ -42,6 +42,7 @@ import {
   setPartVisible,
   updateFeature,
 } from '../domain/document';
+import { renderSettings, storedRender, type RenderSettings } from '../domain/render';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
 import type { Assembly, ControlLawSpec, ScenarioTimeline, TimelineKey, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, Part, PartComponent } from '../domain/model';
@@ -1046,6 +1047,8 @@ export class AppController {
     if (this.state.workspace === 'fabrication') return this.fabricationPick(pick);
     if (this.state.workspace === 'simulation') return this.simulationPick(pick);
     if (this.state.workspace === 'versions') return this.versionsPick(pick);
+    // Rendu : la vue ne sert qu'à cadrer.
+    if (this.state.workspace === 'render') return;
     const mode = this.state.mode;
     // Pièce voisine (conception en contexte d'assemblage) : seulement pour poser une esquisse.
     if (pick?.partId.startsWith(CONTEXT_PREFIX)) {
@@ -3379,6 +3382,7 @@ export class AppController {
     if (workspace === 'assembly' && !this.can('workspace:assembly')) return this.explain('L’assemblage est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'simulation' && !this.can('workspace:simulation')) return this.explain('La simulation est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (workspace === 'versions' && !this.can('versions')) return this.explain('Les versions sont disponibles à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
+    if (workspace === 'render' && !this.can('workspace:render')) return this.explain('Le rendu est disponible à partir du niveau Intermédiaire (en bas à droite : « Niveau »).');
     if (!['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(this.state.mode.kind)) return this.explain('Terminez d’abord l’opération en cours.');
     const design = (w: Workspace) => w === 'parts' || w === 'assembly';
     // Modéliser ↔ Assembler : même scène, la caméra reste où elle est et la sélection suit.
@@ -4125,6 +4129,48 @@ export class AppController {
     await this.download(blob, `${this.state.doc.name} - ${scenario?.name ?? 'scénario'}`, 'mp4', 'vidéo du scénario téléchargée.');
   }
 
+  // ----- Atelier Rendu : scène (lumière, sol, fond), image et vidéo
+
+  /** Réglages de la scène de rendu du projet (valeurs par défaut pour ceux qu'il n'a pas). */
+  renderSettings(): RenderSettings {
+    return renderSettings(this.state.doc.render);
+  }
+
+  /** Change des réglages de la scène ; `live` : pendant un glisser (une seule annulation à la fin, par `commitLive`). */
+  setRender(patch: Partial<RenderSettings>, live = false): void {
+    const stored = storedRender({ ...this.renderSettings(), ...patch });
+    const { render: _old, ...rest } = this.state.doc;
+    const doc: CadDocument = stored ? { ...rest, render: stored } : rest;
+    if (live) {
+      if (!this.liveStart) this.liveStart = this.state.doc;
+      this.set({ doc });
+    } else this.commit(doc, 'Régler la scène de rendu');
+  }
+
+  /** Scène de rendu remise aux réglages par défaut. */
+  resetRender(): void {
+    if (!this.state.doc.render) return;
+    const { render: _old, ...rest } = this.state.doc;
+    this.commit(rest, 'Scène de rendu par défaut');
+  }
+
+  /** Sujet de l'atelier Rendu : un scénario de mouvement (sa timeline), ou null : l'assemblage tel quel. */
+  setRenderSubject(scenarioId: Id | null): void {
+    this.stopScenarioPlay();
+    if (scenarioId && !this.scenarios().some((x) => x.id === scenarioId)) return;
+    this.set({ renderScenario: !!scenarioId, ...(scenarioId ? { scenarioId, scenarioLive: {}, scenarioTime: 0 } : {}) });
+  }
+
+  /** L'atelier Rendu montre-t-il un scénario ? */
+  renderShowsScenario(): boolean {
+    return this.state.workspace === 'render' && this.state.renderScenario && !!this.currentScenario() && drivableJoints(this.state.doc.assembly).length > 0;
+  }
+
+  /** Enregistre une image rendue. */
+  async saveRenderImage(blob: Blob): Promise<void> {
+    await this.download(blob, `${this.state.doc.name} - rendu`, 'png', 'image téléchargée.');
+  }
+
   /** Les poses pré-calculées sont-elles à refaire (timeline animée, calcul absent ou périmé) ? */
   timelineBakeStale(): boolean {
     return isAnimated(this.currentScenario()) && !this.validBake();
@@ -4839,8 +4885,8 @@ export class AppController {
     await this.download(new Blob([bomCsv(bom)], { type: 'text/csv' }), `${this.state.doc.name} - nomenclature`, 'csv', 'Nomenclature téléchargée (CSV) : elle s’ouvre dans un tableur.');
   }
 
-  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf' | 'h' | 'mp4', message: string): Promise<void> {
-    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF', h: 'En-tête C', mp4: 'Vidéo MP4' };
+  private async download(blob: Blob, baseName: string, extension: 'pdf' | 'svg' | 'csv' | 'json' | 'dxf' | 'h' | 'mp4' | 'png', message: string): Promise<void> {
+    const descriptions = { pdf: 'Document PDF', svg: 'Fichier SVG', csv: 'Tableau CSV', json: 'Fichier JSON', dxf: 'Dessin DXF', h: 'En-tête C', mp4: 'Vidéo MP4', png: 'Image PNG' };
     try {
       const target = await saveFile(blob, safeFileName(baseName, `.${extension}`), { description: descriptions[extension], mime: blob.type, extension: `.${extension}`, download: true });
       if (target) this.toast('success', `« ${target.name} » — ${message}`);

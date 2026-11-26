@@ -4057,13 +4057,13 @@ select optgroup {
 
 .workspace-tabs {
   display: flex;
-  gap: 2px;
+  gap: 1px;
 }
 
 .workspace-tabs button {
   display: inline-grid;
   place-items: center;
-  width: 32px;
+  width: 28px;
   height: 40px;
   padding: 0;
   border: 1px solid transparent;
@@ -4097,7 +4097,7 @@ select optgroup {
 /* Onglet Conception : ses deux modes (Modéliser, Assembler), regroupés dans un cadre discret. */
 .design-tabs {
   display: flex;
-  gap: 2px;
+  gap: 1px;
   padding-right: 3px;
   margin-right: 1px;
   border-right: 1px solid var(--border);
@@ -6767,4 +6767,141 @@ button.versions-conflict-name:hover {
 .tl-video-progress progress {
   flex: 1;
   min-width: 0;
+}
+
+/* ----- Atelier Rendu : scène (lumière, ambiance, sol, fond), export d'image */
+
+.render-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.render-panel .panel-section {
+  flex: none;
+}
+
+.render-choice {
+  margin-bottom: 4px;
+}
+
+.render-field input[type='range'] {
+  width: 100%;
+}
+
+.render-field .field-label strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.render-light {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.light-pad {
+  display: block;
+  flex: none;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+  cursor: crosshair;
+  touch-action: none;
+  border-radius: 50%;
+}
+
+.light-pad:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.light-pad .lp-disc {
+  fill: var(--surface-2, var(--surface));
+  stroke: var(--border);
+}
+
+.light-pad .lp-ring {
+  fill: none;
+  stroke: var(--border);
+  stroke-dasharray: 2 2;
+}
+
+.light-pad .lp-axis {
+  stroke: var(--border);
+  stroke-width: 0.6;
+}
+
+.light-pad .lp-label {
+  font-size: 7px;
+  fill: var(--text-muted);
+}
+
+.light-pad .lp-ray {
+  stroke: #e0a21b;
+  stroke-width: 1.2;
+}
+
+.light-pad .lp-sun {
+  fill: #f2b52a;
+  stroke: #9a6a00;
+  stroke-width: 1;
+}
+
+.render-light-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.render-angle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.render-angle .field-label {
+  margin: 0;
+}
+
+.render-angle .input-with-unit {
+  width: 100%;
+  min-width: 0;
+}
+
+.render-angle .input-with-unit input {
+  min-width: 0;
+}
+
+.render-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.render-color input[type='color'] {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+}
+
+.render-reset {
+  margin-top: 12px;
+}
+
+.render-image {
+  position: relative;
+}
+
+.render-image-panel {
+  top: calc(100% + 10px);
+  bottom: auto;
+  left: 0;
+  right: auto;
 }

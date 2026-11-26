@@ -5,6 +5,7 @@
  * dépendances, unités, noms) et les ressources géométriques des imports (STEP embarqués).
  * Aucun objet du noyau n'est sérialisé : la géométrie est reconstruite à l'ouverture.
  */
+import { readRenderSettings } from '../domain/render';
 import { sheetProblems, toSheet } from '../domain/material-sheets';
 import { PART_MATERIALS } from '../domain/part-material';
 import type {
@@ -110,6 +111,7 @@ export function toNativeFile(docIn: CadDocument, savedAt: string): NativeFile {
       ...(doc.fabrication ? { fabrication: doc.fabrication } : {}),
       ...(doc.parameters?.length ? { parameters: doc.parameters } : {}),
       ...(doc.simulation ? { simulation: doc.simulation } : {}),
+      ...(doc.render ? { render: doc.render } : {}),
     },
   };
 }
@@ -261,7 +263,7 @@ function arr(v: Validator, o: Record<string, unknown>, key: string, path: string
 }
 
 /** Champs connus du document (schéma 1). */
-const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'folders', 'materials', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters']);
+const DOCUMENT_FIELDS = new Set(['id', 'name', 'units', 'createdAt', 'modifiedAt', 'parts', 'folders', 'materials', 'resources', 'assembly', 'subassemblies', 'fabrication', 'simulation', 'parameters', 'render']);
 
 function readDocument(v: Validator, x: unknown, path: string): CadDocument | null {
   const o = obj(v, x, path);
@@ -339,6 +341,9 @@ function readDocument(v: Validator, x: unknown, path: string): CadDocument | nul
     const simulation = readSimulation(v, o.simulation, `${path}.simulation`, new Set(doc.parts.map((p) => p.id)));
     if (simulation) doc.simulation = simulation;
   }
+  // Scène de rendu : réglages d'aspect, lus sans erreur (les valeurs douteuses sont ignorées).
+  const render = readRenderSettings(o.render);
+  if (render) doc.render = render;
   // Sous-assemblages : identifiants connus d'abord (un bloc peut en insérer un autre).
   const subIds = new Set(
     (Array.isArray(o.subassemblies) ? o.subassemblies : []).flatMap((s) => (s && typeof s === 'object' && typeof (s as { id?: unknown }).id === 'string' ? [(s as { id: string }).id] : [])),

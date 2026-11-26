@@ -894,6 +894,15 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   key: <path d="M12 4.5l7.5 7.5-7.5 7.5L4.5 12z" />,
+  /** Atelier Rendu : une sphère éclairée et son ombre au sol. */
+  render: (
+    <>
+      <circle cx="11" cy="10" r="6" />
+      <path d="M8 7.8a3.6 3.6 0 0 1 3-1.8" />
+      <path d="M5.5 19.5c2-1.2 9-1.2 12 0" />
+      <path d="M19 3.5v3M17.5 5h3" />
+    </>
+  ),
   /** Visserie : vis à tête cylindrique, vue de côté. */
   screw: (
     <>

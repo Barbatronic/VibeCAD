@@ -25,6 +25,7 @@ export type Capability =
   | 'sketch-lists'
   | 'workspace:assembly'
   | 'workspace:simulation'
+  | 'workspace:render'
   | 'simulation:assembly'
   | 'simulation:topology'
   | 'fabrication:laser'
@@ -45,6 +46,7 @@ export type Capability =
 export const CAPABILITY_LEVEL: Partial<Record<Capability, Level>> = {
   'feature:revolve': 'intermediaire',
   versions: 'intermediaire',
+  'workspace:render': 'intermediaire',
   'feature:fillet': 'intermediaire',
   'feature:chamfer': 'intermediaire',
   'feature:pattern': 'intermediaire',

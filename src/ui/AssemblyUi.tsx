@@ -33,6 +33,7 @@ export function WorkspaceTabs() {
   const assembly = useAppState((s) => allows(s.level, 'workspace:assembly'));
   const simulation = useAppState((s) => allows(s.level, 'workspace:simulation'));
   const versions = useAppState((s) => allows(s.level, 'versions'));
+  const render = useAppState((s) => allows(s.level, 'workspace:render'));
   const busy = useAppState((s) => !['model', 'joint', 'fastener', 'pick-fab-face', 'pick-sim-face'].includes(s.mode.kind));
   const tab = (id: Workspace, label: string, icon: string, title: string) => (
     <button
@@ -60,6 +61,7 @@ export function WorkspaceTabs() {
         </div>
         {tab('fabrication', 'Fabrication', 'print3d', 'Préparer l’impression 3D et la découpe laser')}
         {simulation ? tab('simulation', 'Simulation', 'simulate', 'Voir comment une pièce se déforme sous une charge') : null}
+        {render ? tab('render', 'Rendu', 'render', 'Lumière, sol et fond de la scène ; images et vidéos') : null}
         {versions ? tab('versions', 'Versions', 'branch', 'Ce qui a changé dans le projet, version par version et pièce par pièce') : null}
       </div>
     </nav>

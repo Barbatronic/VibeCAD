@@ -263,6 +263,20 @@ describe('scénarios de mouvement dans le fichier', () => {
   });
 });
 
+describe('scène de rendu dans le fichier', () => {
+  it('aller-retour ; valeurs douteuses ignorées ou ramenées dans leurs bornes', () => {
+    const { doc } = buildPlateDocument();
+    const render = { lightAzimuth: 12.5, lightElevation: 40, ground: 'color' as const, groundColor: '#334455', background: 'gradient' as const, occlusion: false };
+    const parsed = parseNativeFile(serializeDocument({ ...doc, render }));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.doc.render).toEqual(render);
+    const text = serializeDocument(doc).replace('"parts":', '"render":{"lightElevation":200,"ground":"miroir","groundColor":"rouge","exposure":1.2},"parts":');
+    const odd = parseNativeFile(text);
+    expect(odd.ok).toBe(true);
+    if (odd.ok) expect(odd.doc.render).toEqual({ lightElevation: 90, exposure: 1.2 });
+  });
+});
+
 describe('plans et axes masqués dans le fichier', () => {
   it('aller-retour : « visible: false » gardé, absent quand affiché (schéma respecté)', () => {
     const { doc, ids } = buildPlateDocument();

@@ -8,6 +8,7 @@ import type { AppController } from '../app/controller';
 import { SCENARIO_STUDY } from '../app/mechanism';
 import type { StudioBackground } from '../viewport/studio';
 import { buildViewportInput } from './ViewportHost';
+import { renderSettings } from '../domain/render';
 
 export interface VideoOptions {
   width: number;
@@ -91,13 +92,11 @@ export function videoFrameTime(i: number, duration: number, options: Pick<VideoO
   return ((i % perLoop) / perLoop) * duration;
 }
 
-function backgroundOf(bg: VideoOptions['background'], view: HTMLElement | null): StudioBackground {
+/** Fond de la vidéo : blanc, noir, ou celui de la scène de rendu. */
+function backgroundOf(bg: VideoOptions['background'], scene: StudioBackground): StudioBackground {
   if (bg === 'white') return '#ffffff';
   if (bg === 'black') return '#101114';
-  const style = view ? getComputedStyle(view) : null;
-  const top = style?.getPropertyValue('--vp-bg').trim() || '#eef2f7';
-  const bottom = style?.getPropertyValue('--vp-bg-bottom').trim() || '#d9e1eb';
-  return { top, bottom };
+  return scene;
 }
 
 /**
@@ -127,14 +126,14 @@ export async function renderScenarioVideo(c: AppController, options: VideoOption
   encoder.configure(encoderConfig(codec, width, height, options.fps, bitrate));
   const original = viewport.currentInput;
   const state = c.state;
-  const host = document.querySelector<HTMLElement>('.viewport-host');
+  const render = renderSettings(state.doc.render);
   // Épaisseur des arêtes : comme à l'écran, rapportée à la hauteur de la vidéo.
   const edgeWidth = (state.edgeWidth ?? 1) * Math.max(1, height / Math.max(1, viewport.size.height));
   const pause = () => new Promise((resolve) => setTimeout(resolve, 0));
   const show = (t: number) => {
     const settled = c.scenarioPoseAt(t);
     const built = buildViewportInput({ ...state, scenarioTime: t, scenarioLive: {}, hoverJoint: null, hoverPart: null }, { partId: SCENARIO_STUDY, source: null, scenario: settled });
-    viewport.setInput({ ...built, displayStyle: options.studio ? 'render' : state.displayStyle, edgeWidth, zoomSpeed: state.zoomSpeed, markers: [], selection: [] });
+    viewport.setInput({ ...built, displayStyle: options.studio ? 'render' : state.displayStyle, render, edgeWidth, zoomSpeed: state.zoomSpeed, markers: [], selection: [] });
   };
   try {
     // Cadrage : la boîte qui contient le mécanisme à quelques instants de la timeline.
@@ -150,7 +149,7 @@ export async function renderScenarioVideo(c: AppController, options: VideoOption
         fit = { min, max, sphere: options.orbit };
       }
     }
-    await viewport.beginCapture({ width, height, studio: options.studio, background: backgroundOf(options.background, host), fit });
+    await viewport.beginCapture({ width, height, studio: options.studio, background: backgroundOf(options.background, viewport.sceneBackground()), fit });
     let t0 = performance.now();
     for (let i = 0; i < count; i++) {
       if (cancelled() || failure) break;

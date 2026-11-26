@@ -10,6 +10,7 @@ import {
   DirectionalLight,
   HalfFloatType,
   Mesh,
+  MeshStandardMaterial,
   NoToneMapping,
   PCFSoftShadowMap,
   PlaneGeometry,
@@ -31,17 +32,20 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { DEFAULT_RENDER, lightDirection, type RenderSettings } from '../domain/render';
 
 /** Fond : dégradé vertical (haut, bas) ou couleur unie. */
 export type StudioBackground = { top: string; bottom: string } | string;
 
-/** Direction de la lumière principale (monde, Z vers le haut) : en hauteur, de devant à gauche. */
-const KEY_DIRECTION = new Vector3(-0.55, -0.85, 1.5).normalize();
 
 export class Studio {
   private readonly env: Texture;
   readonly key = new DirectionalLight(0xffffff, 1.5);
+  /** Sol invisible qui ne reçoit que l'ombre, ou sol coloré. */
   private readonly ground = new Mesh(new PlaneGeometry(1, 1), new ShadowMaterial({ opacity: 0.22, depthWrite: false }));
+  private readonly floor = new Mesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ color: 0xd9dde3, roughness: 0.92, metalness: 0 }));
+  private settings: RenderSettings = { ...DEFAULT_RENDER };
+  private readonly keyDirection = new Vector3();
   private readonly composer: EffectComposer;
   private readonly renderPass: RenderPass;
   private readonly gtao: GTAOPass;
@@ -65,6 +69,8 @@ export class Studio {
     this.ground.receiveShadow = true;
     this.ground.userData = { kind: 'studio-ground' };
     this.ground.renderOrder = -1;
+    this.floor.receiveShadow = true;
+    this.floor.userData = { kind: 'studio-ground' };
     const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(renderer, target);
     this.renderPass = new RenderPass(scene, camera);
@@ -73,18 +79,46 @@ export class Studio {
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.gtao);
     this.composer.addPass(new OutputPass());
+    this.configure(DEFAULT_RENDER);
+  }
+
+  /** Applique les réglages de la scène (lumière, ambiance, sol, ombrage des creux). */
+  configure(settings: RenderSettings): void {
+    this.settings = settings;
+    const d = lightDirection(settings);
+    this.keyDirection.set(d.x, d.y, d.z).normalize();
+    this.key.intensity = settings.lightIntensity;
+    this.key.shadow.radius = Math.max(1, settings.shadowSoftness);
+    this.key.shadow.blurSamples = settings.shadowSoftness <= 0.5 ? 1 : 16;
+    (this.ground.material as ShadowMaterial).opacity = settings.shadowOpacity;
+    (this.floor.material as MeshStandardMaterial).color.set(settings.groundColor);
+    this.ground.visible = settings.ground === 'shadow';
+    this.floor.visible = settings.ground === 'color';
+    this.gtao.enabled = settings.occlusion;
+    if (this.attached) this.applyTone();
+  }
+
+  private attached = false;
+
+  private applyTone(): void {
+    this.scene.environmentIntensity = this.settings.environment;
+    this.renderer.toneMappingExposure = this.settings.exposure;
   }
 
   /** Met l'éclairage en place dans la scène (true) ou l'en retire (false). */
   attach(on: boolean): void {
+    this.attached = on;
     this.scene.environment = on ? this.env : null;
-    this.scene.environmentIntensity = 0.3;
     this.renderer.toneMapping = on ? NeutralToneMapping : NoToneMapping;
-    this.renderer.toneMappingExposure = 0.95;
+    if (on) this.applyTone();
+    else {
+      this.scene.environmentIntensity = 1;
+      this.renderer.toneMappingExposure = 1;
+    }
     this.renderer.shadowMap.enabled = on;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
-    if (on) this.scene.add(this.key, this.key.target, this.ground);
-    else this.scene.remove(this.key, this.key.target, this.ground);
+    if (on) this.scene.add(this.key, this.key.target, this.ground, this.floor);
+    else this.scene.remove(this.key, this.key.target, this.ground, this.floor);
     if (!on) this.scene.background = null;
   }
 
@@ -103,7 +137,7 @@ export class Studio {
     const radius = bounds && !bounds.isEmpty() ? Math.max(bounds.getSize(new Vector3()).length() / 2, 1) : 50;
     const floor = bounds && !bounds.isEmpty() ? bounds.min.z : 0;
     // Lumière fixe dans le monde (la caméra peut tourner autour) ; ombre cadrée sur le modèle.
-    this.key.position.copy(center).addScaledVector(KEY_DIRECTION, radius * 4);
+    this.key.position.copy(center).addScaledVector(this.keyDirection, radius * 4);
     this.key.target.position.copy(center);
     const shadow = this.key.shadow.camera;
     shadow.left = -radius * 1.6;
@@ -115,9 +149,11 @@ export class Studio {
     shadow.updateProjectionMatrix();
     this.key.shadow.bias = -0.0004;
     this.key.shadow.normalBias = radius * 0.004;
-    // Sol (invisible, il ne reçoit que l'ombre) juste sous les pièces.
+    // Sol juste sous les pièces : invisible (il ne reçoit que l'ombre) ou coloré, assez grand pour l'horizon.
     this.ground.position.set(center.x, center.y, floor - radius * 0.002);
     this.ground.scale.set(radius * 12, radius * 12, 1);
+    this.floor.position.copy(this.ground.position);
+    this.floor.scale.set(radius * 200, radius * 200, 1);
     // Ombrage des creux à l'échelle du modèle ; la caméra de la vue peut changer (perspective ou non).
     this.renderPass.camera = camera;
     this.gtao.camera = camera;
@@ -165,6 +201,8 @@ export class Studio {
     this.gtao.dispose();
     this.ground.geometry.dispose();
     (this.ground.material as ShadowMaterial).dispose();
+    this.floor.geometry.dispose();
+    (this.floor.material as MeshStandardMaterial).dispose();
     if (this.backgroundTexture && !(this.backgroundTexture instanceof Color)) this.backgroundTexture.dispose();
   }
 }

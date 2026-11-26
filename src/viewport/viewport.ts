@@ -55,6 +55,7 @@ import { gridStepFor } from '../sketch/snapping';
 import { ViewCube, viewUp, type ViewCubePiece } from './view-cube';
 import { AXIS_VECTORS, Gizmo, type GizmoHandle } from './gizmo';
 import type { Studio, StudioBackground } from './studio';
+import { DEFAULT_RENDER, type RenderSettings } from '../domain/render';
 
 /** Durée d'un aller-retour de la déformée animée (ms). */
 const RESULT_PERIOD_MS = 1600;
@@ -140,6 +141,10 @@ export interface ViewportInput {
   points?: { at: Vec3; label: string }[];
   /** Mode d'affichage des pièces (ombré, arêtes cachées, fil de fer…). */
   displayStyle?: DisplayStyle;
+  /** Scène de rendu (style Rendu, captures) ; absente : réglages par défaut. */
+  render?: RenderSettings;
+  /** Vue nette (atelier Rendu) : sans axes de l'origine, comme une image exportée. */
+  bare?: boolean;
   /** Épaisseur des arêtes des pièces (pixels). */
   edgeWidth?: number;
   /** Vitesse du zoom à la molette (1 : normale). */
@@ -464,12 +469,15 @@ export class Viewport {
     const query = timer && !timer.pending ? gl.createQuery() : null;
     if (timer && query) gl.beginQuery(timer.ext.TIME_ELAPSED_EXT, query);
     const studio = this.useStudio(this.input.displayStyle === 'render');
+    // Vue nette (atelier Rendu) : ni axes ni leurs lettres.
+    this.axes.group.visible = !(studio && this.input.bare);
     if (studio) {
       // Rendu : la grille laisse la place au sol qui reçoit les ombres.
       const grid = this.grid.group.visible;
       this.grid.group.visible = false;
       const size = this.renderer.getDrawingBufferSize(new Vector2());
-      studio.render(camera, this.partsBounds(), size.x, size.y, { top: this.palette.background, bottom: this.palette.backgroundBottom });
+      studio.configure(this.input.render ?? DEFAULT_RENDER);
+      studio.render(camera, this.partsBounds(), size.x, size.y, this.sceneBackground());
       this.grid.group.visible = grid;
     } else this.renderer.render(this.scene, camera);
     if (timer && query) {
@@ -1385,6 +1393,14 @@ export class Viewport {
     return on ? this.studio : null;
   }
 
+  /** Fond de la scène de rendu : celui de la vue, une couleur ou un dégradé. */
+  sceneBackground(): StudioBackground {
+    const r = this.input.render ?? DEFAULT_RENDER;
+    if (r.background === 'color') return r.backgroundColor;
+    if (r.background === 'gradient') return { top: r.backgroundColor, bottom: r.backgroundBottom };
+    return { top: this.palette.background, bottom: this.palette.backgroundBottom };
+  }
+
   /** Éclairage studio mis en place (ou retiré) ; l'éclairage habituel s'efface devant l'environnement. */
   private attachStudio(on: boolean): void {
     this.studio?.attach(on);
@@ -1438,6 +1454,7 @@ export class Viewport {
     this.renderer.setViewport(0, 0, options.width, options.height);
     for (const part of this.parts.values()) part.setResolution(options.width, options.height);
     this.attachStudio(options.studio);
+    this.studio!.configure(this.input.render ?? DEFAULT_RENDER);
     if (options.fit) this.fitCaptureCamera(camera, options.fit, options.width / options.height);
   }
 
@@ -1507,7 +1524,10 @@ export class Viewport {
     this.headlight.position.copy(camera.position);
     this.headlight.target.position.copy(o.target);
     for (const g of cap.hidden) g.visible = false;
-    if (cap.studio) this.studio!.render(camera, this.partsBounds(), cap.width, cap.height, cap.background);
+    if (cap.studio) {
+      this.studio!.configure(this.input.render ?? DEFAULT_RENDER);
+      this.studio!.render(camera, this.partsBounds(), cap.width, cap.height, cap.background);
+    }
     else {
       this.studio!.setBackground(cap.background);
       this.renderer.render(this.scene, camera);

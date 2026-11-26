@@ -3,7 +3,7 @@ import { formatNumber } from '../domain/units';
 import { resolveParameters } from '../features/parameters';
 import { InputSuggestions, type InputSuggestion } from './components/number-input';
 import { Dialogs, Toasts } from './Dialogs';
-import { DrawingBoard, HelpDrawer, LaserBoard, SimulationTimeline, Tutorial } from './lazy';
+import { DrawingBoard, HelpDrawer, LaserBoard, RenderTimeline, SimulationTimeline, Tutorial } from './lazy';
 import { LeftPanel } from './LeftPanel';
 import { RightPanel } from './RightPanel';
 import { StatusBar } from './StatusBar';
@@ -21,6 +21,7 @@ export function App() {
   const modeKind = useAppState((s) => s.mode.kind);
   const laserOn = useAppState((s) => s.workspace === 'fabrication');
   const simulationOn = useAppState((s) => s.workspace === 'simulation');
+  const renderOn = useAppState((s) => s.workspace === 'render');
   const tutorialOn = useAppState((s) => s.tutorial !== null);
   const helpOpen = useAppState((s) => s.helpOpen);
   const parameters = useAppState((s) => s.doc.parameters);
@@ -49,6 +50,7 @@ export function App() {
             {laserOn ? <LaserBoard /> : null}
             {laserOn ? <DrawingBoard /> : null}
             {simulationOn ? <SimulationTimeline /> : null}
+            {renderOn ? <RenderTimeline /> : null}
             {tutorialOn ? <Tutorial /> : null}
           </div>
           <RightPanel />

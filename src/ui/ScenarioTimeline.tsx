@@ -14,6 +14,7 @@ import { IconButton } from './components/controls';
 import { NumberInput } from './components/number-input';
 import { Icon } from './icons';
 import type { VideoOptions } from './video-export';
+import { CAPTURE_SIZES } from './capture-sizes';
 
 const unitOf = (dof: MotionDof) => (dof === 'angle' ? '°' : 'mm');
 const show = (v: number, dof: MotionDof) => `${formatNumber(v, dof === 'angle' ? 1 : 2)} ${unitOf(dof)}`;
@@ -343,13 +344,6 @@ function rulerTicks(duration: number): number[] {
   return out;
 }
 
-const SIZES = [
-  { label: '1280 × 720', width: 1280, height: 720 },
-  { label: '1920 × 1080', width: 1920, height: 1080 },
-  { label: '3840 × 2160 (4K)', width: 3840, height: 2160 },
-  { label: '1080 × 1080 (carré)', width: 1080, height: 1080 },
-  { label: '1080 × 1920 (vertical)', width: 1080, height: 1920 },
-];
 
 /** Export vidéo (MP4) de la timeline : taille, images par seconde, passages, caméra, éclairage, fond. */
 function VideoExport(props: { duration: number; loop: boolean; disabled: boolean }) {
@@ -367,7 +361,7 @@ function VideoExport(props: { duration: number; loop: boolean; disabled: boolean
     c.stopScenarioPlay();
     try {
       const { renderScenarioVideo } = await import('./video-export');
-      const { width, height } = SIZES[size]!;
+      const { width, height } = CAPTURE_SIZES[size]!;
       const blob = await renderScenarioVideo(c, { ...opts, loops, width, height }, (p) => setRun({ progress: p }), () => cancel.current);
       setRun(null);
       if (blob) {
@@ -390,7 +384,7 @@ function VideoExport(props: { duration: number; loop: boolean; disabled: boolean
           <label class="field">
             <span class="field-label">Taille</span>
             <select id="video-size" class="select" value={size} disabled={!!run && !run.error} onChange={(e) => setSize(Number((e.target as HTMLSelectElement).value))}>
-              {SIZES.map((x, k) => (
+              {CAPTURE_SIZES.map((x, k) => (
                 <option key={k} value={k}>
                   {x.label}
                 </option>
@@ -449,7 +443,7 @@ function VideoExport(props: { duration: number; loop: boolean; disabled: boolean
             <span class="segmented small" role="group" aria-label="Fond">
               {(
                 [
-                  ['view', 'Vue'],
+                  ['view', 'Scène'],
                   ['white', 'Blanc'],
                   ['black', 'Noir'],
                 ] as const
@@ -461,7 +455,7 @@ function VideoExport(props: { duration: number; loop: boolean; disabled: boolean
             </span>
           </div>
           <p class="field-help">
-            {SIZES[size]!.label.split(' (')[0]} · {seconds} s
+            {CAPTURE_SIZES[size]!.label.split(' (')[0]} · {seconds} s
           </p>
           {run?.error ? (
             <p class="field-error" role="alert">

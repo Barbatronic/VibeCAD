@@ -332,3 +332,59 @@ test('rendu et vidéo du scénario : éclairage studio, export MP4 image par ima
   });
   expect(size.canvas).toBe(Math.floor(size.css * size.ratio));
 });
+
+test('atelier Rendu : lumière orientée, sol et fond rangés dans le projet, scénario rejoué, image PNG', async ({ page }) => {
+  await openApp(page);
+  await page.evaluate((t) => (window as any).vibecad.controller.loadFromText(t, { savedAt: null, dirty: false }), fourBarDocument());
+  await expect.poll(() => appState(page, (s) => s.doc.parts.every((p: any) => s.display[p.id]?.mesh))).toBe(true);
+  // Un scénario animé (la manivelle de 70° à 160° en 2 s), préparé directement.
+  await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    const j1 = c.state.doc.assembly.joints[0].id;
+    const scenario = { id: 'sc1', name: 'Manivelle', drivers: [{ jointId: j1, dof: 'angle', value: 70 }], sensors: [], timeline: { duration: 2, keys: [{ jointId: j1, dof: 'angle', t: 0, value: 70 }, { jointId: j1, dof: 'angle', t: 2, value: 160 }] } };
+    c.commit({ ...c.state.doc, simulation: { studies: [], ...c.state.doc.simulation, scenarios: [scenario] } }, 'essai');
+  });
+  await page.getByRole('tab', { name: 'Rendu' }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).vibecad.controller.viewport.renderer.shadowMap.enabled)).toBe(true);
+  // Lumière : un clic sur le disque, à droite du centre (azimut 0°), à mi-rayon.
+  const pad = (await page.getByRole('slider', { name: 'Direction de la lumière' }).boundingBox())!;
+  await page.mouse.click(pad.x + pad.width * 0.73, pad.y + pad.height / 2);
+  await expect.poll(() => appState(page, (s) => s.doc.render?.lightAzimuth)).toBeCloseTo(0, 0);
+  const elevation = await appState(page, (s) => s.doc.render.lightElevation);
+  expect(elevation).toBeGreaterThan(30);
+  expect(elevation).toBeLessThan(60);
+  // Un seul pas d'annulation pour le clic.
+  await expect.poll(() => appState(page, (s) => s.history.past.at(-1)?.label)).toBe('Orienter la lumière');
+  // Sol coloré, fond uni noir.
+  await page.getByRole('group', { name: 'Sol' }).getByRole('button', { name: 'Couleur' }).click();
+  await page.getByRole('group', { name: 'Fond' }).getByRole('button', { name: 'Uni' }).click();
+  await page.getByLabel('Couleur du fond').fill('#202428');
+  await expect.poll(() => appState(page, (s) => s.doc.render)).toMatchObject({ ground: 'color', background: 'color', backgroundColor: '#202428' });
+  await page.screenshot({ path: 'tests/output/e2e-atelier-rendu.png' });
+  // Sans sol, fond en dégradé : le fond se voit.
+  await page.getByRole('group', { name: 'Sol' }).getByRole('button', { name: 'Aucun' }).click();
+  await page.getByRole('group', { name: 'Fond' }).getByRole('button', { name: 'Dégradé' }).click();
+  await page.getByLabel('Bas', { exact: true }).fill('#5a6470');
+  await expect.poll(() => appState(page, (s) => s.doc.render)).toMatchObject({ ground: 'none', background: 'gradient', backgroundBottom: '#5a6470' });
+  await page.screenshot({ path: 'tests/output/e2e-atelier-rendu-fond.png' });
+  // Le scénario comme sujet : la timeline est là, la manivelle suit l'instant montré.
+  await page.getByRole('radio', { name: 'Manivelle' }).click();
+  await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
+  await page.evaluate(() => (window as any).vibecad.controller.setScenarioTime(1));
+  const crank = await page.evaluate(() => {
+    const c = (window as any).vibecad.controller;
+    return c.scenarioState().settled.joints[0].angle;
+  });
+  expect(crank).toBeCloseTo(115, 1);
+  // Image : 1280 × 720, PNG.
+  await page.click('#render-image');
+  const dialog = page.getByRole('dialog', { name: 'Export d’une image' });
+  await dialog.getByLabel('Taille').selectOption({ label: '1280 × 720' });
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), dialog.getByRole('button', { name: 'Exporter' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/\.png$/);
+  await download.saveAs('tests/output/e2e-rendu-export.png');
+  const png = readFileSync('tests/output/e2e-rendu-export.png');
+  expect(png.subarray(1, 4).toString()).toBe('PNG');
+  expect(png.readUInt32BE(16)).toBe(1280);
+  expect(png.readUInt32BE(20)).toBe(720);
+});

@@ -20,7 +20,7 @@ import { useAppState, useController } from './context';
 import { IconButton, ToolButton } from './components/controls';
 import { Icon } from './icons';
 import { AssemblyTools, WorkspaceTabs } from './AssemblyUi';
-import { FabricationTools, SimulationTools, VersionsTools } from './lazy';
+import { FabricationTools, RenderTools, SimulationTools, VersionsTools } from './lazy';
 import { Sector, type SectorTool } from './ToolSectors';
 import { MaterialsToggle } from './MaterialsUi';
 
@@ -563,7 +563,7 @@ export function TopBar() {
           }}
         >
           <UndoRedo />
-          {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : workspace === 'versions' ? <VersionsTools /> : <ModelTools />}
+          {mode === 'sketch' ? <SketchTools /> : workspace === 'assembly' ? <AssemblyTools /> : workspace === 'fabrication' ? <FabricationTools /> : workspace === 'simulation' ? <SimulationTools /> : workspace === 'render' ? <RenderTools /> : workspace === 'versions' ? <VersionsTools /> : <ModelTools />}
         </nav>
         <button
           type="button"

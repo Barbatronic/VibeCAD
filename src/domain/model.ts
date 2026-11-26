@@ -3,6 +3,7 @@
  * géométrique : c'est la source de vérité, sérialisée telle quelle dans le format natif.
  * La géométrie (solides, maillages) est toujours reconstruite à partir de ce modèle.
  */
+import type { RenderSettings } from './render';
 import type { PlaneName } from '../math/frame';
 import type { FastenerKind, MetricSize } from './fasteners';
 import type { MaterialSheet } from './material-sheets';
@@ -46,6 +47,8 @@ export interface CadDocument {
   parameters?: ProjectParameter[];
   /** Études de déformation (facultatif : réglages de l'onglet Simulation). */
   simulation?: SimulationSettings;
+  /** Scène de rendu (facultatif : réglages de l'atelier Rendu ; absents, les valeurs par défaut). */
+  render?: Partial<RenderSettings>;
   createdAt: string;
   modifiedAt: string;
 }

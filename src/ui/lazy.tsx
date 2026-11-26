@@ -1,5 +1,5 @@
 /**
- * Parties de l'interface chargées à la demande : les ateliers Fabrication, Simulation et Versions,
+ * Parties de l'interface chargées à la demande : les ateliers Fabrication, Simulation, Rendu et Versions,
  * la découpe laser, l'aide, les parcours guidés, les bibliothèques de composants et l'import d'un
  * dessin. Leur code n'est téléchargé qu'à leur première ouverture ; le démarrage ne charge que la
  * conception. Une fois chargé (ou mis en cache hors ligne), l'affichage est immédiat.
@@ -31,6 +31,7 @@ function lazyComponent<P extends object>(load: () => Promise<ComponentType<P>>):
 const fabrication = () => import('./FabricationUi');
 const simulation = () => import('./SimulationUi');
 const versions = () => import('./VersionsUi');
+const render = () => import('./RenderUi');
 
 export const FabricationTools = lazyComponent(() => fabrication().then((m) => m.FabricationTools));
 export const FabricationSection = lazyComponent(() => fabrication().then((m) => m.FabricationSection));
@@ -39,6 +40,9 @@ export const SimulationTools = lazyComponent(() => simulation().then((m) => m.Si
 export const SimulationSection = lazyComponent(() => simulation().then((m) => m.SimulationSection));
 export const SimulationRightPanel = lazyComponent(() => simulation().then((m) => m.SimulationRightPanel));
 export const SimulationTimeline = lazyComponent(() => simulation().then((m) => m.SimulationTimeline));
+export const RenderTools = lazyComponent(() => render().then((m) => m.RenderTools));
+export const RenderSection = lazyComponent(() => render().then((m) => m.RenderSection));
+export const RenderTimeline = lazyComponent(() => render().then((m) => m.RenderTimeline));
 export const VersionsTools = lazyComponent(() => versions().then((m) => m.VersionsTools));
 export const VersionsSection = lazyComponent(() => versions().then((m) => m.VersionsSection));
 export const VersionsRightPanel = lazyComponent(() => versions().then((m) => m.VersionsRightPanel));

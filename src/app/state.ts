@@ -121,7 +121,7 @@ export interface VersionView {
 export const EMPTY_VERSION_VIEW: VersionView = { commitId: null, partId: null, diff: null, scene: null, loading: false };
 
 /** Onglet de travail : modélisation des pièces, ou assemblage. */
-export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation' | 'versions';
+export type Workspace = 'parts' | 'assembly' | 'fabrication' | 'simulation' | 'render' | 'versions';
 
 /** Calcul de simulation : en cours, terminé ou en échec, pour une signature (`studyKey`). */
 export interface SimulationRun {
@@ -331,6 +331,8 @@ export interface AppState {
   /** Timeline du scénario : instant montré (s), lecture en cours, poses pré-calculées. */
   scenarioTime: number;
   scenarioPlaying: boolean;
+  /** Atelier Rendu : la scène montre le scénario ouvert (sa timeline), sinon l'assemblage tel quel. */
+  renderScenario: boolean;
   timelineBake: TimelineBake | null;
   /** Loi de pilotage du scénario ouvert : calcul en cours (avancement) ou résultat. */
   controlLaw: ControlLawRun | null;
@@ -474,6 +476,7 @@ export function initialState(): AppState {
     scenarioLive: {},
     scenarioTime: 0,
     scenarioPlaying: false,
+    renderScenario: false,
     timelineBake: null,
     controlLaw: null,
     simulationRun: null,

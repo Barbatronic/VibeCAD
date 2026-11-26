@@ -9,7 +9,7 @@ import { partLocked } from '../app/availability';
 import { closedDocument } from '../domain/subassemblies';
 import { useAppState, useController } from './context';
 import { AssemblySection } from './AssemblyUi';
-import { FabricationSection, SimulationSection, VersionsSection } from './lazy';
+import { FabricationSection, RenderSection, SimulationSection, VersionsSection } from './lazy';
 import { ParametersSection } from './ParametersUi';
 import { Button, IconButton } from './components/controls';
 import { Icon } from './icons';
@@ -1185,7 +1185,7 @@ export function LeftPanel() {
   const workspace = useAppState((s) => s.workspace);
   const canParameters = useAppState((s) => allows(s.level, 'parameters'));
   return (
-    <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : workspace === 'versions' ? 'Versions' : 'Pièces et historique'}>
+    <aside class="panel left-panel" aria-label={workspace === 'assembly' ? 'Assemblage' : workspace === 'simulation' ? 'Simulation' : workspace === 'render' ? 'Rendu' : workspace === 'versions' ? 'Versions' : 'Pièces et historique'}>
       <WidthHandle />
       {workspace === 'assembly' ? (
         <>
@@ -1196,6 +1196,8 @@ export function LeftPanel() {
         <FabricationSection />
       ) : workspace === 'simulation' ? (
         <SimulationSection />
+      ) : workspace === 'render' ? (
+        <RenderSection />
       ) : workspace === 'versions' ? (
         <VersionsSection />
       ) : (

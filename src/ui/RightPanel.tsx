@@ -349,6 +349,7 @@ export function RightPanel() {
   if (workspace === 'fabrication') return <FabricationRightPanel />;
   if (workspace === 'simulation') return <SimulationRightPanel />;
   if (workspace === 'versions') return <VersionsRightPanel />;
+  if (workspace === 'render') return null;
   if (mode === 'model') return propertiesOpen ? <PropertiesPanel /> : null;
   return (
     <aside class="panel right-panel" aria-label="Paramètres de l’opération en cours">
