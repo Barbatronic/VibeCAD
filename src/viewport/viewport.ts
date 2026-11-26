@@ -78,6 +78,8 @@ export interface ViewPartInput {
   faceColors?: string[];
   /** Hauteur de couche (mm) d'une pièce imprimée en 3D : stries d'impression sur les flancs. */
   layers?: number;
+  /** Sens d'empilement des couches (repère de la pièce) : le haut du plateau d'impression ; absent : +Z. */
+  layerAxis?: [number, number, number];
   /** Arêtes cachées montrées en pointillés, et cliquables à travers la matière. */
   xray?: boolean;
   /** Aperçu translucide (opération qui retire de la matière : la poche se voit dans la pièce). */
@@ -666,7 +668,7 @@ export class Viewport {
       const existing = this.parts.get(p.partId);
       const style = this.input.displayStyle ?? 'shaded-edges';
       const edgeWidth = this.input.edgeWidth ?? 1;
-      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}|${p.xray ? 'x' : ''}|${p.seeThrough ? 't' : ''}`;
+      const signature = `${p.meshKey}|${p.color}|${p.opacity ?? 1}|${p.finish ?? ''}|${p.layers ?? ''}|${p.layerAxis?.join(',') ?? ''}|${p.appearance}|${style}|${edgeWidth}|${p.faceColors?.join(',') ?? ''}|${p.markings ? markingsKey(p.markings) : ''}|${p.xray ? 'x' : ''}|${p.seeThrough ? 't' : ''}`;
       if (!p.mesh || !p.meshKey) {
         if (existing) {
           this.partsGroup.remove(existing.group);
@@ -680,7 +682,7 @@ export class Viewport {
           this.partsGroup.remove(existing.group);
           existing.dispose();
         }
-        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers, !!p.xray, !!p.seeThrough);
+        const obj = new PartObject(p.partId, p.meshKey, p.mesh, p.color, p.appearance, this.palette, style, edgeWidth, p.opacity ?? 1, p.faceColors, p.markings, p.finish, p.layers, p.layerAxis, !!p.xray, !!p.seeThrough);
         obj.setResolution(this.width, this.height);
         // Pièce reconstruite : sa surbrillance de survol sera refaite au prochain mouvement.
         if (this.hoverOverlayKey?.startsWith(`${p.partId}:`)) this.hoverOverlayKey = null;

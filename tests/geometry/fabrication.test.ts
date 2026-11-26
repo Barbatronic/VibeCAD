@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { printLayout, PLA_DENSITY, DEFAULT_FABRICATION, seriesMark, variantKey, type PrintVariant } from '../../src/app/fabrication';
+import { printItemOf, printLayout, printUp, PLA_DENSITY, DEFAULT_FABRICATION, seriesMark, variantKey, type PrintVariant } from '../../src/app/fabrication';
 import { applyParameters } from '../../src/features/parameters';
 import { findPart } from '../../src/domain/document';
 import type { CadDocument, Id } from '../../src/domain/model';
@@ -32,6 +32,27 @@ function evaluate(doc: CadDocument): { meshes: Map<Id, MeshData>; results: Map<I
 const PLATE = 9000 - Math.PI * 9 * 5;
 
 describe('fabrication : plateau d’impression', () => {
+  it('couches : empilées vers le haut du plateau, face choisie dessous', () => {
+    const { doc, ids } = buildPlateDocument();
+    const { meshes } = evaluate(doc);
+    const mesh = meshes.get(ids.partId)!;
+    const down = { partId: ids.partId, copies: 1, scale: 100, downFace: { featureId: ids.extrude, role: 'end' as const } };
+    expect(printUp(mesh, undefined)).toBeNull();
+    const up = printUp(mesh, down)!;
+    // Face du dessus de l'extrusion posée sur le plateau : la pièce est retournée, les couches montent vers −Z.
+    expect(up.z).toBeCloseTo(-1, 6);
+    const layout = printLayout({ ...DEFAULT_FABRICATION.print, items: [down] }, [{ id: ids.partId, name: 'P' }], () => mesh, () => null);
+    const m = layout.placements[0]!.matrix;
+    const o = transformPoint4(m, { x: 0, y: 0, z: 0 });
+    const tip = transformPoint4(m, up);
+    expect(tip.z - o.z).toBeCloseTo(1, 6);
+    // Plateau choisi d'abord, sinon le premier qui porte la pièce.
+    const print = { ...DEFAULT_FABRICATION.print, plates: [{ id: 'a', name: 'A', items: [{ ...down, downFace: undefined }] }, { id: 'b', name: 'B', items: [down] }] };
+    expect(printItemOf(print, ids.partId, 'b')?.downFace).toBeDefined();
+    expect(printItemOf(print, ids.partId, 'zz')?.downFace).toBeUndefined();
+    expect(printItemOf(print, 'autre', 'b')).toBeUndefined();
+  });
+
   it('pose la pièce sur la face choisie, range les exemplaires, estime la matière', () => {
     const { doc, ids } = buildPlateDocument();
     const { meshes, results } = evaluate(doc);

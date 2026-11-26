@@ -142,6 +142,26 @@ export function faceNormal(mesh: MeshData, ref: FaceRef): Vec3 | null {
   return face?.plane?.normal ?? null;
 }
 
+/**
+ * Réglage d'impression d'une pièce : sur le plateau `preferred` s'il la porte, sinon sur le premier
+ * plateau qui la porte (ancien format : la liste unique).
+ */
+export function printItemOf(print: FabricationSettings['print'] | undefined, partId: Id, preferred?: Id | null): PrintItem | undefined {
+  if (!print) return undefined;
+  const plates = print.plates ?? [{ id: '', name: '', items: print.items }];
+  const on = (pl: PrintPlate) => pl.items.find((i) => i.partId === partId);
+  const first = plates.find((pl) => pl.id === preferred);
+  return (first && on(first)) ?? plates.map(on).find((i) => !!i);
+}
+
+/** Sens d'impression dans le repère de la pièce (le haut du plateau) : opposé à la face posée dessous ; null : +Z. */
+export function printUp(mesh: MeshData, item: PrintItem | undefined): Vec3 | null {
+  const n = item?.downFace ? faceNormal(mesh, item.downFace) : null;
+  if (!n) return null;
+  const len = Math.hypot(n.x, n.y, n.z) || 1;
+  return { x: -n.x / len, y: -n.y / len, z: -n.z / len };
+}
+
 /** Rotation qui amène la direction `n` sur −Z (la face vient se poser sur le plateau). */
 export function rotationToDown(nIn: Vec3): Mat4 {
   const n = normalize3(nIn);

@@ -38,7 +38,7 @@ import { subassemblyContent } from '../domain/subassemblies';
 import { activeContext, CONTEXT_PREFIX } from '../app/assembly-context';
 import { MECHANISM_STUDY, mechanismStudyOf, SCENARIO_STUDY, scenarioAssembly, withValue } from '../app/mechanism';
 import { fastenerColor, fastenerMesh, placeFasteners } from '../app/fasteners';
-import { fabricationSettings, printLayout, selectedPlate, variantKey } from '../app/fabrication';
+import { fabricationSettings, printItemOf, printLayout, printUp, selectedPlate, variantKey } from '../app/fabrication';
 import { cutEdgeFaces, displayLook, engraveColors, sheetOf } from '../domain/material-sheets';
 import { engravingLoops, partEngravings } from '../app/engravings';
 import { engraveSteps, faceMaterials } from '../domain/paint';
@@ -272,7 +272,7 @@ const PRINT_LAYER = 0.2;
  * Couleur et opacité d'une pièce à l'écran : sa couleur de conception, ou celle de sa fiche matière
  * (rendu réel). L'atelier Fabrication montre toujours les matières.
  */
-function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish' | 'layers'> {
+function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pick<ViewPartInput, 'color' | 'opacity' | 'faceColors' | 'markings' | 'finish' | 'layers' | 'layerAxis'> {
   if (!part) return { color: '#888888' };
   // Atelier Versions : la couleur dit ce que la version a fait à la pièce ; la pièce suivie ressort.
   if (s.workspace === 'versions') {
@@ -286,8 +286,11 @@ function lookOf(s: AppState, part: Part | undefined, mesh?: MeshData | null): Pi
   const finish = mode === 'materials' ? sheetOf(s.doc, part)?.finish : undefined;
   const sheet = mode === 'materials' ? sheetOf(s.doc, part) : undefined;
   // Impression 3D : les couches se voient (0,2 mm, la hauteur courante).
+  // Elles s'empilent dans le sens d'impression : vers le haut du plateau quand une face est posée dessous.
   const layers = sheet?.process === 'print' ? PRINT_LAYER : undefined;
-  const base = { ...(look.opacity < 1 ? look : { color: look.color }), ...(marks ? { markings: marks } : {}), ...(finish ? { finish } : {}), ...(layers ? { layers } : {}) };
+  const shape = mesh ?? s.display[part.id]?.mesh;
+  const up = layers && shape ? printUp(shape, printItemOf(s.doc.fabrication?.print, part.id, s.printPlateId)) : null;
+  const base = { ...(look.opacity < 1 ? look : { color: look.color }), ...(marks ? { markings: marks } : {}), ...(finish ? { finish } : {}), ...(layers ? { layers } : {}), ...(up ? { layerAxis: [up.x, up.y, up.z] as [number, number, number] } : {}) };
   // Impression : faces peintes, ou creusées par une gravure colorée, dans d'autres matières.
   const engraves = engraveColors(part);
   if (sheet?.process === 'print' && (part.paint || engraves.length) && mesh) {
@@ -340,7 +343,8 @@ function buildFabricationInput(s: AppState): ViewportInput {
       .map((p) => ({ partId: `fab:${p.id}:0`, ...lookOf(s, p, s.display[p.id]?.mesh), visible: true, meshKey: s.display[p.id]?.meshKey ?? null, mesh: s.display[p.id]?.mesh ?? null, appearance: 'normal' }));
     return { mode: 'model', parts, tool: null, sketches: [], session: null, selection: [], measure: null, featurePicking: s.mode.kind === 'pick-fab-face' || s.brush !== null, fitRequest: s.fitRequest, markers: [], dragTargets: [], bed: null };
   }
-  const layout = printLayout({ ...settings.print, items: selectedPlate(settings.print, s.printPlateId).items }, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis, (id, series, value) => s.printVariants[variantKey(id, series, value)]);
+  const plateItems = selectedPlate(settings.print, s.printPlateId).items;
+  const layout = printLayout({ ...settings.print, items: plateItems }, s.doc.parts, (id) => s.display[id]?.mesh, (id) => s.display[id]?.result.analysis, (id, series, value) => s.printVariants[variantKey(id, series, value)]);
   const plate = Math.max(0, Math.min(s.printPlate, layout.plates - 1));
   const parts: ViewPartInput[] = layout.placements.filter((p) => p.plate === plate).map((p) => {
     const part = s.doc.parts.find((x) => x.id === p.partId);
@@ -348,7 +352,11 @@ function buildFabricationInput(s: AppState): ViewportInput {
     // Série d'essais : la version de la pièce pour sa valeur (la pièce actuelle tant qu'elle se calcule, estompée).
     const mesh = p.mesh ?? d?.mesh ?? null;
     const meshKey = p.mesh ? (p.meshKey ?? null) : (d?.meshKey ?? null);
-    return { partId: `fab:${p.partId}:${p.copy}`, ...lookOf(s, part, mesh ?? undefined), visible: true, meshKey, mesh, appearance: p.variant?.pending ? 'stale' : s.printItem && s.printItem !== p.partId ? 'dimmed' : 'normal', matrix: p.matrix };
+    const look = lookOf(s, part, mesh ?? undefined);
+    // Pièce agrandie ou réduite : les couches gardent leur hauteur réelle sur le plateau.
+    const scale = (plateItems.find((i) => i.partId === p.partId)?.scale ?? 100) / 100;
+    if (look.layers && scale > 0 && scale !== 1) look.layers /= scale;
+    return { partId: `fab:${p.partId}:${p.copy}`, ...look, visible: true, meshKey, mesh, appearance: p.variant?.pending ? 'stale' : s.printItem && s.printItem !== p.partId ? 'dimmed' : 'normal', matrix: p.matrix };
   });
   return {
     mode: 'model',

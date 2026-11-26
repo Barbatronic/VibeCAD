@@ -15,6 +15,7 @@ import {
   ShaderMaterial,
   ShapeUtils,
   Vector2,
+  Vector3,
   type Material,
 } from 'three';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
@@ -129,6 +130,8 @@ export class PartObject {
     private readonly finish?: 'matte' | 'satin' | 'glossy' | 'metal',
     /** Hauteur de couche (mm) d'une pièce imprimée : stries visibles sur les flancs ; absente : surface lisse. */
     private readonly layers?: number,
+    /** Sens d'empilement des couches, dans le repère de la pièce (vers le haut du plateau) ; absent : +Z. */
+    private readonly layerAxis?: readonly [number, number, number],
     /** Arêtes cachées par la matière montrées en pointillés (choix des arêtes d'un congé, d'un chanfrein). */
     readonly xray = false,
     /** Aperçu d'une opération qui retire de la matière : pièce translucide, la poche se voit dedans. */
@@ -258,6 +261,7 @@ export class PartObject {
             ? new MeshStandardMaterial({ ...base, color, transparent: true, opacity: this.opacity, depthWrite: false, roughness: Math.min(base.roughness, 0.25) })
             : new MeshStandardMaterial({ ...base, color }),
           this.layers,
+          this.layerAxis,
         );
     }
   }
@@ -360,19 +364,22 @@ export class PartObject {
 }
 
 /**
- * Couches d'impression 3D : des cordons empilés selon l'axe Z de la pièce (sens d'impression),
+ * Couches d'impression 3D : des cordons empilés selon le sens d'impression (axe Z de la pièce, ou le haut
+ * du plateau quand une face est posée dessous),
  * dessinés par le shader (relief et sillon assombri), sans toucher à la géométrie. Absents des faces
  * horizontales ; ils s'estompent quand ils deviennent plus fins qu'un pixel, pour éviter le moiré.
  */
-function withLayers(material: MeshStandardMaterial, height: number | undefined): MeshStandardMaterial {
+function withLayers(material: MeshStandardMaterial, height: number | undefined, axisIn?: readonly [number, number, number]): MeshStandardMaterial {
   if (!height || height <= 0) return material;
+  const axis = axisIn ?? [0, 0, 1];
   material.onBeforeCompile = (shader) => {
     shader.uniforms.layerHeight = { value: height };
+    shader.uniforms.layerDir = { value: new Vector3(axis[0], axis[1], axis[2]).normalize() };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vLayerZ;\nvarying float vLayerNz;\nvarying vec3 vLayerAxis;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 layerDir;\nvarying float vLayerZ;\nvarying float vLayerNz;\nvarying vec3 vLayerAxis;')
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvLayerZ = position.z;\nvLayerNz = normal.z;\nvLayerAxis = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));',
+        '#include <begin_vertex>\nvLayerZ = dot(position, layerDir);\nvLayerNz = dot(normal, layerDir);\nvLayerAxis = normalize(normalMatrix * layerDir);',
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float layerHeight;\nvarying float vLayerZ;\nvarying float vLayerNz;\nvarying vec3 vLayerAxis;')
@@ -389,6 +396,6 @@ function withLayers(material: MeshStandardMaterial, height: number | undefined):
         diffuseColor.rgb *= 1.0 - 0.22 * layerGroove * layerOn;`,
       );
   };
-  material.customProgramCacheKey = () => `layers-${height}`;
+  material.customProgramCacheKey = () => `layers-${height}-${axis.join(',')}`;
   return material;
 }
