@@ -3,7 +3,7 @@ import { issue, okStatus, type FeatureStatus } from '../../domain/status';
 import { TOLERANCES } from '../../domain/tolerances';
 import type { KernelShape } from '../../geometry/kernel';
 import type { Frame3D } from '../../math/frame';
-import { dot3, scale3, sub3 } from '../../math/vec';
+import { add3, dot3, scale3, sub3 } from '../../math/vec';
 import type { ProfileRegion } from '../../sketch/profiles';
 import type { EvaluationContext, FeatureEvaluator } from '../evaluation';
 import { halfSpace } from '../half-space';
@@ -57,11 +57,18 @@ function extrudeUpTo(feature: ExtrudeFeature, resolved: { regions: ProfileRegion
   return { tool };
 }
 
+/** Profil déplacé le long de la normale de son esquisse (décalage du départ ; 0 : inchangé). */
+export function offsetProfile<T extends { frame: Frame3D }>(profile: T, offset: number | undefined): T {
+  if (!offset) return profile;
+  return { ...profile, frame: { ...profile.frame, origin: add3(profile.frame.origin, scale3(profile.frame.normal, offset)) } };
+}
+
 export const evaluateExtrude: FeatureEvaluator<ExtrudeFeature> = (feature, ctx) => {
   const paramIssues = extrudeDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
-  const resolved = resolveProfile(feature.id, feature.params.sketchId, ctx);
-  if ('status' in resolved) return resolved;
+  const profile = resolveProfile(feature.id, feature.params.sketchId, ctx);
+  if ('status' in profile) return profile;
+  const resolved = offsetProfile(profile, feature.params.offset);
   let tool: KernelShape;
   if (feature.params.upTo) {
     const up = extrudeUpTo(feature, resolved, ctx);

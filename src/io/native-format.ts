@@ -945,6 +945,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           direction: oneOf(v, p, 'direction', pp, DIRECTIONS),
           ...(p.upTo !== undefined ? { upTo: readFaceRef(v, p.upTo, `${pp}.upTo`) } : {}),
           ...(p.distance2 !== undefined ? { distance2: num(v, p, 'distance2', pp) } : {}),
+          ...(p.offset !== undefined ? { offset: num(v, p, 'offset', pp) } : {}),
         },
       };
     case 'revolve': {
@@ -1237,7 +1238,13 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
         id,
         name,
         type,
-        params: { sketchId: str(v, p, 'sketchId', pp), extent, direction: oneOf(v, p, 'direction', pp, DIRECTIONS), ...(extent2 ? { extent2 } : {}) },
+        params: {
+          sketchId: str(v, p, 'sketchId', pp),
+          extent,
+          direction: oneOf(v, p, 'direction', pp, DIRECTIONS),
+          ...(extent2 ? { extent2 } : {}),
+          ...(p.offset !== undefined ? { offset: num(v, p, 'offset', pp) } : {}),
+        },
       };
     }
     case 'imported-solid':

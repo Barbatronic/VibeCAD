@@ -1355,6 +1355,11 @@ export interface ExtrudeParams {
   upTo?: FaceRef;
   /** Sens « deux côtés » : longueur du côté opposé à la normale (`distance` : côté normale). */
   distance2?: number;
+  /**
+   * Décalage du départ (mm, signé, le long de la normale de l'esquisse) : l'extrusion part d'un
+   * plan parallèle à l'esquisse, décalé de cette valeur. Absent ou 0 : départ sur l'esquisse.
+   */
+  offset?: number;
 }
 
 export type PocketExtent = { kind: 'distance'; distance: number } | { kind: 'throughAll' };
@@ -1366,6 +1371,8 @@ export interface PocketParams {
   direction: ExtentDirection;
   /** Sens « deux côtés » : profondeur de l'autre côté du plan de l'esquisse (le long de la normale). */
   extent2?: PocketExtent;
+  /** Décalage du départ, comme pour l'extrusion (`ExtrudeParams.offset`). */
+  offset?: number;
 }
 
 /** Perçage : trou de passage, lamé (tête cylindrique noyée), fraisé (tête conique) ou à tarauder. */

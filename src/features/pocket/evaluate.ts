@@ -3,6 +3,7 @@ import { issue, okStatus } from '../../domain/status';
 import type { BoundingBox } from '../../geometry/kernel';
 import { signedDistanceToFrame, type Frame3D } from '../../math/frame';
 import type { FeatureEvaluator } from '../evaluation';
+import { offsetProfile } from '../extrude/evaluate';
 import { resolveProfile } from '../sketch/evaluate';
 import { pocketDefinition } from './definition';
 
@@ -39,8 +40,10 @@ export const evaluatePocket: FeatureEvaluator<PocketFeature> = (feature, ctx) =>
   const paramIssues = pocketDefinition.validate(feature);
   if (paramIssues.length > 0) return { status: issue(feature.id, 'error', 'INVALID_PARAMETER', { message: paramIssues[0]!.message }) };
   if (!ctx.shape || !ctx.shapeAnalysis) return { status: issue(feature.id, 'error', 'POCKET_WITHOUT_SOLID') };
-  const resolved = resolveProfile(feature.id, feature.params.sketchId, ctx);
-  if ('status' in resolved) return resolved;
+  const profile = resolveProfile(feature.id, feature.params.sketchId, ctx);
+  if ('status' in profile) return profile;
+  // Décalage du départ : la poche part d'un plan parallèle à l'esquisse.
+  const resolved = offsetProfile(profile, feature.params.offset);
   const { extent, direction } = feature.params;
   let range: [number, number];
   if (direction === 'twoSides') {

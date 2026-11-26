@@ -3,7 +3,7 @@ import type { ExtentDirection, PocketFeature } from '../../domain/model';
 import { formatLength } from '../../domain/units';
 import { signedDistanceToFrame } from '../../math/frame';
 import type { CreateContext, FeatureDefinition, ParamIssue } from '../definition';
-import { validateDistance } from '../extrude/definition';
+import { offsetSummary, validateDistance, validateOffset } from '../extrude/definition';
 
 export const POCKET_DIRECTION_LABELS: Record<ExtentDirection, string> = {
   default: 'Dans la matière',
@@ -56,15 +56,18 @@ export const pocketDefinition: FeatureDefinition<PocketFeature> = {
         if (d2) issues.push({ field: 'distance2', message: d2 });
       }
     }
+    const o = validateOffset(feature.params.offset);
+    if (o) issues.push({ field: 'offset', message: o });
     if (!feature.params.sketchId) issues.push({ field: 'sketchId', message: 'Choisissez une esquisse.' });
     return issues;
   },
   summary(feature) {
     const depth = (e: PocketFeature['params']['extent']) => (e.kind === 'throughAll' ? 'traversante' : formatLength(e.distance));
-    if (feature.params.direction === 'twoSides' && feature.params.extent2) return `${depth(feature.params.extent)} + ${depth(feature.params.extent2)} (deux côtés)`;
+    const offset = offsetSummary(feature.params.offset);
+    if (feature.params.direction === 'twoSides' && feature.params.extent2) return `${depth(feature.params.extent)} + ${depth(feature.params.extent2)} (deux côtés)${offset}`;
     const extent = depth(feature.params.extent);
     const dir = feature.params.direction === 'default' ? '' : `, ${POCKET_DIRECTION_LABELS[feature.params.direction].toLowerCase()}`;
-    return `${extent}${dir}`;
+    return `${extent}${dir}${offset}`;
   },
   tool: {
     input: 'sketch',
@@ -75,6 +78,7 @@ export const pocketDefinition: FeatureDefinition<PocketFeature> = {
       makePocketFeature(doc, part, input.kind === 'sketch' ? input.sketchId : '', { kind: 'throughAll' }, defaultPocketDirection(context)),
     initialFields: (feature) => ({
       distance: formatLength(feature.params.extent.kind === 'distance' ? feature.params.extent.distance : 5, 3, false),
+      offset: formatLength(feature.params.offset ?? 0, 3, false),
     }),
   },
 };

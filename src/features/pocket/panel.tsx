@@ -3,6 +3,7 @@ import type { PocketFeature } from '../../domain/model';
 import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
+import { OffsetField } from '../extrude/panel';
 import type { FeaturePanelProps } from '../panel-types';
 import { POCKET_DIRECTION_LABELS } from './definition';
 
@@ -95,9 +96,7 @@ export function PocketPanel(props: FeaturePanelProps<PocketFeature>) {
         </>
       ) : null}
       <PreviewStatus status={props.status} kind="cut" />
-      <details class="advanced">
-        <summary>Réglages avancés</summary>
-      </details>
+      <OffsetField {...props} />
     </>
   );
 }

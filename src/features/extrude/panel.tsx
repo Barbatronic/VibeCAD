@@ -1,11 +1,11 @@
 /** Panneau des paramètres d'une extrusion. */
-import type { ExtrudeFeature } from '../../domain/model';
-import { formatLength, parseLength, MIN_POSITIVE } from '../../domain/units';
+import type { ExtrudeFeature, PocketFeature } from '../../domain/model';
+import { formatLength, parseLength, readNumber, MIN_POSITIVE } from '../../domain/units';
 import { LengthField, Segmented } from '../../ui/components/controls';
 import { DirectionField, PreviewStatus, SketchSelect, withParams } from '../../ui/components/feature-fields';
 import { useAppState } from '../../ui/context';
 import type { FeaturePanelProps } from '../panel-types';
-import { EXTRUDE_DIRECTION_LABELS } from './definition';
+import { EXTRUDE_DIRECTION_LABELS, validateOffset } from './definition';
 
 export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
   const { draft, update, setField } = props;
@@ -84,9 +84,35 @@ export function ExtrudePanel(props: FeaturePanelProps<ExtrudeFeature>) {
         </>
       )}
       <PreviewStatus status={props.status} kind="add" />
-      <details class="advanced">
-        <summary>Réglages avancés</summary>
-      </details>
+      <OffsetField {...props} />
     </>
+  );
+}
+
+/** « Réglages avancés » d'une extrusion ou d'une poche : décalage du départ (signé). */
+export function OffsetField<F extends ExtrudeFeature | PocketFeature>(props: FeaturePanelProps<F>) {
+  const { draft, setField } = props;
+  const f = draft.feature;
+  return (
+    <details class="advanced" open={!!f.params.offset || !!draft.errors.offset}>
+      <summary>Réglages avancés</summary>
+      <LengthField
+        id="draft-offset"
+        label="Décalage du départ"
+        value={draft.fields.offset ?? ''}
+        error={draft.errors.offset ?? null}
+        help="Le long de la normale de l’esquisse · négatif : côté opposé"
+        selectOnFocus
+        onInput={(text) => {
+          const v = readNumber(text);
+          const error = v === null ? 'Le décalage : saisissez un nombre.' : validateOffset(v);
+          if (v === null || error) return setField('offset', text, { error: error! });
+          const { offset: _drop, ...rest } = f.params;
+          setField('offset', text, { feature: { ...f, params: v ? { ...rest, offset: v } : rest } as F });
+        }}
+        onEnter={props.confirm}
+        onEscape={props.cancel}
+      />
+    </details>
   );
 }

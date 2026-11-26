@@ -93,9 +93,10 @@ export function freecadPlan(part: Part, failedFeatureId: Id | null): { frozen: S
 function nativeFeature(f: Feature, inBody: ReadonlySet<Id>): boolean {
   switch (f.type) {
     case 'extrude':
-      return !f.params.upTo;
+      // Pas de décalage du départ sur un Pad FreeCAD : la forme est reprise figée.
+      return !f.params.upTo && !f.params.offset;
     case 'pocket':
-      return f.params.direction !== 'twoSides';
+      return f.params.direction !== 'twoSides' && !f.params.offset;
     case 'revolve':
       // Axe hors de l'esquisse : pas de référence simple dans FreeCAD, la forme est reprise figée.
       // Décalage de départ : pas d'équivalent dans la révolution de FreeCAD, forme reprise figée.

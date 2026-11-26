@@ -1236,6 +1236,10 @@
                 },
                 "distance2": {
                   "$ref": "#/$defs/length"
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "Décalage du départ (mm, signé, le long de la normale de l'esquisse)."
                 }
               }
             }
@@ -1319,6 +1323,10 @@
                       }
                     }
                   ]
+                },
+                "offset": {
+                  "type": "number",
+                  "description": "Décalage du départ (mm, signé, le long de la normale de l'esquisse)."
                 }
               }
             }
