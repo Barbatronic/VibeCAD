@@ -7,6 +7,8 @@ une capture de la vue et préparer la fabrication (plateaux d'impression, décou
 action apparaît en direct dans la vue 3D et l'historique, et s'annule avec Ctrl+Z comme une action
 faite à la souris.
 
+Démonstration : [préparation d'une découpe laser par l'assistant](videos/VibeCad-MCP-Laser-24-720.mp4).
+
 ## Mise en route
 
 1. `npm run dev`, puis ouvrir http://localhost:5173/ dans le navigateur.
