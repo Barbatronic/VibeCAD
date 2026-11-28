@@ -1,7 +1,6 @@
 Avec le MCP vibecad, conçois une tour Eiffel « dentelle » à découper au laser dans du
 contreplaqué de 3 mm, sur 2 planches de 300 × 300 mm. Chaque profil est posé sur la
-DIAGONALE de sa planche (environ 424 mm), pour obtenir la tour la plus haute possible :
-vise environ 32 cm en gardant les proportions de la vraie tour.
+DIAGONALE de sa planche, pour obtenir la tour la plus haute possible en gardant les proportions de la vraie tour.
 
 Principe de montage (aucune colle) :
 - 2 profils plats de même silhouette, qui s'emboîtent en croix à 90° par des fentes
@@ -28,21 +27,3 @@ haut, là où c'est étroit. Garde un montant plein de 3 mm le long des bords, u
 autour de la fente centrale, et des bandes pleines aux étages. Les ponts de bois font au moins
 2,2 mm et aucun trou ne fait moins de 2 mm. Ajoure aussi les plateaux (triangles avec une
 croisée entre les fentes). Chaque pièce doit rester d'un seul morceau.
-
-Démarche attendue (montre ce que sait faire le MCP) :
-1. Ouvre un nouveau projet « Tour Eiffel dentelle 2 planches » (new_project, sans forcer).
-2. Mets les dimensions clés en paramètres du projet : hauteur, demi-largeur au sol,
-   épaisseur, largeur de fente, hauteurs des étages.
-3. Construis chaque pièce par un seul batch (une action annulable chacune), montée en 3D :
-   profils croisés à ±45°, plateaux à leur hauteur. Vérifie à chaque fois que le profil de
-   l'esquisse est valide et que le volume est cohérent.
-4. Fais des captures en vue de face et en iso pour vérifier l'assemblage.
-5. Découpe laser : matériau contreplaqué 3 mm, plaque 300 × 300, 2 plaques. Un profil par
-   plaque, posé sur la diagonale (angle de 45°), et les plateaux dans les coins libres.
-   N'utilise pas l'optimisation automatique : elle peut figer l'onglet plusieurs minutes sur
-   des pièces aussi ajourées. Vérifie avec get_laser_layout qu'aucune pièce ne dépasse ni ne
-   chevauche (cet outil ne le signale pas encore : contrôle les bbox toi-même).
-6. Exporte le SVG de découpe et donne-moi son chemin, avec un résumé : hauteur de la tour,
-   nombre de trous par pièce, plaques utilisées, ordre de montage.
-
-Pose-moi une question seulement si un choix m'appartient vraiment.
