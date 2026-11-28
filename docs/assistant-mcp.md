@@ -55,6 +55,7 @@ client MCP ──stdio──► mcp/vibecad-mcp.mjs ──POST /__vibecad_mcp─
 | `get_document` | pièces, historique et statut de chaque étape, volume, encombrement |
 | `get_feature` | paramètres complets d'une étape ; repère et points résolus d'une esquisse |
 | `list_feature_types` | étapes créables et l'entrée qu'elles attendent |
+| `new_project` | nouveau projet vide ; refusé si le projet ouvert a des modifications non enregistrées (sauf `force: true`) |
 | `new_part` | nouvelle pièce ; renvoie son `partId` |
 | `rename_part` / `delete_part` | renommer une pièce ; supprimer une ou plusieurs pièces |
 | `copy_part` | copie indépendante, ou variante symétrique liée (plan XY, XZ ou YZ, elle suit les modifications de l'original) ; `count` + `move` : réseau linéaire ou circulaire de pièces |
@@ -70,8 +71,8 @@ client MCP ──stdio──► mcp/vibecad-mcp.mjs ──POST /__vibecad_mcp─
 | `get_print_plates` | impression 3D : taille du plateau, plateaux et leurs pièces, pièces imprimables, disposition calculée (impressions nécessaires, grammes, avertissements) |
 | `set_print_plate` | crée (`plate: "new"`), renomme ou vide un plateau ; ajoute, met à jour ou retire des pièces (exemplaires, échelle, face posée par index de `list_geometry`) ; une seule action annulable, puis le plateau s'affiche dans Fabrication |
 | `get_laser_layout` | découpe laser : matériaux (épaisseur, plaque, trait de coupe), pièces à découper, disposition calculée (plaque, centre, angle, encombrement de chaque exemplaire), avertissements |
-| `set_laser` | exemplaires, face posée, matériau de chaque pièce ; crée ou règle des matériaux ; espace entre pièces, gravure des noms ; `optimize` imbrique au plus serré (action annulable séparée), `reset_placements` revient au rangement par rangées |
-| `export_laser` | plaques d'un matériau en SVG ou DXF (1:1, mm), écrites sur disque comme `export` : `exports/<projet> - laser - <matériau>.svg` par défaut |
+| `set_laser` | exemplaires, face posée, matériau de chaque pièce ; crée ou règle des matériaux ; espace entre pièces, gravure des noms ; `optimize` imbrique au plus serré (action annulable séparée), `reset_placements` revient au rangement par rangées, `placements` impose plaque, centre et angle quelconque de pièces choisies ; les pièces hors plaque et les chevauchements sont signalés dans `warnings` |
+| `export_laser` | plaques d'un matériau en SVG ou DXF (1:1, mm), écrites sur disque comme `export` : `exports/<projet> - laser - <matériau>.svg` par défaut ; refusé si une pièce dépasse ou en chevauche une autre (sauf `force: true`) |
 | `undo` / `redo` | annuler / rétablir |
 
 ## Paramétrique

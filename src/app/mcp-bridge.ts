@@ -4,6 +4,7 @@
  * projet ouvert. Chaque modification passe par `controller.commit` : elle apparaît dans la vue et
  * l'historique, et Ctrl+Z l'annule comme une action faite à la souris.
  */
+import type { LaserPlacement } from '../domain/model';
 import { addFeature, addPart, findFeature, findPart, makeMirrorFeature, makeSketchFeature, removeFeaturesCascade, removePart, renamePart, replaceFeature, updateFeature, updatePart } from '../domain/document';
 import { addIndependentCopy } from '../domain/ensembles';
 import { AXIS_X_ID, AXIS_Y_ID, ORIGIN_POINT_ID, type CadDocument, type EdgeRef, type FaceRef, type Feature, type FeatureType, type Id, type LaserItem, type LaserMaterial, type Part, type PrintItem, type PrintPlate, type SketchFeature, type SketchParams, type SketchSupport } from '../domain/model';
@@ -21,9 +22,11 @@ import type { StandardView } from '../viewport/camera-rig';
 import { edgeRefFromPick } from './edges';
 import { newLaserMaterial, newPlate, printableParts } from './fabrication';
 import { toDxf, toSvg } from '../io/vector';
-import { findPlanarFace } from './laser';
+import { findPlanarFace, type LaserLayout } from './laser';
+import { placementProblems } from './nesting';
 import { optimizedPlacements } from './laser';
 import type { AppController } from './controller';
+import { isDirty } from './state';
 
 type Args = Record<string, unknown>;
 interface ToolOutput {
@@ -449,6 +452,21 @@ export class McpBridge {
     return materials.find((m) => m.id === ref || m.name === ref) ?? fail(`Matériau « ${ref} » introuvable (voir get_laser_layout).`);
   }
 
+  /**
+   * Pièces hors de leur plaque ou qui en chevauchent une autre, par matériau (même calcul que les
+   * repères rouges de l'atelier laser).
+   */
+  private laserProblems(layout: LaserLayout): { material: string; outside: string[]; overlap: string[] }[] {
+    const label = (p: { name: string; copy: number }) => (p.copy ? `${p.name} (exemplaire ${p.copy + 1})` : p.name);
+    return layout.materials
+      .filter((g) => g.placed.length)
+      .map((g) => {
+        const pr = placementProblems(g.placed, g.material.sheet);
+        return { material: g.material.name, outside: [...pr.outside].map((i) => label(g.placed[i]!)), overlap: [...pr.overlap].map((i) => label(g.placed[i]!)) };
+      })
+      .filter((x) => x.outside.length || x.overlap.length);
+  }
+
   private laserInfo() {
     const doc = this.state.doc;
     const f = this.controller.fabrication().laser;
@@ -491,7 +509,13 @@ export class McpBridge {
         resolved_material: layout.materialOf[i.partId] ?? null,
         thickness: layout.thickness[i.partId] ?? null,
       })),
-      warnings: layout.warnings,
+      warnings: [
+        ...layout.warnings,
+        ...this.laserProblems(layout).flatMap((x) => [
+          ...x.outside.map((n) => `« ${n} » dépasse de sa plaque de ${x.material}.`),
+          ...(x.overlap.length ? [`Pièces qui se chevauchent sur ${x.material} : ${x.overlap.map((n) => `« ${n} »`).join(', ')}.`] : []),
+        ]),
+      ],
     };
   }
 
@@ -562,6 +586,44 @@ export class McpBridge {
     if (changes.length || args.engrave_names !== undefined) {
       const label = `Découpe laser${changes.length ? ` : ${changes.join(', ')}` : ''}`;
       this.controller.updateFabrication((f) => ({ ...f, laser: { ...f.laser, materials, items, spacing, engraveNames } }), label);
+      await this.settle();
+    }
+
+    if (Array.isArray(args.placements) && args.placements.length) {
+      // Position imposée : centre de la pièce (milieu de sa boîte avant rotation), angle quelconque.
+      const layout = this.controller.laserLayout();
+      const byMaterial = new Map<Id, LaserPlacement[]>();
+      const current = (materialId: Id): LaserPlacement[] => {
+        if (!byMaterial.has(materialId)) {
+          const g = layout.materials.find((m) => m.material.id === materialId)!;
+          byMaterial.set(materialId, g.placed.map((p) => ({ partId: p.partId, copy: p.copy, sheet: p.sheet, ...p.placement })));
+        }
+        return byMaterial.get(materialId)!;
+      };
+      for (const raw of args.placements as Args[]) {
+        const part = this.partByIdOrName(raw.part ?? raw.part_id);
+        const materialId = layout.materialOf[part.id] ?? fail(`« ${part.name} » n'est pas à découper (copies : 0) ou n'a pas de matériau.`);
+        const copy = raw.copy === undefined ? 0 : Math.round(num(raw.copy, 'placements.copy'));
+        const list = current(materialId);
+        const i = list.findIndex((p) => p.partId === part.id && p.copy === copy);
+        if (i < 0) fail(`« ${part.name} » n'a pas d'exemplaire n° ${copy} (les exemplaires sont numérotés à partir de 0).`);
+        const prev = list[i]!;
+        const sheet = raw.sheet === undefined ? prev.sheet : Math.round(num(raw.sheet, 'placements.sheet'));
+        if (sheet < 0) fail('placements.sheet : 0 pour la première plaque.');
+        const angle = raw.angle === undefined ? prev.angle : num(raw.angle, 'placements.angle');
+        list[i] = {
+          ...prev,
+          sheet,
+          x: raw.x === undefined ? prev.x : num(raw.x, 'placements.x'),
+          y: raw.y === undefined ? prev.y : num(raw.y, 'placements.y'),
+          angle: ((angle % 360) + 360) % 360,
+        };
+      }
+      const names = (args.placements as Args[]).map((r) => String(r.part ?? r.part_id)).join(', ');
+      this.controller.updateFabrication(
+        (f) => ({ ...f, laser: { ...f.laser, materials: f.laser.materials.map((m) => (byMaterial.has(m.id) ? { ...m, placements: byMaterial.get(m.id)! } : m)) } }),
+        `Placer sur la plaque : ${names}`,
+      );
       await this.settle();
     }
 
@@ -1234,6 +1296,18 @@ export class McpBridge {
         return { result: rounded(await this.setParameters(args)) };
       }
 
+      case 'new_project': {
+        this.requireModelMode();
+        if (isDirty(this.state) && args.force !== true) {
+          fail(`« ${this.state.doc.name} » a des modifications non enregistrées : enregistrez-le dans VibeCAD (Ctrl+S), ou force:true pour les abandonner.`);
+        }
+        this.controller.newProject(true);
+        const name = str(args, 'name')?.trim();
+        if (name) this.controller.renameProject(name);
+        await this.settle();
+        return { result: { name: this.state.doc.name, parts: this.state.doc.parts.map((p) => ({ id: p.id, name: p.name })) } };
+      }
+
       case 'copy_part':
         this.requireModelMode();
         return { result: rounded(await this.copyPart(args)) };
@@ -1325,6 +1399,13 @@ export class McpBridge {
             : groups.length === 1
               ? groups[0]!
               : fail(`Plusieurs matériaux ont des pièces : précisez material (${groups.map((g) => `« ${g.material.name} »`).join(', ')}).`);
+        const bad = this.laserProblems(this.controller.laserLayout()).find((x) => x.material === group.material.name);
+        if (bad && args.force !== true) {
+          fail(
+            `Export refusé : ${[bad.outside.length ? `hors plaque : ${bad.outside.join(', ')}` : '', bad.overlap.length ? `chevauchements : ${bad.overlap.join(', ')}` : ''].filter(Boolean).join(' ; ')}. ` +
+              'Corrigez les placements (set_laser placements, ou optimize), ou force:true pour exporter quand même.',
+          );
+        }
         const vector = this.controller.laserDocument(group.material.id)!;
         const text = format === 'svg' ? toSvg(vector) : toDxf(vector);
         const bytes = new TextEncoder().encode(text);

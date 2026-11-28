@@ -182,6 +182,11 @@ const TOOLS = [
     },
   },
   {
+    name: 'new_project',
+    description: 'Ouvre un nouveau projet vide (une « Pièce 1 » vide), nommé name. Refusé si le projet ouvert a des modifications non enregistrées, sauf force:true (elles seraient perdues : demander d’abord à l’utilisateur).',
+    inputSchema: { type: 'object', properties: { name: { type: 'string' }, force: { type: 'boolean' } } },
+  },
+  {
     name: 'copy_part',
     description:
       'Copie une pièce en une action annulable. mode "copy" (défaut) : copie indépendante, avec son propre historique. ' +
@@ -306,7 +311,9 @@ const TOOLS = [
       'items : [{ part (id ou nom), copies (0 = ne pas découper), face_index (face plane posée sur la plaque, index de list_geometry ; null = plus grande face plane), material (id ou nom ; null = automatique, épaisseur la plus proche) }]. ' +
       'materials : [{ material (id, nom, ou "new"), name, thickness (mm), sheet {w,h} (mm), kerf (mm) }] ; changer la plaque ou le trait remet le rangement automatique. ' +
       'spacing : espace entre pièces (mm). engrave_names : graver le nom des pièces. ' +
-      'optimize : true (tous les matériaux) ou id/nom d’un matériau : imbrication serrée avec rotations (action séparée). reset_placements : true ou id/nom : retour au rangement par rangées.',
+      'optimize : true (tous les matériaux) ou id/nom d’un matériau : imbrication serrée avec rotations par quart de tour (action séparée ; lent sur des pièces très ajourées). reset_placements : true ou id/nom : retour au rangement par rangées. ' +
+      'placements : [{ part, copy (défaut 0), sheet (0 = 1re plaque), x, y (mm, centre de la pièce = milieu de sa boîte avant rotation, origine en bas à gauche de la plaque), angle (degrés, quelconque) }] : position imposée (action séparée) ; les autres pièces gardent leur place. ' +
+      'La réponse (warnings) signale les pièces hors plaque et les chevauchements.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -341,6 +348,10 @@ const TOOLS = [
         engrave_names: { type: 'boolean' },
         optimize: { type: ['boolean', 'string'] },
         reset_placements: { type: ['boolean', 'string'] },
+        placements: {
+          type: 'array',
+          items: { type: 'object', properties: { part: { type: 'string' }, copy: { type: 'integer' }, sheet: { type: 'integer' }, x: { type: 'number' }, y: { type: 'number' }, angle: { type: 'number' } }, required: ['part'] },
+        },
         show: { type: 'boolean', description: 'Afficher les plaques dans l’atelier Fabrication (défaut true).' },
       },
     },
@@ -350,12 +361,13 @@ const TOOLS = [
     description:
       'Exporte les plaques d’un matériau en SVG ou DXF (échelle 1:1, mm ; rouge : découpe, bleu : gravure), une page/calque par plaque. ' +
       'material : id ou nom (obligatoire si plusieurs matériaux ont des pièces). "path" (absolu, ou relatif à la racine du dépôt) ; défaut exports/<projet> - laser - <matériau>.svg|.dxf. ' +
-      'Un fichier existant n’est remplacé qu’avec overwrite:true.',
+      'Un fichier existant n’est remplacé qu’avec overwrite:true. Refusé si une pièce dépasse de sa plaque ou en chevauche une autre, sauf force:true.',
     inputSchema: {
       type: 'object',
       properties: {
         format: { type: 'string', enum: ['svg', 'dxf'] },
         material: { type: 'string' },
+        force: { type: 'boolean' },
         path: { type: 'string' },
         overwrite: { type: 'boolean' },
       },

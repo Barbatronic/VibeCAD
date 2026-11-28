@@ -20,6 +20,8 @@ Ces manques ont été relevés en construisant la tour Eiffel (découpe laser) e
 
 - [x] **`npm run lint:arch` plantait sous Windows** (pathname d'URL utilisé comme chemin) : corrigé avec `fileURLToPath`.
 - [x] **`screenshot` ignorait la vue demandée** : l'animation de caméra n'avance pas dans un onglet en arrière-plan, et `fitAll` repartait de l'ancienne direction. Corrigé dans le pont (vue posée sans animation, en passant par le `viewport` privé du contrôleur). Reste à exposer proprement `animate` dans `controller.setView` (demande un rechargement de la page).
+- [ ] **« Optimiser » (découpe laser) fige l'onglet sur les pièces très ajourées** (relevé le 2026-11-28 sur la tour Eiffel dentelle : 2 profils de 112 trous, 2 à 3 min de gel, le relais MCP abandonne). `rasterize` (`src/app/nesting.ts`) teste chaque case de la grille (~87 000 pour un profil) contre tous les bords (~1 800 segments), pour 4 rotations : plusieurs milliards d'opérations dans le fil principal. À faire : rastérisation par lignes de balayage (croisements par rangée, remplissage des intervalles) et marge de `grow` tracée le long des bords seulement ; éventuellement calcul dans un worker. Modifier ce fichier recharge la page : enregistrer le projet avant. Correctif sur la branche `fix/laser-nesting-perf`.
+- [~] **Une pièce hors de la plaque laser ne donne aucun avertissement** (même jour : profil A déplacé à moitié hors de la plaque 300×300 et chevauchant le profil B, `warnings` vide). `placementProblems` (`src/app/nesting.ts`) n'est utilisé que pour l'affichage de l'atelier (`src/ui/LaserBoard.tsx`) : ses résultats ne remontent pas dans `LaserLayout.warnings` (`src/app/laser.ts`), donc ni `get_laser_layout` ni l'export ne préviennent. À faire : ajouter « hors plaque » et « chevauche … » aux avertissements, et refuser ou signaler l'export dans ce cas. **Côté MCP, fait** : `get_laser_layout` signale « dépasse de sa plaque » et les chevauchements (via `placementProblems`), `export_laser` refuse sauf `force: true` (testé sur le profil A de la tour). **Côté application, sur la branche `fix/laser-placement-warnings`** : avertissement dans l'atelier et à l'export.
 
 ## Fabrication (ajouté dans cette session, à valider)
 
@@ -28,6 +30,10 @@ Ces manques ont été relevés en construisant la tour Eiffel (découpe laser) e
 - [x] `get_print_plates` / `get_laser_layout` : numéro de la face posée (`down_face_index`, `face_index`).
 - [x] Rechargement à chaud de `src/app/mcp-bridge.ts` (testé : le projet ouvert reste intact). Les autres fichiers de `src/` rechargent toujours la page : enregistrer le projet avant.
 - [x] Mettre à jour `docs/assistant-mcp.md` avec les outils de fabrication.
+- [x] `new_project` : nouveau projet vide, refusé si le projet ouvert a des modifications non enregistrées (sauf `force: true`). Testé : ouverture de « Tour Eiffel dentelle » après la voiture enregistrée.
+- [x] **`set_laser` : imposer la position et l'angle des pièces** : `placements: [{ part, copy, sheet, x, y, angle }]` (centre de la pièce, angle quelconque), écrit dans `LaserMaterial.placements` ; les autres pièces gardent leur place. Testé : profil A de la tour posé à 90° au centre d'une 2e plaque, plus d'avertissement.
+- [ ] **Placement sur la diagonale de la plaque** : une fois `placements` en place, vérifier qu'un profil de tour d'environ 330 mm tient sur la diagonale d'une plaque 300 × 300 à 45°, plateaux dans les coins libres, sans dépassement (dépend aussi de l'avertissement « hors plaque » ci-dessus).
+- [ ] **Démo « tour Eiffel dentelle 2 planches »** : le prompt est prêt (`docs/prompt-demo.md`). À lancer une fois réglés `placements`, l'avertissement hors plaque et, de préférence, la lenteur d'« Optimiser ».
 
 ## Ce qui restera en Python
 
