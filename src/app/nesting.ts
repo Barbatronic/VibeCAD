@@ -78,6 +78,11 @@ function segDist(px: number, py: number, a: Vec2, b: Vec2): number {
 /**
  * Cases occupées par une pièce (contours déjà tournés), élargie de `grow` mm : une case est prise
  * si son centre est dans la matière ou à moins de `grow` + une demi-case d'un bord.
+ *
+ * Matière : par rangée de cases, les croisements des bords avec la ligne des centres sont
+ * calculés une fois puis les intervalles remplis (règle pair-impair). Marge : chaque bord ne
+ * teste que les cases de son voisinage. Coût proportionnel à (rangées + longueur des bords) ×
+ * bords, au lieu de cases × bords : indispensable pour les pièces très ajourées.
  */
 function rasterize(loops: readonly Loop[], cell: number, grow: number): { w: number; h: number; ox: number; oy: number; cells: Uint8Array; count: number } {
   const b = loopBounds(loops);
@@ -90,18 +95,36 @@ function rasterize(loops: readonly Loop[], cell: number, grow: number): { w: num
   const reach = grow + cell * 0.5;
   const edges: [Vec2, Vec2][] = [];
   for (const l of loops) for (let i = 0; i < l.length; i++) edges.push([l[i]!, l[(i + 1) % l.length]!]);
-  let count = 0;
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) {
-      const x = ox + (i + 0.5) * cell;
+  // Matière : centres de cases à l'intérieur (même test que `inside`, rangée par rangée).
+  const xs: number[] = [];
+  for (let j = 0; j < h; j++) {
+    const y = oy + (j + 0.5) * cell;
+    xs.length = 0;
+    for (const [a, e] of edges) if (a.y > y !== e.y > y) xs.push(((e.x - a.x) * (y - a.y)) / (e.y - a.y) + a.x);
+    xs.sort((p, q) => p - q);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      // Centres x = ox + (i + 0.5)·cell strictement à gauche du croisement de sortie.
+      const i0 = Math.max(0, Math.ceil((xs[k]! - ox) / cell - 0.5));
+      const i1 = Math.min(w - 1, Math.ceil((xs[k + 1]! - ox) / cell - 0.5) - 1);
+      for (let i = i0; i <= i1; i++) cells[i + w * j] = 1;
+    }
+  }
+  // Marge : cases dont le centre est à moins de `reach` d'un bord.
+  for (const [a, e] of edges) {
+    const i0 = Math.max(0, Math.floor((Math.min(a.x, e.x) - reach - ox) / cell - 0.5));
+    const i1 = Math.min(w - 1, Math.ceil((Math.max(a.x, e.x) + reach - ox) / cell - 0.5));
+    const j0 = Math.max(0, Math.floor((Math.min(a.y, e.y) - reach - oy) / cell - 0.5));
+    const j1 = Math.min(h - 1, Math.ceil((Math.max(a.y, e.y) + reach - oy) / cell - 0.5));
+    for (let j = j0; j <= j1; j++) {
       const y = oy + (j + 0.5) * cell;
-      let on = inside(loops, x, y);
-      if (!on) for (const [a, e] of edges) if (segDist(x, y, a, e) <= reach) { on = true; break; }
-      if (on) {
-        cells[i + w * j] = 1;
-        count++;
+      for (let i = i0; i <= i1; i++) {
+        if (cells[i + w * j]) continue;
+        if (segDist(ox + (i + 0.5) * cell, y, a, e) <= reach) cells[i + w * j] = 1;
       }
     }
+  }
+  let count = 0;
+  for (let k = 0; k < cells.length; k++) count += cells[k]!;
   return { w, h, ox, oy, cells, count };
 }
 
