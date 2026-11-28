@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { centered, loopBounds, nest, placeLoops, placementProblems, type Loop } from '../../src/app/nesting';
 
@@ -48,5 +49,19 @@ describe('imbrication laser', () => {
     const r = placementProblems([a, b, c, d], { w: 300, h: 200 });
     expect([...r.overlap].sort()).toEqual([0, 1]);
     expect([...r.outside]).toEqual([2]);
+  });
+
+  it('pièces très ajourées (tour Eiffel dentelle, 2 × 112 trous) : une plaque, en quelques secondes', () => {
+    // Avant la rastérisation par rangées, ce cas prenait une vingtaine de secondes et figeait l'onglet.
+    const pieces = JSON.parse(readFileSync('tests/fixtures/eiffel-lace-pieces.json', 'utf8')) as { key: string; loops: Loop[] }[];
+    const t0 = performance.now();
+    const pl = nest(pieces, { w: 300, h: 300 }, 3);
+    const ms = performance.now() - t0;
+    expect(pl).toHaveLength(5);
+    expect(pl.every((p) => p.sheet === 0)).toBe(true);
+    const problems = placementProblems(placedLoops(pieces, pl), { w: 300, h: 300 });
+    expect(problems.overlap.size).toBe(0);
+    expect(problems.outside.size).toBe(0);
+    expect(ms).toBeLessThan(8000);
   });
 });
