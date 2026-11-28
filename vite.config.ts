@@ -1,13 +1,14 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import { licensesPlugin, offlinePlugin } from './scripts/vite-plugin-offline.ts';
+import { mcpBridgePlugin } from './scripts/vite-plugin-mcp-bridge.ts';
 
 // Configuration Vite : application statique, aucune ressource chargée depuis un CDN.
 // - `base: './'` permet l'hébergement dans un sous-dossier (ex. GitHub Pages).
 // - Le plugin hors ligne génère le service worker et la liste des fichiers à mettre en cache.
 export default defineConfig({
   base: './',
-  plugins: [licensesPlugin(), offlinePlugin()],
+  plugins: [licensesPlugin(), offlinePlugin(), mcpBridgePlugin()],
   worker: {
     format: 'es',
   },
