@@ -1,7 +1,7 @@
 Avec le MCP vibecad, conçois une tour Eiffel « dentelle » à découper au laser dans du
 contreplaqué de 3 mm, sur 2 planches de 300 × 300 mm. Chaque profil est posé sur la
 DIAGONALE de sa planche (environ 424 mm), pour obtenir la tour la plus haute possible :
-vise 32 à 33 cm en gardant les proportions de la vraie tour.
+vise environ 32 cm en gardant les proportions de la vraie tour.
 
 Principe de montage (aucune colle) :
 - 2 profils plats de même silhouette, qui s'emboîtent en croix à 90° par des fentes
