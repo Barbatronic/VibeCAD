@@ -4459,15 +4459,24 @@ export class AppController {
   /** Disposition actuelle des pièces à découper au laser. */
   laserLayout(): LaserLayout {
     const s = this.state;
+    // La disposition ne dépend que du projet et des maillages. L'atelier la demande à chaque rendu,
+    // depuis plusieurs composants, et l'imbrication autour de pièces placées à la main coûte cher
+    // sur des pièces très ajourées : on garde le dernier calcul tant que rien de cela n'a changé.
+    const memo = this.laserLayoutMemo;
+    if (memo && memo.doc === s.doc && memo.display === s.display) return memo.layout;
     // Tôle pliée : on découpe son développé (la tôle à plat), avec ses lignes de pli.
-    return laserLayout(
+    const layout = laserLayout(
       this.fabrication().laser,
       s.doc.parts,
       (id) => s.display[id]?.result.flat?.mesh ?? s.display[id]?.mesh,
       (id) => s.display[id]?.result.flat?.bends.flatMap((b) => b.lines.map((l) => ({ point: l.point, dir: l.dir, angle: b.angle }))),
       (id) => this.engravingsOf(id),
     );
+    this.laserLayoutMemo = { doc: s.doc, display: s.display, layout };
+    return layout;
   }
+
+  private laserLayoutMemo: { doc: CadDocument; display: AppState['display']; layout: LaserLayout } | null = null;
 
   /** Dessins des opérations Gravure d'une pièce, en 3D (pas sur une tôle dépliée). */
   private engravingsOf(partId: Id): Engraving[] {
