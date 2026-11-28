@@ -7,8 +7,10 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(dirname(new URL(import.meta.url).pathname), '..');
+// fileURLToPath : sous Windows, le pathname d'une URL file:// commence par « /C:/ ».
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 
 /** Pour chaque couche : préfixes de modules internes et paquets externes interdits. */
