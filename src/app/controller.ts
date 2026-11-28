@@ -86,7 +86,7 @@ import { DISPLAY_STYLES, type DisplayStyle } from '../viewport/part-meshes';
 import { importProjectAsSubassembly } from '../io/import-subassembly';
 import { addSubassembly, addSubassemblyInstance, closedDocument, openSubassembly, removeSubassembly, renameSubassembly, subassemblyContains, subassemblyContent, subassemblyList, subassemblyUses } from '../domain/subassemblies';
 import { amsSlots, fabricationSettings, formatSeriesValue, newLaserMaterial, newPlate, printableParts, printLayout, selectedPlate, seriesMark, seriesValues, variantKey, type PrintLayout } from './fabrication';
-import { findPlanarFace, laserLayout, optimizedPlacements, type LaserLayout } from './laser';
+import { findPlanarFace, laserLayout, optimizedPlacements, placementWarnings, type LaserLayout } from './laser';
 import { partEngravings, type Engraving } from './engravings';
 import { toDxf, toSvg, type VectorDocument } from '../io/vector';
 import { billOfMaterials, bomCsv, DEFAULT_DIMENSIONS, technicalDrawing, templatePages, viewFromLines, VIEW_ORDER, VIEWS, type Bom, type DrawingLayout, type ProjectedView, type ViewName } from './drawings';
@@ -4530,6 +4530,9 @@ export class AppController {
     const layout = this.laserLayout();
     const groups = layout.materials.filter((g) => g.placed.length > 0 && (!materialId || g.material.id === materialId));
     if (groups.length === 0) return this.explain('Aucune pièce à découper : indiquez au moins un exemplaire.');
+    // Une pièce hors de sa plaque ou sur une autre gâcherait la planche : on corrige d'abord.
+    const problems = groups.flatMap((g) => placementWarnings(g.placed, g.material));
+    if (problems.length) return this.explain(`${problems.join(' ')} Déplacez ces pièces (ou « Optimiser ») avant d’exporter.`);
     const mime = format === 'svg' ? 'image/svg+xml' : 'application/dxf';
     try {
       for (const g of groups) {

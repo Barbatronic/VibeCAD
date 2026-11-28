@@ -5,7 +5,7 @@
  * SVG et DXF sont dans `io/vector.ts`.
  */
 import type { FabricationSettings, FaceRef, Id, LaserItem, LaserMaterial, LaserPlacement } from '../domain/model';
-import { centered, loopBounds, nest, placeLoops, type Placement } from './nesting';
+import { centered, loopBounds, nest, placeLoops, placementProblems, type Placement } from './nesting';
 import { engravingLoops, type Engraving } from './engravings';
 import { formatLength } from '../domain/units';
 import type { FaceTag, MeshData } from '../geometry/kernel';
@@ -428,10 +428,27 @@ export function laserLayout(
       ];
     });
     if (placed.length < list.length) warnings.push(`« ${material.name} » : certaines pièces n’ont pas trouvé de place sur les plaques.`);
+    warnings.push(...placementWarnings(placed, material));
     const sheets = placed.length ? Math.max(...placed.map((x) => x.sheet)) + 1 : 0;
     return { material, sheets, placed };
   });
   return { materials, placed: materials.flatMap((g) => g.placed), warnings: [...new Set(warnings)], thickness, materialOf };
+}
+
+/**
+ * Pièces placées à la main (ou figées) qui dépassent de leur plaque ou en chevauchent une autre :
+ * la découpe les abîmerait. Même détection que les repères rouges de l'atelier.
+ */
+export function placementWarnings(placed: readonly PlacedOutline[], material: LaserMaterial): string[] {
+  if (placed.length === 0) return [];
+  const { outside, overlap } = placementProblems(placed, material.sheet);
+  const name = (i: number) => {
+    const p = placed[i]!;
+    return p.copy > 0 ? `« ${p.name} » (exemplaire ${p.copy + 1})` : `« ${p.name} »`;
+  };
+  const out = [...outside].map((i) => `${name(i)} dépasse de sa plaque de « ${material.name} » : la découpe l’abîmerait.`);
+  if (overlap.size) out.push(`Pièces qui se chevauchent sur « ${material.name} » : ${[...overlap].map(name).join(', ')}.`);
+  return out;
 }
 
 /** Placements « optimisés » de toutes les pièces d'un matériau (imbrication serrée, rotations). */
