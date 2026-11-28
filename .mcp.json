@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vibecad": {
+      "command": "node",
+      "args": ["mcp/vibecad-mcp.mjs"]
+    }
+  }
+}

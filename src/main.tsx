@@ -39,6 +39,8 @@ async function boot(): Promise<void> {
   await controller.start();
   // Accès de diagnostic pour les tests de bout en bout et le support (console du navigateur).
   (window as unknown as { vibecad?: unknown }).vibecad = { controller, store };
+  // Serveur de développement : pont vers l'assistant de conception (serveur MCP, mcp/vibecad-mcp.mjs).
+  if (import.meta.hot) void import('./app/mcp-bridge').then((m) => m.installMcpBridge(controller));
 }
 
 void boot();

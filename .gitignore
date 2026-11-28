@@ -15,3 +15,5 @@ tests/output/
 /*.vibecad
 # Caches Python (scripts de vérification FreeCAD).
 __pycache__/
+# Exports de l'assistant de conception (serveur MCP).
+/exports/

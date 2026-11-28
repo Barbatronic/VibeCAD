@@ -3321,6 +3321,24 @@ export class AppController {
     this.viewport?.fitAll();
   }
 
+  /**
+   * Contenu d'un export STEP ou STL des pièces choisies (formes finales, à leur place de
+   * modélisation), sans dialogue ni téléchargement : pour l'assistant de conception.
+   */
+  async exportBytes(format: 'step' | 'stl', partIds: Id[]): Promise<{ bytes: Uint8Array; warnings: string[] }> {
+    const doc = this.state.doc;
+    if (format === 'step') {
+      const { text, warnings } = await this.deps.client.exportStep(doc, partIds);
+      return { bytes: new TextEncoder().encode(text), warnings };
+    }
+    return this.deps.client.exportStl(doc, partIds);
+  }
+
+  /** Image PNG (data URL) de la vue 3D telle qu'affichée ; null sans vue. */
+  viewportSnapshot(): string | null {
+    return this.viewport?.snapshotView() ?? null;
+  }
+
   setProjection(projection: Projection): void {
     this.viewport?.setProjection(projection);
     this.set({ projection });

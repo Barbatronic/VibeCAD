@@ -1552,6 +1552,12 @@ export class Viewport {
     return this.input;
   }
 
+  /** Image PNG (data URL) de la vue telle qu'affichée, caméra actuelle comprise. */
+  snapshotView(): string {
+    this.render();
+    return this.renderer.domElement.toDataURL('image/png');
+  }
+
   // Commandes de vue
 
   setStandardView(view: StandardView): void {
