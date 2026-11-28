@@ -932,7 +932,7 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
   if (!o) return null;
   const id = str(v, o, 'id', path);
   const name = str(v, o, 'name', path);
-  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'engrave', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'beam', 'move', 'hole', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
+  const type = oneOf(v, o, 'type', path, ['sketch', 'extrude', 'pocket', 'engrave', 'revolve', 'imported-solid', 'fillet', 'chamfer', 'pattern', 'mirror', 'primitive', 'shell', 'loft', 'sweep', 'split', 'draft', 'thicken', 'gear', 'beam', 'move', 'hole', 'servo', 'plane', 'axis', 'sheet', 'flange', 'fold', 'image'] as const);
   const p = obj(v, o.params, `${path}.params`);
   if (!p) return null;
   const pp = `${path}.params`;
@@ -1092,6 +1092,27 @@ function readFeatureBody(v: Validator, x: unknown, path: string): Feature | null
           ...(p.thread !== undefined ? { thread: oneOf(v, p, 'thread', pp, ['tap', 'plastic', 'insert'] as const) } : {}),
         },
       };
+    case 'servo': {
+      const t = p.target === undefined ? null : (obj(v, p.target, `${pp}.target`) ?? {});
+      const tp = `${pp}.target`;
+      return {
+        id,
+        name,
+        type,
+        params: {
+          standard: oneOf(v, p, 'standard', pp, ['mg90s', '25t', 'custom'] as const),
+          teeth: num(v, p, 'teeth', pp, { min: 1, integer: true }),
+          tipDiameter: num(v, p, 'tipDiameter', pp, { min: 0 }),
+          rootDiameter: num(v, p, 'rootDiameter', pp, { min: 0 }),
+          depth: num(v, p, 'depth', pp, { min: 0 }),
+          screwDiameter: num(v, p, 'screwDiameter', pp, { min: 0 }),
+          reversed: bool(v, p, 'reversed', pp, false),
+          ...(t
+            ? { target: t.kind === 'sketch' ? { kind: 'sketch' as const, ...readSketchElementRef(v, t, tp) } : { kind: 'edge' as const, edge: readEdgeRefIn(v, t.edge, `${tp}.edge`) } }
+            : {}),
+        },
+      };
+    }
     case 'move': {
       const vec = (key: string) => {
         const o = obj(v, p[key], `${pp}.${key}`) ?? {};

@@ -114,6 +114,13 @@ le projet avec son historique (esquisses cotées, étapes Part Design, paramètr
   donne les diamètres et l'entraxe ; deux roues de même module engrènent (vérifié par le calcul :
   à l'entraxe théorique, elles ne se rentrent pas dedans). Profils de poulie approchés : impression
   d'essai recommandée.
+- **Cannelure servo** (secteur « Générer », niveau Intermédiaire) : l'empreinte crantée de l'axe
+  d'un servomoteur et le trou de sa vis, pour imprimer un palonnier ou un bras qui se monte
+  directement sur le servo. Elle se centre sur le bord rond d'un bossage ou d'un trou cliqué dans
+  la vue 3D (et entre d'elle-même dans la matière), ou sur un point ou un cercle d'esquisse.
+  Réglages tout faits : **MG90S** (21 dents, relevés sur un palonnier imprimé qui tient) et
+  **25 dents** (MG996R, MG995 : à confirmer par une impression d'essai) ; toutes les cotes restent
+  modifiables.
 - **Répétition** d'une extrusion, d'une poche (un trou…) ou d'une révolution : en ligne, en
   grille (deux directions) ou en cercle, le long d'un axe X / Y / Z ou d'une arête cliquée (bord
   droit, ou bord d'un trou pour tourner autour de son axe), avec aperçu. Plusieurs étapes peuvent

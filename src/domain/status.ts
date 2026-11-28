@@ -63,6 +63,10 @@ export type FeatureIssueCode =
   | 'AXIS_LOST'
   | 'HOLE_NO_CENTER'
   | 'HOLE_REMOVES_NOTHING'
+  | 'SERVO_WITHOUT_SOLID'
+  | 'SERVO_TARGET_LOST'
+  | 'SERVO_NOT_ROUND'
+  | 'SERVO_REMOVES_NOTHING'
   | 'BLEND_FAILED'
   | 'SHEET_REQUIRED'
   | 'SHEET_ALREADY'
@@ -155,6 +159,10 @@ export const ISSUE_MESSAGES: Record<FeatureIssueCode, string> = {
   HOLE_WITHOUT_SOLID: 'Un perçage retire de la matière : créez d’abord un volume avec une extrusion.',
   HOLE_NO_CENTER: 'L’esquisse n’a ni point ni cercle : posez un point (outil Point) ou un petit cercle à l’endroit de chaque trou.',
   HOLE_REMOVES_NOTHING: 'Le perçage ne touche pas la pièce : vérifiez la position des cercles et le sens (« Côté opposé »).',
+  SERVO_WITHOUT_SOLID: 'La cannelure se creuse dans la matière : créez d’abord le volume du palonnier (une extrusion).',
+  SERVO_TARGET_LOST: 'Le bord rond ou l’élément d’esquisse qui centre la cannelure n’existe plus : cliquez un autre bord rond, ou choisissez un point d’esquisse.',
+  SERVO_NOT_ROUND: 'Le bord choisi n’est pas rond : cliquez le bord circulaire d’un bossage ou d’un trou.',
+  SERVO_REMOVES_NOTHING: 'La cannelure ne touche pas la pièce : vérifiez l’emplacement et le sens (« Côté opposé »).',
   MIRROR_NOTHING_ADDED: 'La copie symétrique se superpose à la pièce : rien n’a changé. Choisissez un autre plan (par exemple une face du bord).',
   REFERENCE_LOST:
     'Une arête reprise de la pièce n’existe plus : elle garde sa dernière position. Supprimez-la de l’esquisse ou reprenez une autre arête.',

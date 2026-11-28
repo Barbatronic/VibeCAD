@@ -29,6 +29,8 @@ import type {
   BeamFeature,
   MoveFeature,
   HoleFeature,
+  ServoFeature,
+  ServoTarget,
   PlaneFeature,
   AxisFeature,
   GearKind,
@@ -86,6 +88,7 @@ const FEATURE_PREFIX: Record<FeatureType, string> = {
   beam: 'Profilé',
   move: 'Déplacement',
   hole: 'Perçage',
+  servo: 'Cannelure servo',
   plane: 'Plan',
   axis: 'Axe',
   sheet: 'Tôle',
@@ -349,7 +352,7 @@ export function nextFeatureName(part: Part, type: FeatureType): string {
 }
 
 export function newFeatureId(doc: CadDocument, type: FeatureType): Id {
-  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', engrave: 'gr', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', beam: 'bm', move: 'mv', hole: 'ho', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
+  const prefix = { sketch: 'sk', extrude: 'ex', pocket: 'po', engrave: 'gr', revolve: 're', 'imported-solid': 'im', fillet: 'fi', chamfer: 'ch', pattern: 'pa', mirror: 'mi', primitive: 'pr', shell: 'sh', loft: 'lo', sweep: 'sw', split: 'sp', draft: 'dp', thicken: 'th', gear: 'ge', beam: 'bm', move: 'mv', hole: 'ho', servo: 'sv', plane: 'pl', axis: 'ax', sheet: 'st', flange: 'fl', fold: 'fo', image: 'img' }[type];
   return createId(prefix, allIds(doc));
 }
 
@@ -503,6 +506,16 @@ export function makeHoleFeature(doc: CadDocument, part: Part, sketchId: Id, reve
     type: 'hole',
     name: nextFeatureName(part, 'hole'),
     params: { sketchId, kind: 'clearance', size: 'M3', fit: 'medium', through: true, depth: 10, reversed, headDiameter: 6.5, headDepth: 3.4 },
+  };
+}
+
+/** Cannelure de servo réglée pour un MG90S (21 dents), centrée sur `target` s'il est donné. */
+export function makeServoFeature(doc: CadDocument, part: Part, target?: ServoTarget): ServoFeature {
+  return {
+    id: newFeatureId(doc, 'servo'),
+    type: 'servo',
+    name: nextFeatureName(part, 'servo'),
+    params: { standard: 'mg90s', teeth: 21, tipDiameter: 5.25, rootDiameter: 4.4, depth: 3, screwDiameter: 2.8, reversed: false, ...(target ? { target } : {}) },
   };
 }
 

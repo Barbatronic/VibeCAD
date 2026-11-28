@@ -218,7 +218,7 @@ const PART_SECTORS: { name: string; title: string; fold: number; types: FeatureT
   { name: 'Répéter', title: 'répétitions, symétries et déplacements', fold: 1, types: ['pattern', 'mirror', 'move'], main: ['pattern', 'mirror'] },
   // Générateurs : une pièce complète à partir de quelques réglages (pas d'esquisse à dessiner).
   // « Forme » (outil de débutant) reste sortie quand le secteur se regroupe.
-  { name: 'Générer', title: 'formes toutes faites et pièces générées à partir de réglages : engrenages, profilés', fold: 6, types: ['primitive', 'gear', 'beam'], main: ['primitive'] },
+  { name: 'Générer', title: 'formes toutes faites et pièces générées à partir de réglages : engrenages, cannelures de servo, profilés', fold: 6, types: ['primitive', 'gear', 'servo', 'beam'], main: ['primitive'] },
   { name: 'Tôle', title: 'tôlerie et pliage : tôle, bords pliés, plis', fold: 0, types: ['sheet', 'flange', 'fold'], main: ['sheet'] },
 ];
 

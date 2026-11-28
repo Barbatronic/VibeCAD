@@ -659,7 +659,7 @@ export function buildViewportInput(s: AppState, simulation: { partId: string | n
 
   const tool = mode === 'feature' && s.preview?.tool ? { key: s.preview.tool.key, mesh: s.preview.tool.mesh, kind: s.preview.tool.kind } : null;
   const measure = s.mode.kind === 'measure' && s.mode.info?.segment ? s.mode.info.segment : null;
-  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || s.mode.draft.feature.type === 'plane' || s.mode.draft.feature.type === 'axis' || (s.mode.draft.feature.type === 'revolve' && s.mode.draft.fields.pick === 'axis') || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell' || s.mode.draft.feature.type === 'flange');
+  const featurePicking = s.mode.kind === 'feature' && (s.mode.draft.feature.type === 'fillet' || s.mode.draft.feature.type === 'chamfer' || s.mode.draft.feature.type === 'pattern' || s.mode.draft.feature.type === 'mirror' || s.mode.draft.feature.type === 'split' || s.mode.draft.feature.type === 'draft' || s.mode.draft.feature.type === 'plane' || s.mode.draft.feature.type === 'axis' || (s.mode.draft.feature.type === 'revolve' && s.mode.draft.fields.pick === 'axis') || (s.mode.draft.feature.type === 'extrude' && s.mode.draft.fields.pick === 'upTo') || s.mode.draft.feature.type === 'shell' || s.mode.draft.feature.type === 'flange' || s.mode.draft.feature.type === 'servo');
   // Arêtes déjà choisies (congé, chanfrein, bord plié) : surlignées sur la pièce d'avant l'opération.
   const draft = s.mode.kind === 'feature' ? s.mode.draft : null;
   const draftEdges = draft && (draft.feature.type === 'fillet' || draft.feature.type === 'chamfer' || draft.feature.type === 'flange') ? draft.feature.params.edges : [];
@@ -1090,7 +1090,7 @@ function Banner() {
     (s) => {
       if (s.mode.kind === 'sketch') return { kind: 'sketch', text: `Mode esquisse — outil ${TOOL_LABELS[s.mode.session.tool]}` };
       if (s.gizmoReadout) return { kind: 'sketch', text: s.gizmoReadout };
-      if (s.mode.kind === 'feature') return { kind: s.mode.draft.feature.type === 'pocket' || s.mode.draft.feature.type === 'hole' ? 'preview cut' : 'preview', text: 'Aperçu — non validé' };
+      if (s.mode.kind === 'feature') return { kind: s.mode.draft.feature.type === 'pocket' || s.mode.draft.feature.type === 'hole' || s.mode.draft.feature.type === 'servo' ? 'preview cut' : 'preview', text: 'Aperçu — non validé' };
       if (s.mode.kind === 'pick-support') return { kind: 'sketch', text: 'Choisissez un plan ou une face plane' };
       if (s.mode.kind === 'measure') return { kind: 'sketch', text: 'Mesure : cliquez des arêtes ou des faces' };
       const stale = s.doc.parts.find((p) => s.display[p.id]?.stale);

@@ -45,7 +45,7 @@ import {
 import { renderSettings, storedRender, type RenderSettings } from '../domain/render';
 import { addIndependentCopy, addLinkedCopy, createEnsemble, dissolveEnsemble, ensembleOf, movePartToEnsemble, partIsJointed, renameEnsemble } from '../domain/ensembles';
 import { addFolder, folderList, removeFolder, renameFolder, setFolderVisible, setPartFolder } from '../domain/folders';
-import type { Assembly, ControlLawSpec, ScenarioTimeline, TimelineKey, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, Part, PartComponent } from '../domain/model';
+import type { Assembly, ControlLawSpec, ScenarioTimeline, TimelineKey, SketchEntity, DrawingDimension, DrawingTitle, PartDrawing, MotionDof, MotionScenario, AssemblyFastener, AssemblyInstance, AssemblyJoint, CadDocument, JointEnd, FabricationSettings, Feature, FeatureType, Id, JointKind, LaserMaterial, MirrorFeature, ExtrudeFeature, PatternFeature, PlaneFeature, AxisFeature, SplitFeature, DraftFeature, ShellFeature, FaceRef, PlaneName, JointCoupling, ProjectParameter, PrintItem, PrintPlate, PrintSeries, SimulationStudy, StudyFace, SketchFeature, SketchSupport, ImageFeature, LaserPlacement, MechanismStudy, MoveFeature, RevolveFeature, ServoFeature, Part, PartComponent } from '../domain/model';
 import { ASSEMBLY_STUDY } from '../domain/model';
 import { expressionNames, formatArea, formatLength, formatNumber, formatVolume, PARAMETER_NAME, setParameterScope } from '../domain/units';
 import { applyParameters, parameterUses, renameParameterUses, resolveParameters } from '../features/parameters';
@@ -53,6 +53,7 @@ import type { FeatureDefinition, ToolInput } from '../features/definition';
 import type { FeatureDraft, FieldUpdate } from '../features/panel-types';
 import { FEATURE_DEFINITIONS, featureDependencies } from '../features/registry';
 import { moveDefinition } from '../features/move/definition';
+import { servoTargetInSketch } from '../features/servo/definition';
 import { pickFaceReference } from '../features/sketch/support';
 import type { GeometryClient } from '../geometry/client';
 import type { ExportPlacement, MeasureTarget, PartResult, VariantZone } from '../geometry/protocol';
@@ -1882,10 +1883,18 @@ export class AppController {
     } else {
       // Arête déjà sélectionnée dans la vue : elle devient la première arête de l'opération.
       const mesh = this.state.display[part.id]?.mesh;
-      const pick = sel?.kind === 'edge' && mesh ? edgeRefFromPick(mesh, sel.index, part, null) : null;
+      // Cannelure de servo : seulement un bord rond.
+      const round = type !== 'servo' || (sel?.kind === 'edge' && mesh?.edges[sel.index]?.curve === 'circle');
+      const pick = sel?.kind === 'edge' && mesh && round ? edgeRefFromPick(mesh, sel.index, part, null) : null;
       input = { kind: 'edges', edges: pick?.kind === 'ref' ? [pick.ref] : [] };
     }
-    const feature = tool.create(this.state.doc, part, input, { sketchFrame, partBounds: result?.analysis?.bbox ?? null });
+    let feature = tool.create(this.state.doc, part, input, { sketchFrame, partBounds: result?.analysis?.bbox ?? null });
+    // Cannelure de servo lancée avec une esquisse sélectionnée : centrée sur son cercle ou son point.
+    if (feature.type === 'servo' && input.kind === 'edges' && input.edges.length === 0 && sel?.kind === 'feature') {
+      const sketch = part.features.find((f) => f.id === sel.featureId);
+      const target = sketch?.type === 'sketch' ? servoTargetInSketch(sketch) : null;
+      if (target) feature = { ...feature, params: { ...feature.params, target } };
+    }
     this.openDraft({ partId: part.id, isNew: true, feature, fields: tool.initialFields(feature), errors: {} });
   }
 
@@ -1911,6 +1920,7 @@ export class AppController {
     if (feature.type === 'plane') return this.pickDatumPlane(pick, feature);
     if (feature.type === 'revolve' && draft.fields.pick === 'axis') return this.pickRevolveAxis(pick, feature);
     if (feature.type === 'axis') return this.pickDatumAxis(pick, feature);
+    if (feature.type === 'servo') return this.pickServoEdge(pick, feature);
     if (feature.type === 'draft') return this.pickDraftFace(pick, feature);
     if (feature.type === 'extrude') return this.pickExtrudeUpTo(pick, feature);
     if (feature.type === 'shell') return this.pickShellFace(pick, feature);
@@ -2139,6 +2149,21 @@ export class AppController {
     const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
     if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez une arête de la pièce.');
     this.updateDraft(() => ({ ...feature, params: { ...feature.params, kind: 'edge', edge: r.ref } }));
+  }
+
+  /** Clic dans la vue pendant l'édition d'une cannelure de servo : le bord rond cliqué la centre. */
+  private pickServoEdge(pick: ModelPick, feature: ServoFeature): void {
+    const mode = this.state.mode;
+    if (mode.kind !== 'feature') return;
+    if (pick.partId !== mode.draft.partId) return this.explain('Choisissez un bord rond de la pièce en cours de modification.');
+    if (pick.kind !== 'edge') return this.explain('Cliquez le bord rond (une arête circulaire) d’un bossage ou d’un trou : la cannelure se centre dessus.');
+    const mesh = this.displayedMesh(pick.partId);
+    const part = findPart(this.state.doc, pick.partId);
+    if (!mesh || !part) return;
+    if (mesh.edges[pick.index]?.curve !== 'circle') return this.explain('Cette arête n’est pas ronde : cliquez le bord circulaire d’un bossage ou d’un trou.');
+    const r = edgeRefFromPick(mesh, pick.index, part, feature.id);
+    if (r.kind !== 'ref') return this.explain(r.kind === 'invalid' ? r.reason : 'Choisissez un bord de la pièce, pas de la cannelure elle-même.');
+    this.updateDraft(() => ({ ...feature, params: { ...feature.params, target: { kind: 'edge', edge: r.ref } } }));
   }
 
   /** Clic dans la vue pendant l'édition d'une répétition : l'arête cliquée devient la direction ou l'axe. */

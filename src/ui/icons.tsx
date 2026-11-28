@@ -872,6 +872,13 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M12 3.5v2.5M12 18v2.5M3.5 12H6M18 12h2.5M6 6l1.8 1.8M16.2 16.2L18 18M6 18l1.8-1.8M16.2 7.8L18 6" />
     </>
   ),
+  /** Cannelure de servo : étoile crantée et trou de vis au centre. */
+  servo: (
+    <>
+      <path d="M12.0 3.5L13.7 5.6L16.2 4.6L16.7 7.3L19.4 7.8L18.4 10.3L20.5 12.0L18.4 13.7L19.4 16.2L16.7 16.7L16.2 19.4L13.7 18.4L12.0 20.5L10.3 18.4L7.8 19.4L7.3 16.7L4.6 16.3L5.6 13.7L3.5 12.0L5.6 10.3L4.6 7.7L7.3 7.3L7.7 4.6L10.3 5.6z" />
+      <circle cx="12" cy="12" r="2.2" />
+    </>
+  ),
   /** Plus d'outils (trois points). */
   more: (
     <>

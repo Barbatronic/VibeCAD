@@ -2454,6 +2454,100 @@
         {
           "properties": {
             "type": {
+              "const": "servo"
+            },
+            "params": {
+              "type": "object",
+              "description": "Cannelure de servomoteur : empreinte femelle en étoile de l'axe cranté (teeth dents, entre les Ø rootDiameter et tipDiameter) sur depth mm, et trou de vis screwDiameter (0 : aucun) à travers la pièce. standard : réglages tout faits (mg90s : 21 dents ; 25t : 25 dents, MG996R) ou custom. target : bord circulaire de la pièce (kind = edge, son axe) ou point ou cercle d'esquisse (kind = sketch, axe perpendiculaire à l'esquisse). Creuse dans la matière, à l'opposé de la normale de la face ou de l'esquisse ; reversed : de l'autre côté.",
+              "required": [
+                "standard",
+                "teeth",
+                "tipDiameter",
+                "rootDiameter",
+                "depth",
+                "screwDiameter",
+                "reversed"
+              ],
+              "properties": {
+                "standard": {
+                  "enum": [
+                    "mg90s",
+                    "25t",
+                    "custom"
+                  ]
+                },
+                "teeth": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tipDiameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "mm, fond des creux de l'empreinte"
+                },
+                "rootDiameter": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "mm, pointes de l'empreinte"
+                },
+                "depth": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "mm"
+                },
+                "screwDiameter": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "mm, 0 : pas de trou de vis"
+                },
+                "reversed": {
+                  "type": "boolean"
+                },
+                "target": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "edge"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "edge"
+                        },
+                        "edge": {
+                          "$ref": "#/$defs/edgeRef"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "sketchId",
+                        "entityId"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "sketch"
+                        },
+                        "sketchId": {
+                          "$ref": "#/$defs/id"
+                        },
+                        "entityId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "type": {
               "const": "plane"
             },
             "params": {

@@ -540,7 +540,7 @@ export interface PartComponent {
   editable?: boolean;
 }
 
-export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | BeamFeature | MoveFeature | HoleFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
+export type Feature = SketchFeature | ExtrudeFeature | PocketFeature | EngraveFeature | RevolveFeature | ImportedSolidFeature | FilletFeature | ChamferFeature | PatternFeature | MirrorFeature | PrimitiveFeature | ShellFeature | LoftFeature | SweepFeature | SplitFeature | DraftFeature | ThickenFeature | GearFeature | BeamFeature | MoveFeature | HoleFeature | ServoFeature | PlaneFeature | AxisFeature | SheetFeature | FlangeFeature | FoldFeature | ImageFeature;
 export type FeatureType = Feature['type'];
 
 interface FeatureBase<T extends string, P> {
@@ -598,6 +598,7 @@ export type DraftFeature = FeatureBase<'draft', DraftParams>;
 export type ThickenFeature = FeatureBase<'thicken', ThickenParams>;
 export type MoveFeature = FeatureBase<'move', MoveParams>;
 export type HoleFeature = FeatureBase<'hole', HoleParams>;
+export type ServoFeature = FeatureBase<'servo', ServoParams>;
 /** Plan et axe de construction : `visible` faux, masqués dans la vue 3D (absent : affichés). */
 export type PlaneFeature = FeatureBase<'plane', DatumPlaneParams> & { visible?: boolean };
 export type AxisFeature = FeatureBase<'axis', DatumAxisParams> & { visible?: boolean };
@@ -1415,6 +1416,36 @@ export interface HoleParams {
   reversed: boolean;
   headDiameter: number;
   headDepth: number;
+}
+
+/**
+ * Cannelure de servomoteur : empreinte femelle de l'axe cannelé (palonnier imprimé), creusée dans
+ * la pièce. `standard` : réglages tout faits (`custom` dès qu'un nombre est changé à la main).
+ */
+export type ServoSpline = 'mg90s' | '25t' | 'custom';
+
+/**
+ * Centre de la cannelure : le bord rond d'un bossage ou d'un trou cliqué dans la vue 3D (son axe),
+ * ou un point d'esquisse ou le centre d'un cercle d'esquisse (axe perpendiculaire à l'esquisse).
+ */
+export type ServoTarget = { kind: 'edge'; edge: EdgeRef } | { kind: 'sketch'; sketchId: Id; entityId: string };
+
+export interface ServoParams {
+  standard: ServoSpline;
+  /** Nombre de dents de l'axe du servo (21 pour un MG90S, 25 pour un MG996R). */
+  teeth: number;
+  /** Ø extérieur de l'empreinte en étoile : fond des creux où entrent les dents de l'axe (mm). */
+  tipDiameter: number;
+  /** Ø intérieur : pointes de l'empreinte, qui vont au pied des dents de l'axe (mm). */
+  rootDiameter: number;
+  /** Profondeur de l'empreinte cannelée (mm). */
+  depth: number;
+  /** Ø du trou de la vis du palonnier, à travers toute la pièce (0 : aucun). */
+  screwDiameter: number;
+  /** Absent tant que rien n'est choisi. */
+  target?: ServoTarget;
+  /** Vrai : creuse de l'autre côté (vers la normale de la face ou de l'esquisse). */
+  reversed: boolean;
 }
 
 export interface ImportedSolidParams {

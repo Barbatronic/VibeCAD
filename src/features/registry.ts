@@ -19,6 +19,7 @@ import { gearDefinition } from './gear/definition';
 import { beamDefinition } from './beam/definition';
 import { moveDefinition } from './move/definition';
 import { holeDefinition } from './hole/definition';
+import { servoDefinition } from './servo/definition';
 import { planeDefinition } from './plane/definition';
 import { axisDefinition } from './axis/definition';
 import { mirrorDefinition } from './mirror/definition';
@@ -37,6 +38,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   extrude: extrudeDefinition,
   primitive: primitiveDefinition,
   gear: gearDefinition,
+  servo: servoDefinition,
   beam: beamDefinition,
   move: moveDefinition,
   hole: holeDefinition,
